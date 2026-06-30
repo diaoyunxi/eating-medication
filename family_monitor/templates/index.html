@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ app_name }} - 用心守护每一位老人的健康</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css">
     <style>
         /* 页面特定样式 */
         .hero-section {
@@ -302,38 +302,38 @@
     <!-- 导航栏 -->
     <nav class="navbar">
         <div class="navbar-container">
-            <a href="/" class="navbar-brand">
+            <a href="{{ prefix }}/" class="navbar-brand">
                 <div class="navbar-logo">🏠</div>
                 <span class="navbar-title">{{ app_name }}</span>
             </a>
             <div class="navbar-nav">
-                <a href="/" class="nav-link active">
+                <a href="{{ prefix }}/" class="nav-link active">
                     <span class="nav-link-icon">🏠</span>
                     <span>首页</span>
                 </a>
-                <a href="/dashboard" class="nav-link">
+                <a href="{{ prefix }}/dashboard" class="nav-link">
                     <span class="nav-link-icon">📊</span>
                     <span>仪表板</span>
                 </a>
-                <a href="/reminders" class="nav-link">
+                <a href="{{ prefix }}/reminders" class="nav-link">
                     <span class="nav-link-icon">⏰</span>
                     <span>提醒</span>
                 </a>
-                <a href="/records" class="nav-link">
+                <a href="{{ prefix }}/records" class="nav-link">
                     <span class="nav-link-icon">📋</span>
                     <span>记录</span>
                 </a>
-                <a href="/chat" class="nav-link">
+                <a href="{{ prefix }}/chat" class="nav-link">
                     <span class="nav-link-icon">💬</span>
                     <span>消息</span>
                 </a>
-                <a href="/settings" class="nav-link">
+                <a href="{{ prefix }}/settings" class="nav-link">
                     <span class="nav-link-icon">⚙️</span>
                     <span>设置</span>
                 </a>
                 <div class="nav-user">
                     <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
-                    <a href="/logout" class="btn btn-outline btn-sm">
+                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm">
                         <span>🚪</span>
                         <span>登出</span>
                     </a>
@@ -417,28 +417,28 @@
             <span>快捷操作</span>
         </div>
         <div class="card-grid">
-            <a href="/reminders" class="feature-card animate-fade-in stagger-1">
+            <a href="{{ prefix }}/reminders" class="feature-card animate-fade-in stagger-1">
                 <div class="feature-icon-wrapper">⏰</div>
                 <h3 class="feature-title">用药提醒</h3>
                 <p class="feature-desc">查看和管理所有用药提醒，确保老人按时服药</p>
                 <div class="feature-arrow">→</div>
             </a>
             
-            <a href="/records" class="feature-card animate-fade-in stagger-2">
+            <a href="{{ prefix }}/records" class="feature-card animate-fade-in stagger-2">
                 <div class="feature-icon-wrapper">📋</div>
                 <h3 class="feature-title">用药记录</h3>
                 <p class="feature-desc">查看完整的用药历史记录，追踪健康状况</p>
                 <div class="feature-arrow">→</div>
             </a>
             
-            <a href="/dashboard" class="feature-card animate-fade-in stagger-3">
+            <a href="{{ prefix }}/dashboard" class="feature-card animate-fade-in stagger-3">
                 <div class="feature-icon-wrapper">📊</div>
                 <h3 class="feature-title">健康仪表板</h3>
                 <p class="feature-desc">数据可视化展示，一目了然掌握健康趋势</p>
                 <div class="feature-arrow">→</div>
             </a>
             
-            <a href="/settings" class="feature-card animate-fade-in stagger-4">
+            <a href="{{ prefix }}/settings" class="feature-card animate-fade-in stagger-4">
                 <div class="feature-icon-wrapper">⚙️</div>
                 <h3 class="feature-title">系统设置</h3>
                 <p class="feature-desc">个性化配置，让系统更符合您的使用习惯</p>
@@ -643,7 +643,7 @@
         
         // 自动刷新连接状态（每30秒）
         setInterval(function() {
-            fetch('/status')
+            fetch('{{ prefix }}/status')
                 .then(response => response.json())
                 .then(data => {
                     const statusCard = document.querySelector('.status-card');

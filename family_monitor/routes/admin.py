@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin")
 
 templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
+# 注入路径前缀变量，供模板链接加前缀
+templates.env.globals["prefix"] = config.PATH_PREFIX
 
 
 @router.get("/administrator/setting")
@@ -49,9 +51,6 @@ async def admin_settings(request: Request):
             "server_port": config.SERVER_PORT,
             "debug_mode": config.DEBUG,
             "secret_key": config.SECRET_KEY,
-            "ssl_certfile": config.SSL_CERTFILE,
-            "ssl_keyfile": config.SSL_KEYFILE,
-            "ssl_ca_bundle": config.SSL_CA_BUNDLE,
         }
     )
 
@@ -91,9 +90,6 @@ async def update_server_config(
 async def update_security_config(
     request: Request,
     secret_key: str = Form(""),
-    ssl_certfile: str = Form(""),
-    ssl_keyfile: str = Form(""),
-    ssl_ca_bundle: str = Form(""),
 ):
     """更新安全配置"""
     session_token = request.cookies.get("session_token")
@@ -111,9 +107,6 @@ async def update_security_config(
         return JSONResponse({"success": False, "message": "无权限"}, status_code=403)
 
     config.SECRET_KEY = secret_key
-    config.SSL_CERTFILE = ssl_certfile
-    config.SSL_KEYFILE = ssl_keyfile
-    config.SSL_CA_BUNDLE = ssl_ca_bundle
     config.save_config()
 
     logger.info(f"管理员 {username} 更新了安全配置")

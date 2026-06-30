@@ -30,9 +30,13 @@ class Config:
         self.SERVER_HOST = os.getenv('SERVER_HOST', '0.0.0.0')
         self.SERVER_PORT = int(os.getenv('SERVER_PORT', '4430'))
 
-        self.ELDERLY_SERVER_URL = os.getenv('ELDERLY_SERVER_URL', 'http://localhost:1059')
+        # 老人端（服务端）地址，默认走 Cloudflare 隧道公网域名
+        self.ELDERLY_SERVER_URL = os.getenv('ELDERLY_SERVER_URL', 'https://my-website.ccwu.cc/eating-medication/server')
 
         self.API_KEY = os.getenv('API_KEY', '')
+
+        # 路径前缀（Cloudflare 隧道子路径），本地直连设为空
+        self.PATH_PREFIX = os.getenv('PATH_PREFIX', '/eating-medication/family').rstrip('/')
 
         self.DISPLAY_SETTINGS = {
             'theme': os.getenv('DISPLAY_THEME', 'light'),
@@ -53,11 +57,6 @@ class Config:
 
         self.DATA_DIR = self.BASE_DIR / 'data'
         self.DATA_DIR.mkdir(exist_ok=True)
-
-        # SSL证书配置（支持.pem, .crt, .cer, .key 等格式）
-        self.SSL_CERTFILE = os.getenv('SSL_CERTFILE', '')
-        self.SSL_KEYFILE = os.getenv('SSL_KEYFILE', '')
-        self.SSL_CA_BUNDLE = os.getenv('SSL_CA_BUNDLE', '')
 
     def _load_from_json(self):
         """从JSON配置文件加载配置"""
@@ -80,9 +79,7 @@ class Config:
             'DEBUG': str(self.DEBUG),
             'APP_NAME': self.APP_NAME,
             'SECRET_KEY': self.SECRET_KEY,
-            'SSL_CERTFILE': self.SSL_CERTFILE,
-            'SSL_KEYFILE': self.SSL_KEYFILE,
-            'SSL_CA_BUNDLE': self.SSL_CA_BUNDLE,
+            'PATH_PREFIX': self.PATH_PREFIX,
             'DISPLAY_THEME': self.DISPLAY_SETTINGS.get('theme', 'light'),
             'DISPLAY_COLOR': self.DISPLAY_SETTINGS.get('color', 'purple'),
             'DISPLAY_LANGUAGE': self.DISPLAY_SETTINGS.get('language', 'zh-CN'),

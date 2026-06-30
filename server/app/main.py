@@ -4,11 +4,12 @@ FastAPI 应用入口 - 最终版
 创建并配置 FastAPI 实例，注册路由、中间件、异常处理器，并启动后台定时任务。
 """
 
+import os
 import logging
 import sys
 import json
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -78,13 +79,17 @@ async def lifespan(app: FastAPI):
     logger.info("="*60)
 
 
+# 路径前缀（Cloudflare 隧道子路径），本地直连设为空
+PATH_PREFIX = getattr(settings, "PATH_PREFIX", os.getenv("PATH_PREFIX", "/eating-medication/server")).rstrip("/")
+
 # 创建 FastAPI 实例
 app = FastAPI(
     title=settings.APP_NAME,
-    version="2.0.0",
+    version="2.1.0",
     description="老人用药管理智能助手后端 API",
     debug=settings.DEBUG,
-    lifespan=lifespan
+    lifespan=lifespan,
+    root_path=PATH_PREFIX,
 )
 
 # ==================== 中间件配置 ====================
@@ -100,6 +105,28 @@ app.add_middleware(
 
 # 请求日志中间件
 app.add_middleware(LoggingMiddleware)
+
+# 路径前缀中间件（Cloudflare 隧道子路径，最先执行：剥离前缀供路由匹配，响应时给重定向加前缀）
+@app.middleware("http")
+async def path_prefix_middleware(request: Request, call_next):
+    if PATH_PREFIX:
+        original = request.scope.get("path", "")
+        if original == PATH_PREFIX:
+            request.scope["path"] = "/"
+            request.scope["raw_path"] = b"/"
+        elif original.startswith(PATH_PREFIX + "/"):
+            new_path = original[len(PATH_PREFIX):]
+            request.scope["path"] = new_path
+            request.scope["raw_path"] = new_path.encode()
+        response = await call_next(request)
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("location", "")
+            if (location.startswith("/")
+                    and not location.startswith(PATH_PREFIX + "/")
+                    and location != PATH_PREFIX):
+                response.headers["location"] = PATH_PREFIX + location
+        return response
+    return await call_next(request)
 
 # 全局异常处理器
 add_exception_handlers(app)

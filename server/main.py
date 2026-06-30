@@ -12,7 +12,6 @@ import importlib
 import json
 import traceback
 import logging
-import ssl
 from pathlib import Path
 
 
@@ -111,9 +110,8 @@ def create_app_dirs():
             "# WebSocket 心跳间隔（秒）\n"
             "WS_HEARTBEAT_INTERVAL=30\n"
             "\n"
-            "# SSL证书配置（可选，支持 .pem, .crt, .cer, .key 等格式）\n"
-            "# SSL_CERTFILE=certs/server.crt\n"
-            "# SSL_KEYFILE=certs/server.key\n"
+            "# 路径前缀（Cloudflare 隧道子路径，本地直连设为空）\n"
+            "PATH_PREFIX=/eating-medication/server\n"
         )
         env_file.write_text(default_env, encoding='utf-8')
         print("已创建默认 .env 配置文件，请根据实际情况修改里面的 SECRET_KEY。")
@@ -121,80 +119,8 @@ def create_app_dirs():
         print("已找到 .env 配置文件")
 
 
-def _cert_has_localhost(cert_path):
-    """检查证书 SAN 是否包含 localhost 或 127.0.0.1"""
-    import subprocess
-    try:
-        result = subprocess.run(
-            ['openssl', 'x509', '-in', cert_path, '-noout', '-text'],
-            capture_output=True, text=True, timeout=5
-        )
-        if result.returncode == 0:
-            text = result.stdout.lower()
-            return 'localhost' in text or '127.0.0.1' in text
-    except Exception:
-        pass
-    return False
-
-
-def check_ssl_certificates():
-    """检查SSL证书是否存在且有效，优先检测certs文件夹。
-    如果证书 SAN 不包含 localhost，则回退 HTTP 模式。"""
-    cert_file_env = os.getenv('SSL_CERTFILE')
-    key_file_env = os.getenv('SSL_KEYFILE')
-
-    # 优先检查环境变量配置的证书
-    if cert_file_env and key_file_env:
-        if os.path.exists(cert_file_env) and os.path.exists(key_file_env):
-            try:
-                ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-                ctx.load_cert_chain(cert_file_env, key_file_env)
-                if _cert_has_localhost(cert_file_env):
-                    print(f"  找到有效的SSL证书（从配置）: {cert_file_env}")
-                    return cert_file_env, key_file_env
-                else:
-                    print(f"  证书不包含 localhost，跳过 HTTPS: {cert_file_env}")
-            except Exception as e:
-                print(f"  配置的证书文件无效: {e}")
-
-    # 检查项目根目录下的certs文件夹（支持acme.sh等工具生成的证书）
-    certs_dir = Path(__file__).resolve().parent.parent / "certs"
-    if certs_dir.exists() and certs_dir.is_dir():
-        cert_candidates = [
-            ("fullchain.cer", "privkey.pem"),
-            ("fullchain.cer", "fullchain.key"),
-            ("fullchain.cer", "*.key"),
-            ("*.cer", "*.key"),
-            ("*.crt", "*.key"),
-            ("cert.pem", "key.pem"),
-            ("server.crt", "server.key"),
-        ]
-
-        for cert_pattern, key_pattern in cert_candidates:
-            cert_files = list(certs_dir.glob(cert_pattern))
-            key_files = list(certs_dir.glob(key_pattern))
-
-            if cert_files and key_files:
-                cert_path = str(cert_files[0])
-                key_path = str(key_files[0])
-
-                try:
-                    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-                    ctx.load_cert_chain(cert_path, key_path)
-                    if _cert_has_localhost(cert_path):
-                        print(f"  找到有效的SSL证书: {cert_path}")
-                        return cert_path, key_path
-                    else:
-                        print(f"  证书不包含 localhost，跳过 HTTPS: {cert_path}")
-                except Exception as e:
-                    print(f"  证书文件无效 {cert_path}: {e}")
-                    continue
-
-    return None, None
-
-
 def start_server():
-    """启动 FastAPI 服务"""
+    """启动 FastAPI 服务（本地纯 HTTP，HTTPS 由 Cloudflare 隧道边缘处理）"""
     try:
         import uvicorn
         from app.core.config import settings
@@ -203,46 +129,27 @@ def start_server():
         print("请确保依赖已正确安装")
         sys.exit(1)
 
-    cert_file, key_file = check_ssl_certificates()
+    path_prefix = getattr(settings, "PATH_PREFIX", "")
 
     print("\n" + "=" * 50)
     print(f"启动 {settings.APP_NAME} 服务端")
     print("=" * 50)
     print(f"  调试模式: {settings.DEBUG}")
     print(f"  数据库: {settings.DATABASE_URL}")
-
-    if cert_file and key_file:
-        print(f"  HTTPS模式")
-        print(f"  API 文档: https://localhost:1059/docs")
-        print(f"  健康检查: https://localhost:1059/health")
-        print(f"  SSL证书: {cert_file}")
-    else:
-        print(f"  API 文档: http://localhost:1059/docs")
-        print(f"  健康检查: http://localhost:1059/health")
-        print(f"  提示: 放置证书文件到项目目录可启用HTTPS")
-        print(f"     支持格式: .pem, .crt, .cer + .key")
-
+    print(f"  路径前缀: {path_prefix or '(无，根路径)'}")
+    print(f"  HTTPS: 由 Cloudflare 隧道边缘自动配置，本地监听 HTTP")
+    print(f"  API 文档: http://localhost:1059/docs")
+    print(f"  健康检查: http://localhost:1059/health")
     print("=" * 50)
     print("\n按 Ctrl+C 停止服务\n")
 
-    if cert_file and key_file:
-        uvicorn.run(
-            "app.main:app",
-            host="0.0.0.0",
-            port=1059,
-            reload=False,
-            log_level="info",
-            ssl_certfile=cert_file,
-            ssl_keyfile=key_file
-        )
-    else:
-        uvicorn.run(
-            "app.main:app",
-            host="0.0.0.0",
-            port=1059,
-            reload=False,
-            log_level="info"
-        )
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=1059,
+        reload=False,
+        log_level="info"
+    )
 
 
 def main():

@@ -326,7 +326,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
 
         <div class="form-group">
             <label for="serverUrl">服务器地址</label>
-            <input type="text" id="serverUrl" placeholder="如 https://my-website.ccwu.cc" value="__SERVER_URL__">
+            <input type="text" id="serverUrl" placeholder="如 https://my-website.ccwu.cc/eating-medication/server" value="__SERVER_URL__">
             <div class="hint">提交后将保存地址、连接 WiFi 并注册设备到服务器</div>
         </div>
 

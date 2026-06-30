@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
+# 注入路径前缀变量，供模板链接加前缀
+templates.env.globals["prefix"] = config.PATH_PREFIX
 
 
 @router.get("/login")

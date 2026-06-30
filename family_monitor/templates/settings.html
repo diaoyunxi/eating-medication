@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>系统设置 - {{ app_name }}</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css">
 </head>
 <body>
     <div class="bg-gradient">
@@ -17,38 +17,38 @@
         <!-- 导航栏 -->
         <nav class="navbar">
             <div class="navbar-container">
-                <a href="/" class="navbar-brand">
+                <a href="{{ prefix }}/" class="navbar-brand">
                     <div class="navbar-logo">👨‍👩‍👧‍👦</div>
                     <span class="navbar-title">{{ app_name }}</span>
                 </a>
                 <div class="navbar-nav">
-                    <a href="/" class="nav-link">
+                    <a href="{{ prefix }}/" class="nav-link">
                         <span class="nav-link-icon">🏠</span>
                         <span>首页</span>
                     </a>
-                    <a href="/dashboard" class="nav-link">
+                    <a href="{{ prefix }}/dashboard" class="nav-link">
                         <span class="nav-link-icon">📊</span>
                         <span>仪表板</span>
                     </a>
-                    <a href="/reminders" class="nav-link">
+                    <a href="{{ prefix }}/reminders" class="nav-link">
                         <span class="nav-link-icon">💊</span>
                         <span>用药提醒</span>
                     </a>
-                    <a href="/records" class="nav-link">
+                    <a href="{{ prefix }}/records" class="nav-link">
                         <span class="nav-link-icon">📋</span>
                         <span>用药记录</span>
                     </a>
-                <a href="/chat" class="nav-link">
+                <a href="{{ prefix }}/chat" class="nav-link">
                     <span class="nav-link-icon">💬</span>
                     <span>消息</span>
                 </a>
-                    <a href="/settings" class="nav-link active">
+                    <a href="{{ prefix }}/settings" class="nav-link active">
                         <span class="nav-link-icon">⚙️</span>
                         <span>设置</span>
                     </a>
                     <div class="nav-user">
                         <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
-                        <a href="/logout" class="btn btn-outline btn-sm">
+                        <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm">
                             <span>🚪</span>
                             <span>登出</span>
                         </a>
@@ -580,7 +580,7 @@
             const apiKey = document.getElementById('apiKey').value;
 
             try {
-                const response = await fetch('/settings/server', {
+                const response = await fetch('{{ prefix }}/settings/server', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
@@ -618,7 +618,7 @@
             showToast('正在校验并绑定设备...', 'info');
 
             try {
-                const response = await fetch('/settings/bind_device', {
+                const response = await fetch('{{ prefix }}/settings/bind_device', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
@@ -654,7 +654,7 @@
             showToast('正在解绑设备...', 'info');
 
             try {
-                const response = await fetch('/settings/unbind_device', {
+                const response = await fetch('{{ prefix }}/settings/unbind_device', {
                     method: 'POST'
                 });
 
@@ -680,7 +680,7 @@
             const compact = displayCheckboxes[1]?.checked ?? false;
 
             try {
-                const response = await fetch('/settings/display', {
+                const response = await fetch('{{ prefix }}/settings/display', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: `theme=${encodeURIComponent(theme)}&color=${encodeURIComponent(color)}&language=${encodeURIComponent(language)}&animations=${encodeURIComponent(animations)}&compact=${encodeURIComponent(compact)}`

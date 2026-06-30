@@ -1,6 +1,10 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""子女看护Web端 - 主程序"""
+"""子女看护Web端 - 主程序
+
+本地以纯 HTTP 监听，HTTPS 由 Cloudflare 隧道边缘自动配置，无需本地证书。
+支持路径前缀（PATH_PREFIX），用于 Cloudflare 隧道按子路径转发场景。
+"""
 
 import os
 import sys
@@ -13,7 +17,6 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import uvicorn
-import ssl
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -30,6 +33,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# 路径前缀（Cloudflare 隧道子路径），默认 /eating-medication/family
+# 本地直连时设为空字符串即可
+PATH_PREFIX = os.getenv("PATH_PREFIX", getattr(config, "PATH_PREFIX", "/eating-medication/family")).rstrip("/")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -41,6 +48,9 @@ async def lifespan(app: FastAPI):
     print(f" 服务地址: http://{config.SERVER_HOST}:4430")
     print(f" 老人端地址: {config.ELDERLY_SERVER_URL}")
     print(f" 认证系统: 已启用 (bcrypt加密)")
+    print(f" 路径前缀: {PATH_PREFIX or '(无，根路径)'}")
+    print(f" HTTPS: 由 Cloudflare 隧道边缘自动配置，本地监听 HTTP")
+    print(f" 管理员入口: {PATH_PREFIX}/admin/administrator/setting")
     print("=" * 60)
 
     yield
@@ -48,14 +58,16 @@ async def lifespan(app: FastAPI):
     print("服务已停止")
 
 
-# 创建FastAPI应用
+# 创建FastAPI应用（root_path 用于 OpenAPI 文档与外部 URL 构建）
 app = FastAPI(
     title=config.APP_NAME,
     description="子女看护Web端",
-    version="2.0.0",
+    version="2.1.0",
     debug=config.DEBUG,
-    lifespan=lifespan
+    lifespan=lifespan,
+    root_path=PATH_PREFIX,
 )
+
 
 # CORS中间件
 app.add_middleware(
@@ -66,23 +78,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 挂载静态文件
-if config.STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(config.STATIC_DIR)), name="static")
-
-# 注册路由
-app.include_router(auth_router)
-app.include_router(home_router)
-app.include_router(chat_router)
-app.include_router(admin_router)
-
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    """认证中间件，保护需要登录的页面"""
+    """认证中间件，保护需要登录的页面。
+    注意：使用 request.scope["path"]（已被前缀中间件剥离前缀后的路径）。"""
     public_paths = ["/login", "/register", "/static", "/favicon.ico"]
 
-    path = request.url.path
+    path = request.scope.get("path", request.url.path)
     is_public = any(path.startswith(pp) for pp in public_paths)
 
     request.state.user = None
@@ -113,77 +116,42 @@ async def auth_middleware(request: Request, call_next):
     return response
 
 
-def _cert_has_localhost(cert_path):
-    """检查证书 SAN 是否包含 localhost 或 127.0.0.1"""
-    import subprocess
-    try:
-        result = subprocess.run(
-            ['openssl', 'x509', '-in', cert_path, '-noout', '-text'],
-            capture_output=True, text=True, timeout=5
-        )
-        if result.returncode == 0:
-            text = result.stdout.lower()
-            return 'localhost' in text or '127.0.0.1' in text
-    except Exception:
-        pass
-    return False
+@app.middleware("http")
+async def path_prefix_middleware(request: Request, call_next):
+    """路径前缀中间件（最先执行）：
+    - 请求阶段：剥离 PATH_PREFIX，使应用路由按根路径匹配
+    - 响应阶段：给 3xx 重定向的 Location 头补回前缀
+    本地直连（PATH_PREFIX 为空）时直接放行。"""
+    if PATH_PREFIX:
+        original = request.scope.get("path", "")
+        if original == PATH_PREFIX:
+            request.scope["path"] = "/"
+            request.scope["raw_path"] = b"/"
+        elif original.startswith(PATH_PREFIX + "/"):
+            new_path = original[len(PATH_PREFIX):]
+            request.scope["path"] = new_path
+            request.scope["raw_path"] = new_path.encode()
+        response = await call_next(request)
+        # 重定向 Location 补前缀
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("location", "")
+            if (location.startswith("/")
+                    and not location.startswith(PATH_PREFIX + "/")
+                    and location != PATH_PREFIX):
+                response.headers["location"] = PATH_PREFIX + location
+        return response
+    return await call_next(request)
 
 
-def check_ssl_certificates():
-    """检查SSL证书是否存在且有效，优先检测certs文件夹。
-    如果证书 SAN 不包含 localhost，则回退 HTTP 模式。"""
-    cert_file_config = getattr(config, 'SSL_CERTFILE', '')
-    key_file_config = getattr(config, 'SSL_KEYFILE', '')
+# 挂载静态文件
+if config.STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(config.STATIC_DIR)), name="static")
 
-    # 优先检查环境变量配置的证书
-    if cert_file_config and key_file_config:
-        if os.path.exists(cert_file_config) and os.path.exists(key_file_config):
-            try:
-                ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-                ctx.load_cert_chain(cert_file_config, key_file_config)
-                if _cert_has_localhost(cert_file_config):
-                    logger.info(f"找到有效的SSL证书（从配置）: {cert_file_config}")
-                    return cert_file_config, key_file_config
-                else:
-                    logger.info(f"证书不包含 localhost，跳过 HTTPS: {cert_file_config}")
-            except Exception as e:
-                logger.warning(f"配置的证书文件无效: {e}")
-
-    # 检查项目根目录下的certs文件夹（支持acme.sh等工具生成的证书）
-    certs_dir = Path(__file__).resolve().parent.parent / "certs"
-    if certs_dir.exists() and certs_dir.is_dir():
-        cert_candidates = [
-            ("fullchain.cer", "privkey.pem"),
-            ("fullchain.cer", "fullchain.key"),
-            ("fullchain.cer", "*.key"),
-            ("*.cer", "*.key"),
-            ("*.crt", "*.key"),
-            ("cert.pem", "key.pem"),
-            ("server.crt", "server.key"),
-        ]
-
-        for cert_pattern, key_pattern in cert_candidates:
-            cert_files = list(certs_dir.glob(cert_pattern))
-            key_files = list(certs_dir.glob(key_pattern))
-
-            if cert_files and key_files:
-                cert_path = str(cert_files[0])
-                key_path = str(key_files[0])
-
-                try:
-                    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-                    ctx.load_cert_chain(cert_path, key_path)
-                    if _cert_has_localhost(cert_path):
-                        logger.info(f"找到有效的SSL证书: {cert_path}")
-                        return cert_path, key_path
-                    else:
-                        logger.info(f"证书不包含 localhost，跳过 HTTPS: {cert_path}")
-                except Exception as e:
-                    logger.warning(f"证书文件无效 {cert_path}: {e}")
-                    continue
-
-    return None, None
-
+# 注册路由
+app.include_router(auth_router)
+app.include_router(home_router)
+app.include_router(chat_router)
+app.include_router(admin_router)
 
 def main():
     """主函数"""
@@ -201,47 +169,13 @@ def main():
     except Exception:
         pass
 
-    cert_file, key_file = check_ssl_certificates()
-
-    if cert_file and key_file:
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        ssl_context.load_cert_chain(cert_file, key_file)
-
-        print("=" * 60)
-        print(f" {config.APP_NAME} 启动中...")
-        print(f" HTTPS模式")
-        print(f" 服务地址: https://{config.SERVER_HOST}:4430")
-        print(f" 老人端地址: {config.ELDERLY_SERVER_URL}")
-        print(f" 认证系统: 已启用 (bcrypt加密)")
-        print(f" SSL证书: {cert_file}")
-        print(f" 管理员入口: /admin/administrator/setting")
-        print("=" * 60)
-
-        uvicorn.run(
-            "main:app",
-            host=config.SERVER_HOST,
-            port=4430,
-            reload=False,
-            ssl_certfile=cert_file,
-            ssl_keyfile=key_file
-        )
-    else:
-        print("=" * 60)
-        print(f" {config.APP_NAME} 启动中...")
-        print(f" 服务地址: http://{config.SERVER_HOST}:4430")
-        print(f" 老人端地址: {config.ELDERLY_SERVER_URL}")
-        print(f" 认证系统: 已启用 (bcrypt加密)")
-        print(f" 提示: 放置证书文件到项目目录可启用HTTPS")
-        print(f"    支持格式: .pem, .crt, .cer + .key")
-        print(f" 管理员入口: /admin/administrator/setting")
-        print("=" * 60)
-
-        uvicorn.run(
-            "main:app",
-            host=config.SERVER_HOST,
-            port=4430,
-            reload=False
-        )
+    # 本地纯 HTTP 监听，HTTPS 由 Cloudflare 隧道边缘处理
+    uvicorn.run(
+        "main:app",
+        host=config.SERVER_HOST,
+        port=4430,
+        reload=False,
+    )
 
 
 if __name__ == "__main__":

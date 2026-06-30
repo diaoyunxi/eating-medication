@@ -13,6 +13,8 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
 # 禁用 Jinja2 缓存以避免网络驱动器上的缓存问题
 templates.env.cache = {}
+# 注入路径前缀变量，供模板链接加前缀
+templates.env.globals["prefix"] = config.PATH_PREFIX
 
 
 @router.get("/")
