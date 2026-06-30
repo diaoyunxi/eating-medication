@@ -1,0 +1,545 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用药提醒 - {{ app_name }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .content-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 35px;
+            box-shadow: var(--shadow-xl);
+            margin-bottom: 30px;
+            animation: fadeInUp 0.6s ease-out;
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .section-title-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .section-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--gradient-primary);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            color: white;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+        
+        .section-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-top: 4px;
+        }
+        
+        .reminder-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .reminder-item {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 25px;
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            border-left: 5px solid var(--primary-color);
+            transition: all var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+            animation: slideIn 0.5s ease-out backwards;
+        }
+        
+        .reminder-item:nth-child(1) { animation-delay: 0.1s; }
+        .reminder-item:nth-child(2) { animation-delay: 0.2s; }
+        .reminder-item:nth-child(3) { animation-delay: 0.3s; }
+        .reminder-item:nth-child(4) { animation-delay: 0.4s; }
+        .reminder-item:nth-child(5) { animation-delay: 0.5s; }
+        
+        .reminder-item:hover {
+            background: var(--bg-tertiary);
+            transform: translateX(8px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .reminder-item.active {
+            border-left-color: #10b981;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.03) 100%);
+        }
+        
+        .reminder-time-block {
+            background: var(--gradient-primary);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            text-align: center;
+            min-width: 100px;
+            flex-shrink: 0;
+        }
+        
+        .reminder-time {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .reminder-period {
+            font-size: 0.85rem;
+            opacity: 0.9;
+            margin-top: 4px;
+        }
+        
+        .reminder-info {
+            flex: 1;
+        }
+        
+        .reminder-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .reminder-dosage {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+        }
+        
+        .reminder-meta {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .reminder-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        .reminder-badge.days {
+            background: #ede9fe;
+            color: #5b21b6;
+        }
+        
+        .reminder-badge.type {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        
+        .reminder-badge.status {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .reminder-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .action-btn {
+            width: 45px;
+            height: 45px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: all var(--transition-normal);
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+        
+        .action-btn:hover {
+            transform: scale(1.1);
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-box {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            transition: all var(--transition-normal);
+        }
+        
+        .stat-box:hover {
+            background: var(--bg-tertiary);
+            transform: translateY(-3px);
+        }
+        
+        .stat-box-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+        
+        .stat-box-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .filter-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        
+        .filter-tab {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+        }
+        
+        .filter-tab:hover {
+            background: var(--bg-tertiary);
+        }
+        
+        .filter-tab.active {
+            background: var(--gradient-primary);
+            color: white;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state-icon {
+            font-size: 5rem;
+            margin-bottom: 25px;
+            opacity: 0.5;
+        }
+        
+        .empty-state-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+        }
+        
+        .empty-state-text {
+            font-size: 1rem;
+            margin-bottom: 25px;
+        }
+        
+        @media (max-width: 1000px) {
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .reminder-item {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .reminder-time-block {
+                width: 100%;
+            }
+            
+            .reminder-actions {
+                flex-direction: row;
+            }
+            
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .filter-tabs {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient">
+    <!-- 浮动装饰形状 -->
+    <div class="floating-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+    </div>
+    
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="navbar-brand">
+                <div class="navbar-logo">🏠</div>
+                <span class="navbar-title">{{ app_name }}</span>
+            </a>
+            <div class="navbar-nav">
+                <a href="/" class="nav-link">
+                    <span class="nav-link-icon">🏠</span>
+                    <span>首页</span>
+                </a>
+                <a href="/dashboard" class="nav-link">
+                    <span class="nav-link-icon">📊</span>
+                    <span>仪表板</span>
+                </a>
+                <a href="/reminders" class="nav-link active">
+                    <span class="nav-link-icon">⏰</span>
+                    <span>提醒</span>
+                </a>
+                <a href="/records" class="nav-link">
+                    <span class="nav-link-icon">📋</span>
+                    <span>记录</span>
+                </a>
+                <a href="/chat" class="nav-link">
+                    <span class="nav-link-icon">💬</span>
+                    <span>消息</span>
+                </a>
+                <a href="/settings" class="nav-link">
+                    <span class="nav-link-icon">⚙️</span>
+                    <span>设置</span>
+                </a>
+                <div class="nav-user">
+                    <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
+                    <a href="/logout" class="btn btn-outline btn-sm">
+                        <span>🚪</span>
+                        <span>登出</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- 页面头部 -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <h1 class="page-title">⏰ 用药提醒</h1>
+            <p class="page-subtitle">查看和管理所有用药提醒</p>
+        </div>
+    </div>
+    
+    <!-- 状态栏 -->
+    <div class="status-bar">
+        <div class="status-card {% if status.connected %}online{% else %}offline{% endif %}">
+            <div class="status-info">
+                <div class="status-icon">
+                    {% if status.connected %}
+                        🟢
+                    {% else %}
+                        🔴
+                    {% endif %}
+                </div>
+                <div class="status-text">
+                    <div class="status-title">
+                        {% if status.connected %}
+                            老人端在线
+                        {% else %}
+                            老人端离线
+                        {% endif %}
+                    </div>
+                    <div class="status-subtitle">{{ status.url }}</div>
+                </div>
+            </div>
+            <div class="status-badge">
+                {% if status.connected %}
+                    ✅ 连接正常
+                {% else %}
+                    ⚠️ 已断开
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- 主要内容 -->
+    <div class="main-content">
+        <!-- 统计卡片 -->
+        <div class="content-card">
+            <div class="stats-row">
+                <div class="stat-box">
+                    <div class="stat-box-value">{{ reminders|length }}</div>
+                    <div class="stat-box-label">总提醒数</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-value">{{ reminders|selectattr('enabled')|list|length }}</div>
+                    <div class="stat-box-label">已启用</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-value">{{ reminders|selectattr('taken_today')|list|length }}</div>
+                    <div class="stat-box-label">今日已服</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-value">{{ reminders|rejectattr('enabled')|list|length }}</div>
+                    <div class="stat-box-label">已停用</div>
+                </div>
+            </div>
+            
+            <!-- 筛选标签 -->
+            <div class="filter-tabs">
+                <button class="filter-tab active" data-filter="all">全部</button>
+                <button class="filter-tab" data-filter="enabled">已启用</button>
+                <button class="filter-tab" data-filter="disabled">已停用</button>
+            </div>
+        </div>
+        
+        <!-- 提醒列表 -->
+        <div class="content-card">
+            <div class="card-header">
+                <div class="section-title-group">
+                    <div class="section-icon">📋</div>
+                    <div>
+                        <div class="section-title">提醒列表</div>
+                        <div class="section-subtitle">显示所有用药提醒</div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if reminders %}
+            <div class="reminder-list">
+                {% for reminder in reminders %}
+                <div class="reminder-item {% if reminder.enabled %}active{% endif %}" data-enabled="{{ reminder.enabled|lower }}">
+                    <div class="reminder-time-block">
+                        <div class="reminder-time">{{ reminder.time }}</div>
+                        <div class="reminder-period">
+                            {% set hour_parts = reminder.time.split(':') %}
+                            {% if hour_parts|length > 0 %}
+                                {% set hour = hour_parts[0]|int %}
+                                {% if hour < 12 %}早晨
+                                {% elif hour < 18 %}下午
+                                {% else %}晚上{% endif %}
+                            {% else %}
+                                全天
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="reminder-info">
+                        <div class="reminder-name">
+                            💊 {{ reminder.name }}
+                            {% if reminder.taken_today %}
+                            <span class="reminder-badge status">✅ 今日已服</span>
+                            {% elif reminder.enabled %}
+                            <span class="reminder-badge status">⏰ 今日待服</span>
+                            {% endif %}
+                        </div>
+                        <div class="reminder-dosage">{{ reminder.dosage }}</div>
+                        <div class="reminder-meta">
+                            <span class="reminder-badge days">🗓️ {{ reminder.frequency }}</span>
+                            {% if not reminder.enabled %}
+                            <span class="reminder-badge type">🔴 已停用</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="reminder-actions">
+                        <button class="action-btn" title="查看详情">👁️</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">📭</div>
+                <div class="empty-state-title">暂无提醒</div>
+                <div class="empty-state-text">老人端暂无用药提醒数据</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <script>
+        // 筛选标签交互
+        document.querySelectorAll('.filter-tab').forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.filter-tab').forEach(function(t) {
+                    t.classList.remove('active');
+                });
+                this.classList.add('active');
+                
+                const filter = this.dataset.filter;
+                document.querySelectorAll('.reminder-item').forEach(function(item) {
+                    if (filter === 'all') {
+                        item.style.display = 'flex';
+                    } else if (filter === 'enabled') {
+                        item.style.display = item.dataset.enabled === 'true' ? 'flex' : 'none';
+                    } else if (filter === 'disabled') {
+                        item.style.display = item.dataset.enabled === 'false' ? 'flex' : 'none';
+                    }
+                });
+            });
+        });
+        
+        // 提醒项点击效果
+        document.querySelectorAll('.reminder-item').forEach(function(item) {
+            item.addEventListener('click', function(e) {
+                if (!e.target.closest('.action-btn')) {
+                    // 不是点击按钮时，切换active状态
+                    document.querySelectorAll('.reminder-item').forEach(function(i) {
+                        i.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                }
+            });
+        });
+        
+        // 操作按钮效果
+        document.querySelectorAll('.action-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const action = this.title;
+                console.log('执行操作:', action);
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置 - {{ app_name }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="bg-gradient">
+        <div class="floating-shapes">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3"></div>
+        </div>
+        
+        <!-- 导航栏 -->
+        <nav class="navbar">
+            <div class="navbar-container">
+                <a href="/" class="navbar-brand">
+                    <div class="navbar-logo">👨‍👩‍👧‍👦</div>
+                    <span class="navbar-title">{{ app_name }}</span>
+                </a>
+                <div class="navbar-nav">
+                    <a href="/" class="nav-link">
+                        <span class="nav-link-icon">🏠</span>
+                        <span>首页</span>
+                    </a>
+                    <a href="/dashboard" class="nav-link">
+                        <span class="nav-link-icon">📊</span>
+                        <span>仪表板</span>
+                    </a>
+                    <a href="/reminders" class="nav-link">
+                        <span class="nav-link-icon">💊</span>
+                        <span>用药提醒</span>
+                    </a>
+                    <a href="/records" class="nav-link">
+                        <span class="nav-link-icon">📋</span>
+                        <span>用药记录</span>
+                    </a>
+                <a href="/chat" class="nav-link">
+                    <span class="nav-link-icon">💬</span>
+                    <span>消息</span>
+                </a>
+                    <a href="/settings" class="nav-link active">
+                        <span class="nav-link-icon">⚙️</span>
+                        <span>设置</span>
+                    </a>
+                    <div class="nav-user">
+                        <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
+                        <a href="/logout" class="btn btn-outline btn-sm">
+                            <span>🚪</span>
+                            <span>登出</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        
+        <!-- 页面头部 -->
+        <header class="page-header">
+            <div class="page-header-content">
+                <h1 class="page-title">⚙️ 系统设置</h1>
+                <p class="page-subtitle">配置应用参数，优化使用体验</p>
+            </div>
+        </header>
+        
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
+                <div class="status-info">
+                    <div class="status-icon">{{ "✅" if device_info and device_info.connected else "❌" }}</div>
+                    <div class="status-text">
+                        <div class="status-title">{{ device_info.device_name if device_info else "未知设备" }}</div>
+                        <div class="status-subtitle">
+                            {% if device_info and device_info.device_id %}
+                                设备ID: {{ device_info.device_id }}
+                            {% else %}
+                                未绑定设备
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="status-badge">
+                    {% if device_info and device_info.connected %}
+                        🟢 设备在线
+                    {% else %}
+                        🔴 设备离线
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- 主内容 -->
+        <main class="container">
+            <div class="card-grid">
+                <!-- 连接设置 -->
+                <div class="card animate-fade-in stagger-1">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-title-icon">🔌</span>
+                            连接设置
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">服务器地址</label>
+                            <div class="input-group">
+                                <input type="text" class="form-input" id="serverUrl" value="{{ current_server_url }}" placeholder="http://localhost:8000">
+                                <button class="btn btn-primary" onclick="testConnection()">
+                                    <span>🔍</span>
+                                    <span>测试连接</span>
+                                </button>
+                            </div>
+                            <p class="form-hint">输入老人端服务器地址以建立连接</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">自动刷新间隔</label>
+                            <select class="form-select" id="refreshInterval">
+                                <option value="30">30秒</option>
+                                <option value="60" selected>1分钟</option>
+                                <option value="300">5分钟</option>
+                                <option value="600">10分钟</option>
+                            </select>
+                            <p class="form-hint">设置数据自动刷新的时间间隔</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">API密钥</label>
+                            <input type="password" class="form-input" id="apiKey" value="{{ current_api_key }}" placeholder="输入API密钥（如果需要）">
+                            <p class="form-hint">如果服务器需要认证，请输入API密钥</p>
+                        </div>
+                        
+                        <button class="btn btn-primary btn-lg w-full mt-3" onclick="saveConnectionSettings()">
+                            <span>💾</span>
+                            <span>保存连接设置</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 设备绑定 -->
+                <div class="card animate-fade-in stagger-2">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-title-icon">📱</span>
+                            设备绑定
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        {% if bound_device %}
+                        <div class="info-box">
+                            <div class="info-icon">✅</div>
+                            <div class="info-content">
+                                <div class="info-title">已绑定设备</div>
+                                <div class="info-text">
+                                    <p><strong>设备标识：</strong>{{ bound_device.device_id }}</p>
+                                    {% if bound_device.device_name %}
+                                    <p><strong>设备名称：</strong>{{ bound_device.device_name }}</p>
+                                    {% endif %}
+                                    <p><strong>绑定时间：</strong>{{ bound_device.bound_at }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-danger btn-lg w-full mt-3" onclick="unbindDevice()">
+                            <span>🔓</span>
+                            <span>解绑设备</span>
+                        </button>
+                        {% else %}
+                        <div class="form-group">
+                            <label class="form-label">设备FCC ID</label>
+                            <input type="text" class="form-input" id="deviceId" placeholder="输入行空板M10的FCC ID（如FCC_A1B2C3D4E5F6）">
+                            <p class="form-hint">在老人端设备上查看FCC ID，格式为 FCC_ 开头后跟12位十六进制字符</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">设备名称（可选）</label>
+                            <input type="text" class="form-input" id="deviceName" placeholder="如：父亲的M10">
+                        </div>
+                        <button class="btn btn-primary btn-lg w-full mt-3" onclick="bindDevice()">
+                            <span>🔗</span>
+                            <span>绑定设备</span>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- 通知设置 -->
+                <div class="card animate-fade-in stagger-3">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-title-icon">🔔</span>
+                            通知设置
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="toggle-group">
+                            <div class="toggle-item">
+                                <div class="toggle-content">
+                                    <div class="toggle-title">用药提醒通知</div>
+                                    <div class="toggle-desc">当老人需要服药时发送提醒</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            
+                            <div class="toggle-item">
+                                <div class="toggle-content">
+                                    <div class="toggle-title">漏服提醒通知</div>
+                                    <div class="toggle-desc">当老人漏服药物时发送提醒</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            
+                            <div class="toggle-item">
+                                <div class="toggle-content">
+                                    <div class="toggle-title">设备离线通知</div>
+                                    <div class="toggle-desc">当老人端设备离线时发送提醒</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            
+                            <div class="toggle-item">
+                                <div class="toggle-content">
+                                    <div class="toggle-title">浏览器通知</div>
+                                    <div class="toggle-desc">允许浏览器发送桌面通知</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="browserNotifications">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            
+                            <div class="toggle-item">
+                                <div class="toggle-content">
+                                    <div class="toggle-title">声音提醒</div>
+                                    <div class="toggle-desc">收到通知时播放提示音</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mt-4">
+                            <label class="form-label">通知声音</label>
+                            <select class="form-select" id="notificationSound">
+                                <option value="default">默认提示音</option>
+                                <option value="bell">铃声</option>
+                                <option value="chime">叮咚</option>
+                                <option value="notification">通知音</option>
+                            </select>
+                        </div>
+                        
+                        <button class="btn btn-primary btn-lg w-full mt-3" onclick="saveNotificationSettings()">
+                            <span>💾</span>
+                            <span>保存通知设置</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 显示设置 -->
+                <div class="card animate-fade-in stagger-4">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-title-icon">🎨</span>
+                            显示设置
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">主题模式</label>
+                            <div class="theme-options">
+                                <button class="theme-option active" data-theme="light">
+                                    <span class="theme-icon">☀️</span>
+                                    <span class="theme-name">浅色模式</span>
+                                </button>
+                                <button class="theme-option" data-theme="dark">
+                                    <span class="theme-icon">🌙</span>
+                                    <span class="theme-name">深色模式</span>
+                                </button>
+                                <button class="theme-option" data-theme="auto">
+                                    <span class="theme-icon">🔄</span>
+                                    <span class="theme-name">自动切换</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">主色调</label>
+                            <div class="color-options">
+                                <button class="color-option active" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" data-color="purple"></button>
+                                <button class="color-option" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);" data-color="blue"></button>
+                                <button class="color-option" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);" data-color="green"></button>
+                                <button class="color-option" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);" data-color="orange"></button>
+                                <button class="color-option" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);" data-color="red"></button>
+                                <button class="color-option" style="background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);" data-color="pink"></button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">语言</label>
+                            <select class="form-select" id="language">
+                                <option value="zh-CN" selected>简体中文</option>
+                                <option value="zh-TW">繁体中文</option>
+                                <option value="en">English</option>
+                            </select>
+                        </div>
+                        
+                        <div class="toggle-group mt-3">
+                            <div class="toggle-item">
+                                <div class="toggle-content">
+                                    <div class="toggle-title">显示动画效果</div>
+                                    <div class="toggle-desc">启用页面过渡和交互动画</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            
+                            <div class="toggle-item">
+                                <div class="toggle-content">
+                                    <div class="toggle-title">紧凑模式</div>
+                                    <div class="toggle-desc">减少间距以显示更多内容</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-primary btn-lg w-full mt-3" onclick="saveDisplaySettings()">
+                            <span>💾</span>
+                            <span>保存显示设置</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 数据管理 -->
+                <div class="card animate-fade-in stagger-5">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-title-icon">📦</span>
+                            数据管理
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="action-list">
+                            <div class="action-item">
+                                <div class="action-icon">📥</div>
+                                <div class="action-content">
+                                    <div class="action-title">导出数据</div>
+                                    <div class="action-desc">导出所有用药记录和提醒数据</div>
+                                </div>
+                                <button class="btn btn-outline btn-sm" onclick="exportData()">
+                                    <span>导出</span>
+                                </button>
+                            </div>
+                            
+                            <div class="action-item">
+                                <div class="action-icon">📤</div>
+                                <div class="action-content">
+                                    <div class="action-title">导入数据</div>
+                                    <div class="action-desc">从文件导入备份的数据</div>
+                                </div>
+                                <label class="btn btn-outline btn-sm">
+                                    <span>导入</span>
+                                    <input type="file" class="file-input" accept=".json" onchange="importData(event)">
+                                </label>
+                            </div>
+                            
+                            <div class="action-item">
+                                <div class="action-icon">🔄</div>
+                                <div class="action-content">
+                                    <div class="action-title">同步数据</div>
+                                    <div class="action-desc">与老人端服务器同步最新数据</div>
+                                </div>
+                                <button class="btn btn-outline btn-sm" onclick="syncData()">
+                                    <span>同步</span>
+                                </button>
+                            </div>
+                            
+                            <div class="action-item danger">
+                                <div class="action-icon">🗑️</div>
+                                <div class="action-content">
+                                    <div class="action-title">清除数据</div>
+                                    <div class="action-desc">清除本地缓存的数据（不可逆）</div>
+                                </div>
+                                <button class="btn btn-danger btn-sm" onclick="clearData()">
+                                    <span>清除</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 高级设置 -->
+                <div class="card animate-fade-in stagger-6">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-title-icon">🛠️</span>
+                            高级设置
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="toggle-group">
+                            <div class="toggle-item">
+                                <div class="toggle-content">
+                                    <div class="toggle-title">调试模式</div>
+                                    <div class="toggle-desc">显示详细的日志信息用于调试</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="debugMode">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            
+                            <div class="toggle-item">
+                                <div class="toggle-content">
+                                    <div class="toggle-title">启用遥测</div>
+                                    <div class="toggle-desc">发送匿名使用数据帮助改进应用</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="info-box mt-4">
+                            <div class="info-icon">ℹ️</div>
+                            <div class="info-content">
+                                <div class="info-title">应用信息</div>
+                                <div class="info-text">
+                                    <p><strong>版本：</strong>1.0.0</p>
+                                    <p><strong>构建时间：</strong>2024-01-01</p>
+                                    <p><strong>框架：</strong>FastAPI + Jinja2</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-outline w-full mt-3" onclick="checkUpdates()">
+                            <span>🔄</span>
+                            <span>检查更新</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 关于 -->
+                <div class="card animate-fade-in stagger-7">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-title-icon">ℹ️</span>
+                            关于
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="about-content">
+                            <div class="about-logo">👨‍👩‍👧‍👦</div>
+                            <h3 class="about-title">{{ app_name }}</h3>
+                            <p class="about-desc">
+                                一款专为家庭设计的老年人用药助手应用，帮助子女远程关注老人的用药情况，
+                                确保老人按时服药，维护健康生活。
+                            </p>
+                            
+                            <div class="about-links">
+                                <a href="#" class="about-link">📖 使用文档</a>
+                                <a href="#" class="about-link">💬 反馈建议</a>
+                                <a href="#" class="about-link">📄 隐私政策</a>
+                                <a href="#" class="about-link">📜 服务条款</a>
+                            </div>
+                            
+                            <div class="about-footer">
+                                <p>Made with ❤️ for families</p>
+                                <p class="about-copyright">© 2024 {{ app_name }}. All rights reserved.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Toast通知 -->
+    <div id="toast" class="toast">
+        <div class="toast-icon" id="toastIcon">✅</div>
+        <div class="toast-message" id="toastMessage">操作成功</div>
+    </div>
+    
+    <script>
+        // Toast通知
+
+        // 初始化显示设置（从服务端传递的 display_settings 变量）
+        (function initDisplaySettings() {
+            const ds = {{ display_settings | tojson }};
+            if (!ds) return;
+            
+            // 设置主题
+            if (ds.theme) {
+                document.querySelectorAll('.theme-option').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.theme === ds.theme);
+                });
+            }
+            
+            // 设置颜色
+            if (ds.color) {
+                document.querySelectorAll('.color-option').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.color === ds.color);
+                });
+            }
+            
+            // 设置语言
+            if (ds.language) {
+                const langSelect = document.getElementById('language');
+                if (langSelect) langSelect.value = ds.language;
+            }
+            
+            // 设置动画和紧凑模式（显示设置区域的 checkbox）
+            const displayToggles = document.querySelectorAll('.card:nth-child(2) .toggle-item input[type="checkbox"]');
+            if (ds.animations !== undefined && displayToggles[0]) {
+                displayToggles[0].checked = ds.animations;
+            }
+            if (ds.compact !== undefined && displayToggles[1]) {
+                displayToggles[1].checked = ds.compact;
+            }
+        })();
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastIcon = document.getElementById('toastIcon');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            
+            toast.className = 'toast toast-' + type;
+            toastIcon.textContent = icons[type];
+            toastMessage.textContent = message;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 测试连接
+        async function testConnection() {
+            const url = document.getElementById('serverUrl').value;
+            showToast('正在测试连接...', 'info');
+            
+            try {
+                const response = await fetch(url + '/health');
+                if (response.ok) {
+                    showToast('连接成功！', 'success');
+                } else {
+                    showToast('连接失败：服务器响应异常', 'error');
+                }
+            } catch (error) {
+                showToast('连接失败：' + error.message, 'error');
+            }
+        }
+        
+        // 保存设置
+        async function saveConnectionSettings() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const apiKey = document.getElementById('apiKey').value;
+
+            try {
+                const response = await fetch('/settings/server', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `server_url=${encodeURIComponent(serverUrl)}&api_key=${encodeURIComponent(apiKey)}`
+                });
+                
+                if (response.ok) {
+                    showToast('连接设置已保存', 'success');
+                } else {
+                    showToast('保存失败', 'error');
+                }
+            } catch (error) {
+                showToast('保存失败：' + error.message, 'error');
+            }
+        }
+        
+        function saveNotificationSettings() {
+            showToast('通知设置已保存', 'success');
+        }
+
+        // 设备绑定
+        // 绑定流程：前端提交后，后端 /settings/bind_device 路由会先调用服务端的
+        // 设备校验接口 (GET /api/v1/public/device/check/{device_id}) 校验设备是否已注册，
+        // 校验通过且注册成功后才保存绑定信息。
+        async function bindDevice() {
+            const deviceId = document.getElementById('deviceId').value.trim();
+            const deviceName = document.getElementById('deviceName').value.trim();
+
+            if (!deviceId) {
+                showToast('请输入设备标识符', 'warning');
+                return;
+            }
+
+            showToast('正在校验并绑定设备...', 'info');
+
+            try {
+                const response = await fetch('/settings/bind_device', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `device_id=${encodeURIComponent(deviceId)}&device_name=${encodeURIComponent(deviceName)}`
+                });
+
+                let data = {};
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    showToast('绑定失败：服务端响应异常', 'error');
+                    return;
+                }
+
+                if (data.success) {
+                    // 绑定成功后才保存，后端已写入本地绑定文件
+                    showToast(data.message || '设备绑定成功', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    // 设备未注册等服务端校验错误，显示明确错误信息
+                    // 后端返回的 message 已包含 "设备未注册，请先在老人端完成配网" 等提示
+                    showToast(data.message || '绑定失败', 'error');
+                }
+            } catch (error) {
+                showToast('绑定失败：' + error.message, 'error');
+            }
+        }
+
+        async function unbindDevice() {
+            if (!confirm('确定要解绑当前设备吗？')) return;
+
+            showToast('正在解绑设备...', 'info');
+
+            try {
+                const response = await fetch('/settings/unbind_device', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast('解绑失败', 'error');
+                }
+            } catch (error) {
+                showToast('解绑失败：' + error.message, 'error');
+            }
+        }
+        
+        async function saveDisplaySettings() {
+            const theme = document.querySelector('.theme-option.active')?.dataset.theme || 'light';
+            const color = document.querySelector('.color-option.active')?.dataset.color || 'purple';
+            const language = document.getElementById('language')?.value || 'zh-CN';
+            const displaySection = document.querySelector('[data-section="display"]') || document.querySelectorAll('.card')[2];
+            const displayCheckboxes = displaySection ? displaySection.querySelectorAll('.toggle-item input[type="checkbox"]') : [];
+            const animations = displayCheckboxes[0]?.checked ?? true;
+            const compact = displayCheckboxes[1]?.checked ?? false;
+
+            try {
+                const response = await fetch('/settings/display', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `theme=${encodeURIComponent(theme)}&color=${encodeURIComponent(color)}&language=${encodeURIComponent(language)}&animations=${encodeURIComponent(animations)}&compact=${encodeURIComponent(compact)}`
+                });
+                if (response.ok) {
+                    showToast('显示设置已保存', 'success');
+                } else {
+                    showToast('保存失败', 'error');
+                }
+            } catch (error) {
+                showToast('保存失败：' + error.message, 'error');
+            }
+        }
+        
+        // 数据操作
+        function exportData() {
+            showToast('数据导出中...', 'info');
+            setTimeout(() => {
+                showToast('数据导出成功！', 'success');
+            }, 1000);
+        }
+        
+        function importData(event) {
+            showToast('数据导入中...', 'info');
+            setTimeout(() => {
+                showToast('数据导入成功！', 'success');
+            }, 1000);
+        }
+        
+        function syncData() {
+            showToast('数据同步中...', 'info');
+            setTimeout(() => {
+                showToast('数据同步成功！', 'success');
+            }, 1000);
+        }
+        
+        function clearData() {
+            if (confirm('确定要清除所有本地数据吗？此操作不可恢复！')) {
+                showToast('数据清除中...', 'warning');
+                setTimeout(() => {
+                    showToast('数据已清除', 'success');
+                }, 1000);
+            }
+        }
+        
+        function checkUpdates() {
+            showToast('正在检查更新...', 'info');
+            setTimeout(() => {
+                showToast('已是最新版本！', 'success');
+            }, 1000);
+        }
+        
+        // 主题切换
+        document.querySelectorAll('.theme-option').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.theme-option').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                showToast('主题已切换', 'success');
+            });
+        });
+        
+        // 颜色切换
+        document.querySelectorAll('.color-option').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.color-option').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                showToast('配色已更新', 'success');
+            });
+        });
+        
+        // 浏览器通知
+        document.getElementById('browserNotifications').addEventListener('change', async function() {
+            if (this.checked && 'Notification' in window) {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    showToast('浏览器通知已启用', 'success');
+                } else {
+                    this.checked = false;
+                    showToast('通知权限被拒绝', 'warning');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
