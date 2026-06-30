@@ -1,0 +1,17 @@
+{
+  "ELDERLY_SERVER_URL": "http://localhost:1059",
+  "API_KEY": "",
+  "SERVER_HOST": "0.0.0.0",
+  "SERVER_PORT": 4430,
+  "DEBUG": "False",
+  "APP_NAME": "子女看护中心",
+  "SECRET_KEY": "your-secret-key-change-in-production-12345678",
+  "SSL_CERTFILE": "",
+  "SSL_KEYFILE": "",
+  "SSL_CA_BUNDLE": "",
+  "DISPLAY_THEME": "dark",
+  "DISPLAY_COLOR": "purple",
+  "DISPLAY_LANGUAGE": "zh-CN",
+  "DISPLAY_ANIMATIONS": "True",
+  "DISPLAY_COMPACT": "True"
+}

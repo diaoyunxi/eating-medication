@@ -1,0 +1,672 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }} - 用心守护每一位老人的健康</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* 页面特定样式 */
+        .hero-section {
+            padding: 60px 20px;
+            text-align: center;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-title {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            animation: fadeInUp 0.8s ease-out;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.3rem;
+            opacity: 0.95;
+            margin-bottom: 40px;
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+        
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 50px;
+            flex-wrap: wrap;
+            animation: fadeInUp 0.8s ease-out 0.4s both;
+        }
+        
+        .hero-stat {
+            text-align: center;
+        }
+        
+        .hero-stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .hero-stat-label {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+        
+        .quick-actions {
+            max-width: 1400px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .section-title-icon {
+            width: 45px;
+            height: 45px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        
+        .recent-activity {
+            max-width: 1400px;
+            margin: 50px auto;
+            padding: 0 20px;
+        }
+        
+        .activity-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 35px;
+            box-shadow: var(--shadow-2xl);
+        }
+        
+        .activity-item {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border-color);
+            animation: slideIn 0.5s ease-out backwards;
+        }
+        
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+        
+        .activity-item:nth-child(1) { animation-delay: 0.1s; }
+        .activity-item:nth-child(2) { animation-delay: 0.2s; }
+        .activity-item:nth-child(3) { animation-delay: 0.3s; }
+        .activity-item:nth-child(4) { animation-delay: 0.4s; }
+        .activity-item:nth-child(5) { animation-delay: 0.5s; }
+        
+        .activity-icon {
+            width: 55px;
+            height: 55px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+        
+        .activity-icon.medication {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+        
+        .activity-icon.reminder {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .activity-icon.checkup {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+        }
+        
+        .activity-content {
+            flex: 1;
+        }
+        
+        .activity-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            font-size: 1.05rem;
+        }
+        
+        .activity-desc {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+        
+        .activity-time {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+        
+        .health-tips {
+            max-width: 1400px;
+            margin: 50px auto;
+            padding: 0 20px;
+        }
+        
+        .tips-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+        }
+        
+        .tip-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: var(--shadow-xl);
+            transition: all var(--transition-normal);
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+        
+        .tip-card:nth-child(1) { animation-delay: 0.1s; }
+        .tip-card:nth-child(2) { animation-delay: 0.2s; }
+        .tip-card:nth-child(3) { animation-delay: 0.3s; }
+        
+        .tip-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-2xl);
+        }
+        
+        .tip-icon {
+            width: 60px;
+            height: 60px;
+            background: var(--gradient-primary);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .tip-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+        
+        .tip-content {
+            color: var(--text-secondary);
+            line-height: 1.8;
+            font-size: 0.98rem;
+        }
+        
+        .footer {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.85);
+            padding: 40px 20px;
+            margin-top: 60px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .footer-text {
+            font-size: 1rem;
+            margin-bottom: 10px;
+        }
+        
+        .footer-heart {
+            color: #ef4444;
+            animation: heartbeat 1.5s ease-in-out infinite;
+            display: inline-block;
+        }
+        
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            25% { transform: scale(1.1); }
+            50% { transform: scale(1); }
+            75% { transform: scale(1.1); }
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .footer-link {
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            transition: color var(--transition-normal);
+        }
+        
+        .footer-link:hover {
+            color: white;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2rem;
+            }
+            
+            .hero-subtitle {
+                font-size: 1.1rem;
+            }
+            
+            .hero-stats {
+                gap: 30px;
+            }
+            
+            .tips-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .activity-item {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .activity-time {
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient">
+    <!-- 浮动装饰形状 -->
+    <div class="floating-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+    </div>
+    
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="navbar-brand">
+                <div class="navbar-logo">🏠</div>
+                <span class="navbar-title">{{ app_name }}</span>
+            </a>
+            <div class="navbar-nav">
+                <a href="/" class="nav-link active">
+                    <span class="nav-link-icon">🏠</span>
+                    <span>首页</span>
+                </a>
+                <a href="/dashboard" class="nav-link">
+                    <span class="nav-link-icon">📊</span>
+                    <span>仪表板</span>
+                </a>
+                <a href="/reminders" class="nav-link">
+                    <span class="nav-link-icon">⏰</span>
+                    <span>提醒</span>
+                </a>
+                <a href="/records" class="nav-link">
+                    <span class="nav-link-icon">📋</span>
+                    <span>记录</span>
+                </a>
+                <a href="/chat" class="nav-link">
+                    <span class="nav-link-icon">💬</span>
+                    <span>消息</span>
+                </a>
+                <a href="/settings" class="nav-link">
+                    <span class="nav-link-icon">⚙️</span>
+                    <span>设置</span>
+                </a>
+                <div class="nav-user">
+                    <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
+                    <a href="/logout" class="btn btn-outline btn-sm">
+                        <span>🚪</span>
+                        <span>登出</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- 页面头部 -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <h1 class="page-title">👋 欢迎回家</h1>
+            <p class="page-subtitle">用心守护每一位老人的健康，让关爱无处不在</p>
+        </div>
+    </div>
+    
+    <!-- 状态栏 -->
+    <div class="status-bar">
+        <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
+            <div class="status-info">
+                <div class="status-icon">
+                    {% if device_info and device_info.connected %}
+                        🟢
+                    {% else %}
+                        🔴
+                    {% endif %}
+                </div>
+                <div class="status-text">
+                    <div class="status-title">
+                        {{ device_info.device_name if device_info else "未知设备" }}
+                    </div>
+                    <div class="status-subtitle">
+                        {% if device_info and device_info.device_id %}
+                            设备ID: {{ device_info.device_id }}
+                        {% else %}
+                            未绑定设备
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="status-badge">
+                {% if device_info and device_info.connected %}
+                    ✅ 设备在线
+                {% else %}
+                    ❌ 设备离线
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Hero区域统计 -->
+    <div class="hero-section">
+        <div class="container">
+            <h2 class="hero-title">🏥 今日健康概览</h2>
+            <p class="hero-subtitle">实时了解老人的健康状况与用药情况</p>
+            <div class="hero-stats">
+                <div class="hero-stat animate-fade-in stagger-1">
+                    <div class="hero-stat-number">0</div>
+                    <div class="hero-stat-label">今日提醒</div>
+                </div>
+                <div class="hero-stat animate-fade-in stagger-2">
+                    <div class="hero-stat-number">0</div>
+                    <div class="hero-stat-label">已确认用药</div>
+                </div>
+                <div class="hero-stat animate-fade-in stagger-3">
+                    <div class="hero-stat-number">0%</div>
+                    <div class="hero-stat-label">依从率</div>
+                </div>
+                <div class="hero-stat animate-fade-in stagger-4">
+                    <div class="hero-stat-number">365</div>
+                    <div class="hero-stat-label">健康守护天数</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 快捷操作 -->
+    <div class="quick-actions">
+        <div class="section-title">
+            <div class="section-title-icon">⚡</div>
+            <span>快捷操作</span>
+        </div>
+        <div class="card-grid">
+            <a href="/reminders" class="feature-card animate-fade-in stagger-1">
+                <div class="feature-icon-wrapper">⏰</div>
+                <h3 class="feature-title">用药提醒</h3>
+                <p class="feature-desc">查看和管理所有用药提醒，确保老人按时服药</p>
+                <div class="feature-arrow">→</div>
+            </a>
+            
+            <a href="/records" class="feature-card animate-fade-in stagger-2">
+                <div class="feature-icon-wrapper">📋</div>
+                <h3 class="feature-title">用药记录</h3>
+                <p class="feature-desc">查看完整的用药历史记录，追踪健康状况</p>
+                <div class="feature-arrow">→</div>
+            </a>
+            
+            <a href="/dashboard" class="feature-card animate-fade-in stagger-3">
+                <div class="feature-icon-wrapper">📊</div>
+                <h3 class="feature-title">健康仪表板</h3>
+                <p class="feature-desc">数据可视化展示，一目了然掌握健康趋势</p>
+                <div class="feature-arrow">→</div>
+            </a>
+            
+            <a href="/settings" class="feature-card animate-fade-in stagger-4">
+                <div class="feature-icon-wrapper">⚙️</div>
+                <h3 class="feature-title">系统设置</h3>
+                <p class="feature-desc">个性化配置，让系统更符合您的使用习惯</p>
+                <div class="feature-arrow">→</div>
+            </a>
+        </div>
+    </div>
+    
+    <!-- 最近活动 -->
+    <div class="recent-activity">
+        <div class="section-title">
+            <div class="section-title-icon">📅</div>
+            <span>最近活动</span>
+        </div>
+        <div class="activity-card">
+            <div class="activity-item">
+                <div class="activity-icon medication">💊</div>
+                <div class="activity-content">
+                    <div class="activity-title">完成用药确认</div>
+                    <div class="activity-desc">降压药 - 早上8:00剂量</div>
+                </div>
+                <div class="activity-time">今天 08:05</div>
+            </div>
+            
+            <div class="activity-item">
+                <div class="activity-icon reminder">⏰</div>
+                <div class="activity-content">
+                    <div class="activity-title">新增用药提醒</div>
+                    <div class="activity-desc">添加了维生素D的每周提醒</div>
+                </div>
+                <div class="activity-time">昨天 14:30</div>
+            </div>
+            
+            <div class="activity-item">
+                <div class="activity-icon checkup">🏥</div>
+                <div class="activity-content">
+                    <div class="activity-title">健康检查完成</div>
+                    <div class="activity-desc">血压测量正常，心率稳定</div>
+                </div>
+                <div class="activity-time">2天前</div>
+            </div>
+            
+            <div class="activity-item">
+                <div class="activity-icon medication">💊</div>
+                <div class="activity-content">
+                    <div class="activity-title">药品库存更新</div>
+                    <div class="activity-desc">阿司匹林还剩15天用量</div>
+                </div>
+                <div class="activity-time">3天前</div>
+            </div>
+            
+            <div class="activity-item">
+                <div class="activity-icon reminder">⏰</div>
+                <div class="activity-content">
+                    <div class="activity-title">提醒时间调整</div>
+                    <div class="activity-desc">将晚间用药时间从21:00改为20:30</div>
+                </div>
+                <div class="activity-time">1周前</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 健康小贴士 -->
+    <div class="health-tips">
+        <div class="section-title">
+            <div class="section-title-icon">💡</div>
+            <span>健康小贴士</span>
+        </div>
+        <div class="tips-grid">
+            <div class="tip-card">
+                <div class="tip-icon">🥗</div>
+                <h4 class="tip-title">饮食健康</h4>
+                <p class="tip-content">
+                    老年人应保持清淡饮食，多吃蔬菜水果，控制盐分和油脂摄入。
+                    每天喝足够的水，保持身体水分平衡，有助于药物吸收和代谢。
+                </p>
+            </div>
+            
+            <div class="tip-card">
+                <div class="tip-icon">🏃</div>
+                <h4 class="tip-title">适度运动</h4>
+                <p class="tip-content">
+                    每天进行30分钟适度运动，如散步、太极拳等，可以增强体质、
+                    促进血液循环、改善睡眠质量，同时有助于药物发挥更好效果。
+                </p>
+            </div>
+            
+            <div class="tip-card">
+                <div class="tip-icon">💤</div>
+                <h4 class="tip-title">规律作息</h4>
+                <p class="tip-content">
+                    保持规律的作息时间，充足的睡眠对健康至关重要。尽量在固定
+                    时间服药，建立良好的用药习惯，提高治疗依从性。
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 页脚 -->
+    <footer class="footer">
+        <p class="footer-text">
+            <span class="footer-heart">❤️</span> 用心守护每一位老人的健康
+        </p>
+        <p class="footer-text" style="opacity: 0.7; font-size: 0.9rem;">
+            © 2024 {{ app_name }} - 让关爱更简单
+        </p>
+        <div class="footer-links">
+            <a href="#" class="footer-link">使用帮助</a>
+            <a href="#" class="footer-link">隐私政策</a>
+            <a href="#" class="footer-link">联系我们</a>
+            <a href="#" class="footer-link">关于我们</a>
+        </div>
+    </footer>
+    
+    <script>
+        // 页面加载动画
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('{{ app_name }} 已加载');
+            
+            // 数字动画效果
+            function animateNumber(element, target, duration = 2000) {
+                const start = 0;
+                const startTime = performance.now();
+                
+                function update(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const easeOut = 1 - Math.pow(1 - progress, 3);
+                    const current = Math.round(start + (target - start) * easeOut);
+                    
+                    if (element.textContent.includes('%')) {
+                        element.textContent = current + '%';
+                    } else {
+                        element.textContent = current;
+                    }
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(update);
+                    }
+                }
+                
+                requestAnimationFrame(update);
+            }
+            
+            // 延迟启动动画
+            setTimeout(function() {
+                const stats = document.querySelectorAll('.hero-stat-number');
+                if (stats.length >= 3) {
+                    animateNumber(stats[0], 5);
+                    animateNumber(stats[1], 5);
+                    animateNumber(stats[2], 100);
+                }
+            }, 800);
+            
+            // 添加点击效果
+            document.querySelectorAll('.feature-card, .activity-item').forEach(function(card) {
+                card.addEventListener('click', function(e) {
+                    if (!card.classList.contains('no-ripple')) {
+                        createRipple(e, card);
+                    }
+                });
+            });
+            
+            function createRipple(event, element) {
+                const ripple = document.createElement('span');
+                const rect = element.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                const x = event.clientX - rect.left - size / 2;
+                const y = event.clientY - rect.top - size / 2;
+                
+                ripple.style.cssText = `
+                    position: absolute;
+                    width: ${size}px;
+                    height: ${size}px;
+                    left: ${x}px;
+                    top: ${y}px;
+                    background: rgba(102, 126, 234, 0.3);
+                    border-radius: 50%;
+                    transform: scale(0);
+                    animation: rippleEffect 0.6s ease-out;
+                    pointer-events: none;
+                `;
+                
+                const style = document.createElement('style');
+                style.textContent = `
+                    @keyframes rippleEffect {
+                        to {
+                            transform: scale(4);
+                            opacity: 0;
+                        }
+                    }
+                `;
+                document.head.appendChild(style);
+                
+                element.style.position = 'relative';
+                element.style.overflow = 'hidden';
+                element.appendChild(ripple);
+                
+                setTimeout(() => ripple.remove(), 600);
+            }
+        });
+        
+        // 自动刷新连接状态（每30秒）
+        setInterval(function() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusCard = document.querySelector('.status-card');
+                    const statusIcon = document.querySelector('.status-icon');
+                    const statusTitle = document.querySelector('.status-title');
+                    const statusBadge = document.querySelector('.status-badge');
+                    
+                    if (data.connected) {
+                        statusCard.classList.remove('offline');
+                        statusCard.classList.add('online');
+                        statusIcon.innerHTML = '🟢';
+                        statusTitle.textContent = data.device_name || '设备在线';
+                        statusBadge.innerHTML = '✅ 连接正常';
+                    } else {
+                        statusCard.classList.remove('online');
+                        statusCard.classList.add('offline');
+                        statusIcon.innerHTML = '🔴';
+                        statusTitle.textContent = data.device_name || '设备离线';
+                        statusBadge.innerHTML = '❌ 连接断开';
+                    }
+                })
+                .catch(error => console.error('状态刷新失败:', error));
+        }, 30000);
+    </script>
+</body>
+</html>

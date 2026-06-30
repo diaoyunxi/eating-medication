@@ -1,0 +1,827 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>健康仪表板 - {{ app_name }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .main-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: var(--shadow-xl);
+            transition: all var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+        
+        .stat-card:nth-child(1) { animation-delay: 0.1s; }
+        .stat-card:nth-child(2) { animation-delay: 0.2s; }
+        .stat-card:nth-child(3) { animation-delay: 0.3s; }
+        .stat-card:nth-child(4) { animation-delay: 0.4s; }
+        
+        .stat-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-2xl);
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: var(--gradient-primary);
+        }
+        
+        .stat-card.primary::before { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .stat-card.success::before { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .stat-card.warning::before { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        .stat-card.info::before { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); }
+        
+        .stat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .stat-label {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+        }
+        
+        .stat-card.primary .stat-icon {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            color: #667eea;
+        }
+        
+        .stat-card.success .stat-icon {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+            color: #10b981;
+        }
+        
+        .stat-card.warning .stat-icon {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%);
+            color: #f59e0b;
+        }
+        
+        .stat-card.info .stat-icon {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(29, 78, 216, 0.1) 100%);
+            color: #3b82f6;
+        }
+        
+        .stat-value {
+            font-size: 2.8rem;
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            line-height: 1;
+        }
+        
+        .stat-change {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+        
+        .stat-change.positive {
+            color: #10b981;
+        }
+        
+        .stat-change.negative {
+            color: #ef4444;
+        }
+        
+        .chart-section {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .chart-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: var(--shadow-xl);
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+        
+        .chart-card:nth-child(1) { animation-delay: 0.2s; }
+        .chart-card:nth-child(2) { animation-delay: 0.3s; }
+        
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .chart-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .chart-title-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--gradient-primary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: white;
+        }
+        
+        .chart-body {
+            min-height: 300px;
+        }
+        
+        .chart-placeholder {
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        
+        .chart-placeholder-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        
+        .quick-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .quick-stat-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            transition: all var(--transition-normal);
+        }
+        
+        .quick-stat-item:hover {
+            background: var(--bg-tertiary);
+            transform: translateX(5px);
+        }
+        
+        .quick-stat-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .quick-stat-value {
+            font-weight: bold;
+            color: var(--text-primary);
+            font-size: 1.2rem;
+        }
+        
+        .progress-section {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .progress-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: var(--shadow-xl);
+            text-align: center;
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+        
+        .progress-card:nth-child(1) { animation-delay: 0.3s; }
+        .progress-card:nth-child(2) { animation-delay: 0.4s; }
+        .progress-card:nth-child(3) { animation-delay: 0.5s; }
+        
+        .progress-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+        
+        .progress-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--gradient-primary);
+            border-radius: 10px;
+            transition: width 1s ease-out;
+        }
+        
+        .progress-text {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .calendar-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+        
+        .upcoming-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: var(--shadow-xl);
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+        
+        .upcoming-card:nth-child(1) { animation-delay: 0.4s; }
+        .upcoming-card:nth-child(2) { animation-delay: 0.5s; }
+        
+        .upcoming-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .upcoming-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 18px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            border-left: 4px solid var(--primary-color);
+            transition: all var(--transition-normal);
+        }
+        
+        .upcoming-item:hover {
+            background: var(--bg-tertiary);
+            transform: translateX(5px);
+        }
+        
+        .upcoming-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--gradient-primary);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            color: white;
+            flex-shrink: 0;
+        }
+        
+        .upcoming-content {
+            flex: 1;
+        }
+        
+        .upcoming-title {
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        
+        .upcoming-time {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+        
+        .upcoming-badge {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .upcoming-badge.today {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .upcoming-badge.tomorrow {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .upcoming-badge.soon {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        
+        .chart-bars {
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            height: 250px;
+            padding: 20px 0;
+        }
+        
+        .chart-bar {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            width: 60px;
+        }
+        
+        .bar-container {
+            width: 100%;
+            height: 200px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .bar-fill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            border-radius: 8px 8px 0 0;
+            transition: height 1s ease-out;
+        }
+        
+        .bar-fill.taken {
+            background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+        }
+        
+        .bar-fill.missed {
+            background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+        }
+        
+        .bar-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        .bar-value {
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            font-weight: bold;
+        }
+        
+        .med-status-normal {
+            color: #10b981;
+        }
+        
+        .med-status-low {
+            color: #f59e0b;
+        }
+        
+        .med-status-empty {
+            color: #ef4444;
+        }
+        
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .chart-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .progress-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .calendar-section {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stat-value {
+                font-size: 2.2rem;
+            }
+            
+            .chart-bars {
+                flex-wrap: wrap;
+            }
+            
+            .chart-bar {
+                width: 50px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient">
+    <!-- 浮动装饰形状 -->
+    <div class="floating-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+    </div>
+    
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="navbar-brand">
+                <div class="navbar-logo">🏠</div>
+                <span class="navbar-title">{{ app_name }}</span>
+            </a>
+            <div class="navbar-nav">
+                <a href="/" class="nav-link">
+                    <span class="nav-link-icon">🏠</span>
+                    <span>首页</span>
+                </a>
+                <a href="/dashboard" class="nav-link active">
+                    <span class="nav-link-icon">📊</span>
+                    <span>仪表板</span>
+                </a>
+                <a href="/reminders" class="nav-link">
+                    <span class="nav-link-icon">⏰</span>
+                    <span>提醒</span>
+                </a>
+                <a href="/records" class="nav-link">
+                    <span class="nav-link-icon">📋</span>
+                    <span>记录</span>
+                </a>
+                <a href="/chat" class="nav-link">
+                    <span class="nav-link-icon">💬</span>
+                    <span>消息</span>
+                </a>
+                <a href="/settings" class="nav-link">
+                    <span class="nav-link-icon">⚙️</span>
+                    <span>设置</span>
+                </a>
+                <div class="nav-user">
+                    <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
+                    <a href="/logout" class="btn btn-outline btn-sm">
+                        <span>🚪</span>
+                        <span>登出</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- 页面头部 -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <h1 class="page-title">📊 健康仪表板</h1>
+            <p class="page-subtitle">数据可视化，一目了然掌握健康趋势</p>
+        </div>
+    </div>
+    
+    <!-- 状态栏 -->
+    <div class="status-bar">
+        <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
+            <div class="status-info">
+                <div class="status-icon">
+                    {% if device_info and device_info.connected %}
+                        🟢
+                    {% else %}
+                        🔴
+                    {% endif %}
+                </div>
+                <div class="status-text">
+                    <div class="status-title">
+                        {{ device_info.device_name if device_info else "未知设备" }}
+                    </div>
+                    <div class="status-subtitle">
+                        {% if device_info and device_info.device_id %}
+                            设备ID: {{ device_info.device_id }}
+                        {% else %}
+                            未绑定设备
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="status-badge">
+                {% if device_info and device_info.connected %}
+                    ✅ 设备在线
+                {% else %}
+                    ⚠️ 设备离线
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- 主要内容 -->
+    <div class="main-content">
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card primary">
+                <div class="stat-header">
+                    <span class="stat-label">今日提醒</span>
+                    <div class="stat-icon">⏰</div>
+                </div>
+                <div class="stat-value" data-target="{{ dashboard.summary.active_reminders }}">0</div>
+                <div class="stat-change positive">
+                    ↑ 活跃提醒 {{ dashboard.summary.active_reminders }}个
+                </div>
+            </div>
+            
+            <div class="stat-card success">
+                <div class="stat-header">
+                    <span class="stat-label">今日已用药</span>
+                    <div class="stat-icon">✅</div>
+                </div>
+                <div class="stat-value" data-target="{{ dashboard.summary.taken_today }}">0</div>
+                <div class="stat-change positive">
+                    {{ dashboard.summary.taken_today }}次确认
+                </div>
+            </div>
+            
+            <div class="stat-card warning">
+                <div class="stat-header">
+                    <span class="stat-label">用药依从率</span>
+                    <div class="stat-icon">📈</div>
+                </div>
+                <div class="stat-value" data-target="{{ dashboard.summary.adherence_rate }}">0</div>
+                <div class="stat-change positive">
+                    {{ dashboard.summary.adherence_rate }}% 依从性
+                </div>
+            </div>
+            
+            <div class="stat-card info">
+                <div class="stat-header">
+                    <span class="stat-label">待用药</span>
+                    <div class="stat-icon">💊</div>
+                </div>
+                <div class="stat-value" data-target="{{ dashboard.summary.pending_today }}">0</div>
+                <div class="stat-change positive">
+                    {{ dashboard.summary.pending_today }}次待服
+                </div>
+            </div>
+        </div>
+        
+        <!-- 图表区域 -->
+        <div class="chart-section">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <div class="chart-title-icon">📊</div>
+                        <span>用药趋势（最近7天）</span>
+                    </div>
+                    <span class="badge badge-info">数据统计</span>
+                </div>
+                <div class="chart-body">
+                    <div class="chart-bars">
+                        {% if dashboard.chart_data %}
+                            {% for day in dashboard.chart_data %}
+                            <div class="chart-bar">
+                                <div class="bar-container">
+                                    <div class="bar-fill taken" style="height: {% if day.scheduled > 0 %}{{ (day.taken / day.scheduled * 100) }}{% else %}0{% endif %}%;"></div>
+                                </div>
+                                <span class="bar-value">{{ day.taken }}/{{ day.scheduled }}</span>
+                                <span class="bar-label">{{ day.date[-5:] }}</span>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="chart-placeholder">
+                                <div class="chart-placeholder-icon">📈</div>
+                                <p>暂无图表数据</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <div class="chart-title-icon">💊</div>
+                        <span>药品库存</span>
+                    </div>
+                </div>
+                <div class="chart-body">
+                    <div class="quick-stats">
+                        {% if dashboard.medications %}
+                            {% for med in dashboard.medications %}
+                            <div class="quick-stat-item">
+                                <span class="quick-stat-label">{{ med.name }}</span>
+                                <span class="quick-stat-value med-status-{{ med.status }}">{{ med.remaining }}/{{ med.total }}</span>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="chart-placeholder">
+                                <div class="chart-placeholder-icon">💊</div>
+                                <p>暂无药品库存数据</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 进度卡片 -->
+        <div class="progress-section">
+            <div class="progress-card">
+                <div class="progress-icon">🎯</div>
+                <h3 class="progress-title">本周目标完成</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0%;" data-target="{{ dashboard.summary.adherence_rate }}"></div>
+                </div>
+                <div class="progress-text">
+                    <span class="progress-percentage" data-target="{{ dashboard.summary.adherence_rate }}">0</span>%
+                </div>
+            </div>
+            
+            <div class="progress-card">
+                <div class="progress-icon">💊</div>
+                <h3 class="progress-title">用药依从性</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0%; background: linear-gradient(135deg, #10b981 0%, #059669 100%);" data-target="{{ dashboard.summary.adherence_rate }}"></div>
+                </div>
+                <div class="progress-text" style="color: #10b981;">
+                    <span class="progress-percentage" data-target="{{ dashboard.summary.adherence_rate }}">0</span>%
+                </div>
+            </div>
+            
+            <div class="progress-card">
+                <div class="progress-icon">⏰</div>
+                <h3 class="progress-title">准时服药率</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0%; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);" data-target="{{ dashboard.summary.adherence_rate + 5 }}"></div>
+                </div>
+                <div class="progress-text" style="color: #f59e0b;">
+                    <span class="progress-percentage" data-target="{{ dashboard.summary.adherence_rate + 5 }}">0</span>%
+                </div>
+            </div>
+        </div>
+        
+        <!-- 即将到来 -->
+        <div class="calendar-section">
+            <div class="upcoming-card">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <div class="chart-title-icon">📅</div>
+                        <span>即将到来的提醒</span>
+                    </div>
+                </div>
+                <div class="upcoming-list">
+                    {% if dashboard.upcoming_reminders %}
+                        {% for reminder in dashboard.upcoming_reminders %}
+                        <div class="upcoming-item">
+                            <div class="upcoming-icon">💊</div>
+                            <div class="upcoming-content">
+                                <div class="upcoming-title">{{ reminder.name }}</div>
+                                <div class="upcoming-time">{{ reminder.time }}</div>
+                            </div>
+                            <span class="upcoming-badge today">待服</span>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="chart-placeholder">
+                            <div class="chart-placeholder-icon">📅</div>
+                            <p>暂无即将到来的提醒</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="upcoming-card">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <div class="chart-title-icon">📋</div>
+                        <span>近期活动</span>
+                    </div>
+                </div>
+                <div class="upcoming-list">
+                    {% if dashboard.recent_activities %}
+                        {% for activity in dashboard.recent_activities %}
+                        <div class="upcoming-item">
+                            <div class="upcoming-icon">{{ activity.icon }}</div>
+                            <div class="upcoming-content">
+                                <div class="upcoming-title">{{ activity.action }} {{ activity.name }}</div>
+                                <div class="upcoming-time">{{ activity.time }}</div>
+                            </div>
+                            <span class="upcoming-badge today">记录</span>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="upcoming-item">
+                            <div class="upcoming-icon">�</div>
+                            <div class="upcoming-content">
+                                <div class="upcoming-title">已服用降压药</div>
+                                <div class="upcoming-time">昨天 08:05</div>
+                            </div>
+                            <span class="upcoming-badge today">完成</span>
+                        </div>
+                        <div class="upcoming-item">
+                            <div class="upcoming-icon">✅</div>
+                            <div class="upcoming-content">
+                                <div class="upcoming-title">系统状态正常</div>
+                                <div class="upcoming-time">健康守护中</div>
+                            </div>
+                            <span class="upcoming-badge today">良好</span>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 数字动画
+            function animateNumber(element, target, duration = 2000, suffix = '') {
+                const start = 0;
+                const startTime = performance.now();
+                
+                function update(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const easeOut = 1 - Math.pow(1 - progress, 3);
+                    const current = Math.round(start + (target - start) * easeOut);
+                    element.textContent = current + suffix;
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(update);
+                    }
+                }
+                
+                requestAnimationFrame(update);
+            }
+            
+            // 延迟启动所有动画
+            setTimeout(function() {
+                // 统计卡片数字
+                document.querySelectorAll('.stat-value[data-target]').forEach(function(el) {
+                    const target = parseInt(el.dataset.target);
+                    animateNumber(el, target);
+                });
+                
+                // 进度条
+                document.querySelectorAll('.progress-fill[data-target]').forEach(function(el) {
+                    const target = parseInt(el.dataset.target);
+                    setTimeout(function() {
+                        el.style.width = target + '%';
+                    }, 300);
+                });
+                
+                // 进度百分比文字
+                document.querySelectorAll('.progress-percentage[data-target]').forEach(function(el) {
+                    const target = parseInt(el.dataset.target);
+                    animateNumber(el, target, 1500);
+                });
+            }, 600);
+        });
+    </script>
+</body>
+</html>

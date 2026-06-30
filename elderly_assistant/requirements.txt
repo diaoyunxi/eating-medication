@@ -1,0 +1,12 @@
+pyyaml>=5.1,<7.0
+opencv-python
+pyttsx3
+fuzzywuzzy
+python-Levenshtein
+schedule
+requests>=2.25.0
+playsound3
+edge-tts
+pinpong
+pytesseract
+Pillow>=8.0.0
