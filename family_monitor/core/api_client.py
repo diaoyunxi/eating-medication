@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-老人端API客户端 - 支持 device_id 绑定和SSL证书
+老人端API客户端 - 支持 device_id 绑定
+HTTPS 连接由系统默认 SSL 上下文验证（Cloudflare 隧道公网证书）。
 """
 
 import httpx
@@ -22,15 +23,10 @@ class ElderlyAPIClient:
         self._ssl_context = self._create_ssl_context()
 
     def _create_ssl_context(self) -> Optional[ssl.SSLContext]:
-        """创建SSL上下文，支持自定义CA证书"""
+        """创建SSL上下文（HTTPS 连接验证，使用系统默认信任库）"""
         if self.base_url.startswith('https://'):
             try:
-                ca_bundle = getattr(config, 'SSL_CA_BUNDLE', '')
-                if ca_bundle and os.path.exists(ca_bundle):
-                    ctx = ssl.create_default_context(cafile=ca_bundle)
-                    return ctx
-                else:
-                    return ssl.create_default_context()
+                return ssl.create_default_context()
             except Exception as e:
                 print(f"创建SSL上下文失败: {e}")
                 return None

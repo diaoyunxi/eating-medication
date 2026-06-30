@@ -1,5 +1,5 @@
 server:
-  base_url: http://localhost:1059
+  base_url: https://my-website.ccwu.cc/eating-medication/server
   upload_endpoint: /api/upload
   medication_log_endpoint: /api/log
   emergency_endpoint: /api/emergency

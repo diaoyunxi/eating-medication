@@ -118,7 +118,7 @@
 
         async function loadHistory() {
             try {
-                const resp = await fetch(`/api/v1/chat/history/${elderlyId}`);
+                const resp = await fetch(`{{ prefix }}/api/v1/chat/history/${elderlyId}`);
                 if (resp.ok) {
                     const msgs = await resp.json();
                     if (msgs.length > 0 && emptyEl) emptyEl.remove();

@@ -589,7 +589,7 @@ unihiker GUI 库：
 ## 服务端改动
 
 ### 新增 5 个设备公开接口（无需 JWT 认证）
-文件：[server/app/api/v1/endpoints/public.py](file:///run/media/xixi/A568-50B8/python/icc-project/server/app/api/v1/endpoints/public.py)
+文件：[server/app/api/v1/endpoints/public.py](file:///run/media/xixi/A568-50B8/python/eating-medication/server/app/api/v1/endpoints/public.py)
 
 - 新增 `FamilyMedicationPlan` Pydantic 模型
 - `GET /api/v1/public/device/check/{device_id}` - 子女端绑定前校验设备是否已注册
@@ -603,7 +603,7 @@ unihiker GUI 库：
 ## 老人端重构
 
 ### main.py 完全重写
-文件：[elderly_assistant/main.py](file:///run/media/xixi/A568-50B8/python/icc-project/elderly_assistant/main.py)
+文件：[elderly_assistant/main.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/main.py)
 
 - 舍弃原 TUI（tui_app.py 不再使用）
 - 主循环每秒更新 unihiker GUI 时间显示
@@ -615,7 +615,7 @@ unihiker GUI 库：
 - 所有 pinpong/unihiker 导入放 try-except ImportError，非 M10 环境可调试运行
 
 ### 新建 core/display.py
-文件：[elderly_assistant/core/display.py](file:///run/media/xixi/A568-50B8/python/icc-project/elderly_assistant/core/display.py)
+文件：[elderly_assistant/core/display.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/core/display.py)
 
 集中所有屏幕显示逻辑：
 - `show_time(now)` 显示当前时间
@@ -626,14 +626,14 @@ unihiker GUI 库：
 - `show_next_reminder(time, drug)` 显示下次提醒
 
 ### buzzer.py 重写
-文件：[elderly_assistant/services/buzzer.py](file:///run/media/xixi/A568-50B8/python/icc-project/elderly_assistant/services/buzzer.py)
+文件：[elderly_assistant/services/buzzer.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/services/buzzer.py)
 
 - `play_reminder()` 在独立线程循环播放 `buzzer.BA_DING`，直到 stop
 - `stop()` 停止蜂鸣
 - `play_success()` 播放 `buzzer.JUMP_UP` 表示确认服药
 
 ### wifi_config.py 重写
-文件：[elderly_assistant/services/wifi_config.py](file:///run/media/xixi/A568-50B8/python/icc-project/elderly_assistant/services/wifi_config.py)
+文件：[elderly_assistant/services/wifi_config.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/services/wifi_config.py)
 
 - 使用标准库 `http.server.BaseHTTPRequestHandler`（无额外依赖）
 - `CONFIG_PORT=8088`，提供 HTML 配网页面
@@ -642,7 +642,7 @@ unihiker GUI 库：
 - WiFi 连接成功后获取 FCC ID 并 POST 注册到服务器
 
 ### hotspot_manager.py 修改
-文件：[elderly_assistant/services/hotspot_manager.py](file:///run/media/xixi/A568-50B8/python/icc-project/elderly_assistant/services/hotspot_manager.py)
+文件：[elderly_assistant/services/hotspot_manager.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/services/hotspot_manager.py)
 
 统一热点参数：
 - `HOTSPOT_SSID = "M10-Config"`
@@ -650,14 +650,14 @@ unihiker GUI 库：
 - `HOTSPOT_WEB_PORT = 8088`
 
 ### http_client.py 修改
-文件：[elderly_assistant/services/http_client.py](file:///run/media/xixi/A568-50B8/python/icc-project/elderly_assistant/services/http_client.py)
+文件：[elderly_assistant/services/http_client.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/services/http_client.py)
 
 新增方法：
 - `get_medication_schedule()` → GET `/api/v1/public/device/schedule/{device_id}`
 - `confirm_medication()` 确认服药上报
 
 ### device_id.py（沿用，无需修改）
-文件：[elderly_assistant/services/device_id.py](file:///run/media/xixi/A568-50B8/python/icc-project/elderly_assistant/services/device_id.py)
+文件：[elderly_assistant/services/device_id.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/services/device_id.py)
 
 - 优先通过 pinpong `Board().begin()` 获取 `FCC_{MAC}`
 - 失败回退 `DEV_{UUID}`
@@ -668,13 +668,13 @@ unihiker GUI 库：
 ## 子女端改动
 
 ### api_client.py 修改
-文件：[family_monitor/core/api_client.py](file:///run/media/xixi/A568-50B8/python/icc-project/family_monitor/core/api_client.py)
+文件：[family_monitor/core/api_client.py](file:///run/media/xixi/A568-50B8/python/eating-medication/family_monitor/core/api_client.py)
 
 - **Bug 修复**：原 `register_device` 方法存在 `return` 后紧跟 `return` 的死代码，缺少 else 分支，已重构为显式 if/else
 - 新增方法：`check_device()`、`get_device_plans()`、`set_medication_plan()`、`delete_medication_plan()`
 
 ### home.py 修改
-文件：[family_monitor/routes/home.py](file:///run/media/xixi/A568-50B8/python/icc-project/family_monitor/routes/home.py)
+文件：[family_monitor/routes/home.py](file:///run/media/xixi/A568-50B8/python/eating-medication/family_monitor/routes/home.py)
 
 - `bind_device` 路由绑定前先调用 `check_device` 校验设备是否已注册
 - 新增路由：
@@ -683,7 +683,7 @@ unihiker GUI 库：
   - `POST /medication_settings/delete/{plan_id}` - 删除计划
 
 ### 新建 medication_settings.html
-文件：[family_monitor/templates/medication_settings.html](file:///run/media/xixi/A568-50B8/python/icc-project/family_monitor/templates/medication_settings.html)
+文件：[family_monitor/templates/medication_settings.html](file:///run/media/xixi/A568-50B8/python/eating-medication/family_monitor/templates/medication_settings.html)
 
 - 当前用药计划列表（可删除）
 - 添加计划表单：药品名、剂量、可动态增删的服药时间、频率、数量
