@@ -11,7 +11,7 @@ import json
 import subprocess
 import urllib.request
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 GITHUB_REPO = "diaoyunxi/eating-medication"
 
 
@@ -19,7 +19,7 @@ def _fetch_latest_version():
     """从 GitHub 获取最新版本号（优先 Releases，回退 Tags）"""
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-        req = urllib.request.Request(url, headers={"User-Agent": "icc-project"})
+        req = urllib.request.Request(url, headers={"User-Agent": "eating-medication"})
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode())
             return data.get("tag_name"), data.get("html_url")
@@ -27,7 +27,7 @@ def _fetch_latest_version():
         pass
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/tags"
-        req = urllib.request.Request(url, headers={"User-Agent": "icc-project"})
+        req = urllib.request.Request(url, headers={"User-Agent": "eating-medication"})
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode())
             if data:

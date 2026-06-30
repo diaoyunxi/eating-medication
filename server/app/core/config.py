@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
 
+    # 路径前缀（Cloudflare 隧道子路径），本地直连设为空
+    PATH_PREFIX: str = "/eating-medication/server"
+
     DATABASE_URL: str = "sqlite:///./data/elderly_care.db"
 
     SECRET_KEY: str = _generate_secret_key()

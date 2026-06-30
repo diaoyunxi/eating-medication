@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>登录 - {{ app_name }}</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css">
 </head>
 <body>
     <div class="bg-gradient">
@@ -36,7 +36,7 @@
                 </div>
                 {% endif %}
                 
-                <form method="POST" action="/login" class="auth-form">
+                <form method="POST" action="{{ prefix }}/login" class="auth-form">
                     <div class="form-group">
                         <label class="form-label" for="username">用户名</label>
                         <input type="text" class="form-input" id="username" name="username" 
@@ -56,7 +56,7 @@
                 </form>
                 
                 <div class="auth-footer">
-                    <p>还没有账户？<a href="/register" class="auth-link">立即注册</a></p>
+                    <p>还没有账户？<a href="{{ prefix }}/register" class="auth-link">立即注册</a></p>
                 </div>
             </div>
         </div>
