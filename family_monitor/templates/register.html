@@ -30,6 +30,7 @@
                 {% endif %}
                 
                 <form method="POST" action="{{ prefix }}/register" class="auth-form" id="registerForm">
+                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                     <div class="form-group">
                         <label class="form-label" for="username">用户名</label>
                         <input type="text" class="form-input" id="username" name="username" 

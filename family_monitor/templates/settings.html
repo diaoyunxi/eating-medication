@@ -126,12 +126,6 @@
                             <p class="form-hint">设置数据自动刷新的时间间隔</p>
                         </div>
                         
-                        <div class="form-group">
-                            <label class="form-label">API密钥</label>
-                            <input type="password" class="form-input" id="apiKey" value="{{ current_api_key }}" placeholder="输入API密钥（如果需要）">
-                            <p class="form-hint">如果服务器需要认证，请输入API密钥</p>
-                        </div>
-                        
                         <button class="btn btn-primary btn-lg w-full mt-3" onclick="saveConnectionSettings()">
                             <span>💾</span>
                             <span>保存连接设置</span>
@@ -498,6 +492,12 @@
     </div>
     
     <script>
+        // 从 cookie 读取 CSRF token，用于 AJAX 请求
+        function getCsrfToken() {
+            const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+            return match ? decodeURIComponent(match[1]) : '';
+        }
+
         // Toast通知
 
         // 初始化显示设置（从服务端传递的 display_settings 变量）
@@ -577,15 +577,15 @@
         // 保存设置
         async function saveConnectionSettings() {
             const serverUrl = document.getElementById('serverUrl').value;
-            const apiKey = document.getElementById('apiKey').value;
 
             try {
                 const response = await fetch('{{ prefix }}/settings/server', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRF-Token': getCsrfToken()
                     },
-                    body: `server_url=${encodeURIComponent(serverUrl)}&api_key=${encodeURIComponent(apiKey)}`
+                    body: `server_url=${encodeURIComponent(serverUrl)}`
                 });
                 
                 if (response.ok) {
@@ -622,6 +622,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRF-Token': getCsrfToken()
                     },
                     body: `device_id=${encodeURIComponent(deviceId)}&device_name=${encodeURIComponent(deviceName)}`
                 });
@@ -655,7 +656,8 @@
 
             try {
                 const response = await fetch('{{ prefix }}/settings/unbind_device', {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: { 'X-CSRF-Token': getCsrfToken() }
                 });
 
                 const data = await response.json();
@@ -682,7 +684,10 @@
             try {
                 const response = await fetch('{{ prefix }}/settings/display', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRF-Token': getCsrfToken()
+                    },
                     body: `theme=${encodeURIComponent(theme)}&color=${encodeURIComponent(color)}&language=${encodeURIComponent(language)}&animations=${encodeURIComponent(animations)}&compact=${encodeURIComponent(compact)}`
                 });
                 if (response.ok) {

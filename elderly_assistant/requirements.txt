@@ -1,12 +1,11 @@
-pyyaml>=5.1,<7.0
-opencv-python
-pyttsx3
-fuzzywuzzy
-python-Levenshtein
-schedule
-requests>=2.25.0
-playsound3
-edge-tts
-pinpong
-pytesseract
-Pillow>=8.0.0
+# 依赖列表（版本已锁定为已验证的稳定版本）
+pyyaml==6.0.1
+pyttsx3==2.90
+rapidfuzz==3.6.2
+schedule==1.2.1
+requests==2.31.0
+playsound3==1.0.0
+edge-tts==6.1.10
+pinpong==1.2.0
+pytesseract==0.3.10
+Pillow==10.0.1

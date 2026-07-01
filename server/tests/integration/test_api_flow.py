@@ -3,7 +3,7 @@
 完整业务流程集成测试
 """
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 def test_complete_user_flow(client, db):
     """测试完整用户流程：注册 -> 登录 -> 创建计划 -> 服药"""
@@ -40,7 +40,7 @@ def test_complete_user_flow(client, db):
     plan_id = plan_response.json()["id"]
     
     # 4. 记录服药
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     take_response = client.post("/api/v1/medication/take", headers=headers, json={
         "plan_id": plan_id,
         "scheduled_time": now,
@@ -76,11 +76,11 @@ def test_family_bind_and_view(client, db):
     })
     family_token = family_reg.json()["access_token"]
     
-    # 3. 家属绑定老人
+    # 3. 家属绑定老人（H13：需提供老人的设备ID，此处老人 username 即作为设备ID）
     bind_response = client.post(
         "/api/v1/users/bind",
         headers={"Authorization": f"Bearer {family_token}"},
-        json={"elderly_user_id": elderly_id}
+        json={"elderly_user_id": elderly_id, "device_id": "bind_elderly"}
     )
     assert bind_response.status_code == 200
     

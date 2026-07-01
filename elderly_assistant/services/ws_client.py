@@ -26,6 +26,7 @@ class WebSocketClient:
             return
         try:
             import websocket
+            # 注意：服务端应在此端点校验 token，当前依赖 device_id 标识
             ws_url = f"{self.base_url}/ws/device/{self.device_id}"
             self.ws = websocket.WebSocketApp(
                 ws_url,

@@ -5,7 +5,7 @@ from datetime import datetime
 
 
 class ChatMessageCreate(BaseModel):
-    sender_id: int
+    """创建聊天消息请求（C4：移除 sender_id，改为从 token 提取）"""
     receiver_id: Optional[int] = None
     sender_name: str
     content: str

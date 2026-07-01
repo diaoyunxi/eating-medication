@@ -10,13 +10,14 @@ import sys
 import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.middleware.logging import LoggingMiddleware
-from app.middleware.exception_handler import add_exception_handlers  
+from app.middleware.exception_handler import add_exception_handlers
+# C7：改用统一的 setup_cors 配置 CORS
+from app.middleware.cors import setup_cors
 from app.api.v1.endpoints import (
     auth, users, medication, ai, vision, public, chat
 )
@@ -56,6 +57,8 @@ async def lifespan(app: FastAPI):
     logger.info("="*60)
 
     # 创建数据库表（如果不存在）
+    # H12：生产环境应改用 alembic 迁移管理表结构（而非 create_all），
+    # 此处保留 create_all 以避免破坏现有部署。
     logger.info(" 检查数据库表...")
     Base.metadata.create_all(bind=engine)
     logger.info(" 数据库表检查完成")
@@ -94,14 +97,8 @@ app = FastAPI(
 
 # ==================== 中间件配置 ====================
 
-# CORS（允许跨域，开发模式使用 *）
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],          # 生产环境应替换为具体域名
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# C7：使用统一的 setup_cors 配置 CORS（从环境变量 ALLOWED_ORIGINS 读取白名单）
+setup_cors(app)
 
 # 请求日志中间件
 app.add_middleware(LoggingMiddleware)

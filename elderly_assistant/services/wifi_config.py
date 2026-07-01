@@ -17,6 +17,8 @@ import threading
 import time
 import re
 import sys
+import secrets
+import html
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -28,6 +30,8 @@ logger = setup_logger()
 # 配网 Web 服务端口（与热点管理器保持一致）
 CONFIG_PORT = 8088
 HOTSPOT_SSID = "M10-Config"
+# CORS 允许来源：仅限本地热点网关，避免任意来源跨域请求
+CONFIG_CORS_ORIGIN = "http://10.0.0.1:8088"
 
 # 设备主程序所在目录（用于读取/写入 config.yaml）
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -180,6 +184,8 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
 
     # 通过类属性共享 manager，避免每次请求新建
     wifi_manager = _WIFI_MANAGER
+    # 配网 Token（由 WiFiConfigServer 启动时生成并设置），用于校验 POST 请求
+    config_token = None
 
     def do_GET(self):
         """处理 GET 请求"""
@@ -208,6 +214,14 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         """处理 POST 请求"""
+        # 校验配网 Token，防止未授权的 POST 请求（校验不通过返回 403）
+        if not self._verify_config_token():
+            self._send_json(
+                {"status": "error", "message": "未授权：缺少或错误的 X-Config-Token"},
+                403
+            )
+            return
+
         parsed_path = urlparse(self.path)
 
         if parsed_path.path == '/api/connect':
@@ -259,17 +273,36 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
         else:
             self.send_error(404, "Not Found")
 
+    def _verify_config_token(self):
+        """校验 POST 请求中的 X-Config-Token（Header 或 Form 字段）
+
+        服务启动时生成随机 token，所有 POST 请求需在 Header 中携带
+        X-Config-Token，校验不通过返回 403。
+        """
+        token = self.config_token
+        if not token:
+            # token 未设置时放行（兼容未初始化场景）
+            return True
+        # 优先从 Header 读取 X-Config-Token
+        req_token = self.headers.get('X-Config-Token', '')
+        return req_token == token
+
     def _send_json(self, data, status_code=200):
         """发送 JSON 响应"""
         self.send_response(status_code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        # CORS 限制为本地热点网关，避免任意来源跨域请求
+        self.send_header('Access-Control-Allow-Origin', CONFIG_CORS_ORIGIN)
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode('utf-8'))
 
     def _get_html_page(self):
         """生成配置页面 HTML"""
         server_url = self.wifi_manager.load_server_url()
+        # 对 server_url 进行 HTML 转义后再插入 HTML，防止 XSS
+        safe_server_url = html.escape(server_url or '', quote=True)
+        # 转义配网 token，嵌入前端供 fetch 请求携带
+        safe_config_token = html.escape(self.config_token or '', quote=True)
         html_content = """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -336,6 +369,9 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
     </div>
 
     <script>
+        // 配网 Token，由服务端生成并嵌入；所有 POST 请求需携带以防未授权请求
+        const CONFIG_TOKEN = "__CONFIG_TOKEN__";
+
         function scanWiFi() {
             const btn = document.getElementById('scanBtn');
             btn.disabled = true;
@@ -391,7 +427,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
 
             fetch('/api/connect', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-Config-Token': CONFIG_TOKEN },
                 body: JSON.stringify({ ssid: ssid, password: password, server_url: serverUrl })
             })
             .then(res => res.json())
@@ -426,7 +462,8 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
     </script>
 </body>
 </html>
-""".replace("__SERVER_URL__", server_url or "")
+""".replace("__SERVER_URL__", safe_server_url) \
+         .replace("__CONFIG_TOKEN__", safe_config_token)
         return html_content
 
     def log_message(self, format, *args):
@@ -442,10 +479,18 @@ class WiFiConfigServer:
         self.server = None
         self.server_thread = None
         self.running = False
+        # 配网 Token，启动时生成
+        self.config_token = None
 
     def start(self):
         """启动服务器（在独立线程中运行）"""
         try:
+            # 生成随机配网 token，所有 POST 请求需携带 X-Config-Token 校验
+            self.config_token = secrets.token_urlsafe(16)
+            WiFiConfigHandler.config_token = self.config_token
+            logger.info(f"配网服务 Token: {self.config_token}")
+            print(f"[配网] X-Config-Token: {self.config_token}")
+
             server_address = ('0.0.0.0', self.port)
             self.server = HTTPServer(server_address, WiFiConfigHandler)
             self.running = True

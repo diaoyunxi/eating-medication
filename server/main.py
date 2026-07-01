@@ -7,6 +7,7 @@
 
 import sys
 import os
+import secrets
 import subprocess
 import importlib
 import json
@@ -93,19 +94,24 @@ def create_app_dirs():
 
     env_file = Path(".env")
     if not env_file.exists():
+        # C2：生产默认 DEBUG=False，SECRET_KEY 用 secrets.token_urlsafe(32) 动态生成
+        random_secret = secrets.token_urlsafe(32)
         default_env = (
             "# 服务端配置\n"
             "APP_NAME=老人用药管理系统\n"
-            "DEBUG=True\n"
+            "DEBUG=False\n"
             "API_V1_PREFIX=/api/v1\n"
             "\n"
             "# 数据库\n"
             "DATABASE_URL=sqlite:///./data/elderly_care.db\n"
             "\n"
-            "# JWT 密钥（生产环境请务必修改）\n"
-            "SECRET_KEY=your-secret-key-change-this-in-production\n"
+            "# JWT 密钥（已自动随机生成，请妥善保存）\n"
+            f"SECRET_KEY={random_secret}\n"
             "ALGORITHM=HS256\n"
-            "ACCESS_TOKEN_EXPIRE_MINUTES=10080\n"
+            "ACCESS_TOKEN_EXPIRE_MINUTES=60\n"
+            "\n"
+            "# CORS 允许的来源（逗号分隔，生产环境必须修改为实际域名）\n"
+            "ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000\n"
             "\n"
             "# WebSocket 心跳间隔（秒）\n"
             "WS_HEARTBEAT_INTERVAL=30\n"
@@ -114,7 +120,7 @@ def create_app_dirs():
             "PATH_PREFIX=/eating-medication/server\n"
         )
         env_file.write_text(default_env, encoding='utf-8')
-        print("已创建默认 .env 配置文件，请根据实际情况修改里面的 SECRET_KEY。")
+        print("已创建默认 .env 配置文件，已自动生成随机 SECRET_KEY。")
     else:
         print("已找到 .env 配置文件")
 

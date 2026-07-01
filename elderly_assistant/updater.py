@@ -23,8 +23,9 @@ def _fetch_latest_version():
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode())
             return data.get("tag_name"), data.get("html_url")
-    except Exception:
-        pass
+    except Exception as e:
+        # 异常不静默吞掉，打印日志便于排查
+        print(f"[更新检查] 获取 Releases 失败: {e}")
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/tags"
         req = urllib.request.Request(url, headers={"User-Agent": "eating-medication"})
@@ -33,8 +34,8 @@ def _fetch_latest_version():
             if data:
                 tag = data[0].get("name")
                 return tag, f"https://github.com/{GITHUB_REPO}/releases/tag/{tag}"
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[更新检查] 获取 Tags 失败: {e}")
     return None, None
 
 
@@ -76,6 +77,7 @@ def check_for_update(auto_pull=False):
         print(f"  下载地址: {release_url}")
         print("=" * 50)
         if auto_pull:
+            print("⚠️ 警告：自动更新未启用签名校验，存在供应链攻击风险")
             script_dir = os.path.dirname(os.path.abspath(__file__))
             if os.path.isdir(os.path.join(script_dir, '.git')):
                 result = subprocess.run(

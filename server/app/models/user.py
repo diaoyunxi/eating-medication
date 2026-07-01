@@ -1,8 +1,14 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
+
+
+def _utcnow():
+    """M14：返回带时区的当前 UTC 时间"""
+    return datetime.now(timezone.utc)
+
 
 class User(Base):
     __tablename__ = "users"
@@ -14,7 +20,10 @@ class User(Base):
     role = Column(String, nullable=False)  # "elderly" 或 "family"
     phone = Column(String, nullable=True)
     group_id = Column(Integer, nullable=True)  # 家庭组ID，老人和家属同组
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+    # L9：账号启用状态与最后登录时间
+    is_active = Column(Boolean, default=True)
+    last_login_at = Column(DateTime, nullable=True)
 
     # 关联关系
     medication_plans = relationship("MedicationPlan", back_populates="user", cascade="all, delete-orphan")
