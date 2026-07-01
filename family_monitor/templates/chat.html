@@ -68,11 +68,13 @@
         let reconnectTimer = null;
         const currentUser = '{{ current_user }}';
         const elderlyId = '{{ elderly_id }}';
-        const serverUrl = '{{ server_url }}';
+        const elderlyUrl = '{{ server_url }}';
+        // 从老人端 URL 提取 host+path，并选择对应的 WebSocket 协议
+        const wsProto = elderlyUrl.startsWith('https') ? 'wss:' : 'ws:';
+        const serverUrl = elderlyUrl.replace(/^https?:\/\//, '');
 
         function initWS() {
-            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const url = `${proto}//${serverUrl}/api/v1/chat/ws/${currentUser}`;
+            const url = `${wsProto}//${serverUrl}/api/v1/chat/ws/${encodeURIComponent(currentUser)}`;
             ws = new WebSocket(url);
             ws.onopen = () => {
                 statusDot.classList.add('connected');
@@ -107,11 +109,29 @@
 
         function addMsg(sender, content, timestamp, isSent) {
             if (emptyEl) emptyEl.remove();
+            // 使用 DOM 元素创建 + textContent，避免 XSS
             const div = document.createElement('div');
-            div.className = `msg ${isSent ? 'sent' : ''}`;
+            div.className = isSent ? 'msg sent' : 'msg received';
+            const avatar = document.createElement('div');
+            avatar.className = 'msg-avatar';
+            avatar.textContent = sender.charAt(0);
+            const body = document.createElement('div');
+            body.className = 'msg-body';
+            const nameEl = document.createElement('div');
+            nameEl.className = 'msg-name';
+            nameEl.textContent = sender;
+            const bubble = document.createElement('div');
+            bubble.className = 'msg-bubble';
+            bubble.textContent = content;
+            const timeEl = document.createElement('div');
+            timeEl.className = 'msg-time';
             const time = new Date(timestamp);
-            const timeStr = time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-            div.innerHTML = `<div class="msg-avatar">${sender.charAt(0)}</div><div class="msg-body"><div class="msg-name">${sender}</div><div class="msg-bubble">${content}</div><div class="msg-time">${timeStr}</div></div>`;
+            timeEl.textContent = time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            body.appendChild(nameEl);
+            body.appendChild(bubble);
+            body.appendChild(timeEl);
+            div.appendChild(avatar);
+            div.appendChild(body);
             messagesEl.appendChild(div);
             messagesEl.scrollTop = messagesEl.scrollHeight;
         }

@@ -1,6 +1,9 @@
 # Environment variables
 .env
 
+# Config (contains runtime settings, SECRET_KEY should be in .env)
+config.json
+
 # Python
 __pycache__/
 *.py[cod]

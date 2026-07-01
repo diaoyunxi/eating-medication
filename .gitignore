@@ -17,6 +17,11 @@ ENV/
 .env
 .env.*
 
+# ===== 模块本地配置（含密钥/服务器地址，部署时各自创建）=====
+family_monitor/config.json
+elderly_assistant/config.yaml
+# 保留 .example 模板供参考
+
 # ===== SSL 证书与私钥 =====
 certs/
 *.key

@@ -21,7 +21,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from core import config
 from core.auth import get_user_manager
 from core.session import get_session_manager
@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
 
     print("=" * 60)
     print(f" {config.APP_NAME} 启动中...")
-    print(f" 服务地址: http://{config.SERVER_HOST}:4430")
+    print(f" 服务地址: http://{config.SERVER_HOST}:{config.SERVER_PORT}")
     print(f" 老人端地址: {config.ELDERLY_SERVER_URL}")
     print(f" 认证系统: 已启用 (bcrypt加密)")
     print(f" 路径前缀: {PATH_PREFIX or '(无，根路径)'}")
@@ -69,10 +69,10 @@ app = FastAPI(
 )
 
 
-# CORS中间件
+# CORS中间件 - 从环境变量 ALLOWED_ORIGINS 读取允许的来源
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,13 +80,55 @@ app.add_middleware(
 
 
 @app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """安全响应头中间件：为每个响应添加安全相关的 HTTP 头"""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+    )
+    return response
+
+
+@app.middleware("http")
+async def csrf_middleware(request: Request, call_next):
+    """CSRF 中间件：
+    - 为每个请求确保 csrf_token cookie 存在（不存在则生成并设置到响应）
+    - 将 csrf_token 注入 request.state 供模板使用
+    """
+    csrf_token = request.cookies.get("csrf_token")
+    if not csrf_token:
+        session_manager = get_session_manager(config.SECRET_KEY)
+        csrf_token = session_manager.generate_csrf_token()
+    # 注入到 request.state 供模板渲染时读取
+    request.state.csrf_token = csrf_token
+
+    response = await call_next(request)
+
+    # 如果请求中没有 csrf_token cookie，则在响应中设置
+    if not request.cookies.get("csrf_token"):
+        response.set_cookie(
+            key="csrf_token",
+            value=csrf_token,
+            httponly=False,  # 允许 JS 读取，用于 AJAX 请求附带 header
+            samesite="strict",
+            secure=config.COOKIE_SECURE,
+            max_age=86400 * 7,
+        )
+
+    return response
+
+
+@app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     """认证中间件，保护需要登录的页面。
     注意：使用 request.scope["path"]（已被前缀中间件剥离前缀后的路径）。"""
-    public_paths = ["/login", "/register", "/static", "/favicon.ico"]
-
+    # 公开路径精确匹配，防止路径前缀绕过
+    public_paths = ["/login", "/register", "/favicon.ico"]
     path = request.scope.get("path", request.url.path)
-    is_public = any(path.startswith(pp) for pp in public_paths)
+    is_public = path in public_paths or path.startswith("/static/")
 
     request.state.user = None
 
@@ -173,7 +215,7 @@ def main():
     uvicorn.run(
         "main:app",
         host=config.SERVER_HOST,
-        port=4430,
+        port=config.SERVER_PORT,
         reload=False,
     )
 

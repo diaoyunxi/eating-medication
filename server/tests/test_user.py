@@ -26,21 +26,21 @@ def test_update_current_user(client, auth_headers):
     assert data["phone"] == "13700137000"
 
 def test_bind_family(client, db, test_elderly_user, test_family_user):
-    """测试家属绑定老人"""
+    """测试家属绑定老人（H13：需提供老人的设备ID作为弱保护）"""
     # 生成家属的 token
     from app.core.security import create_access_token
     family_token = create_access_token(data={"sub": test_family_user.id})
     family_headers = {"Authorization": f"Bearer {family_token}"}
-    
+
     response = client.post(
         "/api/v1/users/bind",
         headers=family_headers,
-        json={"elderly_user_id": test_elderly_user.id}
+        json={"elderly_user_id": test_elderly_user.id, "device_id": "test_elderly"}
     )
     assert response.status_code == 200
     data = response.json()
     assert "group_id" in data
-    
+
     # 验证数据库中的 group_id 已更新
     db.refresh(test_elderly_user)
     db.refresh(test_family_user)
@@ -51,6 +51,6 @@ def test_bind_family_unauthorized(client, test_elderly_user):
     """测试非家属用户不能绑定"""
     response = client.post(
         "/api/v1/users/bind",
-        json={"elderly_user_id": test_elderly_user.id}
+        json={"elderly_user_id": test_elderly_user.id, "device_id": "test_elderly"}
     )
     assert response.status_code == 401  # 未认证

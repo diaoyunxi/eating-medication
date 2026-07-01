@@ -5,6 +5,14 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 
 
+# C3：已知的不安全 SECRET_KEY 值（生产环境禁止使用）
+_WEAK_SECRET_KEYS = {
+    "your-secret-key-change-this-in-production",
+    "change-me",
+    "",
+}
+
+
 def _generate_secret_key():
     """生成安全的随机密钥"""
     return secrets.token_urlsafe(32)
@@ -22,7 +30,8 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str = _generate_secret_key()
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
+    # H7：缩短为 1 小时（原为 7 天），降低 token 泄露后的风险窗口
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     ZHIPUAI_API_KEY: Optional[str] = None
     ZHIPUAI_MODEL: str = "glm-4.7-flash"
@@ -41,6 +50,16 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+    def model_post_init(self, __context):
+        """C3：初始化后校验配置——生产模式（DEBUG=False）禁止使用弱 SECRET_KEY"""
+        if not self.DEBUG:
+            if self.SECRET_KEY in _WEAK_SECRET_KEYS:
+                raise RuntimeError(
+                    "生产环境（DEBUG=False）禁止使用弱 SECRET_KEY，"
+                    "请在 .env 中配置随机生成的 SECRET_KEY"
+                )
+        # DEBUG=True 时允许使用随机生成的密钥
 
 
 settings = Settings()

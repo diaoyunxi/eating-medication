@@ -477,10 +477,10 @@
                             </div>
                         </div>
                         <div class="plan-actions">
-                            <button class="btn btn-danger btn-sm" onclick="deletePlan({{ plan.id }}, '{{ plan.get('drug_name', '') | replace("'", "\\'") | safe }}')">
-                                <span>🗑️</span>
-                                <span>删除</span>
-                            </button>
+                            <button class="btn btn-danger btn-sm"
+                                    data-plan-id="{{ plan.id }}"
+                                    data-drug-name="{{ plan.get('drug_name', '') }}"
+                                    onclick="deletePlan(this.dataset.planId, this.dataset.drugName)">
                                 <span>🗑️</span>
                                 <span>删除</span>
                             </button>
@@ -616,6 +616,12 @@
     </div>
 
     <script>
+        // 从 cookie 读取 CSRF token，用于 AJAX 请求
+        function getCsrfToken() {
+            const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+            return match ? decodeURIComponent(match[1]) : '';
+        }
+
         // Toast通知（与 settings.html 一致的样式）
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
@@ -712,7 +718,10 @@
             try {
                 const response = await fetch('{{ prefix }}/medication_settings/add', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrfToken()
+                    },
                     body: JSON.stringify(payload)
                 });
 
@@ -736,7 +745,8 @@
 
             try {
                 const response = await fetch('{{ prefix }}/medication_settings/delete/' + planId, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: { 'X-CSRF-Token': getCsrfToken() }
                 });
 
                 const data = await response.json();

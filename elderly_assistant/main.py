@@ -15,6 +15,7 @@ import argparse
 import threading
 import time
 import json
+import logging
 from datetime import datetime, timedelta
 
 # 确保以本文件所在目录为工作目录（便于读取 config.yaml / data/）
@@ -218,8 +219,8 @@ def main():
             _sys.path.insert(0, _here)
         from updater import check_for_update
         check_for_update()
-    except Exception:
-        pass
+    except Exception as e:
+        logging.warning(f"自动更新检查失败: {e}")
 
     if DEBUG_MODE:
         print("=" * 60)

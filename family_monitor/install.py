@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Install script for family_monitor"""
+"""Install script for family_monitor
+不修改全局 pip 配置，通过 -i 参数临时指定镜像源。
+建议在虚拟环境中运行。"""
 
 import sys
 import subprocess
 import os
-import shutil
 import importlib
 
 
+# 默认镜像源（可通过环境变量 PIP_INDEX_URL 覆盖）
+PIP_INDEX_URL = os.environ.get("PIP_INDEX_URL", "https://pypi.tuna.tsinghua.edu.cn/simple")
+
+
 def is_package_installed(pkg_name):
-    package_name = pkg_name.split(">")[0].split("=")[0]
+    package_name = pkg_name.split("~")[0].split(">")[0].split("=")[0].split("<")[0]
     name_mapping = {
         "python-multipart": "multipart",
         "python-dotenv": "dotenv",
@@ -31,11 +36,11 @@ def is_package_installed(pkg_name):
 
 def check_system_requirements():
     print("=" * 50)
-    print("Check environment...")
+    print("检查运行环境...")
     print("=" * 50)
     missing = []
     if sys.version_info < (3, 8):
-        print("Python version too low, need 3.8+")
+        print("Python 版本过低，需要 3.8+")
         return False
     print("  Python:", sys.version.split()[0])
     try:
@@ -49,59 +54,31 @@ def check_system_requirements():
     except Exception:
         missing.append("pip")
     if missing:
-        print("Missing deps:", ", ".join(missing))
+        print("缺少依赖:", ", ".join(missing))
         return False
     return True
 
 
-def get_pip_conf_path():
-    if sys.platform == "win32":
-        pip_dir = os.path.expanduser("~\pip")
-        return os.path.join(pip_dir, "pip.ini")
-    else:
-        pip_dir = os.path.expanduser("~/.pip")
-        return os.path.join(pip_dir, "pip.conf")
-
-
-def backup_pip_source():
-    pip_conf_path = get_pip_conf_path()
-    backup_path = pip_conf_path + ".bak"
-    tsinghua = "https://pypi.tuna.tsinghua.edu.cn/simple"
-    if os.path.exists(pip_conf_path):
-        if not os.path.exists(backup_path):
-            shutil.copy(pip_conf_path, backup_path)
-            print("Backup pip config to", backup_path)
-    else:
-        pip_dir = os.path.dirname(pip_conf_path)
-        if pip_dir:
-            os.makedirs(pip_dir, exist_ok=True)
-    with open(pip_conf_path, "w", encoding="utf-8") as f:
-        f.write("[global]\nindex-url = " + tsinghua + "\n")
-    print("Switched pip source to Tsinghua mirror")
-
-
 def install_package(pkg):
-    pkg_name = pkg.split(">")[0].split("=")[0]
+    """安装单个包，使用 -i 参数临时指定镜像源，不修改全局 pip 配置"""
+    pkg_name = pkg.split("~")[0].split(">")[0].split("=")[0].split("<")[0]
     if is_package_installed(pkg_name):
-        print("  ", pkg_name, "already installed, skip")
+        print("  ", pkg_name, "已安装，跳过")
         return True
-    print("  Installing", pkg_name, "...")
+    print("  正在安装", pkg_name, "...")
     try:
         subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", pkg])
-        print("  ", pkg_name, "installed")
+            [sys.executable, "-m", "pip", "install", "-i", PIP_INDEX_URL, pkg])
+        print("  ", pkg_name, "安装完成")
         return True
-    except subprocess.CalledProcessError:
-        print("  Trying with --break-system-packages ...")
-        try:
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install",
-                 "--break-system-packages", pkg])
-            print("  ", pkg_name, "installed")
-            return True
-        except subprocess.CalledProcessError as e2:
-            print("  FAILED", pkg_name, "rc:", e2.returncode)
-            return False
+    except subprocess.CalledProcessError as e:
+        print("  安装失败", pkg_name, "返回码:", e.returncode)
+        print("  提示：建议使用虚拟环境安装依赖：")
+        print("    python -m venv venv")
+        print("    source venv/bin/activate  # Linux/macOS")
+        print("    venv\\Scripts\\activate     # Windows")
+        print("    python install.py")
+        return False
 
 
 def install_requirements():
@@ -109,10 +86,10 @@ def install_requirements():
     os.chdir(script_dir)
     req_file = "requirements.txt"
     if not os.path.exists(req_file):
-        print("ERROR: cannot find", req_file)
+        print("错误：找不到", req_file)
         return False
     print("=" * 50)
-    print("Installing dependencies ...")
+    print("正在安装依赖（镜像源:", PIP_INDEX_URL, ")...")
     print("=" * 50)
     packages = []
     with open(req_file, "r", encoding="utf-8") as f:
@@ -121,10 +98,10 @@ def install_requirements():
             if line and not line.startswith("#"):
                 packages.append(line)
     if not packages:
-        print("Nothing to install")
+        print("无需安装的包")
         return True
     print()
-    print("Total", len(packages), "packages:")
+    print("共", len(packages), "个包:")
     for pkg in packages:
         print("  -", pkg)
     print()
@@ -132,9 +109,9 @@ def install_requirements():
     skipped_count = 0
     failed_count = 0
     for pkg in packages:
-        pkg_name = pkg.split(">")[0].split("=")[0]
+        pkg_name = pkg.split("~")[0].split(">")[0].split("=")[0].split("<")[0]
         if is_package_installed(pkg_name):
-            print("  ", pkg_name, "already installed, skip")
+            print("  ", pkg_name, "已安装，跳过")
             skipped_count += 1
         else:
             if install_package(pkg):
@@ -143,10 +120,10 @@ def install_requirements():
                 failed_count += 1
     print()
     print("=" * 50)
-    print("Summary:")
-    print("  newly installed:", installed_count)
-    print("  skipped:        ", skipped_count)
-    print("  failed:         ", failed_count)
+    print("安装结果:")
+    print("  新安装:", installed_count)
+    print("  已跳过:", skipped_count)
+    print("  失败:  ", failed_count)
     print("=" * 50)
     return failed_count == 0
 
@@ -154,25 +131,24 @@ def install_requirements():
 if __name__ == "__main__":
     try:
         print("=" * 60)
-        print("    family_monitor installer")
+        print("    family_monitor 安装脚本")
         print("=" * 60)
         print()
         if not check_system_requirements():
             sys.exit(1)
-        backup_pip_source()
         print()
         if install_requirements():
             print()
-            print("Install completed.")
+            print("安装完成。")
             print()
-            print("Next step:")
+            print("下一步:")
             print("  python main.py")
             print()
-            print("Default port: 4430")
+            print("默认端口: 4430")
         else:
             print()
-            print("Some packages failed.")
+            print("部分包安装失败。")
     except Exception as e:
         print()
-        print("Install script failed:", e)
+        print("安装脚本失败:", e)
         sys.exit(1)

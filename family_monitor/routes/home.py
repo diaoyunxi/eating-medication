@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 首页路由 - 完善版
+所有 POST 路由均通过 X-CSRF-Token header 校验 CSRF
 """
 
 from fastapi import APIRouter, Request, Form, HTTPException
@@ -17,16 +18,23 @@ templates.env.cache = {}
 templates.env.globals["prefix"] = config.PATH_PREFIX
 
 
+def _check_csrf(request: Request) -> bool:
+    """校验 X-CSRF-Token header 是否与 cookie 一致"""
+    cookie_token = request.cookies.get("csrf_token", "")
+    header_token = request.headers.get("X-CSRF-Token", "")
+    return bool(cookie_token and header_token and cookie_token == header_token)
+
+
 @router.get("/")
 async def index(request: Request):
     """首页"""
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
-    
+
     return templates.TemplateResponse(
-        request,
         "index.html",
         {
+            "request": request,
             "app_name": config.APP_NAME,
             "status": status,
             "device_info": device_info
@@ -47,11 +55,11 @@ async def get_reminders(request: Request):
     reminders = await elderly_client.get_reminders()
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
-    
+
     return templates.TemplateResponse(
-        request,
         "reminders.html",
         {
+            "request": request,
             "app_name": config.APP_NAME,
             "reminders": reminders,
             "status": status,
@@ -66,11 +74,11 @@ async def get_records(request: Request):
     records = await elderly_client.get_medication_records()
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
-    
+
     return templates.TemplateResponse(
-        request,
         "records.html",
         {
+            "request": request,
             "app_name": config.APP_NAME,
             "records": records,
             "status": status,
@@ -85,11 +93,11 @@ async def get_dashboard(request: Request):
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
     dashboard_data = await elderly_client.get_dashboard_data()
-    
+
     return templates.TemplateResponse(
-        request,
         "dashboard.html",
         {
+            "request": request,
             "app_name": config.APP_NAME,
             "status": status,
             "device_info": device_info,
@@ -100,27 +108,29 @@ async def get_dashboard(request: Request):
 
 @router.get("/settings")
 async def get_settings(request: Request):
-    """设置页面"""
+    """设置页面（API_KEY 已移除，实际未使用）"""
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
     bound_device = elderly_client.get_bound_device()
 
-    return templates.TemplateResponse(request, "settings.html", {
+    return templates.TemplateResponse("settings.html", {
+            "request": request,
             "app_name": config.APP_NAME,
             "status": status,
             "device_info": device_info,
             "current_server_url": config.ELDERLY_SERVER_URL,
-            "current_api_key": config.API_KEY,
             "bound_device": bound_device,
             'display_settings': config.DISPLAY_SETTINGS,})
 
 
 @router.post("/settings/server")
-async def update_server_settings(request: Request, server_url: str = Form(...), api_key: str = Form("")):
-    """更新服务器设置"""
+async def update_server_settings(request: Request, server_url: str = Form(...)):
+    """更新服务器设置（API_KEY 已移除）"""
+    # CSRF 校验
+    if not _check_csrf(request):
+        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     try:
         config.ELDERLY_SERVER_URL = server_url
-        config.API_KEY = api_key
         config.save_config()
         elderly_client.base_url = server_url
         return JSONResponse(content={
@@ -142,6 +152,9 @@ async def update_display_settings(
     compact: bool = Form(False),
 ):
     """更新显示设置"""
+    # CSRF 校验
+    if not _check_csrf(request):
+        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     try:
         config.DISPLAY_SETTINGS = {
             'theme': theme,
@@ -162,6 +175,9 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
     绑定前先调用服务端的 check_device 接口校验设备是否已注册，
     若设备未注册则返回明确错误，避免绑定到不存在的设备。
     """
+    # CSRF 校验
+    if not _check_csrf(request):
+        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     try:
         # 1. 先校验设备是否已在服务端注册
         check_result = await elderly_client.check_device(device_id)
@@ -201,7 +217,8 @@ async def medication_settings(request: Request):
     device_info = await elderly_client.get_device_info()
     plans = await elderly_client.get_device_plans()
 
-    return templates.TemplateResponse(request, "medication_settings.html", {
+    return templates.TemplateResponse("medication_settings.html", {
+        "request": request,
         "app_name": config.APP_NAME,
         "status": status,
         "device_info": device_info,
@@ -214,7 +231,11 @@ async def add_medication_plan(request: Request):
     """添加用药计划
 
     接收 JSON 表单数据并调用服务端设置用药计划。
+    CSRF 通过 X-CSRF-Token header 校验。
     """
+    # CSRF 校验
+    if not _check_csrf(request):
+        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     try:
         # 解析 JSON 请求体
         try:
@@ -305,6 +326,9 @@ async def add_medication_plan(request: Request):
 @router.post("/medication_settings/delete/{plan_id}")
 async def delete_medication_plan(request: Request, plan_id: int):
     """删除用药计划"""
+    # CSRF 校验
+    if not _check_csrf(request):
+        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     try:
         result = await elderly_client.delete_medication_plan(plan_id)
         if result.get("success"):
@@ -324,6 +348,9 @@ async def delete_medication_plan(request: Request, plan_id: int):
 @router.post("/settings/unbind_device")
 async def unbind_device(request: Request):
     """解绑设备"""
+    # CSRF 校验
+    if not _check_csrf(request):
+        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     try:
         elderly_client.clear_bound_device()
         return JSONResponse(content={

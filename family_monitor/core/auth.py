@@ -5,7 +5,9 @@
 """
 
 import json
+import os
 import bcrypt
+import fcntl
 import logging
 import secrets
 from pathlib import Path
@@ -44,19 +46,30 @@ class UserManager:
             logger.info("用户文件已创建")
 
     def _load_users(self) -> dict:
-        """加载用户数据"""
+        """加载用户数据（使用文件锁防止并发冲突）"""
         try:
             with open(self.users_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                try:
+                    return json.load(f)
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         except Exception as e:
             logger.error(f"加载用户数据失败: {e}")
             return {}
 
     def _save_users(self, users: dict):
-        """保存用户数据"""
+        """保存用户数据（使用排他文件锁防止并发写入，并设置 0600 权限）"""
         try:
             with open(self.users_file, 'w', encoding='utf-8') as f:
-                json.dump(users, f, ensure_ascii=False, indent=2)
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    json.dump(users, f, ensure_ascii=False, indent=2)
+                    f.flush()
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            # 设置文件权限为 0600（仅所有者可读写），保护敏感数据
+            os.chmod(self.users_file, 0o600)
         except Exception as e:
             logger.error(f"保存用户数据失败: {e}")
 
@@ -117,7 +130,7 @@ class UserManager:
             logger.info(f"用户登录成功: {username}")
             return True, "登录成功"
         else:
-            logger.warning(f"用户登录失败（密码错误）: {username}")  
+            logger.warning(f"用户登录失败（密码错误）: {username}")
             return False, "用户名或密码错误"
 
     def user_exists(self, username: str) -> bool:

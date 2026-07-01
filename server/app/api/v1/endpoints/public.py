@@ -1,22 +1,50 @@
 # -*- coding: utf-8 -*-
 """
-公开端点 - 供老人端设备使用（无需认证）
-支持设备注册、消息上报、紧急通知等
+公开端点 - 供老人端设备使用。
+C5：引入设备密钥机制（device_token），写操作与读操作均需校验 X-Device-Token。
 """
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from app.core.database import get_db
+# M17：get_db 统一从 dependencies 导入
+from app.core.dependencies import get_db
+from app.core.security import hash_password, verify_password
 from app.models.user import User
 from app.services.medication_service import MedicationService
 from app.services.ai_service import AIService
+# C5.6/M21：AI 端点限流
+from app.utils.rate_limit import check_rate_limit
+import secrets
 import logging
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/public", tags=["设备公开接口"])
+
+# AI 公开端点限流：每分钟每 IP 最多 10 次
+_AI_RATE_LIMIT = 10
+
+
+def _verify_device_token(user: User, token: Optional[str]) -> bool:
+    """C5：校验设备 token（device_token 存储于 user.hashed_password 的哈希）"""
+    if not token:
+        return False
+    try:
+        return verify_password(token, user.hashed_password)
+    except Exception:
+        return False
+
+
+def _get_device_user_and_verify(db: Session, device_id: str, token: Optional[str]) -> User:
+    """查找设备用户并校验 device_token（C5）"""
+    user = db.query(User).filter(User.username == device_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="设备未注册")
+    if not _verify_device_token(user, token):
+        raise HTTPException(status_code=401, detail="设备 token 无效或缺失")
+    return user
 
 
 class DeviceMessage(BaseModel):
@@ -40,7 +68,7 @@ class AIQuestion(BaseModel):
 
 
 class FamilyMedicationPlan(BaseModel):
-    """家属设置用药计划（通过设备ID，无需JWT认证）"""
+    """家属设置用药计划（通过设备ID，需携带 X-Device-Token）"""
     device_id: str
     drug_name: str
     dosage: str = "1片"
@@ -53,16 +81,23 @@ class FamilyMedicationPlan(BaseModel):
 
 
 @router.post("/device/register")
-async def register_device(req: DeviceRegister, db: Session = Depends(get_db)):
-    """设备注册/心跳上报"""
+async def register_device(
+    req: DeviceRegister,
+    db: Session = Depends(get_db),
+    x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+):
+    """设备注册/心跳上报（C5：成功注册时返回 device_token）"""
     logger.info(f"设备注册/心跳: {req.device_id}")
     # 查找或创建设备记录
     user = db.query(User).filter(User.username == req.device_id).first()
     if not user:
         # 自动创建老人用户（以device_id为用户名）
+        # C5：生成 device_token，其哈希存入 password_hash 字段
+        device_token = secrets.token_urlsafe(32)
         user = User(
             username=req.device_id,
-            hashed_password="device",  # 设备不需要密码登录
+            # C5.3：生成不可登录的随机密码（device_token 的哈希）
+            hashed_password=hash_password(device_token),
             full_name=req.device_name or req.device_id,
             role="elderly",
         )
@@ -70,6 +105,19 @@ async def register_device(req: DeviceRegister, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(user)
         logger.info(f"自动创建设备用户: {req.device_id}")
+        return {"status": "ok", "user_id": user.id, "device_token": device_token}
+
+    # 已注册设备
+    # 兼容 legacy 设备（hashed_password == "device" 未哈希）：重新生成 token
+    if user.hashed_password == "device":
+        device_token = secrets.token_urlsafe(32)
+        user.hashed_password = hash_password(device_token)
+        db.commit()
+        return {"status": "ok", "user_id": user.id, "device_token": device_token}
+
+    # C5.2：已注册设备需校验 X-Device-Token
+    if not _verify_device_token(user, x_device_token):
+        raise HTTPException(status_code=401, detail="设备 token 无效或缺失")
     return {"status": "ok", "user_id": user.id}
 
 
@@ -91,12 +139,14 @@ async def device_message(req: DeviceMessage, db: Session = Depends(get_db)):
 
 
 @router.get("/device/status/{device_id}")
-async def get_device_status(device_id: str, db: Session = Depends(get_db)):
-    """获取设备状态信息（供子女端查询）"""
+async def get_device_status(
+    device_id: str,
+    db: Session = Depends(get_db),
+    x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+):
+    """获取设备状态信息（供子女端查询，C5：需校验 device_token）"""
     logger.info(f"查询设备状态: {device_id}")
-    user = db.query(User).filter(User.username == device_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="设备未注册")
+    user = _get_device_user_and_verify(db, device_id, x_device_token)
 
     # 获取设备相关统计
     from app.models.medication_plan import MedicationPlan
@@ -116,8 +166,17 @@ async def get_device_status(device_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/ai/ask")
-async def ai_ask(req: AIQuestion, db: Session = Depends(get_db)):
-    """AI问答（设备端）"""
+async def ai_ask(
+    req: AIQuestion,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """AI问答（设备端，C5.6/M21：基于 IP 限流，每分钟每 IP 最多 10 次）"""
+    # C5.6/M21：限流
+    client_ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(f"ai_ask:{client_ip}", _AI_RATE_LIMIT):
+        raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
+
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="问题不能为空")
 
@@ -142,10 +201,11 @@ async def ai_ask(req: AIQuestion, db: Session = Depends(get_db)):
 
 @router.get("/device/check/{device_id}")
 async def check_device(device_id: str, db: Session = Depends(get_db)):
-    """检查设备是否已注册（供子女端绑定时校验）"""
+    """检查设备是否已注册（供子女端绑定时校验，C5.5：保留无认证，不返回敏感信息）"""
     user = db.query(User).filter(User.username == device_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="设备未注册")
+    # C5.5：仅返回最少信息，不返回敏感数据
     return {
         "exists": True,
         "device_id": user.username,
@@ -155,11 +215,13 @@ async def check_device(device_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/device/schedule/{device_id}")
-async def get_device_schedule(device_id: str, db: Session = Depends(get_db)):
-    """获取设备的用药计划（供老人端每分钟轮询，无需认证）"""
-    user = db.query(User).filter(User.username == device_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="设备未注册")
+async def get_device_schedule(
+    device_id: str,
+    db: Session = Depends(get_db),
+    x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+):
+    """获取设备的用药计划（供老人端每分钟轮询，C5.4：需校验 device_token）"""
+    user = _get_device_user_and_verify(db, device_id, x_device_token)
 
     from app.models.medication_plan import MedicationPlan
     plans = db.query(MedicationPlan).filter(MedicationPlan.user_id == user.id).all()
@@ -186,13 +248,14 @@ async def get_device_schedule(device_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/device/medication_plan")
-async def set_device_medication_plan(req: FamilyMedicationPlan, db: Session = Depends(get_db)):
-    """家属通过设备ID设置用药计划（无需JWT认证）"""
-    user = db.query(User).filter(User.username == req.device_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="设备未注册，请先在老人端完成配网")
+async def set_device_medication_plan(
+    req: FamilyMedicationPlan,
+    db: Session = Depends(get_db),
+    x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+):
+    """家属通过设备ID设置用药计划（C5.2：需校验 device_token）"""
+    user = _get_device_user_and_verify(db, req.device_id, x_device_token)
 
-    from app.models.medication_plan import MedicationPlan
     from app.schemas.medication import MedicationPlanCreate
 
     plan_data = MedicationPlanCreate(
@@ -217,11 +280,13 @@ async def set_device_medication_plan(req: FamilyMedicationPlan, db: Session = De
 
 
 @router.get("/device/plans/{device_id}")
-async def get_device_plans(device_id: str, db: Session = Depends(get_db)):
-    """获取设备的所有用药计划（供子女端查看，无需认证）"""
-    user = db.query(User).filter(User.username == device_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="设备未注册")
+async def get_device_plans(
+    device_id: str,
+    db: Session = Depends(get_db),
+    x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+):
+    """获取设备的所有用药计划（供子女端查看，C5.4：需校验 device_token）"""
+    user = _get_device_user_and_verify(db, device_id, x_device_token)
 
     plans = MedicationService.get_plans_by_user(db, user.id)
     return {
@@ -244,12 +309,24 @@ async def get_device_plans(device_id: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/device/medication_plan/{plan_id}")
-async def delete_device_medication_plan(plan_id: int, db: Session = Depends(get_db)):
-    """删除用药计划（供子女端管理）"""
+async def delete_device_medication_plan(
+    plan_id: int,
+    db: Session = Depends(get_db),
+    x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+):
+    """删除用药计划（供子女端管理，C5.2：需校验 device_token）"""
     from app.models.medication_plan import MedicationPlan
     plan = db.query(MedicationPlan).filter(MedicationPlan.id == plan_id).first()
     if not plan:
         raise HTTPException(status_code=404, detail="计划不存在")
+
+    # C5.2：通过计划关联的设备用户校验 device_token
+    device_user = db.query(User).filter(User.id == plan.user_id).first()
+    if not device_user:
+        raise HTTPException(status_code=404, detail="设备未注册")
+    if not _verify_device_token(device_user, x_device_token):
+        raise HTTPException(status_code=401, detail="设备 token 无效或缺失")
+
     db.delete(plan)
     db.commit()
     return {"status": "ok"}

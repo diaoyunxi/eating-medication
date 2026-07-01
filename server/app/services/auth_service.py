@@ -1,9 +1,11 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import datetime, timezone
 from app.models.user import User
 from app.schemas.auth import RegisterReq
 from app.core.security import hash_password, verify_password, create_access_token
+
 
 class AuthService:
     """认证服务"""
@@ -29,12 +31,23 @@ class AuthService:
         db.commit()
         db.refresh(user)
 
+        # H7：sub 统一为字符串（在 create_access_token 内部转换）
         return create_access_token(data={"sub": user.id})
 
     @staticmethod
     def login(db: Session, username: str, password: str) -> Optional[str]:
         """用户登录，返回 access_token，失败返回 None"""
         user = db.query(User).filter(User.username == username).first()
-        if not user or not verify_password(password, user.hashed_password):
+        # H8：防时序攻击——用户不存在时也执行一次 bcrypt 验证消耗时间，
+        # 避免通过响应时间差异探测用户是否存在
+        if not user:
+            dummy_hash = hash_password("dummy")
+            verify_password(password, dummy_hash)
             return None
+        if not verify_password(password, user.hashed_password):
+            return None
+        # L9：记录最后登录时间
+        user.last_login_at = datetime.now(timezone.utc)
+        db.commit()
+        # H7：sub 统一为字符串（在 create_access_token 内部转换）
         return create_access_token(data={"sub": user.id})

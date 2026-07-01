@@ -9,8 +9,10 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.main import app
-from app.core.database import Base, get_db
-from app.core.security import create_access_token
+from app.core.database import Base
+# M17：get_db 统一从 dependencies 导入（与路由中使用同一函数对象）
+from app.core.dependencies import get_db
+from app.core.security import create_access_token, hash_password
 from app.models.user import User
 
 # 测试数据库（使用内存 SQLite）
@@ -63,7 +65,7 @@ def test_elderly_user(db):
     """创建测试老人用户"""
     user = User(
         username="test_elderly",
-        hashed_password="$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",  # "password"
+        hashed_password=hash_password("password"),  # 动态生成有效哈希
         full_name="测试老人",
         role="elderly",
         phone="13800138000",
@@ -80,7 +82,7 @@ def test_family_user(db):
     """创建测试家属用户"""
     user = User(
         username="test_family",
-        hashed_password="$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",
+        hashed_password=hash_password("password"),  # 动态生成有效哈希
         full_name="测试家属",
         role="family",
         phone="13900139000",

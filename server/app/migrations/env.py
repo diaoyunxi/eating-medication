@@ -13,7 +13,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from app.core.database import Base
 from app.core.config import settings
-from app.models import user, medication_plan, medication_record, purchase_suggestion, ai_query_log
+# H12：删除不存在的 purchase_suggestion 引用
+from app.models import user, medication_plan, medication_record, ai_query_log
 
 # 这是 Alembic 使用的 MetaData 对象，用于自动生成迁移脚本
 target_metadata = Base.metadata

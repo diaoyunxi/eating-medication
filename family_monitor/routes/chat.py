@@ -1,11 +1,11 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 消息路由
 """
 
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
-from core import config
+from core import config, elderly_client
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
@@ -17,11 +17,24 @@ templates.env.globals["prefix"] = config.PATH_PREFIX
 
 @router.get("/chat")
 async def chat(request: Request):
-    """消息页面"""
+    """消息页面
+    传入 current_user 和 elderly_id 供模板使用"""
+    user = getattr(request.state, 'user', None) or ''
+    elderly_id = ''
+    # 从已绑定的设备获取 elderly_id
+    if user:
+        bound = elderly_client.get_bound_device()
+        if bound:
+            elderly_id = bound.get('device_id', '')
+
     return templates.TemplateResponse(
-        request,
         "chat.html",
         {
-            "app_name": config.APP_NAME
+            "request": request,
+            "app_name": config.APP_NAME,
+            "current_user": user,
+            "elderly_id": elderly_id,
+            "server_url": config.ELDERLY_SERVER_URL,
+            "prefix": config.PATH_PREFIX,
         }
     )
