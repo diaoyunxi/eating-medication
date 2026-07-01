@@ -21,10 +21,10 @@
 本系统**不再使用本地证书文件**，所有模块均以纯 HTTP 监听，HTTPS 由 **Cloudflare 隧道（cloudflared）边缘自动配置**：
 
 - 本地服务监听 HTTP，cloudflared 建立加密隧道到 Cloudflare 边缘节点。
-- 用户通过 `https://my-website.ccwu.cc` 访问，SSL 在 Cloudflare 边缘终止，流量经隧道转发到本地 HTTP 服务。
+- 用户通过 `https://your-domain.example.com` 访问（部署时替换为实际域名），SSL 在 Cloudflare 边缘终止，流量经隧道转发到本地 HTTP 服务。
 - 两个服务通过路径前缀区分转发：
-  - `https://my-website.ccwu.cc/eating-medication/server` → 服务端（本地端口 1059）
-  - `https://my-website.ccwu.cc/eating-medication/family` → 家属看护端（本地端口 4430）
+  - `https://your-domain.example.com/eating-medication/server` → 服务端（本地端口 1059）
+  - `https://your-domain.example.com/eating-medication/family` → 家属看护端（本地端口 4430）
 - 应用内置路径前缀中间件，自动剥离/补回前缀，本地直连（前缀为空）与隧道访问均兼容。
 
 ---
@@ -141,6 +141,7 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 
 ## 版本历史
 
+- **v2.2.0**（2026-07-01）：安全加固版本。修复 11 个严重 + 15 个高危 + 21 个中危 + 20 个低危问题（详见 `SECURITY_AUDIT_REPORT.md`）。包括：移除硬编码 SECRET_KEY 并改用环境变量、聊天/设备端点加认证、CORS 白名单、CSRF 防护、XSS 修复、自动更新加哈希校验、热点加密、依赖升级、Alembic 迁移修复等。
 - **v2.1.0**（2026-06-30）：移除本地 SSL 证书机制，改为 Cloudflare 隧道边缘自动配置 HTTPS；新增路径前缀支持（`/eating-medication/server`、`/eating-medication/family`）；老人端默认服务器地址改为公网域名；清除项目内部代号字样。
 - **v2.0.0**（2026-06-30）：重大升级，从单文件吃药提醒工具升级为完整三端系统（老人端 + 服务端 + 家属看护端），新增自动更新检查、AI 语音问答、药品识别、家属聊天、紧急呼叫、库存管理等功能。
 - **v1.0.0**：轻量级用药提醒工具（单文件），支持定时提醒和用药记录。

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,51 +9,57 @@
 <body>
     <div class="container">
         <h1>管理员设置</h1>
-        
+
         {% if message %}
         <div class="alert {% if success %}alert-success{% else %}alert-error{% endif %}">
             {{ message }}
         </div>
         {% endif %}
-        
+
         <a href="{{ prefix }}/"> 返回首页</a>
-        
-        <form action="{{ prefix }}/admin/settings/update" method="POST">
+
+        <!-- 服务端配置表单 -->
+        <form action="{{ prefix }}/admin/administrator/setting/server" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+            <h2>服务端配置</h2>
             <div class="form-group">
                 <label>老人端服务器地址</label>
                 <input type="text" name="elderly_server_url" value="{{ elderly_server_url }}">
             </div>
-            
+
             <div class="form-group">
                 <label>服务器主机</label>
                 <input type="text" name="server_host" value="{{ server_host }}">
             </div>
-            
+
             <div class="form-group">
                 <label>服务器端口</label>
                 <input type="number" name="server_port" value="{{ server_port }}">
             </div>
-            
+
+            <button type="submit" class="btn btn-primary">保存设置</button>
+        </form>
+
+        <!-- 高级配置表单 -->
+        <form action="{{ prefix }}/admin/administrator/setting/advanced" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+            <h2>高级配置</h2>
             <div class="form-group">
-                <label>调试模式</label>
-                <select name="debug_mode">
+                <label>调试模式（只读，通过 .env 配置）</label>
+                <select name="debug_mode" disabled>
                     <option value="false" {% if not debug_mode %}selected{% endif %}>关闭</option>
                     <option value="true" {% if debug_mode %}selected{% endif %}>开启</option>
                 </select>
+                <p class="form-hint">DEBUG 仅可通过 .env 环境变量配置，生产环境强制关闭</p>
             </div>
-            
-            <button type="submit" class="btn btn-primary">保存设置</button>
+
+            <button type="submit" class="btn btn-primary">保存高级配置</button>
         </form>
-        
-        <form action="{{ prefix }}/admin/settings/secret" method="POST">
-            <h2>修改密钥</h2>
-            <div class="form-group">
-                <label>新密钥</label>
-                <input type="password" name="secret_key" required>
-            </div>
-            
-            <button type="submit" class="btn btn-primary">更新密钥</button>
-        </form>
+
+        <!-- SECRET_KEY 说明：仅通过 .env 配置，不提供 Web 修改入口 -->
+        <div class="form-group">
+            <p class="form-hint">SECRET_KEY 仅通过 .env 环境变量配置，不支持通过 Web 界面修改。</p>
+        </div>
     </div>
 </body>
 </html>

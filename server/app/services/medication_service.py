@@ -45,7 +45,10 @@ class MedicationService:
 
     @staticmethod
     def take_medication(db: Session, user_id: int, req: TakeMedicationRequest) -> MedicationRecord:
-        """记录服药并扣减库存"""
+        """记录服药并扣减库存（H9：原子扣减 + 去重 + 状态计算）"""
+        from sqlalchemy import update
+        from datetime import datetime, timezone, timedelta
+
         plan = db.query(MedicationPlan).filter(
             MedicationPlan.id == req.plan_id,
             MedicationPlan.user_id == user_id
@@ -53,18 +56,48 @@ class MedicationService:
         if not plan:
             raise ValueError("用药计划不存在或不属于当前用户")
 
-        record = MedicationRecord(
-            user_id=user_id,
-            plan_id=req.plan_id,
-            scheduled_time=req.scheduled_time,
-            taken_time=req.taken_time,
-            status="taken",
-        )
-        db.add(record)
+        # H9：按 plan_id + scheduled_time 去重，已存在则更新而非新建
+        existing_record = db.query(MedicationRecord).filter(
+            MedicationRecord.plan_id == req.plan_id,
+            MedicationRecord.scheduled_time == req.scheduled_time,
+        ).first()
 
-        if plan.remaining_quantity > 0:
-            plan.remaining_quantity -= 1.0
-            plan.updated_at = datetime.utcnow()
+        # H9：根据 taken_time 与 scheduled_time 计算 status
+        if req.taken_time is None:
+            # 未确认服药，超过计划时间 30 分钟则记为漏服
+            threshold = req.scheduled_time + timedelta(minutes=30)
+            status = "missed" if datetime.now(timezone.utc) > threshold else "pending"
+        else:
+            status = "taken"
+
+        if existing_record:
+            existing_record.taken_time = req.taken_time
+            existing_record.status = status
+            record = existing_record
+        else:
+            record = MedicationRecord(
+                user_id=user_id,
+                plan_id=req.plan_id,
+                scheduled_time=req.scheduled_time,
+                taken_time=req.taken_time,
+                status=status,
+            )
+            db.add(record)
+
+        # H9：仅在确实服药时原子扣减库存，避免并发超扣
+        if status == "taken":
+            result = db.execute(
+                update(MedicationPlan)
+                .where(
+                    MedicationPlan.id == req.plan_id,
+                    MedicationPlan.remaining_quantity >= 1,
+                )
+                .values(remaining_quantity=MedicationPlan.remaining_quantity - 1)
+            )
+            if result.rowcount == 0:
+                # 库存不足或计划不存在，回滚本次记录
+                db.rollback()
+                raise ValueError("库存不足，无法扣减")
 
         db.commit()
         db.refresh(record)

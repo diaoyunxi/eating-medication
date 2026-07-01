@@ -1,11 +1,17 @@
 server:
-  base_url: https://my-website.ccwu.cc/eating-medication/server
+  base_url: https://your-server-domain.com/eating-medication/server
   upload_endpoint: /api/upload
   medication_log_endpoint: /api/log
   emergency_endpoint: /api/emergency
   chat_endpoint: /api/chat
   method: POST
   timeout: 10
+
+# AI 客户端配置示例（base_url 与 server.base_url 可一致，api_key/model 按需补充）
+ai:
+  base_url: "https://your-server-domain.com/eating-medication/server"
+  timeout: 30
+  max_retries: 3
 
 hotspot:
   ssid: M10-Config

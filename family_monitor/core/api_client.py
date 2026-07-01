@@ -2,15 +2,22 @@
 """
 老人端API客户端 - 支持 device_id 绑定
 HTTPS 连接由系统默认 SSL 上下文验证（Cloudflare 隧道公网证书）。
+device_id 在拼接 URL 时使用 urllib.parse.quote 编码，防止特殊字符注入。
 """
 
 import httpx
 import json
 import ssl
 import os
+from urllib.parse import quote
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from core.config import config
+
+
+def _encode_device_id(device_id: str) -> str:
+    """对 device_id 进行 URL 编码，防止特殊字符破坏 URL 结构"""
+    return quote(str(device_id), safe='')
 
 
 class ElderlyAPIClient:
@@ -108,12 +115,13 @@ class ElderlyAPIClient:
         返回 {exists, device_id, device_name, created_at}
         """
         try:
+            encoded_id = _encode_device_id(device_id)
             async with httpx.AsyncClient(
                 timeout=self.timeout,
                 verify=self._ssl_context if self._ssl_context else True
             ) as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/public/device/check/{device_id}",
+                    f"{self.base_url}/api/v1/public/device/check/{encoded_id}",
                     headers=self._headers()
                 )
                 if response.status_code == 200:
@@ -132,12 +140,13 @@ class ElderlyAPIClient:
         if not self._device_id:
             return []
         try:
+            encoded_id = _encode_device_id(self._device_id)
             async with httpx.AsyncClient(
                 timeout=self.timeout,
                 verify=self._ssl_context if self._ssl_context else True
             ) as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/public/device/plans/{self._device_id}",
+                    f"{self.base_url}/api/v1/public/device/plans/{encoded_id}",
                     headers=self._headers()
                 )
                 if response.status_code == 200:
@@ -231,14 +240,15 @@ class ElderlyAPIClient:
                 'device_name': '未绑定设备',
                 'status': '未绑定'
             }
-        
+
         try:
+            encoded_id = _encode_device_id(self._device_id)
             async with httpx.AsyncClient(
                 timeout=self.timeout,
                 verify=self._ssl_context if self._ssl_context else True
             ) as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/public/device/status/{self._device_id}",
+                    f"{self.base_url}/api/v1/public/device/status/{encoded_id}",
                     headers=self._headers()
                 )
                 if response.status_code == 200:

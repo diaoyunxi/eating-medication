@@ -142,7 +142,8 @@ class TUIApplication:
 
     def draw(self):
         """绘制界面"""
-        os.system('cls' if os.name == 'nt' else 'clear')
+        # 使用 ANSI 转义序列清屏，避免 os.system 的 shell 注入风险
+        print('\033[2J\033[H', end='')
 
         print('=' * 60)
         print(f"{'老人用药助手':^60}")

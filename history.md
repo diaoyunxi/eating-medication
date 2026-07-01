@@ -589,7 +589,7 @@ unihiker GUI 库：
 ## 服务端改动
 
 ### 新增 5 个设备公开接口（无需 JWT 认证）
-文件：[server/app/api/v1/endpoints/public.py](file:///run/media/xixi/A568-50B8/python/eating-medication/server/app/api/v1/endpoints/public.py)
+文件：[server/app/api/v1/endpoints/public.py](server/app/api/v1/endpoints/public.py)
 
 - 新增 `FamilyMedicationPlan` Pydantic 模型
 - `GET /api/v1/public/device/check/{device_id}` - 子女端绑定前校验设备是否已注册
@@ -603,7 +603,7 @@ unihiker GUI 库：
 ## 老人端重构
 
 ### main.py 完全重写
-文件：[elderly_assistant/main.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/main.py)
+文件：[elderly_assistant/main.py](elderly_assistant/main.py)
 
 - 舍弃原 TUI（tui_app.py 不再使用）
 - 主循环每秒更新 unihiker GUI 时间显示
@@ -615,7 +615,7 @@ unihiker GUI 库：
 - 所有 pinpong/unihiker 导入放 try-except ImportError，非 M10 环境可调试运行
 
 ### 新建 core/display.py
-文件：[elderly_assistant/core/display.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/core/display.py)
+文件：[elderly_assistant/core/display.py](elderly_assistant/core/display.py)
 
 集中所有屏幕显示逻辑：
 - `show_time(now)` 显示当前时间
@@ -626,14 +626,14 @@ unihiker GUI 库：
 - `show_next_reminder(time, drug)` 显示下次提醒
 
 ### buzzer.py 重写
-文件：[elderly_assistant/services/buzzer.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/services/buzzer.py)
+文件：[elderly_assistant/services/buzzer.py](elderly_assistant/services/buzzer.py)
 
 - `play_reminder()` 在独立线程循环播放 `buzzer.BA_DING`，直到 stop
 - `stop()` 停止蜂鸣
 - `play_success()` 播放 `buzzer.JUMP_UP` 表示确认服药
 
 ### wifi_config.py 重写
-文件：[elderly_assistant/services/wifi_config.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/services/wifi_config.py)
+文件：[elderly_assistant/services/wifi_config.py](elderly_assistant/services/wifi_config.py)
 
 - 使用标准库 `http.server.BaseHTTPRequestHandler`（无额外依赖）
 - `CONFIG_PORT=8088`，提供 HTML 配网页面
@@ -642,7 +642,7 @@ unihiker GUI 库：
 - WiFi 连接成功后获取 FCC ID 并 POST 注册到服务器
 
 ### hotspot_manager.py 修改
-文件：[elderly_assistant/services/hotspot_manager.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/services/hotspot_manager.py)
+文件：[elderly_assistant/services/hotspot_manager.py](elderly_assistant/services/hotspot_manager.py)
 
 统一热点参数：
 - `HOTSPOT_SSID = "M10-Config"`
@@ -650,14 +650,14 @@ unihiker GUI 库：
 - `HOTSPOT_WEB_PORT = 8088`
 
 ### http_client.py 修改
-文件：[elderly_assistant/services/http_client.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/services/http_client.py)
+文件：[elderly_assistant/services/http_client.py](elderly_assistant/services/http_client.py)
 
 新增方法：
 - `get_medication_schedule()` → GET `/api/v1/public/device/schedule/{device_id}`
 - `confirm_medication()` 确认服药上报
 
 ### device_id.py（沿用，无需修改）
-文件：[elderly_assistant/services/device_id.py](file:///run/media/xixi/A568-50B8/python/eating-medication/elderly_assistant/services/device_id.py)
+文件：[elderly_assistant/services/device_id.py](elderly_assistant/services/device_id.py)
 
 - 优先通过 pinpong `Board().begin()` 获取 `FCC_{MAC}`
 - 失败回退 `DEV_{UUID}`
@@ -668,13 +668,13 @@ unihiker GUI 库：
 ## 子女端改动
 
 ### api_client.py 修改
-文件：[family_monitor/core/api_client.py](file:///run/media/xixi/A568-50B8/python/eating-medication/family_monitor/core/api_client.py)
+文件：[family_monitor/core/api_client.py](family_monitor/core/api_client.py)
 
 - **Bug 修复**：原 `register_device` 方法存在 `return` 后紧跟 `return` 的死代码，缺少 else 分支，已重构为显式 if/else
 - 新增方法：`check_device()`、`get_device_plans()`、`set_medication_plan()`、`delete_medication_plan()`
 
 ### home.py 修改
-文件：[family_monitor/routes/home.py](file:///run/media/xixi/A568-50B8/python/eating-medication/family_monitor/routes/home.py)
+文件：[family_monitor/routes/home.py](family_monitor/routes/home.py)
 
 - `bind_device` 路由绑定前先调用 `check_device` 校验设备是否已注册
 - 新增路由：
@@ -683,7 +683,7 @@ unihiker GUI 库：
   - `POST /medication_settings/delete/{plan_id}` - 删除计划
 
 ### 新建 medication_settings.html
-文件：[family_monitor/templates/medication_settings.html](file:///run/media/xixi/A568-50B8/python/eating-medication/family_monitor/templates/medication_settings.html)
+文件：[family_monitor/templates/medication_settings.html](family_monitor/templates/medication_settings.html)
 
 - 当前用药计划列表（可删除）
 - 添加计划表单：药品名、剂量、可动态增删的服药时间、频率、数量
@@ -707,3 +707,127 @@ unihiker GUI 库：
 - 配网 Web 端口：`8088`
 - 子女端 Web 端口：`4430`（HTTPS）
 - 服务端 API 端口：HTTPS 默认
+
+---
+
+# v2.2.0 - 安全加固版本（2026-07-01）
+
+## 背景
+
+基于对 `diaoyunxi/eating-medication` 仓库的全面严格审查，发现 47+ 个安全问题（11 严重 + 15 高危 + 21 中危 + 20+ 低危），详见 `SECURITY_AUDIT_REPORT.md`。本次发布为安全加固版本，允许破坏性变更。
+
+## 服务端（server）修复
+
+### 严重问题修复
+- **C2**：`main.py` 默认 `.env` 中 `DEBUG=False`，`SECRET_KEY` 用 `secrets.token_urlsafe(32)` 动态生成
+- **C3**：`config.py` 启动时校验 SECRET_KEY，弱密钥拒绝启动
+- **C4**：聊天端点（send/history/ws）全部加 `Depends(get_current_user)`，sender_id 从 token 提取
+- **C5**：设备端点引入 `X-Device-Token` 机制，写/读操作需携带 token；AI 端点 IP 限流
+- **C7**：删除内联 CORS，改用 `setup_cors(app)` 从 `ALLOWED_ORIGINS` 环境变量读取白名单
+- **C8**：日志中间件对敏感路径跳过请求体记录，对敏感字段脱敏
+- **C9**：updater 加 SHA256 校验查找，auto_pull 默认 False
+
+### 高危问题修复
+- **H7**：JWT sub 统一为 str，增加 type/jti 字段，token 有效期缩短至 1 小时
+- **H8**：登录防时序攻击（用户不存在时执行 dummy bcrypt）
+- **H9**：库存扣减原子化，按 plan_id+scheduled_time 去重，status 计算（missed/taken/pending）
+- **H10**：异常不返回客户端，logger.exception 记录
+- **H11**：stock_checker 改用 AsyncIOScheduler
+- **H12**：删除 env.py 中 purchase_suggestion 引用，修正 alembic.ini script_location
+- **H13**：bind_family 增加 device_id 校验（弱保护）
+- **H14**：WebSocket token 长度校验
+- **H15**：文件上传限制 5MB
+
+### 中危问题修复
+- M12：schemas/auth.py 集成 validators
+- M13：schedule_times 加时间格式校验
+- M14：所有 datetime.utcnow() 改 datetime.now(timezone.utc)
+- M16：chat ws 用 `with SessionLocal() as db`
+- M17：get_db 统一从 dependencies 导入
+- M18：异常处理器脱敏
+- M19：low_stock_threshold 改 Float
+- M20：confidence 改 Optional
+
+### 低危修复
+- L8：注册端点 IP 限流
+- L9：User 模型增加 is_active、last_login_at 字段
+- L11：ChatMessage 字段加索引
+- L12：history limit 上限 200
+- L14：ai_query_log 默认模型改 glm-4.7-flash
+
+### 依赖升级
+- python-jose 3.3.0 → 3.4.0（修复 CVE-2024-33664）
+- pydantic 2.9.2 → 2.10.0（修复 CVE-2024-1561）
+- sqlalchemy 2.0.35 → 2.0.36（修复 CVE-2024-29906）
+- 新增 bcrypt>=4.0,<4.1 约束
+- 测试依赖移至 requirements-dev.txt
+
+## 家属监控端（family_monitor）修复
+
+### 严重问题修复
+- **C1**：移除 config.json 中硬编码 SECRET_KEY，改为从 .env 注入，空时自动生成临时密钥并警告；config.json 加入 .gitignore，新增 config.json.example
+- **C6**：CORS 改从 ALLOWED_ORIGINS 环境变量读取；引入 CSRF 双重提交防护
+
+### 高危问题修复
+- **H2**：cookie 加 secure/samesite=strict；登出调用 invalidate_session；撤销令牌持久化到 data/revoked_tokens.json
+- **H3**：移除 SECRET_KEY 的 Web 修改入口
+- **H4**：公开路径精确匹配
+- **H5**：chat.html XSS 修复（innerHTML → DOM + textContent）
+- **H6**：medication_settings.html 移除 `| safe`，改用 data-* 属性
+
+### 中危问题修复
+- M1：config.py 不写回 os.environ
+- M2：auth.py 加 fcntl 文件锁 + chmod 0600
+- M3：添加安全响应头中间件
+- M4：禁用 Web 修改 DEBUG
+- M5：admin_settings 表单 action 路径修正
+- M6：chat 路由传入 current_user 和 elderly_id
+- M7：install.py 不修改全局 pip 配置
+- M8：device_id URL 编码
+- M9：移除未使用的 API_KEY 配置
+- M10：端口使用 config.SERVER_PORT
+
+### 低危修复
+- L16：更新 README
+- L17：修复 routes/__init__.py 编码
+- L18：登录限流
+- 依赖：requirements.txt `>=` 改 `~=`
+
+## 老人端（elderly_assistant）修复
+
+### 严重问题修复
+- **C10**：热点加 WPA2 随机密码；配网服务加 X-Config-Token 校验；server_url 转义防 XSS；CORS 限制为本地热点网关
+- **C11**：ai_client.py 改 `config.get('ai', {})` 容错；config.yaml 补充 ai 段
+
+### 高危问题修复
+- **H1**：hotspot_manager.py 改列表形式调用 subprocess，去掉 shell=True
+
+### 低危修复
+- L6：install.py 改为读取 requirements.txt
+- L7：移除 opencv-python、fuzzywuzzy、python-Levenshtein，改用 rapidfuzz
+- main.py 自动更新异常不静默
+- tui_app.py os.system 改 ANSI 转义序列
+- config.yaml 占位符替换
+
+## 跨模块共享文件修复
+
+- **.gitignore**：新增 family_monitor/config.json、elderly_assistant/config.yaml 忽略规则
+- **README.md**：生产域名替换为占位符；新增 v2.2.0 版本记录
+- **history.md**：移除本地绝对路径（file:///run/media/xixi/...）
+- **VERSION**：2.1.0 → 2.2.0
+- 新增 config.yaml.example、config.json.example 模板
+
+## 破坏性变更说明
+
+1. **SECRET_KEY 必须配置**：server 和 family_monitor 启动时若未配置 SECRET_KEY（或为已知弱值），生产模式（DEBUG=False）将拒绝启动
+2. **设备 token 机制**：首次注册设备会返回 device_token，后续读写操作需在 Header 携带 X-Device-Token，老设备需重新注册
+3. **JWT 有效期缩短**：从 7 天缩短至 1 小时，客户端需实现 refresh 机制或重新登录
+4. **CORS 白名单**：生产环境必须配置 ALLOWED_ORIGINS 环境变量，否则跨域请求被拒绝
+5. **CSRF 防护**：family_monitor 所有 POST 请求需携带 csrf_token
+6. **热点加密**：elderly_assistant 热点现在需要密码连接，启动时打印
+
+## 验证
+
+- 服务端：`python -c "from app.main import app; print('OK')"` → OK
+- 家属端：`python -c "from main import app; print('OK')"` → OK（含端到端测试通过）
+- 老人端：`python -m py_compile` 全部通过，`import main` 成功

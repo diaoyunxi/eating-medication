@@ -9,6 +9,9 @@ class ConnectionManager:
     """
     WebSocket 连接管理器
     维护 user_id -> WebSocket 连接列表的映射
+
+    注意（M15）：本实现仅适用于单进程部署。多进程部署时需使用 Redis Pub/Sub
+    或其他消息中间件在进程间同步连接与消息，否则消息只能送达本进程内的连接。
     """
 
     def __init__(self):

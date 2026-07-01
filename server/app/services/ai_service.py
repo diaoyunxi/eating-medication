@@ -57,6 +57,7 @@ class AIService:
             logger.info(f"💬 AI 回答:\n{answer}")
             return answer
             
-        except Exception as e:
-            logger.error(f"❌ AI 服务调用失败: {e}")
-            return f"AI 服务暂时不可用，请稍后再试。错误: {str(e)}"
+        except Exception:
+            # H10：异常细节不返回客户端，仅记录详细日志
+            logger.exception("AI 服务调用失败")
+            return "AI 服务暂时不可用，请稍后再试"

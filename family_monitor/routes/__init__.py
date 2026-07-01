@@ -1,6 +1,6 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
-璺敱妯″潡
+路由模块
 """
 
 from .home import router as home_router
