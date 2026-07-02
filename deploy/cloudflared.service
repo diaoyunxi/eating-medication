@@ -1,0 +1,19 @@
+# /etc/systemd/system/cloudflared.service
+# Cloudflare 隧道守护进程，负责 HTTPS 边缘终止与子路径转发
+# 安装：sudo cp cloudflared.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now cloudflared
+# 获取 token：在 Cloudflare Zero Trust 控制台创建隧道后复制 token
+[Unit]
+Description=Cloudflare Tunnel (cloudflared)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+TimeoutStartSec=0
+Type=notify
+# 把 <TUNNEL_TOKEN> 替换为 Cloudflare Zero Trust 控制台中的隧道 token
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate run --token <TUNNEL_TOKEN>
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

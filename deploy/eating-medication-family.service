@@ -1,0 +1,23 @@
+# /etc/systemd/system/eating-medication-family.service
+# 家属看护端（FastAPI Web :4430）进程守护
+# 安装：sudo cp eating-medication-family.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now eating-medication-family
+[Unit]
+Description=Eating Medication Family Monitor (FastAPI Web)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/opt/eating-medication/family_monitor
+ExecStart=/usr/bin/python3 main.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+# 如需在此处覆盖 .env / config.json，可加 Environment= 行
+
+[Install]
+WantedBy=multi-user.target

@@ -26,6 +26,7 @@
 - [贡献与开发指南](#贡献与开发指南)
 - [版本历史](#版本历史)
 - [已知问题与待办](#已知问题与待办)
+- [感谢贡献](#感谢贡献)
 - [许可](#许可)
 
 ---
@@ -257,6 +258,12 @@
 ├── SECURITY_AUDIT_REPORT.md       # v2.2.0 安全审计报告
 ├── VERSION                        # 当前版本号（v2.2.0）
 ├── upload_123pan.py               # 123 云盘上传脚本（备份用）
+├── deploy/                        # 部署辅助文件（systemd 单元 + cloudflared 配置）
+│   ├── eating-medication-server.service
+│   ├── eating-medication-family.service
+│   ├── cloudflared.service
+│   ├── cloudflared-config.yml
+│   └── README.md
 └── .gitignore
 ```
 
@@ -544,79 +551,53 @@ WS_HEARTBEAT_INTERVAL=30
 
 ### 三模块差异
 
-| 模块 | SHA256 校验 | 异常处理 |
-|------|-------------|----------|
-| elderly_assistant | 部分（auto_pull 时警告供应链风险） | 打印异常 |
-| server | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 |
-| family_monitor | 无 | 静默 `pass` |
+三模块的 `updater.py` 已统一为同一份实现（均含完整 C9 加固）：
 
-> ⚠️ **已知问题**：当前三个 `updater.py` 的 `__version__` 仍为 `2.1.0`，而 `VERSION` 文件已为 `2.2.0`，会导致自动更新误判有新版本。详见 [已知问题与待办](#已知问题与待办)。
+| 模块 | SHA256 校验 | 异常处理 | 版本号 |
+|------|-------------|----------|--------|
+| elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 2.2.0 |
+| server | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.2.0 |
+| family_monitor | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.2.0 |
+
+> 三个 `updater.py` 的 `__version__` 已与 `VERSION` 文件同步为 `2.2.0`。
 
 ---
 
 ## 部署与运维
 
+仓库已内置部署辅助文件，位于 [`deploy/`](./deploy) 目录，包含 systemd 服务单元与 cloudflared 隧道配置示例，详见 [`deploy/README.md`](./deploy/README.md)。
+
 ### Cloudflare 隧道（cloudflared）配置
 
 1. 在 Cloudflare Zero Trust 控制台创建隧道，获取 tunnel token。
-2. 安装 cloudflared 并以服务方式运行：
+2. 安装 cloudflared 并使用 [`deploy/cloudflared.service`](./deploy/cloudflared.service)（把 `<TUNNEL_TOKEN>` 替换为实际 token）：
    ```bash
-   cloudflared service install <tunnel-token>
+   sudo cp deploy/cloudflared.service /etc/systemd/system/
+   sudo vi /etc/systemd/system/cloudflared.service   # 替换 <TUNNEL_TOKEN>
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now cloudflared
    ```
-3. 配置隧道路由规则（在 Cloudflare 控制台或 `config.yml`）：
+3. 配置隧道路由规则（在 Cloudflare 控制台或参考 [`deploy/cloudflared-config.yml`](./deploy/cloudflared-config.yml)）：
    - `https://your-domain.example.com/eating-medication/server` → `http://localhost:1059`
    - `https://your-domain.example.com/eating-medication/family` → `http://localhost:4430`
-4. 在 Cloudflare DNS 为域名添加 CNAME 指向隧道 ID。
+4. 在 Cloudflare DNS 为域名添加 CNAME 指向隧道 ID（控制台可自动完成）。
 
-> 仓库未内置 cloudflared 的 systemd 服务文件，需部署方按官方文档配置守护进程。
+### 进程守护（systemd）
 
-### 进程守护（systemd 示例）
+为服务端与子女端各使用 [`deploy/eating-medication-server.service`](./deploy/eating-medication-server.service) 与 [`deploy/eating-medication-family.service`](./deploy/eating-medication-family.service)（示例中部署目录为 `/opt/eating-medication/`，运行用户为 `deploy`，按实际环境修改 `WorkingDirectory`/`User`/`ExecStart`）：
 
-为服务端与子女端各创建一个 systemd 单元，保证开机自启与崩溃重启：
-
-```ini
-# /etc/systemd/system/eating-medication-server.service
-[Unit]
-Description=Eating Medication Server (FastAPI)
-After=network.target
-
-[Service]
-Type=simple
-User=<deploy-user>
-WorkingDirectory=/opt/eating-medication/server
-ExecStart=/usr/bin/python3 main.py
-Restart=on-failure
-RestartSec=5
-Environment=PYTHONUNBUFFERED=1
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```ini
-# /etc/systemd/system/eating-medication-family.service
-[Unit]
-Description=Eating Medication Family Monitor (FastAPI Web)
-After=network.target
-
-[Service]
-Type=simple
-User=<deploy-user>
-WorkingDirectory=/opt/eating-medication/family_monitor
-ExecStart=/usr/bin/python3 main.py
-Restart=on-failure
-RestartSec=5
-Environment=PYTHONUNBUFFERED=1
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启用：
 ```bash
+sudo cp deploy/eating-medication-server.service deploy/eating-medication-family.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now eating-medication-server eating-medication-family
 sudo systemctl status eating-medication-server eating-medication-family
+```
+
+日志查看：
+```bash
+journalctl -u eating-medication-server -f       # 服务端日志
+journalctl -u eating-medication-family -f       # 家属端日志
+journalctl -u cloudflared -f                    # 隧道日志
 ```
 
 ### 生产环境检查清单
@@ -723,12 +704,38 @@ pytest -k auth                  # 按关键字过滤
 
 ## 已知问题与待办
 
-- **updater 版本号不一致**：`VERSION` 文件已为 `2.2.0`，但三个 `updater.py` 的 `__version__` 仍是 `2.1.0`，会导致自动更新误判有新版本。需同步更新。
-- **updater 加固不一致**：仅 server 的 updater.py 完成完整 C9 SHA256 加固，elderly_assistant 仅部分加固，family_monitor 完全未加固。建议统一。
-- **chat.html 历史消息加载失效**：`family_monitor/templates/chat.html` 的 `loadHistory()` 请求 `/api/v1/chat/history/{elderlyId}`，该路径在家属端 routes 中未定义（应指向服务端），会 404 或被重定向，历史消息无法加载（被 try/catch 静默吞掉）。
+- **chat.html 历史消息加载需认证**：`family_monitor/templates/chat.html` 的 `loadHistory()` 已修正为指向服务端 `/api/v1/chat/history/{elderlyId}`，但服务端该接口需要 JWT；浏览器端目前没有可用的 JWT 通道（仅有 WebSocket 的 query token）。未带 token 时接口返回 401，`loadHistory` 会静默失败，不影响实时聊天。完整修复需在子女端 BFF 增加一条带服务端认证的代理路由，或为该接口增加基于设备/会话的简化认证，留待后续完善。
 - **未实现功能**：京东比价仅有配置项（`JD_*`），无实现代码；短信/APP 推送服务缺失，通知仅依赖 WebSocket；`users.py` 双向确认绑定机制标注 TODO；`public.py` emergency 消息推送标注 TODO。
-- **install.py 行为不一致**：server 修改全局 pip 配置，family_monitor 与 elderly_assistant 不修改。建议统一为 `-i` 临时镜像源方式。
-- **无 systemd / cloudflared 服务文件**：仓库未提供守护进程配置，需部署方自行编写。
+
+---
+
+## 感谢贡献
+
+本项目的开发与运行离不开以下服务与 API 提供方的支持（排名不分先后）：
+
+### 基础设施与网络
+
+- **[Cloudflare](https://www.cloudflare.com/)** — 提供 Cloudflare Tunnel（cloudflared）边缘隧道，承担 HTTPS 终止与子路径转发，使本地服务无需自备证书即可对外提供安全访问。
+- **[dnshe](https://www.dnshe.com/)** — 提供免费域名，用于 Cloudflare 隧道对外接入。
+- **[gh.llkk.cc](https://gh.llkk.cc/)** — 提供 GitHub 加速代理，用于在受限网络环境下克隆仓库与下载 Release 资产（`git clone https://gh.llkk.cc/https://github.com/...`）。
+- **[GitHub](https://github.com/)** — 代码托管与 Release 分发，自动更新检查通过 GitHub API 获取最新版本。
+
+### AI 与识别服务
+
+- **[智谱 AI](https://open.bigmodel.cn/)** — 提供 GLM-4 系列大模型（默认 `glm-4.7-flash`），支撑老人端 / 子女端的健康问答与用药咨询。
+- **[百度智能云 OCR](https://cloud.baidu.com/product/ocr.html)** — 提供通用文字识别，用于服务端药品图片识别药名。
+- **[Tesseract OCR](https://github.com/tesseract-ocr/tesseract)** — 开源本地 OCR 引擎，供老人端离线识别药名。
+- **[pyttsx3](https://github.com/nateshmbhat/pyttsx3)** — 离线中文 TTS 引擎，供老人端语音播报用药提醒。
+
+### 硬件平台
+
+- **[DFRobot 行空板 M10](https://www.unihiker.com/)** — 老人端目标硬件，提供屏幕、按钮、GPIO 与 WiFi，通过 `pinpong` 库与 `unihiker` GUI 库实现图形化交互。
+
+### 云端备份
+
+- **[123 云盘](https://www.123pan.com/)** — 项目代码包与编译产物的云端备份存储（通过 Android 客户端 API 上传，见 [`upload_123pan.py`](./upload_123pan.py)）。
+
+> 如有遗漏或需要补充/调整致谢信息，欢迎提 issue。
 
 ---
 

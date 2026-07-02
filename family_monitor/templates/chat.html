@@ -137,8 +137,12 @@
         }
 
         async function loadHistory() {
+            // 历史消息由服务端提供，直接请求老人端服务端 /api/v1/chat/history/{elderlyId}
+            // 注意：该接口需要 JWT，未带 token 时返回 401，此处静默失败不影响实时聊天
             try {
-                const resp = await fetch(`{{ prefix }}/api/v1/chat/history/${elderlyId}`);
+                const resp = await fetch(`${elderlyUrl}/api/v1/chat/history/${elderlyId}`, {
+                    credentials: 'include'
+                });
                 if (resp.ok) {
                     const msgs = await resp.json();
                     if (msgs.length > 0 && emptyEl) emptyEl.remove();
@@ -146,7 +150,7 @@
                         addMsg(m.sender_name, m.content, m.created_at, m.sender_id === parseInt(currentUser));
                     });
                 }
-            } catch(e) { console.error(e); }
+            } catch(e) { console.error('加载历史消息失败:', e); }
         }
 
         sendBtn.addEventListener('click', sendMsg);
