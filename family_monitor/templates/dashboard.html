@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -476,48 +476,7 @@
         <div class="shape shape-3"></div>
     </div>
     
-    <!-- 导航栏 -->
-    <nav class="navbar">
-        <div class="navbar-container">
-            <a href="{{ prefix }}/" class="navbar-brand">
-                <div class="navbar-logo">🏠</div>
-                <span class="navbar-title">{{ app_name }}</span>
-            </a>
-            <div class="navbar-nav">
-                <a href="{{ prefix }}/" class="nav-link">
-                    <span class="nav-link-icon">🏠</span>
-                    <span>首页</span>
-                </a>
-                <a href="{{ prefix }}/dashboard" class="nav-link active">
-                    <span class="nav-link-icon">📊</span>
-                    <span>仪表板</span>
-                </a>
-                <a href="{{ prefix }}/reminders" class="nav-link">
-                    <span class="nav-link-icon">⏰</span>
-                    <span>提醒</span>
-                </a>
-                <a href="{{ prefix }}/records" class="nav-link">
-                    <span class="nav-link-icon">📋</span>
-                    <span>记录</span>
-                </a>
-                <a href="{{ prefix }}/chat" class="nav-link">
-                    <span class="nav-link-icon">💬</span>
-                    <span>消息</span>
-                </a>
-                <a href="{{ prefix }}/settings" class="nav-link">
-                    <span class="nav-link-icon">⚙️</span>
-                    <span>设置</span>
-                </a>
-                <div class="nav-user">
-                    <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
-                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm">
-                        <span>🚪</span>
-                        <span>登出</span>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+    {% include '_navbar.html' %}
     
     <!-- 页面头部 -->
     <div class="page-header">
@@ -756,7 +715,7 @@
                         {% endfor %}
                     {% else %}
                         <div class="upcoming-item">
-                            <div class="upcoming-icon">�</div>
+                            <div class="upcoming-icon">💊</div>
                             <div class="upcoming-content">
                                 <div class="upcoming-title">已服用降压药</div>
                                 <div class="upcoming-time">昨天 08:05</div>
@@ -781,6 +740,17 @@
         document.addEventListener('DOMContentLoaded', function() {
             // 数字动画
             function animateNumber(element, target, duration = 2000, suffix = '') {
+                // 类型验证和转换
+                if (typeof target === 'string') {
+                    target = parseInt(target, 10);
+                }
+                
+                // 处理无效数值
+                if (isNaN(target)) {
+                    element.textContent = '0' + suffix;
+                    return;
+                }
+                
                 const start = 0;
                 const startTime = performance.now();
                 
@@ -803,13 +773,14 @@
             setTimeout(function() {
                 // 统计卡片数字
                 document.querySelectorAll('.stat-value[data-target]').forEach(function(el) {
-                    const target = parseInt(el.dataset.target);
+                    const target = el.dataset.target;
                     animateNumber(el, target);
                 });
                 
                 // 进度条
                 document.querySelectorAll('.progress-fill[data-target]').forEach(function(el) {
-                    const target = parseInt(el.dataset.target);
+                    const target = parseInt(el.dataset.target, 10);
+                    if (isNaN(target)) return;
                     setTimeout(function() {
                         el.style.width = target + '%';
                     }, 300);
@@ -817,7 +788,7 @@
                 
                 // 进度百分比文字
                 document.querySelectorAll('.progress-percentage[data-target]').forEach(function(el) {
-                    const target = parseInt(el.dataset.target);
+                    const target = el.dataset.target;
                     animateNumber(el, target, 1500);
                 });
             }, 600);

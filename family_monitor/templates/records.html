@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -345,48 +345,7 @@
         <div class="shape shape-3"></div>
     </div>
     
-    <!-- 导航栏 -->
-    <nav class="navbar">
-        <div class="navbar-container">
-            <a href="{{ prefix }}/" class="navbar-brand">
-                <div class="navbar-logo">🏠</div>
-                <span class="navbar-title">{{ app_name }}</span>
-            </a>
-            <div class="navbar-nav">
-                <a href="{{ prefix }}/" class="nav-link">
-                    <span class="nav-link-icon">🏠</span>
-                    <span>首页</span>
-                </a>
-                <a href="{{ prefix }}/dashboard" class="nav-link">
-                    <span class="nav-link-icon">📊</span>
-                    <span>仪表板</span>
-                </a>
-                <a href="{{ prefix }}/reminders" class="nav-link">
-                    <span class="nav-link-icon">⏰</span>
-                    <span>提醒</span>
-                </a>
-                <a href="{{ prefix }}/records" class="nav-link active">
-                    <span class="nav-link-icon">📋</span>
-                    <span>记录</span>
-                </a>
-                <a href="{{ prefix }}/chat" class="nav-link">
-                    <span class="nav-link-icon">💬</span>
-                    <span>消息</span>
-                </a>
-                <a href="{{ prefix }}/settings" class="nav-link">
-                    <span class="nav-link-icon">⚙️</span>
-                    <span>设置</span>
-                </a>
-                <div class="nav-user">
-                    <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
-                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm">
-                        <span>🚪</span>
-                        <span>登出</span>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+    {% include '_navbar.html' %}
     
     <!-- 页面头部 -->
     <div class="page-header">
@@ -467,29 +426,29 @@
             
             <!-- 筛选器 -->
             <div class="filter-area">
-                <select class="filter-select">
-                    <option>全部时间</option>
-                    <option>今天</option>
-                    <option>本周</option>
-                    <option>本月</option>
-                    <option>最近30天</option>
+                <select class="filter-select" id="filterTime">
+                    <option value="all">全部时间</option>
+                    <option value="today">今天</option>
+                    <option value="week">本周</option>
+                    <option value="month">本月</option>
+                    <option value="30days">最近30天</option>
                 </select>
-                <select class="filter-select">
-                    <option>全部状态</option>
-                    <option>已确认</option>
-                    <option>漏服</option>
-                    <option>迟到确认</option>
+                <select class="filter-select" id="filterStatus">
+                    <option value="all">全部状态</option>
+                    <option value="confirmed">已确认</option>
+                    <option value="missed">漏服</option>
+                    <option value="late">迟到确认</option>
                 </select>
-                <select class="filter-select">
-                    <option>全部药品</option>
-                    {% set meds = [] %}
+                <select class="filter-select" id="filterMed">
+                    <option value="all">全部药品</option>
+                    {% set ns = namespace(meds=[]) %}
                     {% for record in records %}
-                        {% if record.medication_name not in meds %}
-                            {% set _ = meds.append(record.medication_name) %}
+                        {% if record.medication_name not in ns.meds %}
+                            {% set ns.meds = ns.meds + [record.medication_name] %}
                         {% endif %}
                     {% endfor %}
-                    {% for med in meds %}
-                        <option>{{ med }}</option>
+                    {% for med in ns.meds %}
+                        <option value="{{ med }}">{{ med }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -554,11 +513,48 @@
     </div>
     
     <script>
-        // 筛选器交互
-        document.querySelectorAll('.filter-select').forEach(function(select) {
-            select.addEventListener('change', function() {
-                console.log('筛选条件变更:', this.value);
+        // 筛选器功能
+        function filterRecords() {
+            const timeFilter = document.getElementById('filterTime').value;
+            const statusFilter = document.getElementById('filterStatus').value;
+            const medFilter = document.getElementById('filterMed').value;
+            const records = document.querySelectorAll('.record-item');
+            
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const weekAgo = new Date(today);
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            const monthAgo = new Date(today);
+            monthAgo.setDate(monthAgo.getDate() - 30);
+            
+            records.forEach(record => {
+                const dateStr = record.querySelector('.record-day').textContent;
+                const recordDate = new Date(dateStr);
+                const status = record.classList.contains('missed') ? 'missed' : 
+                              record.classList.contains('late') ? 'late' : 'confirmed';
+                const medName = record.querySelector('.record-name').textContent.replace('💊 ', '');
+                
+                let show = true;
+                
+                // 时间筛选
+                if (timeFilter === 'today' && recordDate < today) show = false;
+                else if (timeFilter === 'week' && recordDate < weekAgo) show = false;
+                else if (timeFilter === 'month' && recordDate < monthAgo) show = false;
+                else if (timeFilter === '30days' && recordDate < monthAgo) show = false;
+                
+                // 状态筛选
+                if (statusFilter !== 'all' && status !== statusFilter) show = false;
+                
+                // 药品筛选
+                if (medFilter !== 'all' && medName !== medFilter) show = false;
+                
+                record.style.display = show ? '' : 'none';
             });
+        }
+        
+        // 绑定筛选器事件
+        document.querySelectorAll('.filter-select').forEach(select => {
+            select.addEventListener('change', filterRecords);
         });
         
         // 记录项点击效果

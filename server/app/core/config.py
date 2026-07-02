@@ -47,6 +47,9 @@ class Settings(BaseSettings):
 
     WS_HEARTBEAT_INTERVAL: int = 30
 
+    # CORS 白名单（逗号分隔的域名列表）
+    ALLOWED_ORIGINS: Optional[str] = None
+
     class Config:
         env_file = ".env"
         case_sensitive = True

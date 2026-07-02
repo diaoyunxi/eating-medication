@@ -344,52 +344,7 @@
         <div class="shape shape-3"></div>
     </div>
 
-    <!-- 导航栏 -->
-    <nav class="navbar">
-        <div class="navbar-container">
-            <a href="{{ prefix }}/" class="navbar-brand">
-                <div class="navbar-logo">👨‍👩‍👧‍👦</div>
-                <span class="navbar-title">{{ app_name }}</span>
-            </a>
-            <div class="navbar-nav">
-                <a href="{{ prefix }}/" class="nav-link">
-                    <span class="nav-link-icon">🏠</span>
-                    <span>首页</span>
-                </a>
-                <a href="{{ prefix }}/dashboard" class="nav-link">
-                    <span class="nav-link-icon">📊</span>
-                    <span>仪表板</span>
-                </a>
-                <a href="{{ prefix }}/reminders" class="nav-link">
-                    <span class="nav-link-icon">💊</span>
-                    <span>用药提醒</span>
-                </a>
-                <a href="{{ prefix }}/records" class="nav-link">
-                    <span class="nav-link-icon">📋</span>
-                    <span>用药记录</span>
-                </a>
-                <a href="{{ prefix }}/medication_settings" class="nav-link active">
-                    <span class="nav-link-icon">⏰</span>
-                    <span>用药设置</span>
-                </a>
-                <a href="{{ prefix }}/chat" class="nav-link">
-                    <span class="nav-link-icon">💬</span>
-                    <span>消息</span>
-                </a>
-                <a href="{{ prefix }}/settings" class="nav-link">
-                    <span class="nav-link-icon">⚙️</span>
-                    <span>设置</span>
-                </a>
-                <div class="nav-user">
-                    <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
-                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm">
-                        <span>🚪</span>
-                        <span>登出</span>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+    {% include '_navbar.html' %}
 
     <!-- 页面头部 -->
     <header class="page-header">

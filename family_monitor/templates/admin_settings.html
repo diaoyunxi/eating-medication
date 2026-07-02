@@ -4,62 +4,249 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>管理员设置 - {{ app_name }}</title>
-    <link rel="stylesheet" href="{{ prefix }}/static/css/main.css">
-</head>
-<body>
-    <div class="container">
-        <h1>管理员设置</h1>
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css">
+    <style>
+        .main-content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            position: relative;
+            z-index: 1;
+        }
 
+        .content-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 35px;
+            box-shadow: var(--shadow-xl);
+            margin-bottom: 30px;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .section-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--gradient-primary);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            color: white;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
+        .section-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-top: 4px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid var(--border-color, #e5e7eb);
+            border-radius: 12px;
+            font-size: 0.98rem;
+            background: var(--bg-secondary, #fff);
+            color: var(--text-primary, #1f2937);
+            transition: all var(--transition-normal);
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+        }
+
+        .form-hint {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            margin-top: 6px;
+        }
+
+        .btn-row {
+            margin-top: 26px;
+            display: flex;
+            justify-content: flex-end;
+        }
+    </style>
+</head>
+<body class="bg-gradient">
+    <!-- 浮动装饰形状 -->
+    <div class="floating-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+    </div>
+
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="{{ prefix }}/" class="navbar-brand">
+                <div class="navbar-logo">👨‍👩‍👧‍👦</div>
+                <span class="navbar-title">{{ app_name }}</span>
+            </a>
+            <div class="navbar-nav">
+                <a href="{{ prefix }}/" class="nav-link">
+                    <span class="nav-link-icon">🏠</span>
+                    <span>首页</span>
+                </a>
+                <a href="{{ prefix }}/dashboard" class="nav-link">
+                    <span class="nav-link-icon">📊</span>
+                    <span>仪表板</span>
+                </a>
+                <a href="{{ prefix }}/reminders" class="nav-link">
+                    <span class="nav-link-icon">⏰</span>
+                    <span>用药提醒</span>
+                </a>
+                <a href="{{ prefix }}/records" class="nav-link">
+                    <span class="nav-link-icon">📋</span>
+                    <span>用药记录</span>
+                </a>
+                <a href="{{ prefix }}/medication_settings" class="nav-link">
+                    <span class="nav-link-icon">💊</span>
+                    <span>用药设置</span>
+                </a>
+                <a href="{{ prefix }}/chat" class="nav-link">
+                    <span class="nav-link-icon">💬</span>
+                    <span>消息</span>
+                </a>
+                <a href="{{ prefix }}/settings" class="nav-link">
+                    <span class="nav-link-icon">⚙️</span>
+                    <span>设置</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 页面头部 -->
+    <header class="page-header">
+        <div class="page-header-content">
+            <h1 class="page-title">🔧 管理员设置</h1>
+            <p class="page-subtitle">配置服务端连接与高级参数</p>
+        </div>
+    </header>
+
+    <!-- 主内容 -->
+    <main class="main-content">
         {% if message %}
-        <div class="alert {% if success %}alert-success{% else %}alert-error{% endif %}">
+        <div class="alert {% if success %}alert-success{% else %}alert-error{% endif %}" style="margin-bottom: 20px;">
             {{ message }}
         </div>
         {% endif %}
 
-        <a href="{{ prefix }}/"> 返回首页</a>
-
-        <!-- 服务端配置表单 -->
-        <form action="{{ prefix }}/admin/administrator/setting/server" method="POST">
-            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-            <h2>服务端配置</h2>
-            <div class="form-group">
-                <label>老人端服务器地址</label>
-                <input type="text" name="elderly_server_url" value="{{ elderly_server_url }}">
+        <!-- 服务端配置 -->
+        <div class="content-card">
+            <div class="card-header">
+                <div class="section-icon">🖥️</div>
+                <div>
+                    <div class="section-title">服务端配置</div>
+                    <div class="section-subtitle">配置老人端服务器连接参数</div>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label>服务器主机</label>
-                <input type="text" name="server_host" value="{{ server_host }}">
-            </div>
+            <form action="{{ prefix }}/admin/administrator/setting/server" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
 
-            <div class="form-group">
-                <label>服务器端口</label>
-                <input type="number" name="server_port" value="{{ server_port }}">
-            </div>
+                <div class="form-group">
+                    <label>老人端服务器地址</label>
+                    <input type="text" name="elderly_server_url" value="{{ elderly_server_url }}" placeholder="https://example.com/eating-medication/server">
+                </div>
 
-            <button type="submit" class="btn btn-primary">保存设置</button>
-        </form>
+                <div class="form-group">
+                    <label>服务器主机</label>
+                    <input type="text" name="server_host" value="{{ server_host }}" placeholder="0.0.0.0">
+                </div>
 
-        <!-- 高级配置表单 -->
-        <form action="{{ prefix }}/admin/administrator/setting/advanced" method="POST">
-            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-            <h2>高级配置</h2>
-            <div class="form-group">
-                <label>调试模式（只读，通过 .env 配置）</label>
-                <select name="debug_mode" disabled>
-                    <option value="false" {% if not debug_mode %}selected{% endif %}>关闭</option>
-                    <option value="true" {% if debug_mode %}selected{% endif %}>开启</option>
-                </select>
-                <p class="form-hint">DEBUG 仅可通过 .env 环境变量配置，生产环境强制关闭</p>
-            </div>
+                <div class="form-group">
+                    <label>服务器端口</label>
+                    <input type="number" name="server_port" value="{{ server_port }}" placeholder="1059">
+                </div>
 
-            <button type="submit" class="btn btn-primary">保存高级配置</button>
-        </form>
-
-        <!-- SECRET_KEY 说明：仅通过 .env 配置，不提供 Web 修改入口 -->
-        <div class="form-group">
-            <p class="form-hint">SECRET_KEY 仅通过 .env 环境变量配置，不支持通过 Web 界面修改。</p>
+                <div class="btn-row">
+                    <button type="submit" class="btn btn-primary">
+                        <span>💾</span>
+                        <span>保存设置</span>
+                    </button>
+                </div>
+            </form>
         </div>
-    </div>
+
+        <!-- 高级配置 -->
+        <div class="content-card">
+            <div class="card-header">
+                <div class="section-icon">⚙️</div>
+                <div>
+                    <div class="section-title">高级配置</div>
+                    <div class="section-subtitle">调试模式与安全设置</div>
+                </div>
+            </div>
+
+            <form action="{{ prefix }}/admin/administrator/setting/advanced" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+
+                <div class="form-group">
+                    <label>调试模式（只读，通过 .env 配置）</label>
+                    <select name="debug_mode" disabled>
+                        <option value="false" {% if not debug_mode %}selected{% endif %}>关闭</option>
+                        <option value="true" {% if debug_mode %}selected{% endif %}>开启</option>
+                    </select>
+                    <p class="form-hint">DEBUG 仅可通过 .env 环境变量配置，生产环境强制关闭</p>
+                </div>
+
+                <div class="btn-row">
+                    <button type="submit" class="btn btn-primary">
+                        <span>💾</span>
+                        <span>保存高级配置</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- SECRET_KEY 说明 -->
+        <div class="content-card">
+            <div class="card-header">
+                <div class="section-icon">🔑</div>
+                <div>
+                    <div class="section-title">安全密钥</div>
+                    <div class="section-subtitle">SECRET_KEY 配置说明</div>
+                </div>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.95rem;">
+                SECRET_KEY 仅通过 .env 环境变量配置，不支持通过 Web 界面修改。
+            </p>
+        </div>
+    </main>
 </body>
 </html>

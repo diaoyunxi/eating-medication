@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ app_name }} - 消息聊天</title>
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; flex-direction: column; }
@@ -38,7 +39,16 @@
         @media (max-width: 768px) { .msg-body { max-width: 75%; } }
     </style>
 </head>
-<body>
+<body class="bg-gradient">
+    <!-- 浮动装饰形状 -->
+    <div class="floating-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+    </div>
+
+    {% include '_navbar.html' %}
+
     <div class="container">
         <div class="header">
             <h1>💬 消息聊天</h1>
