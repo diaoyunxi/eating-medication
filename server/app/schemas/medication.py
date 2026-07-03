@@ -17,6 +17,15 @@ class MedicationPlanCreate(BaseModel):
     unit: str = Field(default="片")
     low_stock_threshold: int = Field(default=5, ge=1, description="低库存阈值（剩余数量）")
 
+    # P0-5 修复：剩余数量不能超过总数量，防止数据不一致
+    @field_validator("remaining_quantity")
+    @classmethod
+    def validate_remaining_not_exceed_total(cls, v, info):
+        total = info.data.get("total_quantity") if info.data else None
+        if total is not None and v > total:
+            raise ValueError("剩余数量不能超过总数量")
+        return v
+
     # M13：校验每项时间格式
     @field_validator("schedule_times")
     @classmethod

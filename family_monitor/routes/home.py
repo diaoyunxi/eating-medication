@@ -4,6 +4,7 @@
 所有 POST 路由均通过 X-CSRF-Token header 校验 CSRF
 """
 
+import secrets
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -19,10 +20,10 @@ templates.env.globals["prefix"] = config.PATH_PREFIX
 
 
 def _check_csrf(request: Request) -> bool:
-    """校验 X-CSRF-Token header 是否与 cookie 一致"""
+    """校验 X-CSRF-Token header 是否与 cookie 一致（H-2 修复：常量时间比较）"""
     cookie_token = request.cookies.get("csrf_token", "")
     header_token = request.headers.get("X-CSRF-Token", "")
-    return bool(cookie_token and header_token and cookie_token == header_token)
+    return bool(cookie_token and header_token and secrets.compare_digest(cookie_token, header_token))
 
 
 def _require_login(request: Request) -> bool:
