@@ -93,7 +93,10 @@ async def register_device(
     x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
     """设备注册/心跳上报（C5：成功注册时返回 device_token）"""
-    logger.info(f"设备注册/心跳: {req.device_id}")
+    # H-3 修复：日志脱敏，仅记录 device_id 前4位+后4位
+    _did = req.device_id or ""
+    _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
+    logger.info(f"设备注册/心跳: {_masked}")
     # 查找或创建设备记录
     user = db.query(User).filter(User.username == req.device_id).first()
     if not user:
@@ -110,20 +113,14 @@ async def register_device(
         db.add(user)
         db.commit()
         db.refresh(user)
-        logger.info(f"自动创建设备用户: {req.device_id}")
+        logger.info(f"自动创建设备用户: {_masked}")
         return {"status": "ok", "user_id": user.id, "device_token": device_token}
 
     # 已注册设备
-    # 兼容 legacy 设备（hashed_password == "device" 未哈希）：重新生成 token
-    if user.hashed_password == "device":
-        device_token = secrets.token_urlsafe(32)
-        user.hashed_password = hash_password(device_token)
-        db.commit()
-        return {"status": "ok", "user_id": user.id, "device_token": device_token}
-
-    # C5.2：已注册设备需校验 X-Device-Token
+    # P0-2 修复：移除 legacy 无条件重置 token 分支，防止设备冒充接管
+    # 已注册设备必须校验现有 X-Device-Token；若 token 丢失需通过管理员重置
     if not _verify_device_token(user, x_device_token):
-        raise HTTPException(status_code=401, detail="设备 token 无效或缺失")
+        raise HTTPException(status_code=401, detail="设备 token 无效或缺失，已注册设备请携带正确的 X-Device-Token")
     return {"status": "ok", "user_id": user.id}
 
 
@@ -134,7 +131,10 @@ async def device_message(
     x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
     """接收设备上报消息（F4 修复：增加 device_token 校验，防止伪造）"""
-    logger.info(f"收到设备消息: {req.device_id} - {req.message_type}")
+    # H-3 修复：日志脱敏
+    _did = req.device_id or ""
+    _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
+    logger.info(f"收到设备消息: {_masked} - {req.message_type}")
     # F4：校验 device_token，防止任意伪造服药/紧急/聊天消息
     user = db.query(User).filter(User.username == req.device_id).first()
     if not user:
@@ -210,17 +210,12 @@ async def ai_ask(
 
 @router.get("/device/check/{device_id}")
 async def check_device(device_id: str, db: Session = Depends(get_db)):
-    """检查设备是否已注册（供子女端绑定时校验，C5.5：保留无认证，不返回敏感信息）"""
+    """检查设备是否已注册（供子女端绑定时校验，P0-3 修复：仅返回 exists，不泄露敏感信息）"""
     user = db.query(User).filter(User.username == device_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="设备未注册")
-    # C5.5：仅返回最少信息，不返回敏感数据
-    return {
-        "exists": True,
-        "device_id": user.username,
-        "device_name": user.full_name,
-        "created_at": user.created_at.isoformat() if user.created_at else None,
-    }
+    # P0-3 修复：仅返回最少信息，移除 device_name/created_at 防止用户名枚举与信息泄露
+    return {"exists": True}
 
 
 @router.get("/device/schedule/{device_id}")
