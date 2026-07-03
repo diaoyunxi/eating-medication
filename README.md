@@ -704,7 +704,7 @@ pytest -k auth                  # 按关键字过滤
 
 ## 已知问题与待办
 
-- **chat.html 历史消息加载需认证**：`family_monitor/templates/chat.html` 的 `loadHistory()` 已修正为指向服务端 `/api/v1/chat/history/{elderlyId}`，但服务端该接口需要 JWT；浏览器端目前没有可用的 JWT 通道（仅有 WebSocket 的 query token）。未带 token 时接口返回 401，`loadHistory` 会静默失败，不影响实时聊天。完整修复需在子女端 BFF 增加一条带服务端认证的代理路由，或为该接口增加基于设备/会话的简化认证，留待后续完善。
+- **chat.html 历史消息加载**：已修复（v2.2.1）。子女端 BFF 新增 `/chat/history` 代理路由，通过 device_token 从服务端 `/public/device/chat_history/{device_id}` 获取聊天历史，前端不再直连服务端 JWT 接口。
 - **未实现功能**：京东比价仅有配置项（`JD_*`），无实现代码；短信/APP 推送服务缺失，通知仅依赖 WebSocket；`users.py` 双向确认绑定机制标注 TODO；`public.py` emergency 消息推送标注 TODO。
 
 ---

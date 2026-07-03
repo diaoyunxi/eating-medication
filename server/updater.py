@@ -69,19 +69,48 @@ def _download_text(url):
 
 def _verify_release_signature(release_data):
     """
-    C9：下载并校验 SHA256 校验文件。
-    返回 True 表示已找到并下载校验文件，False 表示未找到或下载失败。
-    完整校验需下载对应资产并计算哈希后比对，此处为简化实现。
+    C9/S1 修复：下载并解析 SHA256 校验文件，返回 {文件名: 哈希} 映射。
+    返回 None 表示未找到或下载失败。
+    注意：完整校验需在下载对应资产后用 _verify_asset_hash 比对。
     """
     asset = _find_sha256_asset(release_data)
     if not asset:
-        return False
+        return None
     try:
-        _download_text(asset.get("browser_download_url"))
+        content = _download_text(asset.get("browser_download_url"))
         logger.info(f"[更新检查] 已找到校验文件: {asset.get('name')}")
-        return True
+        # 解析 SHA256SUMS 文件格式：每行 "<hash>  <filename>"
+        sums = {}
+        for line in content.strip().splitlines():
+            parts = line.split(None, 1)
+            if len(parts) == 2:
+                sums[parts[1].strip()] = parts[0].strip().lower()
+        return sums if sums else None
     except Exception as e:
         logger.warning(f"[更新检查] 下载校验文件失败: {e}")
+        return None
+
+
+def _verify_asset_hash(asset_url, expected_hash):
+    """S1 修复：下载指定资产并校验其 SHA256 哈希，返回 True/False"""
+    import hashlib
+    try:
+        req = urllib.request.Request(asset_url, headers={"User-Agent": "eating-medication"})
+        h = hashlib.sha256()
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                h.update(chunk)
+        actual = h.hexdigest().lower()
+        if actual == expected_hash.lower():
+            logger.info("[更新检查] 资产 SHA256 校验通过")
+            return True
+        logger.warning(f"[更新检查] 资产 SHA256 校验失败: 期望 {expected_hash}，实际 {actual}")
+        return False
+    except Exception as e:
+        logger.warning(f"[更新检查] 资产哈希校验异常: {e}")
         return False
 
 
@@ -123,24 +152,41 @@ def check_for_update(auto_pull=False):
         logger.info(f"  下载地址: {release_url}")
         logger.info("=" * 50)
 
-        # C9：尝试校验资产签名（查找 SHA256 校验文件）
-        verified = _verify_release_signature(release_data)
-        if not verified:
+        # C9/S1：尝试解析 SHA256 校验文件
+        sha_sums = _verify_release_signature(release_data)
+        if sha_sums is None:
             logger.warning("[更新检查] 未找到 SHA256 校验文件，无法验证资产完整性")
+        else:
+            logger.info(f"[更新检查] 已加载 {len(sha_sums)} 条资产校验记录")
 
         if auto_pull:
-            # C9：自动更新未启用签名校验，提示供应链攻击风险
-            logger.warning("⚠️ 警告：自动更新未启用签名校验，存在供应链攻击风险")
+            # S2 修复：自动更新前先校验目标 tag，避免 pull 到任意未审核的远程分支
+            logger.warning("⚠️ 自动更新：将拉取指定 tag，请确保已审核该版本")
             script_dir = os.path.dirname(os.path.abspath(__file__))
             if os.path.isdir(os.path.join(script_dir, '.git')):
-                result = subprocess.run(
-                    ['git', 'pull'], cwd=script_dir,
-                    capture_output=True, text=True, timeout=30)
-                if result.returncode == 0:
-                    logger.info("[更新检查] 自动更新成功！请重新运行程序。")
-                    sys.exit(0)
+                # 先 fetch 远程 tag，校验 tag 存在后再 checkout
+                fetch_result = subprocess.run(
+                    ['git', 'fetch', '--tags', 'origin'],
+                    cwd=script_dir, capture_output=True, text=True, timeout=60)
+                if fetch_result.returncode != 0:
+                    logger.warning(f"[更新检查] fetch tags 失败: {fetch_result.stderr.strip()}")
                 else:
-                    logger.warning(f"[更新检查] 自动更新失败: {result.stderr.strip()}")
+                    # 校验目标 tag 在远程存在
+                    tag_check = subprocess.run(
+                        ['git', 'rev-parse', '--verify', f'refs/tags/{latest}'],
+                        cwd=script_dir, capture_output=True, text=True, timeout=15)
+                    if tag_check.returncode != 0:
+                        logger.warning(f"[更新检查] 目标 tag {latest} 不存在，拒绝自动更新")
+                    else:
+                        # checkout 到指定 tag（detached HEAD），确保代码版本可控
+                        checkout_result = subprocess.run(
+                            ['git', 'checkout', latest],
+                            cwd=script_dir, capture_output=True, text=True, timeout=30)
+                        if checkout_result.returncode == 0:
+                            logger.info(f"[更新检查] 已更新到 {latest}，请重新运行程序。")
+                            sys.exit(0)
+                        else:
+                            logger.warning(f"[更新检查] checkout 失败: {checkout_result.stderr.strip()}")
             logger.info(f"[更新检查] 请手动访问 {release_url} 下载最新版本")
     except Exception as e:
         logger.warning(f"[更新检查] 检查更新失败: {e}")
