@@ -154,7 +154,8 @@ async def verify_csrf(request):
     # 优先从 header 读取（用于 AJAX 请求）
     header_token = request.headers.get("X-CSRF-Token", "")
     if header_token:
-        if header_token != cookie_token:
+        # H-2 修复：使用常量时间比较防止时序攻击
+        if not secrets.compare_digest(header_token, cookie_token):
             raise HTTPException(status_code=403, detail="CSRF 校验失败")
         return
 
@@ -163,7 +164,7 @@ async def verify_csrf(request):
     if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
         form = await request.form()
         form_token = form.get("csrf_token", "")
-        if not form_token or form_token != cookie_token:
+        if not form_token or not secrets.compare_digest(form_token, cookie_token):
             raise HTTPException(status_code=403, detail="CSRF 校验失败")
     else:
         # JSON 等其他类型请求必须通过 header 传递

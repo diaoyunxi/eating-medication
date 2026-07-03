@@ -6,6 +6,7 @@
 """
 
 import time
+import secrets
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -58,9 +59,9 @@ async def post_login(
     csrf_token: str = Form(...),
 ):
     """处理登录请求"""
-    # CSRF 校验
+    # CSRF 校验（H-2 修复：常量时间比较）
     cookie_token = request.cookies.get("csrf_token", "")
-    if not cookie_token or csrf_token != cookie_token:
+    if not cookie_token or not secrets.compare_digest(csrf_token, cookie_token):
         return templates.TemplateResponse(
             "login.html",
             {"request": request, "app_name": config.APP_NAME, "error": "CSRF 校验失败，请刷新页面重试"},
@@ -125,9 +126,9 @@ async def post_register(
     csrf_token: str = Form(...),
 ):
     """处理注册请求"""
-    # CSRF 校验
+    # CSRF 校验（H-2 修复：常量时间比较）
     cookie_token = request.cookies.get("csrf_token", "")
-    if not cookie_token or csrf_token != cookie_token:
+    if not cookie_token or not secrets.compare_digest(csrf_token, cookie_token):
         return templates.TemplateResponse(
             "register.html",
             {"request": request, "app_name": config.APP_NAME, "error": "CSRF 校验失败，请刷新页面重试"},

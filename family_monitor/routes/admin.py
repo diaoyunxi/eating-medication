@@ -8,6 +8,7 @@ DEBUG 在生产环境（PRODUCTION=true）下禁止通过 Web 修改
 import os
 import json
 import logging
+import secrets
 from pathlib import Path
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
@@ -24,23 +25,28 @@ templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
 # 注入路径前缀变量，供模板链接加前缀
 templates.env.globals["prefix"] = config.PATH_PREFIX
 
+# P0-4 修复：admin 路由内重定向显式拼接 PATH_PREFIX
+_PREFIX = config.PATH_PREFIX
+_LOGIN_URL = f"{_PREFIX}/login" if _PREFIX else "/login"
+_HOME_URL = f"{_PREFIX}/" if _PREFIX else "/"
+
 
 @router.get("/administrator/setting")
 async def admin_settings(request: Request):
     """管理员设置页面"""
     session_token = request.cookies.get("session_token")
     if not session_token:
-        return RedirectResponse(url="/login", status_code=302)
+        return RedirectResponse(url=_LOGIN_URL, status_code=302)
 
     session_manager = get_session_manager(config.SECRET_KEY)
     session_data = session_manager.verify_session(session_token)
     if not session_data:
-        return RedirectResponse(url="/login", status_code=302)
+        return RedirectResponse(url=_LOGIN_URL, status_code=302)
 
     username = session_data.get("username")
     user_manager = get_user_manager(config.DATA_DIR)
     if not user_manager.is_admin(username):
-        return RedirectResponse(url="/", status_code=302)
+        return RedirectResponse(url=_HOME_URL, status_code=302)
 
     return templates.TemplateResponse(
         "admin_settings.html",
@@ -66,9 +72,9 @@ async def update_server_config(
     csrf_token: str = Form(...),
 ):
     """更新服务端连接配置"""
-    # CSRF 校验
+    # CSRF 校验（H-2 修复：常量时间比较）
     cookie_token = request.cookies.get("csrf_token", "")
-    if not cookie_token or csrf_token != cookie_token:
+    if not cookie_token or not secrets.compare_digest(csrf_token, cookie_token):
         return JSONResponse({"success": False, "message": "CSRF 校验失败"}, status_code=403)
 
     session_token = request.cookies.get("session_token")
@@ -102,9 +108,9 @@ async def update_advanced_config(
     """更新高级配置
     注意：DEBUG 在生产环境（PRODUCTION=true）下禁止通过 Web 修改，仅通过 .env 配置。
     此端点保留用于未来扩展其他高级设置。"""
-    # CSRF 校验
+    # CSRF 校验（H-2 修复：常量时间比较）
     cookie_token = request.cookies.get("csrf_token", "")
-    if not cookie_token or csrf_token != cookie_token:
+    if not cookie_token or not secrets.compare_digest(csrf_token, cookie_token):
         return JSONResponse({"success": False, "message": "CSRF 校验失败"}, status_code=403)
 
     session_token = request.cookies.get("session_token")

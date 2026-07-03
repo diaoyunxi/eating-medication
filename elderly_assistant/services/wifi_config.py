@@ -205,7 +205,10 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
                 "message": self.wifi_manager.status_message
             })
         elif parsed_path.path == '/api/config':
-            # 返回当前已保存的服务器地址
+            # H-4 修复：/api/config 返回服务器地址属于敏感信息，需校验 config_token
+            if not self._verify_config_token():
+                self._send_json({"status": "error", "message": "未授权"}, 403)
+                return
             self._send_json({
                 "server_url": self.wifi_manager.load_server_url()
             })
@@ -278,14 +281,17 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
 
         服务启动时生成随机 token，所有 POST 请求需在 Header 中携带
         X-Config-Token，校验不通过返回 403。
+        P0-1 修复：token 未设置时拒绝所有 POST 请求（fail-closed），防止认证绕过。
         """
         token = self.config_token
         if not token:
-            # token 未设置时放行（兼容未初始化场景）
-            return True
+            # P0-1 修复：token 未设置时拒绝（fail-closed），不放过任何未授权请求
+            logger.error("配网 token 未初始化，拒绝 POST 请求")
+            return False
         # 优先从 Header 读取 X-Config-Token
         req_token = self.headers.get('X-Config-Token', '')
-        return req_token == token
+        # H-1 修复：使用常量时间比较防止时序攻击
+        return secrets.compare_digest(req_token, token)
 
     def _send_json(self, data, status_code=200):
         """发送 JSON 响应"""
