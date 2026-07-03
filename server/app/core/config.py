@@ -47,6 +47,9 @@ class Settings(BaseSettings):
 
     WS_HEARTBEAT_INTERVAL: int = 30
 
+    # CORS 允许的来源（逗号分隔），未配置则不启用 CORS
+    ALLOWED_ORIGINS: str = ""
+
     class Config:
         env_file = ".env"
         case_sensitive = True
