@@ -43,26 +43,27 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     get_user_manager(config.DATA_DIR)
 
-    print("=" * 60)
-    print(f" {config.APP_NAME} 启动中...")
-    print(f" 服务地址: http://{config.SERVER_HOST}:{config.SERVER_PORT}")
-    print(f" 老人端地址: {config.ELDERLY_SERVER_URL}")
-    print(f" 认证系统: 已启用 (bcrypt加密)")
-    print(f" 路径前缀: {PATH_PREFIX or '(无，根路径)'}")
-    print(f" HTTPS: 由 Cloudflare 隧道边缘自动配置，本地监听 HTTP")
-    print(f" 管理员入口: {PATH_PREFIX}/admin/administrator/setting")
-    print("=" * 60)
+    # O1 修复：启动信息改用 logger
+    logger.info("=" * 60)
+    logger.info(f" {config.APP_NAME} 启动中...")
+    logger.info(f" 服务地址: http://{config.SERVER_HOST}:{config.SERVER_PORT}")
+    logger.info(f" 老人端地址: {config.ELDERLY_SERVER_URL}")
+    logger.info(f" 认证系统: 已启用 (bcrypt加密)")
+    logger.info(f" 路径前缀: {PATH_PREFIX or '(无，根路径)'}")
+    logger.info(f" HTTPS: 由 Cloudflare 隧道边缘自动配置，本地监听 HTTP")
+    logger.info(f" 管理员入口: {PATH_PREFIX}/admin/administrator/setting")
+    logger.info("=" * 60)
 
     yield
 
-    print("服务已停止")
+    logger.info("服务已停止")
 
 
 # 创建FastAPI应用（root_path 用于 OpenAPI 文档与外部 URL 构建）
 app = FastAPI(
     title=config.APP_NAME,
     description="子女看护Web端",
-    version="2.1.0",
+    version="2.2.0",
     debug=config.DEBUG,
     lifespan=lifespan,
     root_path=PATH_PREFIX,
@@ -87,7 +88,11 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "object-src 'none'; "
+        "base-uri 'self'"
     )
     return response
 
@@ -138,12 +143,16 @@ async def auth_middleware(request: Request, call_next):
     session_manager = get_session_manager(config.SECRET_KEY)
     session_token = request.cookies.get("session_token")
 
+    # G5 修复：重定向 URL 显式拼接 PATH_PREFIX，不依赖中间件隐式补前缀
+    login_url = f"{PATH_PREFIX}/login" if PATH_PREFIX else "/login"
+    home_url = f"{PATH_PREFIX}/" if PATH_PREFIX else "/"
+
     if not session_token:
-        return RedirectResponse(url="/login", status_code=302)
+        return RedirectResponse(url=login_url, status_code=302)
 
     session_data = session_manager.verify_session(session_token)
     if not session_data:
-        return RedirectResponse(url="/login", status_code=302)
+        return RedirectResponse(url=login_url, status_code=302)
 
     username = session_data.get("username")
     request.state.user = username
@@ -152,7 +161,7 @@ async def auth_middleware(request: Request, call_next):
     if path.startswith("/admin"):
         user_manager = get_user_manager(config.DATA_DIR)
         if not user_manager.is_admin(username):
-            return RedirectResponse(url="/", status_code=302)
+            return RedirectResponse(url=home_url, status_code=302)
 
     response = await call_next(request)
     return response
@@ -202,14 +211,10 @@ def main():
 
     # 启动时检查更新（自动更新功能）
     try:
-        import os as _os, sys as _sys
-        _here = _os.path.dirname(_os.path.abspath(__file__))
-        if _here not in _sys.path:
-            _sys.path.insert(0, _here)
         from updater import check_for_update
         check_for_update()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"更新检查失败: {e}")
 
     # 本地纯 HTTP 监听，HTTPS 由 Cloudflare 隧道边缘处理
     uvicorn.run(

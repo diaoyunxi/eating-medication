@@ -5,14 +5,20 @@ C5：引入设备密钥机制（device_token），写操作与读操作均需校
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from pydantic import BaseModel
 from typing import Optional
 # M17：get_db 统一从 dependencies 导入
 from app.core.dependencies import get_db
 from app.core.security import hash_password, verify_password
 from app.models.user import User
+from app.models.medication_plan import MedicationPlan
+from app.models.medication_record import MedicationRecord
+from app.models.chat_message import ChatMessage
+from app.models.ai_query_log import AIQueryLog
 from app.services.medication_service import MedicationService
 from app.services.ai_service import AIService
+from app.schemas.medication import MedicationPlanCreate
 # C5.6/M21：AI 端点限流
 from app.utils.rate_limit import check_rate_limit
 import secrets
@@ -122,13 +128,19 @@ async def register_device(
 
 
 @router.post("/device/message")
-async def device_message(req: DeviceMessage, db: Session = Depends(get_db)):
-    """接收设备上报消息"""
+async def device_message(
+    req: DeviceMessage,
+    db: Session = Depends(get_db),
+    x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+):
+    """接收设备上报消息（F4 修复：增加 device_token 校验，防止伪造）"""
     logger.info(f"收到设备消息: {req.device_id} - {req.message_type}")
-    # 查找关联用户
+    # F4：校验 device_token，防止任意伪造服药/紧急/聊天消息
     user = db.query(User).filter(User.username == req.device_id).first()
     if not user:
-        return {"status": "error", "detail": "设备未注册"}
+        raise HTTPException(status_code=404, detail="设备未注册")
+    if not _verify_device_token(user, x_device_token):
+        raise HTTPException(status_code=401, detail="设备 token 无效或缺失")
 
     # 根据消息类型处理
     if req.message_type == "emergency":
@@ -148,19 +160,17 @@ async def get_device_status(
     logger.info(f"查询设备状态: {device_id}")
     user = _get_device_user_and_verify(db, device_id, x_device_token)
 
-    # 获取设备相关统计
-    from app.models.medication_plan import MedicationPlan
-    from app.models.medication_record import MedicationRecord
-    plans = db.query(MedicationPlan).filter(MedicationPlan.user_id == user.id).all()
-    records = db.query(MedicationRecord).filter(MedicationRecord.user_id == user.id).all()
+    # 获取设备相关统计（G2 修复：使用 count 聚合，避免全量加载记录）
+    total_plans = db.query(MedicationPlan).filter(MedicationPlan.user_id == user.id).count()
+    total_records = db.query(MedicationRecord).filter(MedicationRecord.user_id == user.id).count()
 
     return {
         "device_id": user.username,
         "device_name": user.full_name,
         "role": user.role,
         "created_at": user.created_at.isoformat() if user.created_at else None,
-        "total_plans": len(plans) if plans else 0,
-        "total_records": len(records) if records else 0,
+        "total_plans": total_plans,
+        "total_records": total_records,
         "status": "online"
     }
 
@@ -187,7 +197,6 @@ async def ai_ask(
     if req.device_id:
         user = db.query(User).filter(User.username == req.device_id).first()
         if user:
-            from app.models.ai_query_log import AIQueryLog
             log = AIQueryLog(
                 user_id=user.id,
                 question=req.question,
@@ -223,7 +232,6 @@ async def get_device_schedule(
     """获取设备的用药计划（供老人端每分钟轮询，C5.4：需校验 device_token）"""
     user = _get_device_user_and_verify(db, device_id, x_device_token)
 
-    from app.models.medication_plan import MedicationPlan
     plans = db.query(MedicationPlan).filter(MedicationPlan.user_id == user.id).all()
 
     schedules = []
@@ -255,8 +263,6 @@ async def set_device_medication_plan(
 ):
     """家属通过设备ID设置用药计划（C5.2：需校验 device_token）"""
     user = _get_device_user_and_verify(db, req.device_id, x_device_token)
-
-    from app.schemas.medication import MedicationPlanCreate
 
     plan_data = MedicationPlanCreate(
         drug_name=req.drug_name,
@@ -308,6 +314,80 @@ async def get_device_plans(
     }
 
 
+@router.get("/device/records/{device_id}")
+async def get_device_records(
+    device_id: str,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+):
+    """获取设备的服药记录（F2 修复：供子女端 BFF 调用，需校验 device_token）"""
+    user = _get_device_user_and_verify(db, device_id, x_device_token)
+
+    # 限制 limit 范围，防止一次拉取过多记录
+    limit = max(1, min(limit, 500))
+    records = (
+        db.query(MedicationRecord)
+        .filter(MedicationRecord.user_id == user.id)
+        .order_by(MedicationRecord.scheduled_time.desc())
+        .limit(limit)
+        .all()
+    )
+    return {
+        "device_id": device_id,
+        "records": [
+            {
+                "id": r.id,
+                "plan_id": r.plan_id,
+                "scheduled_time": r.scheduled_time.isoformat() if r.scheduled_time else None,
+                "taken_time": r.taken_time.isoformat() if r.taken_time else None,
+                "status": r.status,
+                "note": r.note,
+            }
+            for r in records
+        ],
+    }
+
+
+@router.get("/device/chat_history/{device_id}")
+async def get_device_chat_history(
+    device_id: str,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+):
+    """获取设备相关的聊天历史（S9 修复：供子女端 BFF 调用，需校验 device_token）"""
+    user = _get_device_user_and_verify(db, device_id, x_device_token)
+
+    limit = max(1, min(limit, 200))
+    messages = (
+        db.query(ChatMessage)
+        .filter(
+            or_(
+                ChatMessage.sender_id == user.id,
+                ChatMessage.receiver_id == user.id,
+            )
+        )
+        .order_by(ChatMessage.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return {
+        "device_id": device_id,
+        "messages": [
+            {
+                "id": m.id,
+                "sender_id": m.sender_id,
+                "receiver_id": m.receiver_id,
+                "sender_name": m.sender_name,
+                "content": m.content,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in messages
+        ],
+    }
+
+
 @router.delete("/device/medication_plan/{plan_id}")
 async def delete_device_medication_plan(
     plan_id: int,
@@ -315,7 +395,6 @@ async def delete_device_medication_plan(
     x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
     """删除用药计划（供子女端管理，C5.2：需校验 device_token）"""
-    from app.models.medication_plan import MedicationPlan
     plan = db.query(MedicationPlan).filter(MedicationPlan.id == plan_id).first()
     if not plan:
         raise HTTPException(status_code=404, detail="计划不存在")

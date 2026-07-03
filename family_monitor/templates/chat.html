@@ -58,6 +58,13 @@
         </div>
     </div>
     <script>
+        // 读取 cookie 工具函数（用于 CSRF token）
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return '';
+        }
         const messagesEl = document.getElementById('messages');
         const inputEl = document.getElementById('msgInput');
         const sendBtn = document.getElementById('sendBtn');
@@ -137,14 +144,15 @@
         }
 
         async function loadHistory() {
-            // 历史消息由服务端提供，直接请求老人端服务端 /api/v1/chat/history/{elderlyId}
-            // 注意：该接口需要 JWT，未带 token 时返回 401，此处静默失败不影响实时聊天
+            // S9 修复：改用子女端 BFF 代理接口 /chat/history（带 CSRF header + device_token 鉴权）
             try {
-                const resp = await fetch(`${elderlyUrl}/api/v1/chat/history/${elderlyId}`, {
-                    credentials: 'include'
+                const csrfToken = getCookie('csrf_token');
+                const resp = await fetch(`{{ prefix }}/chat/history?limit=100`, {
+                    headers: { 'X-CSRF-Token': csrfToken }
                 });
                 if (resp.ok) {
-                    const msgs = await resp.json();
+                    const data = await resp.json();
+                    const msgs = data.messages || [];
                     if (msgs.length > 0 && emptyEl) emptyEl.remove();
                     msgs.reverse().forEach(m => {
                         addMsg(m.sender_name, m.content, m.created_at, m.sender_id === parseInt(currentUser));

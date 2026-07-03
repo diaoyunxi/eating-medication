@@ -26,7 +26,7 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
         with open(log_dir / 'crash.log', 'a', encoding='utf-8') as f:
             f.write(error_msg)
             f.write("\n")
-    except:
+    except Exception:
         pass
 
 sys.excepthook = global_exception_handler
@@ -135,7 +135,10 @@ def start_server():
         print("请确保依赖已正确安装")
         sys.exit(1)
 
-    path_prefix = getattr(settings, "PATH_PREFIX", "")
+    path_prefix = settings.PATH_PREFIX
+    # O2/O3 修复：host/port 从环境变量读取，默认 0.0.0.0:1059
+    host = os.getenv("SERVER_HOST", "0.0.0.0")
+    port = int(os.getenv("SERVER_PORT", "1059"))
 
     print("\n" + "=" * 50)
     print(f"启动 {settings.APP_NAME} 服务端")
@@ -144,15 +147,15 @@ def start_server():
     print(f"  数据库: {settings.DATABASE_URL}")
     print(f"  路径前缀: {path_prefix or '(无，根路径)'}")
     print(f"  HTTPS: 由 Cloudflare 隧道边缘自动配置，本地监听 HTTP")
-    print(f"  API 文档: http://localhost:1059/docs")
-    print(f"  健康检查: http://localhost:1059/health")
+    print(f"  API 文档: http://localhost:{port}/docs")
+    print(f"  健康检查: http://localhost:{port}/health")
     print("=" * 50)
     print("\n按 Ctrl+C 停止服务\n")
 
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
-        port=1059,
+        host=host,
+        port=port,
         reload=False,
         log_level="info"
     )
@@ -165,14 +168,10 @@ def main():
 
     # 启动时检查更新（自动更新功能）
     try:
-        import os as _os, sys as _sys
-        _here = _os.path.dirname(_os.path.abspath(__file__))
-        if _here not in _sys.path:
-            _sys.path.insert(0, _here)
         from updater import check_for_update
         check_for_update()
-    except Exception:
-        pass
+    except Exception as e:
+        logging.warning(f"自动更新检查失败: {e}")
 
     check_and_install_dependencies()
     create_app_dirs()

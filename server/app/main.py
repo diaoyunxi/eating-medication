@@ -4,10 +4,8 @@ FastAPI 应用入口 - 最终版
 创建并配置 FastAPI 实例，注册路由、中间件、异常处理器，并启动后台定时任务。
 """
 
-import os
 import logging
 import sys
-import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -57,11 +55,22 @@ async def lifespan(app: FastAPI):
     logger.info("="*60)
 
     # 创建数据库表（如果不存在）
-    # H12：生产环境应改用 alembic 迁移管理表结构（而非 create_all），
-    # 此处保留 create_all 以避免破坏现有部署。
-    logger.info(" 检查数据库表...")
-    Base.metadata.create_all(bind=engine)
-    logger.info(" 数据库表检查完成")
+    # S3 修复：优先使用 Alembic 迁移管理表结构，失败则回退 create_all（兼容现有部署）
+    try:
+        from alembic.config import Config
+        from alembic import command
+        import os as _os
+        alembic_ini = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "alembic.ini")
+        if _os.path.exists(alembic_ini):
+            alembic_cfg = Config(alembic_ini)
+            command.upgrade(alembic_cfg, "head")
+            logger.info(" Alembic 迁移已执行")
+        else:
+            raise FileNotFoundError("alembic.ini 不存在")
+    except Exception as e:
+        logger.warning(f" Alembic 迁移跳过（{e}），回退到 create_all")
+        Base.metadata.create_all(bind=engine)
+        logger.info(" 数据库表检查完成（create_all）")
 
     # 启动后台定时任务（低库存检查等）
     logger.info(" 启动后台定时任务...")
@@ -83,12 +92,12 @@ async def lifespan(app: FastAPI):
 
 
 # 路径前缀（Cloudflare 隧道子路径），本地直连设为空
-PATH_PREFIX = getattr(settings, "PATH_PREFIX", os.getenv("PATH_PREFIX", "/eating-medication/server")).rstrip("/")
+PATH_PREFIX = settings.PATH_PREFIX.rstrip("/")
 
 # 创建 FastAPI 实例
 app = FastAPI(
     title=settings.APP_NAME,
-    version="2.1.0",
+    version="2.2.0",
     description="老人用药管理智能助手后端 API",
     debug=settings.DEBUG,
     lifespan=lifespan,
@@ -147,7 +156,8 @@ app.include_router(ws_router, prefix="/ws")
 @app.get("/health")
 async def health_check():
     """健康检查接口，用于容器编排或监控"""
-    logger.info(" 健康检查被调用")
+    # O7 修复：健康检查高频调用，降为 debug 级别避免日志刷屏
+    logger.debug("健康检查被调用")
     return JSONResponse(
         content={"status": "ok", "service": settings.APP_NAME},
         media_type="application/json; charset=utf-8"
@@ -156,7 +166,7 @@ async def health_check():
 @app.get("/")
 async def root():
     """根路径，返回简单提示"""
-    logger.info(" 根路径被访问")
+    logger.debug("根路径被访问")
     return JSONResponse(
         content={
             "message": f"欢迎使用 {settings.APP_NAME} API",
