@@ -38,8 +38,7 @@ def parse_arguments():
 
 
 def signal_handler(sig, frame):
-    print("\n收到退出信号，正在清理...")
-    print("退出程序")
+    logging.info("收到退出信号，正在清理...")
     sys.exit(0)
 
 
@@ -108,15 +107,23 @@ class MedicationPoller:
     """
     用药计划轮询线程
     每隔 poll_interval 秒向服务器请求用药计划，缓存到 self.schedules
+    G14 修复：使用 threading.Lock 保护 schedules 的读写，防止跨线程迭代时被替换
     """
 
     def __init__(self, http_client, poll_interval=60):
         self.http_client = http_client
         self.poll_interval = poll_interval
-        self.schedules = []
+        self._schedules = []
+        self._lock = threading.Lock()
         self.last_success = False
         self._stop_flag = threading.Event()
         self._thread = None
+
+    @property
+    def schedules(self):
+        """G14 修复：读取时返回快照，避免主线程遍历时被轮询线程替换"""
+        with self._lock:
+            return list(self._schedules)
 
     def start(self):
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -131,14 +138,15 @@ class MedicationPoller:
             try:
                 if self.http_client:
                     schedules = self.http_client.get_medication_schedule()
-                    self.schedules = schedules or []
+                    with self._lock:
+                        self._schedules = schedules or []
                     self.last_success = True
                 else:
-                    self.schedules = []
+                    with self._lock:
+                        self._schedules = []
                     self.last_success = False
             except Exception as e:
-                if DEBUG_MODE:
-                    print(f"[轮询] 拉取用药计划失败: {e}")
+                logging.warning(f"拉取用药计划失败: {e}")
                 self.last_success = False
             # 等待下一次轮询（可被停止中断）
             self._stop_flag.wait(self.poll_interval)
@@ -148,13 +156,15 @@ class MedicationPoller:
         返回今天尚未到来的下一个提醒（dict 或 None）
         :param now: datetime，默认当前时间
         """
-        if not self.schedules:
+        # G14：通过 property 获取快照，避免迭代中被修改
+        schedules = self.schedules
+        if not schedules:
             return None
         if now is None:
             now = datetime.now()
         now_hm = now.strftime("%H:%M")
         upcoming = []
-        for s in self.schedules:
+        for s in schedules:
             t = s.get('time', '')
             if not t:
                 continue
@@ -213,10 +223,6 @@ def main():
 
     # 启动时检查更新（自动更新功能）
     try:
-        import os as _os, sys as _sys
-        _here = _os.path.dirname(_os.path.abspath(__file__))
-        if _here not in _sys.path:
-            _sys.path.insert(0, _here)
         from updater import check_for_update
         check_for_update()
     except Exception as e:
@@ -269,7 +275,7 @@ def main():
 
     # 5. 获取按钮句柄
     button_a, button_b = get_buttons()
-    light_sensor = get_light_sensor()
+    # light_sensor 暂未使用，预留 get_light_sensor() 接口供后续扩展
     led = get_led()
 
     # 6. 启动后台热点（线程）
@@ -317,6 +323,7 @@ def main():
     last_button_check = 0
     last_time_update = 0
     server_connected = False
+    button_block_until = 0  # G10：非阻塞防抖屏蔽截止时间戳
 
     # 10. 主循环
     logger.info("进入主循环")
@@ -350,23 +357,24 @@ def main():
 
             # ---- 检查用药提醒触发 ----
             check_medication_trigger(
-                now, poller, reminder_state, buzzer, display, snooze_minutes
+                now, poller, reminder_state, buzzer, display, snooze_minutes, logger
             )
 
             # ---- 检查按钮（约每 200ms 一次）----
-            if (now.timestamp() - last_button_check) >= 0.2:
+            # G10 修复：非阻塞防抖，防抖屏蔽期内跳过按钮检测
+            if (now.timestamp() - last_button_check) >= 0.2 and now.timestamp() >= button_block_until:
                 last_button_check = now.timestamp()
                 # 按钮 A：确认服药
                 if button_a and button_a.is_pressed():
                     if reminder_state.active:
                         handle_confirm(reminder_state, buzzer, display, http_client, logger)
-                        # 防抖：等待按钮释放
-                        time.sleep(0.3)
+                        # 防抖：设置屏蔽期而非 sleep 阻塞主循环
+                        button_block_until = now.timestamp() + 0.3
                 # 按钮 B：暂不提醒（5分钟后再提醒）
                 if button_b and button_b.is_pressed():
                     if reminder_state.active:
                         handle_snooze(reminder_state, buzzer, display, snooze_minutes, logger)
-                        time.sleep(0.3)
+                        button_block_until = now.timestamp() + 0.3
 
             # ---- LED 心跳：连接时亮，断开时灭 ----
             if led:
@@ -380,28 +388,37 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        # 清理资源
+        # 清理资源（S7 修复：更完整地释放资源并等待线程退出）
         logger.info("正在清理资源...")
         try:
             poller.stop()
-        except Exception:
-            pass
+            # 等待轮询线程退出，避免阻塞在 HTTP 请求中导致僵尸线程
+            if hasattr(poller, '_thread') and poller._thread.is_alive():
+                poller._thread.join(timeout=2)
+        except Exception as e:
+            logger.warning(f"停止轮询线程失败: {e}")
         try:
             buzzer.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"停止蜂鸣器失败: {e}")
         try:
             wifi_config_server.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"停止配网服务失败: {e}")
         try:
             hotspot.stop_hotspot()
+        except Exception as e:
+            logger.warning(f"停止热点失败: {e}")
+        # 关闭 LED（亮着则熄灭）
+        try:
+            if led:
+                led.write_digital(0)
         except Exception:
             pass
         logger.info("老人端已退出")
 
 
-def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooze_minutes):
+def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooze_minutes, logger):
     """
     检查是否到达用药提醒时间，触发提醒
     - 到达提醒时间（匹配当前 HH:MM）且未触发过，触发提醒
@@ -425,13 +442,19 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooz
             return
 
         # 检查 schedules 是否有匹配当前时间的提醒
+        # S6 修复：key 含日期，并在跨日时清理昨日 fired_keys，防止内存无限增长
+        today = now.strftime("%Y-%m-%d")
+        if getattr(reminder_state, "_fired_day", None) != today:
+            reminder_state.fired_keys.clear()
+            reminder_state._fired_day = today
+
         for s in poller.schedules:
             t = s.get('time', '')
             if not t or t != now_hm:
                 continue
             drug_name = s.get('drug_name', '药品')
             dosage = s.get('dosage', '')
-            key = f"{t}|{drug_name}"
+            key = f"{today}|{t}|{drug_name}"
             # 同一分钟内同一药品只触发一次
             if key in reminder_state.fired_keys:
                 continue
@@ -439,10 +462,10 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooz
             reminder_state.trigger(drug_name, dosage, key)
             buzzer.play_reminder()
             display.show_reminder(drug_name, dosage)
-            print(f"[提醒] 触发用药提醒: {drug_name} {dosage} @ {t}")
+            logger.info(f"触发用药提醒: {drug_name} {dosage} @ {t}")
             break
     except Exception as e:
-        print(f"[提醒] 检查触发异常: {e}")
+        logger.error(f"检查触发异常: {e}")
 
 
 def handle_confirm(reminder_state, buzzer, display, http_client, logger):

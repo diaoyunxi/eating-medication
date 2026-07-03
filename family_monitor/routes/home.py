@@ -25,6 +25,11 @@ def _check_csrf(request: Request) -> bool:
     return bool(cookie_token and header_token and cookie_token == header_token)
 
 
+def _require_login(request: Request) -> bool:
+    """G11 修复：显式校验登录状态，防御中间件逻辑变更导致的越权"""
+    return bool(getattr(request.state, 'user', None))
+
+
 @router.get("/")
 async def index(request: Request):
     """首页"""
@@ -125,14 +130,28 @@ async def get_settings(request: Request):
 
 @router.post("/settings/server")
 async def update_server_settings(request: Request, server_url: str = Form(...)):
-    """更新服务器设置（API_KEY 已移除）"""
+    """更新服务器设置（API_KEY 已移除，G12：增加 URL 格式校验防 SSRF）"""
     # CSRF 校验
     if not _check_csrf(request):
         return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     try:
-        config.ELDERLY_SERVER_URL = server_url
+        # G12 修复：校验 URL 格式，仅允许 http/https 协议
+        from urllib.parse import urlparse
+        parsed = urlparse(server_url.strip())
+        if parsed.scheme not in ("http", "https"):
+            return JSONResponse(content={
+                "success": False,
+                "message": "服务器地址必须以 http:// 或 https:// 开头"
+            }, status_code=400)
+        if not parsed.netloc:
+            return JSONResponse(content={
+                "success": False,
+                "message": "服务器地址格式不正确"
+            }, status_code=400)
+
+        config.ELDERLY_SERVER_URL = server_url.strip()
         config.save_config()
-        elderly_client.base_url = server_url
+        elderly_client.base_url = server_url.strip()
         return JSONResponse(content={
             "success": True,
             "message": "服务器设置已更新"
@@ -175,6 +194,9 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
     绑定前先调用服务端的 check_device 接口校验设备是否已注册，
     若设备未注册则返回明确错误，避免绑定到不存在的设备。
     """
+    # G11：显式校验登录
+    if not _require_login(request):
+        return JSONResponse(content={"success": False, "message": "请先登录"}, status_code=401)
     # CSRF 校验
     if not _check_csrf(request):
         return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)

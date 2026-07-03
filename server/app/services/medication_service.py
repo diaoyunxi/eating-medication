@@ -63,10 +63,12 @@ class MedicationService:
         ).first()
 
         # H9：根据 taken_time 与 scheduled_time 计算 status
+        # F3 修复：统一使用 naive UTC 比较，避免 aware/naive 混用导致 TypeError
         if req.taken_time is None:
             # 未确认服药，超过计划时间 30 分钟则记为漏服
             threshold = req.scheduled_time + timedelta(minutes=30)
-            status = "missed" if datetime.now(timezone.utc) > threshold else "pending"
+            now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+            status = "missed" if now_naive > threshold else "pending"
         else:
             status = "taken"
 
@@ -84,7 +86,8 @@ class MedicationService:
             )
             db.add(record)
 
-        # H9：仅在确实服药时原子扣减库存，避免并发超扣
+        # H9/O10：仅在确实服药时原子扣减库存，避免并发超扣
+        # 事务边界：record 的 add 与库存扣减在同一事务内，扣减失败 rollback 会一并回滚 record
         if status == "taken":
             result = db.execute(
                 update(MedicationPlan)
@@ -95,7 +98,7 @@ class MedicationService:
                 .values(remaining_quantity=MedicationPlan.remaining_quantity - 1)
             )
             if result.rowcount == 0:
-                # 库存不足或计划不存在，回滚本次记录
+                # 库存不足或计划不存在，回滚本次记录（O10：确保记录与扣减原子一致）
                 db.rollback()
                 raise ValueError("库存不足，无法扣减")
 

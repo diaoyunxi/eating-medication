@@ -2,6 +2,7 @@
 from typing import Optional
 from app.core.config import settings
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -9,18 +10,22 @@ class AIService:
     """AI 健康助手服务（调用智谱AI ZhipuAI API）"""
 
     _client: Optional[object] = None
+    _lock = threading.Lock()  # G13 修复：保护单例客户端初始化的线程安全
 
     @classmethod
     def _get_client(cls):
-        """获取 ZhipuAI 客户端（单例）"""
+        """获取 ZhipuAI 客户端（单例，G13：加锁防止并发重复初始化）"""
+        # 双重检查锁定，避免已初始化时的锁开销
         if cls._client is None and settings.ZHIPUAI_API_KEY:
-            try:
-                from zhipuai import ZhipuAI
-                cls._client = ZhipuAI(api_key=settings.ZHIPUAI_API_KEY)
-                logger.info("✅ ZhipuAI 客户端初始化成功")
-            except Exception as e:
-                logger.error(f"❌ ZhipuAI 客户端初始化失败: {e}")
-                cls._client = None
+            with cls._lock:
+                if cls._client is None and settings.ZHIPUAI_API_KEY:
+                    try:
+                        from zhipuai import ZhipuAI
+                        cls._client = ZhipuAI(api_key=settings.ZHIPUAI_API_KEY)
+                        logger.info("✅ ZhipuAI 客户端初始化成功")
+                    except Exception as e:
+                        logger.error(f"❌ ZhipuAI 客户端初始化失败: {e}")
+                        cls._client = None
         return cls._client
 
     @staticmethod
