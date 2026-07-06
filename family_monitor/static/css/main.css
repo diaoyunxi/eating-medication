@@ -1,1 +1,96 @@
-/* 静态文件占位符 */
+/*
+ * main.css - 管理员页面样式入口
+ * 导入主样式表 style.css（Claude Design System）
+ * 并添加管理员页面专用样式
+ */
+@import url('style.css');
+
+/* =============================================
+   管理员页面专用样式
+   ============================================= */
+
+/* 管理员卡片 - 比 auth-card 更宽以容纳多个表单 */
+.admin-card {
+    background: var(--bg-primary);
+    border-radius: 24px;
+    box-shadow: var(--shadow-2xl);
+    max-width: 560px;
+    width: 100%;
+    padding: 40px;
+    position: relative;
+    overflow: hidden;
+}
+
+.admin-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: var(--gradient-primary);
+}
+
+/* 配置分区标题 */
+.admin-section-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-body);
+}
+
+.admin-section-icon {
+    font-size: 1.3rem;
+}
+
+/* 配置分区容器 */
+.admin-section {
+    margin-bottom: 8px;
+}
+
+/* 分区分隔线 */
+.admin-divider {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 28px 0;
+}
+
+/* 提示通知框 */
+.admin-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 20px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--info-color);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.admin-notice-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.admin-notice code {
+    background: rgba(201, 100, 66, 0.1);
+    color: var(--primary-color);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+/* 响应式 */
+@media (max-width: 600px) {
+    .admin-card {
+        padding: 24px 20px;
+        border-radius: 20px;
+    }
+}
