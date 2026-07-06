@@ -5,6 +5,7 @@
 """
 
 import secrets
+from datetime import datetime
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -17,6 +18,8 @@ templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
 templates.env.cache = {}
 # 注入路径前缀变量，供模板链接加前缀
 templates.env.globals["prefix"] = config.PATH_PREFIX
+# 注入当前年份变量，供页脚版权信息使用（替换原硬编码年份）
+templates.env.globals["current_year"] = datetime.now().year
 
 
 def _check_csrf(request: Request) -> bool:
@@ -36,6 +39,8 @@ async def index(request: Request):
     """首页"""
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
+    # 获取仪表板数据，用于首页 Hero 统计与最近活动展示（替换原硬编码虚拟数据）
+    dashboard_data = await elderly_client.get_dashboard_data()
 
     return templates.TemplateResponse(
         "index.html",
@@ -43,7 +48,8 @@ async def index(request: Request):
             "request": request,
             "app_name": config.APP_NAME,
             "status": status,
-            "device_info": device_info
+            "device_info": device_info,
+            "dashboard": dashboard_data
         }
     )
 
