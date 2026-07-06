@@ -692,17 +692,6 @@
                     <span class="progress-percentage" data-target="{{ dashboard.summary.adherence_rate }}">0</span>%
                 </div>
             </div>
-            
-            <div class="progress-card">
-                <div class="progress-icon">⏰</div>
-                <h3 class="progress-title">准时服药率</h3>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: 0%; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);" data-target="{{ dashboard.summary.adherence_rate + 5 }}"></div>
-                </div>
-                <div class="progress-text" style="color: #f59e0b;">
-                    <span class="progress-percentage" data-target="{{ dashboard.summary.adherence_rate + 5 }}">0</span>%
-                </div>
-            </div>
         </div>
         
         <!-- 即将到来 -->
@@ -755,21 +744,9 @@
                         </div>
                         {% endfor %}
                     {% else %}
-                        <div class="upcoming-item">
-                            <div class="upcoming-icon">�</div>
-                            <div class="upcoming-content">
-                                <div class="upcoming-title">已服用降压药</div>
-                                <div class="upcoming-time">昨天 08:05</div>
-                            </div>
-                            <span class="upcoming-badge today">完成</span>
-                        </div>
-                        <div class="upcoming-item">
-                            <div class="upcoming-icon">✅</div>
-                            <div class="upcoming-content">
-                                <div class="upcoming-title">系统状态正常</div>
-                                <div class="upcoming-time">健康守护中</div>
-                            </div>
-                            <span class="upcoming-badge today">良好</span>
+                        <div class="chart-placeholder">
+                            <div class="chart-placeholder-icon">📋</div>
+                            <p>暂无近期活动记录</p>
                         </div>
                     {% endif %}
                 </div>

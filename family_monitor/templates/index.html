@@ -391,20 +391,16 @@
             <p class="hero-subtitle">实时了解老人的健康状况与用药情况</p>
             <div class="hero-stats">
                 <div class="hero-stat animate-fade-in stagger-1">
-                    <div class="hero-stat-number">0</div>
+                    <div class="hero-stat-number" data-target="{{ dashboard.summary.active_reminders }}">0</div>
                     <div class="hero-stat-label">今日提醒</div>
                 </div>
                 <div class="hero-stat animate-fade-in stagger-2">
-                    <div class="hero-stat-number">0</div>
+                    <div class="hero-stat-number" data-target="{{ dashboard.summary.taken_today }}">0</div>
                     <div class="hero-stat-label">已确认用药</div>
                 </div>
                 <div class="hero-stat animate-fade-in stagger-3">
-                    <div class="hero-stat-number">0%</div>
+                    <div class="hero-stat-number" data-target="{{ dashboard.summary.adherence_rate }}" data-suffix="%">0%</div>
                     <div class="hero-stat-label">依从率</div>
-                </div>
-                <div class="hero-stat animate-fade-in stagger-4">
-                    <div class="hero-stat-number">365</div>
-                    <div class="hero-stat-label">健康守护天数</div>
                 </div>
             </div>
         </div>
@@ -454,50 +450,23 @@
             <span>最近活动</span>
         </div>
         <div class="activity-card">
-            <div class="activity-item">
-                <div class="activity-icon medication">💊</div>
-                <div class="activity-content">
-                    <div class="activity-title">完成用药确认</div>
-                    <div class="activity-desc">降压药 - 早上8:00剂量</div>
+            {% if dashboard.recent_activities %}
+                {% for activity in dashboard.recent_activities %}
+                <div class="activity-item">
+                    <div class="activity-icon medication">{{ activity.icon }}</div>
+                    <div class="activity-content">
+                        <div class="activity-title">{{ activity.action }} {{ activity.name }}</div>
+                        <div class="activity-desc">{{ activity.time }}</div>
+                    </div>
+                    <div class="activity-time">{{ activity.time }}</div>
                 </div>
-                <div class="activity-time">今天 08:05</div>
-            </div>
-            
-            <div class="activity-item">
-                <div class="activity-icon reminder">⏰</div>
-                <div class="activity-content">
-                    <div class="activity-title">新增用药提醒</div>
-                    <div class="activity-desc">添加了维生素D的每周提醒</div>
+                {% endfor %}
+            {% else %}
+                <div class="chart-placeholder">
+                    <div class="chart-placeholder-icon">📋</div>
+                    <p>暂无最近活动记录</p>
                 </div>
-                <div class="activity-time">昨天 14:30</div>
-            </div>
-            
-            <div class="activity-item">
-                <div class="activity-icon checkup">🏥</div>
-                <div class="activity-content">
-                    <div class="activity-title">健康检查完成</div>
-                    <div class="activity-desc">血压测量正常，心率稳定</div>
-                </div>
-                <div class="activity-time">2天前</div>
-            </div>
-            
-            <div class="activity-item">
-                <div class="activity-icon medication">💊</div>
-                <div class="activity-content">
-                    <div class="activity-title">药品库存更新</div>
-                    <div class="activity-desc">阿司匹林还剩15天用量</div>
-                </div>
-                <div class="activity-time">3天前</div>
-            </div>
-            
-            <div class="activity-item">
-                <div class="activity-icon reminder">⏰</div>
-                <div class="activity-content">
-                    <div class="activity-title">提醒时间调整</div>
-                    <div class="activity-desc">将晚间用药时间从21:00改为20:30</div>
-                </div>
-                <div class="activity-time">1周前</div>
-            </div>
+            {% endif %}
         </div>
     </div>
     
@@ -543,14 +512,8 @@
             <span class="footer-heart">❤️</span> 用心守护每一位老人的健康
         </p>
         <p class="footer-text" style="opacity: 0.7; font-size: 0.9rem;">
-            © 2024 {{ app_name }} - 让关爱更简单
+            © {{ current_year }} {{ app_name }} - 让关爱更简单
         </p>
-        <div class="footer-links">
-            <a href="#" class="footer-link">使用帮助</a>
-            <a href="#" class="footer-link">隐私政策</a>
-            <a href="#" class="footer-link">联系我们</a>
-            <a href="#" class="footer-link">关于我们</a>
-        </div>
     </footer>
     
     <script>
@@ -559,7 +522,7 @@
             console.log('{{ app_name }} 已加载');
             
             // 数字动画效果
-            function animateNumber(element, target, duration = 2000) {
+            function animateNumber(element, target, duration = 2000, suffix = '') {
                 const start = 0;
                 const startTime = performance.now();
                 
@@ -569,11 +532,7 @@
                     const easeOut = 1 - Math.pow(1 - progress, 3);
                     const current = Math.round(start + (target - start) * easeOut);
                     
-                    if (element.textContent.includes('%')) {
-                        element.textContent = current + '%';
-                    } else {
-                        element.textContent = current;
-                    }
+                    element.textContent = current + suffix;
                     
                     if (progress < 1) {
                         requestAnimationFrame(update);
@@ -583,14 +542,13 @@
                 requestAnimationFrame(update);
             }
             
-            // 延迟启动动画
+            // 延迟启动动画 - 从 data-target 属性读取后端真实数据
             setTimeout(function() {
-                const stats = document.querySelectorAll('.hero-stat-number');
-                if (stats.length >= 3) {
-                    animateNumber(stats[0], 5);
-                    animateNumber(stats[1], 5);
-                    animateNumber(stats[2], 100);
-                }
+                document.querySelectorAll('.hero-stat-number[data-target]').forEach(function(el) {
+                    const target = parseInt(el.dataset.target) || 0;
+                    const suffix = el.dataset.suffix || '';
+                    animateNumber(el, target, 2000, suffix);
+                });
             }, 800);
             
             // 添加点击效果
