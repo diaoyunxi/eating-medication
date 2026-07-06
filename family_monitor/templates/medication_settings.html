@@ -5,609 +5,280 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>用药设置 - {{ app_name }}</title>
     <link rel="stylesheet" href="{{ prefix }}/static/css/style.css">
-    <style>
-        .main-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 30px 20px;
-            position: relative;
-            z-index: 1;
-        }
-
-        .content-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            border-radius: 20px;
-            padding: 35px;
-            box-shadow: var(--shadow-xl);
-            margin-bottom: 30px;
-            animation: fadeInUp 0.6s ease-out;
-        }
-
-        .card-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .section-title-group {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .section-icon {
-            width: 50px;
-            height: 50px;
-            background: var(--gradient-primary);
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.6rem;
-            color: white;
-        }
-
-        .section-title {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--text-primary);
-        }
-
-        .section-subtitle {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            margin-top: 4px;
-        }
-
-        /* 用药计划列表 */
-        .plan-list {
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
-        }
-
-        .plan-item {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            padding: 22px 25px;
-            background: var(--bg-secondary);
-            border-radius: 16px;
-            border-left: 5px solid var(--primary-color);
-            transition: all var(--transition-normal);
-            animation: slideIn 0.5s ease-out backwards;
-        }
-
-        .plan-item:hover {
-            background: var(--bg-tertiary);
-            transform: translateX(6px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .plan-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 14px;
-            background: var(--gradient-primary);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            flex-shrink: 0;
-        }
-
-        .plan-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .plan-name {
-            font-size: 1.15rem;
-            font-weight: bold;
-            color: var(--text-primary);
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .plan-meta {
-            color: var(--text-secondary);
-            font-size: 0.92rem;
-            margin-bottom: 8px;
-        }
-
-        .plan-times {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        .time-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 5px 12px;
-            border-radius: 18px;
-            font-size: 0.82rem;
-            font-weight: 500;
-            background: #ede9fe;
-            color: #5b21b6;
-        }
-
-        .stock-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 5px 12px;
-            border-radius: 18px;
-            font-size: 0.82rem;
-            font-weight: 500;
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .stock-badge.low {
-            background: #fee2e2;
-            color: #b91c1c;
-        }
-
-        .plan-actions {
-            display: flex;
-            gap: 10px;
-            flex-shrink: 0;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 70px 20px;
-            color: var(--text-secondary);
-        }
-
-        .empty-state-icon {
-            font-size: 4.5rem;
-            margin-bottom: 20px;
-            opacity: 0.5;
-        }
-
-        .empty-state-title {
-            font-size: 1.3rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 10px;
-        }
-
-        .empty-state-text {
-            font-size: 0.98rem;
-            margin-bottom: 22px;
-        }
-
-        /* 表单区域 */
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 22px;
-        }
-
-        .form-field {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .form-field.full {
-            grid-column: 1 / -1;
-        }
-
-        .form-field label {
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .form-field input,
-        .form-field select {
-            padding: 12px 16px;
-            border: 2px solid var(--border-color, #e5e7eb);
-            border-radius: 12px;
-            font-size: 0.98rem;
-            background: var(--bg-secondary, #fff);
-            color: var(--text-primary, #1f2937);
-            transition: all var(--transition-normal);
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .form-field input:focus,
-        .form-field select:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
-        }
-
-        .form-hint-inline {
-            font-size: 0.82rem;
-            color: var(--text-secondary);
-        }
-
-        /* 动态时间输入 */
-        .time-inputs {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .time-input-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .time-input-row input {
-            flex: 1;
-        }
-
-        .time-remove-btn {
-            width: 40px;
-            height: 40px;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            background: #fee2e2;
-            color: #b91c1c;
-            font-size: 1.1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all var(--transition-normal);
-            flex-shrink: 0;
-        }
-
-        .time-remove-btn:hover {
-            background: #fecaca;
-            transform: scale(1.05);
-        }
-
-        .time-add-btn {
-            align-self: flex-start;
-            padding: 9px 18px;
-            border: 2px dashed var(--primary-color);
-            border-radius: 10px;
-            background: transparent;
-            color: var(--primary-color);
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all var(--transition-normal);
-        }
-
-        .time-add-btn:hover {
-            background: rgba(124, 58, 237, 0.08);
-        }
-
-        .quantity-row {
-            display: grid;
-            grid-template-columns: 2fr 2fr 1fr;
-            gap: 14px;
-        }
-
-        .btn-row {
-            margin-top: 26px;
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
-        }
-
-        .unbind-tip {
-            margin-top: 20px;
-            padding: 16px 20px;
-            border-radius: 12px;
-            background: #fef3c7;
-            color: #92400e;
-            font-size: 0.92rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        @media (max-width: 768px) {
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-            .quantity-row {
-                grid-template-columns: 1fr;
-            }
-            .plan-item {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .btn-row {
-                flex-direction: column-reverse;
-            }
-            .btn-row .btn {
-                width: 100%;
-            }
-        }
-    </style>
 </head>
-<body class="bg-gradient">
-    <!-- 浮动装饰形状 -->
-    <div class="floating-shapes">
-        <div class="shape shape-1"></div>
-        <div class="shape shape-2"></div>
-        <div class="shape shape-3"></div>
-    </div>
+<body>
+    <div class="bg-gradient">
+        <div class="floating-shapes">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3"></div>
+        </div>
 
-    <!-- 导航栏 -->
-    <nav class="navbar">
-        <div class="navbar-container">
-            <a href="{{ prefix }}/" class="navbar-brand">
-                <div class="navbar-logo">👨‍👩‍👧‍👦</div>
-                <span class="navbar-title">{{ app_name }}</span>
-            </a>
-            <div class="navbar-nav">
-                <a href="{{ prefix }}/" class="nav-link">
-                    <span class="nav-link-icon">🏠</span>
-                    <span>首页</span>
+        <!-- 导航栏 -->
+        <nav class="navbar">
+            <div class="navbar-container">
+                <a href="{{ prefix }}/" class="navbar-brand">
+                    <div class="navbar-logo">👨‍👩‍👧‍👦</div>
+                    <span class="navbar-title">{{ app_name }}</span>
                 </a>
-                <a href="{{ prefix }}/dashboard" class="nav-link">
-                    <span class="nav-link-icon">📊</span>
-                    <span>仪表板</span>
-                </a>
-                <a href="{{ prefix }}/reminders" class="nav-link">
-                    <span class="nav-link-icon">💊</span>
-                    <span>用药提醒</span>
-                </a>
-                <a href="{{ prefix }}/records" class="nav-link">
-                    <span class="nav-link-icon">📋</span>
-                    <span>用药记录</span>
-                </a>
-                <a href="{{ prefix }}/medication_settings" class="nav-link active">
-                    <span class="nav-link-icon">⏰</span>
-                    <span>用药设置</span>
-                </a>
-                <a href="{{ prefix }}/chat" class="nav-link">
-                    <span class="nav-link-icon">💬</span>
-                    <span>消息</span>
-                </a>
-                <a href="{{ prefix }}/settings" class="nav-link">
-                    <span class="nav-link-icon">⚙️</span>
-                    <span>设置</span>
-                </a>
-                <div class="nav-user">
-                    <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
-                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm">
-                        <span>🚪</span>
-                        <span>登出</span>
+                <div class="navbar-nav">
+                    <a href="{{ prefix }}/" class="nav-link">
+                        <span class="nav-link-icon">🏠</span>
+                        <span>首页</span>
+                    </a>
+                    <a href="{{ prefix }}/dashboard" class="nav-link">
+                        <span class="nav-link-icon">📊</span>
+                        <span>仪表板</span>
+                    </a>
+                    <a href="{{ prefix }}/reminders" class="nav-link">
+                        <span class="nav-link-icon">💊</span>
+                        <span>用药提醒</span>
+                    </a>
+                    <a href="{{ prefix }}/records" class="nav-link">
+                        <span class="nav-link-icon">📋</span>
+                        <span>用药记录</span>
+                    </a>
+                    <a href="{{ prefix }}/medication_settings" class="nav-link active">
+                        <span class="nav-link-icon">⏰</span>
+                        <span>用药设置</span>
+                    </a>
+                    <a href="{{ prefix }}/chat" class="nav-link">
+                        <span class="nav-link-icon">💬</span>
+                        <span>消息</span>
+                    </a>
+                    <a href="{{ prefix }}/settings" class="nav-link">
+                        <span class="nav-link-icon">⚙️</span>
+                        <span>设置</span>
+                    </a>
+                    <div class="nav-user">
+                        <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
+                        <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm">
+                            <span>🚪</span>
+                            <span>登出</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 页面头部 -->
+        <header class="page-header">
+            <div class="page-header-content">
+                <h1 class="page-title">⏰ 用药设置</h1>
+                <p class="page-subtitle">管理老人的用药计划与服药时间</p>
+            </div>
+        </header>
+
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
+                <div class="status-info">
+                    <div class="status-icon">{{ "✅" if device_info and device_info.connected else "❌" }}</div>
+                    <div class="status-text">
+                        <div class="status-title">{{ device_info.device_name if device_info else "未知设备" }}</div>
+                        <div class="status-subtitle">
+                            {% if device_info and device_info.device_id %}
+                                设备ID: {{ device_info.device_id }}
+                            {% else %}
+                                未绑定设备
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="status-badge">
+                    {% if device_info and device_info.connected %}
+                        🟢 设备在线
+                    {% else %}
+                        🔴 设备离线
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 主内容 -->
+        <main class="main-content">
+            {% if device_info and device_info.device_id %}
+            <!-- 当前用药计划 -->
+            <div class="content-card">
+                <div class="card-header">
+                    <div class="section-title-group">
+                        <div class="section-icon">📋</div>
+                        <div>
+                            <div class="section-title">当前用药计划</div>
+                            <div class="section-subtitle">共 {{ plans|length }} 个计划</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline btn-sm" onclick="refreshPlans()">
+                        <span>🔄</span>
+                        <span>刷新</span>
+                    </button>
+                </div>
+
+                <div id="planListContainer">
+                    {% if plans %}
+                    <div class="plan-list">
+                        {% for plan in plans %}
+                        <div class="plan-item" data-plan-id="{{ plan.id }}">
+                            <div class="plan-icon">💊</div>
+                            <div class="plan-info">
+                                <div class="plan-name">
+                                    {{ plan.get('drug_name', '未知药品') }}
+                                    {% if plan.get('frequency') %}
+                                    <span class="time-badge">🗓️ {{ plan.get('frequency') }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="plan-meta">
+                                    剂量：{{ plan.get('dosage', '-') }}
+                                    {% if plan.get('unit') %}（{{ plan.get('unit') }}）{% endif %}
+                                </div>
+                                <div class="plan-times">
+                                    {% if plan.get('schedule_times') %}
+                                        {% for t in plan.get('schedule_times') %}
+                                        <span class="time-badge">⏰ {{ t }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="time-badge">未设置时间</span>
+                                    {% endif %}
+                                    {% if plan.get('remaining_quantity') is not none %}
+                                    <span class="stock-badge {% if plan.get('remaining_quantity', 0) <= plan.get('low_stock_threshold', 5) %}low{% endif %}">
+                                        📦 余量 {{ plan.get('remaining_quantity', 0) }}/{{ plan.get('total_quantity', 0) }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="plan-actions">
+                                <button class="btn btn-danger btn-sm"
+                                        data-plan-id="{{ plan.id }}"
+                                        data-drug-name="{{ plan.get('drug_name', '') }}"
+                                        onclick="deletePlan(this.dataset.planId, this.dataset.drugName)">
+                                    <span>🗑️</span>
+                                    <span>删除</span>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div class="empty-state-title">暂无用药计划</div>
+                        <div class="empty-state-text">在下方表单中添加第一个用药计划</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 添加用药计划表单 -->
+            <div class="content-card">
+                <div class="card-header">
+                    <div class="section-title-group">
+                        <div class="section-icon">➕</div>
+                        <div>
+                            <div class="section-title">添加用药计划</div>
+                            <div class="section-subtitle">设置药品名称、剂量与服药时间</div>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="planForm" onsubmit="return false;">
+                    <div class="form-grid">
+                        <!-- 药品名称 -->
+                        <div class="form-field">
+                            <label for="drugName">药品名称 *</label>
+                            <input type="text" id="drugName" placeholder="如：阿司匹林" required>
+                            <span class="form-hint-inline">请输入完整的药品名称</span>
+                        </div>
+
+                        <!-- 剂量 -->
+                        <div class="form-field">
+                            <label for="dosage">剂量 *</label>
+                            <input type="text" id="dosage" placeholder="如：1片" required>
+                            <span class="form-hint-inline">每次服药的剂量</span>
+                        </div>
+
+                        <!-- 服药时间 -->
+                        <div class="form-field full">
+                            <label>服药时间 *</label>
+                            <div class="time-inputs" id="timeInputs">
+                                <div class="time-input-row">
+                                    <input type="time" class="time-input" value="08:00">
+                                    <button type="button" class="time-remove-btn" onclick="removeTime(this)" title="移除该时间">✕</button>
+                                </div>
+                            </div>
+                            <button type="button" class="time-add-btn" onclick="addTime()">
+                                <span>＋</span>
+                                <span>添加服药时间</span>
+                            </button>
+                            <span class="form-hint-inline">可添加多个时间点，例如早、中、晚各一次</span>
+                        </div>
+
+                        <!-- 频率 -->
+                        <div class="form-field">
+                            <label for="frequency">服药频率</label>
+                            <select id="frequency">
+                                <option value="daily" selected>每天</option>
+                                <option value="weekly">每周</option>
+                                <option value="monthly">每月</option>
+                                <option value="as_needed">按需</option>
+                            </select>
+                            <span class="form-hint-inline">默认为每天服药</span>
+                        </div>
+
+                        <!-- 单位 -->
+                        <div class="form-field">
+                            <label for="unit">药品单位</label>
+                            <input type="text" id="unit" value="片" placeholder="如：片、粒、ml">
+                        </div>
+
+                        <!-- 数量信息 -->
+                        <div class="form-field full">
+                            <label>药品库存</label>
+                            <div class="quantity-row">
+                                <div class="form-field">
+                                    <label for="totalQuantity">总数量</label>
+                                    <input type="number" id="totalQuantity" value="30" min="0" placeholder="0">
+                                </div>
+                                <div class="form-field">
+                                    <label for="remainingQuantity">剩余数量</label>
+                                    <input type="number" id="remainingQuantity" value="30" min="0" placeholder="0">
+                                </div>
+                                <div class="form-field">
+                                    <label for="lowStockThreshold">低库存阈值</label>
+                                    <input type="number" id="lowStockThreshold" value="5" min="0" placeholder="5">
+                                </div>
+                            </div>
+                            <span class="form-hint-inline">当剩余数量低于阈值时将触发低库存提醒</span>
+                        </div>
+                    </div>
+
+                    <div class="btn-row">
+                        <button type="button" class="btn btn-outline" onclick="resetForm()">
+                            <span>🔄</span>
+                            <span>重置</span>
+                        </button>
+                        <button type="button" class="btn btn-primary btn-lg" onclick="submitPlan()">
+                            <span>💾</span>
+                            <span>保存用药计划</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% else %}
+            <!-- 未绑定设备提示 -->
+            <div class="content-card">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📱</div>
+                    <div class="empty-state-title">尚未绑定设备</div>
+                    <div class="empty-state-text">请先在「设置」页面绑定老人端设备，再进行用药设置</div>
+                    <a href="{{ prefix }}/settings" class="btn btn-primary btn-lg">
+                        <span>⚙️</span>
+                        <span>前往设置绑定设备</span>
                     </a>
                 </div>
             </div>
-        </div>
-    </nav>
-
-    <!-- 页面头部 -->
-    <header class="page-header">
-        <div class="page-header-content">
-            <h1 class="page-title">⏰ 用药设置</h1>
-            <p class="page-subtitle">管理老人的用药计划与服药时间</p>
-        </div>
-    </header>
-
-    <!-- 状态栏 -->
-    <div class="status-bar">
-        <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
-            <div class="status-info">
-                <div class="status-icon">{{ "✅" if device_info and device_info.connected else "❌" }}</div>
-                <div class="status-text">
-                    <div class="status-title">{{ device_info.device_name if device_info else "未知设备" }}</div>
-                    <div class="status-subtitle">
-                        {% if device_info and device_info.device_id %}
-                            设备ID: {{ device_info.device_id }}
-                        {% else %}
-                            未绑定设备
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            <div class="status-badge">
-                {% if device_info and device_info.connected %}
-                    🟢 设备在线
-                {% else %}
-                    🔴 设备离线
-                {% endif %}
-            </div>
-        </div>
+            {% endif %}
+        </main>
     </div>
-
-    <!-- 主内容 -->
-    <main class="main-content">
-        {% if device_info and device_info.device_id %}
-        <!-- 当前用药计划 -->
-        <div class="content-card">
-            <div class="card-header">
-                <div class="section-title-group">
-                    <div class="section-icon">📋</div>
-                    <div>
-                        <div class="section-title">当前用药计划</div>
-                        <div class="section-subtitle">共 {{ plans|length }} 个计划</div>
-                    </div>
-                </div>
-                <button class="btn btn-outline btn-sm" onclick="refreshPlans()">
-                    <span>🔄</span>
-                    <span>刷新</span>
-                </button>
-            </div>
-
-            <div id="planListContainer">
-                {% if plans %}
-                <div class="plan-list">
-                    {% for plan in plans %}
-                    <div class="plan-item" data-plan-id="{{ plan.id }}">
-                        <div class="plan-icon">💊</div>
-                        <div class="plan-info">
-                            <div class="plan-name">
-                                {{ plan.get('drug_name', '未知药品') }}
-                                {% if plan.get('frequency') %}
-                                <span class="time-badge">🗓️ {{ plan.get('frequency') }}</span>
-                                {% endif %}
-                            </div>
-                            <div class="plan-meta">
-                                剂量：{{ plan.get('dosage', '-') }}
-                                {% if plan.get('unit') %}（{{ plan.get('unit') }}）{% endif %}
-                            </div>
-                            <div class="plan-times">
-                                {% if plan.get('schedule_times') %}
-                                    {% for t in plan.get('schedule_times') %}
-                                    <span class="time-badge">⏰ {{ t }}</span>
-                                    {% endfor %}
-                                {% else %}
-                                    <span class="time-badge">未设置时间</span>
-                                {% endif %}
-                                {% if plan.get('remaining_quantity') is not none %}
-                                <span class="stock-badge {% if plan.get('remaining_quantity', 0) <= plan.get('low_stock_threshold', 5) %}low{% endif %}">
-                                    📦 余量 {{ plan.get('remaining_quantity', 0) }}/{{ plan.get('total_quantity', 0) }}
-                                </span>
-                                {% endif %}
-                            </div>
-                        </div>
-                        <div class="plan-actions">
-                            <button class="btn btn-danger btn-sm"
-                                    data-plan-id="{{ plan.id }}"
-                                    data-drug-name="{{ plan.get('drug_name', '') }}"
-                                    onclick="deletePlan(this.dataset.planId, this.dataset.drugName)">
-                                <span>🗑️</span>
-                                <span>删除</span>
-                            </button>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="empty-state">
-                    <div class="empty-state-icon">📭</div>
-                    <div class="empty-state-title">暂无用药计划</div>
-                    <div class="empty-state-text">在下方表单中添加第一个用药计划</div>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- 添加用药计划表单 -->
-        <div class="content-card">
-            <div class="card-header">
-                <div class="section-title-group">
-                    <div class="section-icon">➕</div>
-                    <div>
-                        <div class="section-title">添加用药计划</div>
-                        <div class="section-subtitle">设置药品名称、剂量与服药时间</div>
-                    </div>
-                </div>
-            </div>
-
-            <form id="planForm" onsubmit="return false;">
-                <div class="form-grid">
-                    <!-- 药品名称 -->
-                    <div class="form-field">
-                        <label for="drugName">药品名称 *</label>
-                        <input type="text" id="drugName" placeholder="如：阿司匹林" required>
-                        <span class="form-hint-inline">请输入完整的药品名称</span>
-                    </div>
-
-                    <!-- 剂量 -->
-                    <div class="form-field">
-                        <label for="dosage">剂量 *</label>
-                        <input type="text" id="dosage" placeholder="如：1片" required>
-                        <span class="form-hint-inline">每次服药的剂量</span>
-                    </div>
-
-                    <!-- 服药时间 -->
-                    <div class="form-field full">
-                        <label>服药时间 *</label>
-                        <div class="time-inputs" id="timeInputs">
-                            <div class="time-input-row">
-                                <input type="time" class="time-input" value="08:00">
-                                <button type="button" class="time-remove-btn" onclick="removeTime(this)" title="移除该时间">✕</button>
-                            </div>
-                        </div>
-                        <button type="button" class="time-add-btn" onclick="addTime()">
-                            <span>＋</span>
-                            <span>添加服药时间</span>
-                        </button>
-                        <span class="form-hint-inline">可添加多个时间点，例如早、中、晚各一次</span>
-                    </div>
-
-                    <!-- 频率 -->
-                    <div class="form-field">
-                        <label for="frequency">服药频率</label>
-                        <select id="frequency">
-                            <option value="daily" selected>每天</option>
-                            <option value="weekly">每周</option>
-                            <option value="monthly">每月</option>
-                            <option value="as_needed">按需</option>
-                        </select>
-                        <span class="form-hint-inline">默认为每天服药</span>
-                    </div>
-
-                    <!-- 单位 -->
-                    <div class="form-field">
-                        <label for="unit">药品单位</label>
-                        <input type="text" id="unit" value="片" placeholder="如：片、粒、ml">
-                    </div>
-
-                    <!-- 数量信息 -->
-                    <div class="form-field full">
-                        <label>药品库存</label>
-                        <div class="quantity-row">
-                            <div class="form-field">
-                                <label for="totalQuantity">总数量</label>
-                                <input type="number" id="totalQuantity" value="30" min="0" placeholder="0">
-                            </div>
-                            <div class="form-field">
-                                <label for="remainingQuantity">剩余数量</label>
-                                <input type="number" id="remainingQuantity" value="30" min="0" placeholder="0">
-                            </div>
-                            <div class="form-field">
-                                <label for="lowStockThreshold">低库存阈值</label>
-                                <input type="number" id="lowStockThreshold" value="5" min="0" placeholder="5">
-                            </div>
-                        </div>
-                        <span class="form-hint-inline">当剩余数量低于阈值时将触发低库存提醒</span>
-                    </div>
-                </div>
-
-                <div class="btn-row">
-                    <button type="button" class="btn btn-outline" onclick="resetForm()">
-                        <span>🔄</span>
-                        <span>重置</span>
-                    </button>
-                    <button type="button" class="btn btn-primary btn-lg" onclick="submitPlan()">
-                        <span>💾</span>
-                        <span>保存用药计划</span>
-                    </button>
-                </div>
-            </form>
-        </div>
-        {% else %}
-        <!-- 未绑定设备提示 -->
-        <div class="content-card">
-            <div class="empty-state">
-                <div class="empty-state-icon">📱</div>
-                <div class="empty-state-title">尚未绑定设备</div>
-                <div class="empty-state-text">请先在「设置」页面绑定老人端设备，再进行用药设置</div>
-                <a href="{{ prefix }}/settings" class="btn btn-primary btn-lg">
-                    <span>⚙️</span>
-                    <span>前往设置绑定设备</span>
-                </a>
-            </div>
-        </div>
-        {% endif %}
-    </main>
 
     <!-- Toast通知 -->
     <div id="toast" class="toast">
