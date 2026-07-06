@@ -13,63 +13,62 @@
             <div class="shape shape-2"></div>
             <div class="shape shape-3"></div>
         </div>
-        
+
         <div class="container" style="display: flex; align-items: center; justify-content: center; min-height: 100vh;">
             <div class="auth-card animate-fade-in">
                 <div class="auth-header">
-                    <div class="auth-logo">👨‍👩‍👧‍👦</div>
+                    <div class="auth-logo">子女守护中心</div>
                     <h1 class="auth-title">{{ app_name }}</h1>
                     <p class="auth-subtitle">创建新账户</p>
                 </div>
-                
+
                 {% if error %}
                 <div class="alert alert-error">
-                    <span class="alert-icon">❌</span>
+                    <span class="alert-icon">!</span>
                     <span>{{ error }}</span>
                 </div>
                 {% endif %}
-                
+
                 <form method="POST" action="{{ prefix }}/register" class="auth-form" id="registerForm">
                     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                     <div class="form-group">
                         <label class="form-label" for="username">用户名</label>
-                        <input type="text" class="form-input" id="username" name="username" 
-                               placeholder="至少3个字符" required 
+                        <input type="text" class="form-input" id="username" name="username"
+                               placeholder="至少3个字符" required
                                value="{{ username if username else '' }}"
                                minlength="3">
                     </div>
-                    
+
                     <div class="form-group">
                         <label class="form-label" for="password">密码</label>
-                        <input type="password" class="form-input" id="password" name="password" 
+                        <input type="password" class="form-input" id="password" name="password"
                                placeholder="至少6个字符" required minlength="6">
                     </div>
-                    
+
                     <div class="form-group">
                         <label class="form-label" for="confirm_password">确认密码</label>
-                        <input type="password" class="form-input" id="confirm_password" name="confirm_password" 
+                        <input type="password" class="form-input" id="confirm_password" name="confirm_password"
                                placeholder="再次输入密码" required minlength="6">
                     </div>
-                    
+
                     <button type="submit" class="btn btn-primary btn-lg w-full">
-                        <span>📝</span>
                         <span>注册</span>
                     </button>
                 </form>
-                
+
                 <div class="auth-footer">
                     <p>已有账户？<a href="{{ prefix }}/login" class="auth-link">立即登录</a></p>
                 </div>
             </div>
         </div>
     </div>
-    
+
     <script>
         // 前端密码匹配验证
         document.getElementById('registerForm').addEventListener('submit', function(e) {
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirm_password').value;
-            
+            var password = document.getElementById('password').value;
+            var confirmPassword = document.getElementById('confirm_password').value;
+
             if (password !== confirmPassword) {
                 e.preventDefault();
                 alert('两次输入的密码不一致！');
