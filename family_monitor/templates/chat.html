@@ -460,7 +460,7 @@
         }
 
         async function loadHistory() {
-            // S9 修复：改用子女端 BFF 代理接口 /chat/history（带 CSRF header + device_token 鉴权）
+            // S9 修复：改用子女端 BFF 代理接口 /chat/history（带 CSRF header 鉴权）
             try {
                 const csrfToken = getCookie('csrf_token');
                 const resp = await fetch(`{{ prefix }}/chat/history?limit=100`, {

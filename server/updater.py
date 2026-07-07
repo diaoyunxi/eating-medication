@@ -60,7 +60,6 @@ PROTECTED_NAMES = {
     "venv",
     "env",
     "device_id.txt",
-    "device_token.json",
     "bound_device.json",
     "users.json",
     "sessions.json",

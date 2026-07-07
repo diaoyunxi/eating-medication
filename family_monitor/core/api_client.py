@@ -27,8 +27,6 @@ class ElderlyAPIClient:
         self.base_url = config.ELDERLY_SERVER_URL
         self.timeout = 10.0
         self._device_id = self._load_bound_device_id()
-        # F5：加载已保存的 device_token
-        self._device_token = self._load_device_token()
         self._ssl_context = self._create_ssl_context()
 
     def _create_ssl_context(self) -> Optional[ssl.SSLContext]:
@@ -53,33 +51,18 @@ class ElderlyAPIClient:
                 pass
         return None
 
-    def _load_device_token(self) -> Optional[str]:
-        """F5 修复：加载已绑定的 device_token"""
-        device_file = config.DATA_DIR / "bound_device.json"
-        if device_file.exists():
-            try:
-                with open(device_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    return data.get('device_token')
-            except Exception:
-                pass
-        return None
-
-    def save_bound_device(self, device_id: str, device_name: str = "", device_token: str = ""):
-        """保存绑定的设备ID与 device_token（F5 修复：持久化 device_token）"""
+    def save_bound_device(self, device_id: str, device_name: str = ""):
+        """保存绑定的设备ID"""
         device_file = config.DATA_DIR / "bound_device.json"
         data = {
             'device_id': device_id,
             'device_name': device_name,
-            'device_token': device_token,
             'bound_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         with open(device_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        # 设置文件权限 0600，保护 device_token
         os.chmod(device_file, 0o600)
         self._device_id = device_id
-        self._device_token = device_token or None
 
     def get_bound_device(self) -> Optional[Dict[str, str]]:
         """获取已绑定的设备信息"""
@@ -98,19 +81,16 @@ class ElderlyAPIClient:
         if device_file.exists():
             device_file.unlink()
         self._device_id = None
-        self._device_token = None
 
     def _headers(self) -> Dict[str, str]:
-        """返回携带设备ID与 device_token 的请求头（F5 修复）"""
+        """返回携带设备ID的请求头"""
         headers = {}
         if self._device_id:
             headers["X-Device-ID"] = self._device_id
-        if self._device_token:
-            headers["X-Device-Token"] = self._device_token
         return headers
 
     async def register_device(self, device_id: str, device_name: str = "") -> Dict[str, Any]:
-        """向服务端注册/绑定设备（F5 修复：保存返回的 device_token）"""
+        """向服务端注册/绑定设备"""
         try:
             async with httpx.AsyncClient(
                 timeout=self.timeout,
@@ -123,9 +103,7 @@ class ElderlyAPIClient:
                 )
                 if response.status_code == 200:
                     resp_data = response.json()
-                    # F5：服务端首次注册或 legacy 升级时返回 device_token
-                    device_token = resp_data.get('device_token', '')
-                    self.save_bound_device(device_id, device_name, device_token)
+                    self.save_bound_device(device_id, device_name)
                     return {"success": True, "data": resp_data}
                 else:
                     return {"success": False, "error": f"状态码: {response.status_code}"}
@@ -318,7 +296,7 @@ class ElderlyAPIClient:
             return False
 
     async def get_reminders(self) -> List[Dict[str, Any]]:
-        """获取提醒列表（F2 修复：改用 device_token 公开接口 /device/plans）"""
+        """获取提醒列表（改用公开接口 /device/plans）"""
         if not self._device_id:
             return []
         try:
@@ -340,7 +318,7 @@ class ElderlyAPIClient:
         return []
 
     async def get_medication_records(self) -> List[Dict[str, Any]]:
-        """获取用药记录（F2 修复：改用 device_token 公开接口 /device/records）"""
+        """获取用药记录（改用公开接口 /device/records）"""
         if not self._device_id:
             return []
         try:
@@ -418,7 +396,7 @@ class ElderlyAPIClient:
         }
 
     async def get_chat_history(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """获取聊天历史（S9 修复：通过 device_token 公开接口获取）"""
+        """获取聊天历史（通过公开接口获取）"""
         if not self._device_id:
             return []
         try:

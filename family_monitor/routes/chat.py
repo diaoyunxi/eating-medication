@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 消息路由
-S9 修复：增加 /chat/history BFF 代理接口，通过 device_token 从服务端获取聊天历史
+S9 修复：增加 /chat/history BFF 代理接口，从服务端获取聊天历史
 """
 
 from fastapi import APIRouter, Request
@@ -50,7 +50,7 @@ async def chat(request: Request):
 
 @router.get("/chat/history")
 async def chat_history(request: Request, limit: int = 50):
-    """S9 修复：BFF 代理聊天历史接口，通过 device_token 调用服务端"""
+    """S9 修复：BFF 代理聊天历史接口"""
     if not _check_csrf(request):
         return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     messages = await elderly_client.get_chat_history(limit=limit)
