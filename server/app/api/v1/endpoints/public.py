@@ -109,6 +109,7 @@ async def register_device(
             hashed_password=hash_password(device_token),
             full_name=req.device_name or req.device_id,
             role="elderly",
+            last_heartbeat_at=datetime.now(timezone.utc),
         )
         db.add(user)
         db.commit()
@@ -116,11 +117,14 @@ async def register_device(
         logger.info(f"自动创建设备用户: {_masked}")
         return {"status": "ok", "user_id": user.id, "device_token": device_token}
 
-    # 已注册设备
+    # 已注册设备 - 心跳上报
     # P0-2 修复：移除 legacy 无条件重置 token 分支，防止设备冒充接管
     # 已注册设备必须校验现有 X-Device-Token；若 token 丢失需通过管理员重置
     if not _verify_device_token(user, x_device_token):
         raise HTTPException(status_code=401, detail="设备 token 无效或缺失，已注册设备请携带正确的 X-Device-Token")
+    user.last_heartbeat_at = datetime.now(timezone.utc)
+    db.commit()
+    logger.info(f"设备心跳更新: {_masked}")
     return {"status": "ok", "user_id": user.id}
 
 
@@ -164,6 +168,15 @@ async def get_device_status(
     total_plans = db.query(MedicationPlan).filter(MedicationPlan.user_id == user.id).count()
     total_records = db.query(MedicationRecord).filter(MedicationRecord.user_id == user.id).count()
 
+    # 根据心跳时间判断在线状态（1分钟内有心跳视为在线）
+    now = datetime.now(timezone.utc)
+    is_online = False
+    last_heartbeat = None
+    if user.last_heartbeat_at:
+        last_heartbeat = user.last_heartbeat_at.isoformat()
+        time_diff = (now - user.last_heartbeat_at).total_seconds()
+        is_online = time_diff <= 60
+
     return {
         "device_id": user.username,
         "device_name": user.full_name,
@@ -171,7 +184,9 @@ async def get_device_status(
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "total_plans": total_plans,
         "total_records": total_records,
-        "status": "online"
+        "status": "online" if is_online else "offline",
+        "last_heartbeat": last_heartbeat,
+        "is_online": is_online
     }
 
 

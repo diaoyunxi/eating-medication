@@ -115,50 +115,6 @@ img {
     pointer-events: none;
 }
 
-.floating-shapes {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    overflow: hidden;
-    pointer-events: none;
-}
-
-.shape {
-    position: absolute;
-    border-radius: 50%;
-    opacity: 0.1;
-    animation: float 20s ease-in-out infinite;
-}
-
-.shape.shape-1 {
-    width: 400px;
-    height: 400px;
-    background: white;
-    top: -100px;
-    right: -100px;
-    animation-delay: 0s;
-}
-
-.shape.shape-2 {
-    width: 300px;
-    height: 300px;
-    background: white;
-    bottom: -50px;
-    left: -50px;
-    animation-delay: -5s;
-}
-
-.shape.shape-3 {
-    width: 200px;
-    height: 200px;
-    background: white;
-    top: 50%;
-    right: 10%;
-    animation-delay: -10s;
-}
-
 /* =============================================
    容器与布局
    ============================================= */
@@ -3536,20 +3492,7 @@ img {
     }
 }
 
-@keyframes float {
-    0%, 100% {
-        transform: translateY(0) rotate(0deg);
-    }
-    25% {
-        transform: translateY(-30px) rotate(5deg);
-    }
-    50% {
-        transform: translateY(0) rotate(0deg);
-    }
-    75% {
-        transform: translateY(30px) rotate(-5deg);
-    }
-}
+
 
 @keyframes pulse {
     0%, 100% {
