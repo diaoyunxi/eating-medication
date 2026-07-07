@@ -18,6 +18,10 @@ import json
 import logging
 from datetime import datetime, timedelta
 
+# 模块级 logger，供 signal_handler / MedicationPoller 等非 main() 函数使用
+# main() 内部会通过 global logger 覆盖为 setup_logger() 返回的实例
+logger = logging.getLogger(__name__)
+
 # 确保以本文件所在目录为工作目录（便于读取 config.yaml / data/）
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if os.getcwd() != BASE_DIR:
@@ -38,7 +42,7 @@ def parse_arguments():
 
 
 def signal_handler(sig, frame):
-    logging.info("收到退出信号，正在清理...")
+    logger.info("收到退出信号，正在清理...")
     sys.exit(0)
 
 
@@ -148,7 +152,7 @@ class MedicationPoller:
                         self._schedules = []
                     self.last_success = False
             except Exception as e:
-                logging.warning(f"拉取用药计划失败: {e}")
+                logger.warning(f"拉取用药计划失败: {e}")
                 self.last_success = False
             # 等待下一次轮询（可被停止中断）
             self._stop_flag.wait(self.poll_interval)
@@ -220,6 +224,7 @@ class ReminderState:
 
 def main():
     global DEBUG_MODE
+    global logger
     args = parse_arguments()
     DEBUG_MODE = args.debug or args.verbose
 
@@ -228,7 +233,7 @@ def main():
         from updater import check_for_update
         check_for_update()
     except Exception as e:
-        logging.warning(f"自动更新检查失败: {e}")
+        logger.warning(f"自动更新检查失败: {e}")
 
     if DEBUG_MODE:
         print("=" * 60)

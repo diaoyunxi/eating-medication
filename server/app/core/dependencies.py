@@ -6,7 +6,6 @@ from jose import JWTError
 from app.core.database import SessionLocal
 from app.core.security import decode_token
 from app.models.user import User
-from typing import Callable
 
 security = HTTPBearer(auto_error=False)
 
@@ -48,18 +47,3 @@ async def get_current_user(
     if not getattr(user, "is_active", True):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户已被禁用")
     return user
-
-
-def require_role(*allowed_roles: str) -> Callable:
-    """G4 修复：角色校验依赖工厂，避免各端点散落 if role != xxx 判断
-
-    用法：current_user: User = Depends(require_role("elderly"))
-    """
-    async def _role_checker(current_user: User = Depends(get_current_user)) -> User:
-        if current_user.role not in allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"该操作仅允许 {', '.join(allowed_roles)} 角色执行"
-            )
-        return current_user
-    return _role_checker

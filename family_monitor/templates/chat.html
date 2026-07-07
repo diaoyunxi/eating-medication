@@ -389,9 +389,10 @@
         const emptyEl = document.getElementById('empty');
         let ws = null;
         let reconnectTimer = null;
-        const currentUser = '{{ current_user }}';
-        const elderlyId = '{{ elderly_id }}';
-        const elderlyUrl = '{{ server_url }}';
+        const currentUser = {{ current_user|tojson }};
+        const currentUserId = {{ current_user_id|tojson }};
+        const elderlyId = {{ elderly_id|tojson }};
+        const elderlyUrl = {{ server_url|tojson }};
         // 从老人端 URL 提取 host+path，并选择对应的 WebSocket 协议
         const wsProto = elderlyUrl.startsWith('https') ? 'wss:' : 'ws:';
         const serverUrl = elderlyUrl.replace(/^https?:\/\//, '');
@@ -425,7 +426,7 @@
         function sendMsg() {
             const content = inputEl.value.trim();
             if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
-            ws.send(JSON.stringify({ type: 'chat', receiver_id: parseInt(elderlyId), sender_name: currentUser, content }));
+            ws.send(JSON.stringify({ type: 'chat', receiver_id: elderlyId, sender_name: currentUser, content }));
             addMsg(currentUser, content, new Date().toISOString(), true);
             inputEl.value = '';
         }
@@ -471,7 +472,7 @@
                     const msgs = data.messages || [];
                     if (msgs.length > 0 && emptyEl) emptyEl.remove();
                     msgs.reverse().forEach(m => {
-                        addMsg(m.sender_name, m.content, m.created_at, m.sender_id === parseInt(currentUser));
+                        addMsg(m.sender_name, m.content, m.created_at, m.sender_id === currentUserId);
                     });
                 }
             } catch(e) { console.error('加载历史消息失败:', e); }

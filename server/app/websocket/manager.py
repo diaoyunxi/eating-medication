@@ -1,5 +1,5 @@
 ﻿# -*- coding: utf-8 -*-
-from typing import Dict, List, Optional
+from typing import Dict, List
 from fastapi import WebSocket
 import logging
 
@@ -53,21 +53,6 @@ class ConnectionManager:
         members = UserService.get_family_members(db, group_id)
         for member in members:
             await self.send_to_user(member.id, message)
-
-    async def send_personal_message(self, user_id: int, message: str):
-        """发送文本消息给指定用户"""
-        if user_id in self.active_connections:
-            for connection in self.active_connections[user_id]:
-                try:
-                    await connection.send_text(message)
-                except Exception as e:
-                    logger.error(f"向用户 {user_id} 发送文本消息失败: {e}")
-
-    def get_connection_count(self, user_id: Optional[int] = None) -> int:
-        """获取指定用户的连接数，或总连接数"""
-        if user_id:
-            return len(self.active_connections.get(user_id, []))
-        return sum(len(conns) for conns in self.active_connections.values())
 
 # 全局单例
 manager = ConnectionManager()

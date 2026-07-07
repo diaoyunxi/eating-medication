@@ -43,7 +43,7 @@ def install_package(pkg):
         try:
             subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--break-system-packages', pkg])
             return True
-        except:
+        except Exception:
             print('  [FAIL] ' + pkg_name)
             return False
 

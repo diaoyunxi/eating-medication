@@ -39,13 +39,6 @@ class Settings(BaseSettings):
     OCR_PROVIDER: Optional[str] = None
     OCR_API_KEY: Optional[str] = None
     OCR_SECRET_KEY: Optional[str] = None
-    OCR_APP_ID: Optional[str] = None
-
-    JD_APP_KEY: Optional[str] = None
-    JD_APP_SECRET: Optional[str] = None
-    JD_ENABLE_REAL_API: bool = False
-
-    WS_HEARTBEAT_INTERVAL: int = 30
 
     # CORS 允许的来源（逗号分隔），未配置则不启用 CORS
     ALLOWED_ORIGINS: str = ""

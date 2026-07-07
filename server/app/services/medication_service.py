@@ -1,11 +1,15 @@
 ﻿# -*- coding: utf-8 -*-
+import asyncio
+import logging
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from app.models.user import User
 from app.models.medication_plan import MedicationPlan
 from app.models.medication_record import MedicationRecord
 from app.schemas.medication import MedicationPlanCreate, TakeMedicationRequest
+
+logger = logging.getLogger(__name__)
 
 class MedicationService:
     """用药管理服务"""
@@ -47,7 +51,6 @@ class MedicationService:
     def take_medication(db: Session, user_id: int, req: TakeMedicationRequest) -> MedicationRecord:
         """记录服药并扣减库存（H9：原子扣减 + 去重 + 状态计算）"""
         from sqlalchemy import update
-        from datetime import datetime, timezone, timedelta
 
         plan = db.query(MedicationPlan).filter(
             MedicationPlan.id == req.plan_id,
@@ -66,7 +69,11 @@ class MedicationService:
         # F3 修复：统一使用 naive UTC 比较，避免 aware/naive 混用导致 TypeError
         if req.taken_time is None:
             # 未确认服药，超过计划时间 30 分钟则记为漏服
-            threshold = req.scheduled_time + timedelta(minutes=30)
+            # F3 修复：将 scheduled_time 统一转为 naive UTC，避免 aware/naive 混用导致 TypeError
+            threshold = req.scheduled_time
+            if threshold.tzinfo is not None:
+                threshold = threshold.replace(tzinfo=None)
+            threshold = threshold + timedelta(minutes=30)
             now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
             status = "missed" if now_naive > threshold else "pending"
         else:
@@ -104,6 +111,16 @@ class MedicationService:
 
         db.commit()
         db.refresh(record)
+
+        # 服药后通知家属（仅在确实服药时）
+        if status == "taken":
+            try:
+                from app.websocket.notifier import notifier
+                taken_time_str = record.taken_time.isoformat() if record.taken_time else None
+                asyncio.run(notifier.notify_taken_medication(db, user_id, plan.drug_name, taken_time_str))
+            except Exception as e:
+                logger.error(f"服药通知发送失败: {e}")
+
         return record
 
     @staticmethod
