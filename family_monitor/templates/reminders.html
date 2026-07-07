@@ -59,10 +59,10 @@
 
     <!-- 状态栏 -->
     <div class="status-bar">
-        <div class="status-card {% if status.connected %}online{% else %}offline{% endif %}">
+        <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
             <div class="status-info">
                 <div class="status-icon">
-                    {% if status.connected %}
+                    {% if device_info and device_info.connected %}
                         &#9679;
                     {% else %}
                         &#9675;
@@ -70,20 +70,20 @@
                 </div>
                 <div class="status-text">
                     <div class="status-title">
-                        {% if status.connected %}
-                            老人端在线
+                        {% if device_info and device_info.device_id %}
+                            {% if device_info.connected %}老人端在线{% else %}老人端离线{% endif %}
                         {% else %}
-                            老人端离线
+                            未绑定设备
                         {% endif %}
                     </div>
                     <div class="status-subtitle">{{ status.url }}</div>
                 </div>
             </div>
             <div class="status-badge">
-                {% if status.connected %}
-                    &#10003; 连接正常
+                {% if device_info and device_info.device_id %}
+                    {% if device_info.connected %}&#10003; 连接正常{% else %}&#9888; 已断开{% endif %}
                 {% else %}
-                    &#9888; 已断开
+                    &#9888; 设备离线
                 {% endif %}
             </div>
         </div>
