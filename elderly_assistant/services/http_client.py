@@ -2,44 +2,13 @@
 """
 HTTP 客户端模块
 负责与服务器通信：设备注册、用药计划轮询、服药确认等
-F1 修复：持久化并传递 device_token（X-Device-Token），与服务端 C5 机制对齐
+仅通过 device_id 标识设备
 """
-import os
-import json
 import requests
 from services.device_id import get_device_id
 from utils.logger import setup_logger
 
 logger = setup_logger()
-
-# device_token 持久化文件（与 device_id.txt 同目录）
-_TOKEN_FILE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "device_token.json"
-)
-
-
-def _load_device_token():
-    """从本地文件加载已保存的 device_token"""
-    try:
-        if os.path.exists(_TOKEN_FILE):
-            with open(_TOKEN_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return data.get('device_token')
-    except Exception as e:
-        logger.warning(f"加载 device_token 失败: {e}")
-    return None
-
-
-def _save_device_token(token):
-    """持久化 device_token 到本地文件"""
-    try:
-        os.makedirs(os.path.dirname(_TOKEN_FILE), exist_ok=True)
-        with open(_TOKEN_FILE, 'w', encoding='utf-8') as f:
-            json.dump({'device_token': token}, f, ensure_ascii=False)
-        # 设置文件权限 0600，防止其他用户读取 token
-        os.chmod(_TOKEN_FILE, 0o600)
-    except Exception as e:
-        logger.warning(f"保存 device_token 失败: {e}")
 
 
 class HTTPClient:
@@ -48,16 +17,10 @@ class HTTPClient:
         self.base_url = self.config['base_url']
         self.timeout = self.config.get('timeout', 10)
         self.device_id = get_device_id()
-        # F1：加载已保存的 device_token
-        self.device_token = _load_device_token()
 
     def _headers(self):
-        """返回携带设备标识与 token 的请求头"""
-        headers = {"X-Device-ID": self.device_id}
-        # F1：已注册设备附带 device_token
-        if self.device_token:
-            headers["X-Device-Token"] = self.device_token
-        return headers
+        """返回携带设备标识的请求头"""
+        return {"X-Device-ID": self.device_id}
 
     def check_connection(self):
         """检查服务器连接状态"""
@@ -69,7 +32,7 @@ class HTTPClient:
             return False
 
     def register_device(self, device_name=""):
-        """向服务端注册本设备，保存返回的 device_token（F1 修复）"""
+        """向服务端注册本设备"""
         url = f"{self.base_url}/api/v1/public/device/register"
         try:
             resp = requests.post(
@@ -79,15 +42,7 @@ class HTTPClient:
                 headers=self._headers()
             )
             if resp.status_code == 200:
-                data = resp.json()
-                # F1：服务端首次注册或 legacy 升级时会返回 device_token
-                token = data.get('device_token')
-                if token:
-                    self.device_token = token
-                    _save_device_token(token)
-                    logger.info("设备注册成功，已保存 device_token")
-                else:
-                    logger.info("设备心跳上报成功")
+                logger.info("设备注册/心跳上报成功")
                 return True
             else:
                 logger.warning(f"设备注册失败，状态码: {resp.status_code}")
@@ -112,10 +67,6 @@ class HTTPClient:
             if resp.status_code == 200:
                 data = resp.json()
                 return data.get('schedules', []) or []
-            # F1：token 失效（401）时清除本地 token，下次注册重新获取
-            if resp.status_code == 401:
-                logger.warning("拉取用药计划鉴权失败，device_token 可能已失效")
-                self.device_token = None
             return []
         except Exception as e:
             logger.warning(f"拉取用药计划异常: {e}")
