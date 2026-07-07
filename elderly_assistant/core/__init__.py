@@ -5,5 +5,5 @@
 - medication.py - 药品管理
 - camera.py - HuskyLens AI摄像头功能
 - uploader.py - 上传功能
-- network.py - 网络检测
+- display.py - 显示界面
 """

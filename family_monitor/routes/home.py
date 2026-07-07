@@ -55,9 +55,21 @@ async def index(request: Request):
 
 @router.get("/status")
 async def get_status():
-    """获取服务器状态"""
-    status = await elderly_client.get_server_status()
-    return status
+    """获取设备真实在线状态（供前端轮询）
+
+    修复：原实现返回 get_server_status()（仅服务器健康检查 GET /health），
+    导致设备离线但服务器存活时前端仍显示"设备在线"。
+    现改用 get_device_info() 返回真实设备在线状态（基于服务端心跳超时判断）。
+    """
+    device_info = await elderly_client.get_device_info()
+    return {
+        'connected': device_info.get('connected', False),
+        'device_id': device_info.get('device_id'),
+        'device_name': device_info.get('device_name'),
+        'status': device_info.get('status', 'offline'),
+        'last_heartbeat': device_info.get('last_heartbeat'),
+        'last_check': device_info.get('last_check')
+    }
 
 
 @router.get("/reminders")
