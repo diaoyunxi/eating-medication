@@ -23,7 +23,7 @@ from app.schemas.medication import MedicationPlanCreate
 from app.utils.rate_limit import check_rate_limit
 import secrets
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
