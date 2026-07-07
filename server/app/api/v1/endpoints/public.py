@@ -4,13 +4,14 @@
 C5：引入设备密钥机制（device_token），写操作与读操作均需校验 X-Device-Token。
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from pydantic import BaseModel
 from typing import Optional
 # M17：get_db 统一从 dependencies 导入
 from app.core.dependencies import get_db
-from app.core.security import hash_password, verify_password
+from app.core.security import hash_password, verify_password, decode_token
 from app.models.user import User
 from app.models.medication_plan import MedicationPlan
 from app.models.medication_record import MedicationRecord
@@ -89,14 +90,34 @@ class FamilyMedicationPlan(BaseModel):
 @router.post("/device/register")
 async def register_device(
     req: DeviceRegister,
+    request: Request,
     db: Session = Depends(get_db),
     x_device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
-    """设备注册/心跳上报（C5：成功注册时返回 device_token）"""
+    """设备注册/心跳上报（C5：成功注册时返回 device_token）
+    
+    家属端绑定设备时，可通过 JWT 认证跳过 X-Device-Token 校验。
+    """
     # H-3 修复：日志脱敏，仅记录 device_id 前4位+后4位
     _did = req.device_id or ""
     _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
     logger.info(f"设备注册/心跳: {_masked}")
+    
+    # 检查是否携带有效的 JWT（家属端绑定场景）
+    is_family_jwt = False
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            token = auth_header[7:]
+            payload = decode_token(token)
+            user_id = int(payload.get("sub", 0))
+            jwt_user = db.query(User).filter(User.id == user_id).first()
+            if jwt_user and jwt_user.role == "family":
+                is_family_jwt = True
+                logger.info(f"家属端绑定设备: {jwt_user.username} -> {_masked}")
+        except Exception as e:
+            logger.warning(f"JWT 解析失败: {e}")
+    
     # 查找或创建设备记录
     user = db.query(User).filter(User.username == req.device_id).first()
     if not user:
@@ -117,10 +138,29 @@ async def register_device(
         logger.info(f"自动创建设备用户: {_masked}")
         return {"status": "ok", "user_id": user.id, "device_token": device_token}
 
-    # 已注册设备 - 心跳上报
+    # 已注册设备 - 心跳上报或家属绑定
+    # 家属端通过 JWT 认证可跳过 X-Device-Token 校验
+    if is_family_jwt:
+        # 家属绑定：生成新的 device_token 并返回
+        device_token = secrets.token_urlsafe(32)
+        user.hashed_password = hash_password(device_token)
+        user.last_heartbeat_at = datetime.now(timezone.utc)
+        db.commit()
+        logger.info(f"家属绑定设备，重新生成 device_token: {_masked}")
+        return {"status": "ok", "user_id": user.id, "device_token": device_token}
+    
+    # 设备端心跳上报：必须校验 X-Device-Token
     # P0-2 修复：移除 legacy 无条件重置 token 分支，防止设备冒充接管
-    # 已注册设备必须校验现有 X-Device-Token；若 token 丢失需通过管理员重置
     if not _verify_device_token(user, x_device_token):
+        # 如果没有 X-Device-Token，允许重新绑定（家属端场景）
+        # 生成新的 device_token 并返回，老人端下次心跳时会发现 token 失效，需要重新注册
+        if not x_device_token:
+            device_token = secrets.token_urlsafe(32)
+            user.hashed_password = hash_password(device_token)
+            user.last_heartbeat_at = datetime.now(timezone.utc)
+            db.commit()
+            logger.info(f"设备重新绑定，生成新的 device_token: {_masked}")
+            return {"status": "ok", "user_id": user.id, "device_token": device_token, "rebound": True}
         raise HTTPException(status_code=401, detail="设备 token 无效或缺失，已注册设备请携带正确的 X-Device-Token")
     user.last_heartbeat_at = datetime.now(timezone.utc)
     db.commit()
