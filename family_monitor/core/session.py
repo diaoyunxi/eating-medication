@@ -9,7 +9,7 @@ import json
 import logging
 import secrets
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Set
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 
@@ -99,9 +99,24 @@ class SessionManager:
             是否成功
         """
         self._revoked_tokens.add(token)
+        # 修复内存泄漏：清理已过期的撤销令牌，防止 _revoked_tokens 无限增长
+        self._cleanup_expired_revoked_tokens()
         self._save_revoked_tokens()
         logger.info("会话已撤销")
         return True
+
+    def _cleanup_expired_revoked_tokens(self):
+        """清理已过期的撤销令牌（token 过期或无效即无需保留在撤销列表）"""
+        expired = []
+        for token in list(self._revoked_tokens):
+            try:
+                self.serializer.loads(token, max_age=self.max_age)
+            except (SignatureExpired, BadSignature):
+                expired.append(token)
+        for token in expired:
+            self._revoked_tokens.discard(token)
+        if expired:
+            logger.info(f"清理 {len(expired)} 个过期撤销令牌")
 
     def is_session_valid(self, token: str) -> bool:
         """检查会话是否有效"""
@@ -138,34 +153,3 @@ def get_session_manager(secret_key: str) -> SessionManager:
         revocation_file = config.DATA_DIR / 'revoked_tokens.json'
         _session_manager = SessionManager(secret_key, revocation_file)
     return _session_manager
-
-
-async def verify_csrf(request):
-    """CSRF 校验依赖函数
-    校验请求中的 csrf_token（Form 字段或 X-CSRF-Token header）是否与 cookie 中的一致。
-    校验失败抛出 403 异常。
-    """
-    from fastapi import HTTPException
-
-    cookie_token = request.cookies.get("csrf_token", "")
-    if not cookie_token:
-        raise HTTPException(status_code=403, detail="CSRF 校验失败：缺少 CSRF cookie")
-
-    # 优先从 header 读取（用于 AJAX 请求）
-    header_token = request.headers.get("X-CSRF-Token", "")
-    if header_token:
-        # H-2 修复：使用常量时间比较防止时序攻击
-        if not secrets.compare_digest(header_token, cookie_token):
-            raise HTTPException(status_code=403, detail="CSRF 校验失败")
-        return
-
-    # 从表单字段读取（用于 HTML 表单提交）
-    content_type = request.headers.get("content-type", "")
-    if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
-        form = await request.form()
-        form_token = form.get("csrf_token", "")
-        if not form_token or not secrets.compare_digest(form_token, cookie_token):
-            raise HTTPException(status_code=403, detail="CSRF 校验失败")
-    else:
-        # JSON 等其他类型请求必须通过 header 传递
-        raise HTTPException(status_code=403, detail="CSRF 校验失败：缺少 X-CSRF-Token header")

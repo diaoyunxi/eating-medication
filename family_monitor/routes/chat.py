@@ -4,6 +4,7 @@
 S9 修复：增加 /chat/history BFF 代理接口，从服务端获取聊天历史
 """
 
+import secrets
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -17,10 +18,10 @@ templates.env.globals["prefix"] = config.PATH_PREFIX
 
 
 def _check_csrf(request: Request) -> bool:
-    """校验 X-CSRF-Token header 是否与 cookie 一致"""
+    """校验 X-CSRF-Token header 是否与 cookie 一致（H-2 修复：常量时间比较防止时序攻击）"""
     cookie_token = request.cookies.get("csrf_token", "")
     header_token = request.headers.get("X-CSRF-Token", "")
-    return bool(cookie_token and header_token and cookie_token == header_token)
+    return bool(cookie_token and header_token and secrets.compare_digest(cookie_token, header_token))
 
 
 @router.get("/chat")
@@ -35,12 +36,17 @@ async def chat(request: Request):
         if bound:
             elderly_id = bound.get('device_id', '')
 
+    # 注入当前登录用户的数字 ID（family_monitor 用户系统基于 username，
+    # 暂无数字 ID，此处为 None；前端用于与服务端 sender_id 比较以判定消息方向）
+    current_user_id = None
+
     return templates.TemplateResponse(
         "chat.html",
         {
             "request": request,
             "app_name": config.APP_NAME,
             "current_user": user,
+            "current_user_id": current_user_id,
             "elderly_id": elderly_id,
             "server_url": config.ELDERLY_SERVER_URL,
             "prefix": config.PATH_PREFIX,

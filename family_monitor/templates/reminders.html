@@ -41,7 +41,7 @@
                 </a>
                 <div class="nav-user">
                     <span class="nav-username">{{ request.state.user or '用户' }}</span>
-                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm">
+                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();var m=document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);fetch('{{ prefix }}/logout',{method:'POST',headers:{'X-CSRF-Token':m?m[1]:''}}).finally(function(){window.location.href='{{ prefix }}/login';});">
                         <span>登出</span>
                     </a>
                 </div>
@@ -134,11 +134,11 @@
             {% if reminders %}
             <div class="reminder-list">
                 {% for reminder in reminders %}
-                <div class="reminder-item {% if reminder.enabled %}active{% endif %}" data-enabled="{{ reminder.enabled|lower }}">
+                <div class="reminder-item {% if reminder.enabled %}active{% endif %}" data-enabled="{{ (reminder.enabled or false)|lower }}">
                     <div class="reminder-time-block">
                         <div class="reminder-time">{{ reminder.time }}</div>
                         <div class="reminder-period">
-                            {% set hour_parts = reminder.time.split(':') %}
+                            {% set hour_parts = (reminder.time or '').split(':') %}
                             {% if hour_parts|length > 0 %}
                                 {% set hour = hour_parts[0]|int %}
                                 {% if hour < 12 %}早晨

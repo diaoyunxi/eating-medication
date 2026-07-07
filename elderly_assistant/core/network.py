@@ -18,10 +18,15 @@ class NetworkManager:
         try:
             socket.setdefaulttimeout(3)
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect((self.test_host, self.test_port))
-            sock.close()
-            self.online = True
-            return True
+            try:
+                sock.connect((self.test_host, self.test_port))
+                self.online = True
+                return True
+            except Exception:
+                self.online = False
+                return False
+            finally:
+                sock.close()
         except Exception:
             self.online = False
             return False

@@ -9,26 +9,11 @@ import os
 import bcrypt
 import fcntl
 import logging
-import secrets
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
-
-
-class UserCreate(BaseModel):
-    """用户注册模型"""
-    username: str
-    password: str
-    confirm_password: str
-
-
-class UserLogin(BaseModel):
-    """用户登录模型"""
-    username: str
-    password: str
 
 
 class UserManager:
@@ -59,11 +44,16 @@ class UserManager:
             return {}
 
     def _save_users(self, users: dict):
-        """保存用户数据（使用排他文件锁防止并发写入，并设置 0600 权限）"""
+        """保存用户数据（使用排他文件锁防止并发写入，并设置 0600 权限）
+        修复数据丢失风险：先打开+加锁，再 truncate，避免截断后崩溃导致数据丢失"""
         try:
-            with open(self.users_file, 'w', encoding='utf-8') as f:
+            # 文件存在时用 r+（不截断），先加锁再 truncate；不存在时用 w+ 创建
+            mode = 'r+' if self.users_file.exists() else 'w+'
+            with open(self.users_file, mode, encoding='utf-8') as f:
                 fcntl.flock(f.fileno(), fcntl.LOCK_EX)
                 try:
+                    f.seek(0)
+                    f.truncate()
                     json.dump(users, f, ensure_ascii=False, indent=2)
                     f.flush()
                 finally:

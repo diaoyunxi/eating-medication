@@ -16,7 +16,6 @@ import subprocess
 import threading
 import time
 import re
-import sys
 import secrets
 import html
 from http.server import HTTPServer, BaseHTTPRequestHandler

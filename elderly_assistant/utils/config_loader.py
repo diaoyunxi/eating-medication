@@ -43,6 +43,9 @@ def load_config(config_path="config.yaml"):
                 _save_default_config(config_path)
                 return DEFAULT_CONFIG.copy()
             config = yaml.safe_load(content)
+            if config is None:
+                _save_default_config(config_path)
+                return DEFAULT_CONFIG.copy()
     except Exception:
         _save_default_config(config_path)
         return DEFAULT_CONFIG.copy()

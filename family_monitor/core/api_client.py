@@ -342,43 +342,39 @@ class ElderlyAPIClient:
     async def get_dashboard_data(self) -> Dict[str, Any]:
         """获取仪表板数据"""
         try:
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                verify=self._ssl_context if self._ssl_context else True
-            ) as client:
-                reminders = await self.get_reminders()
-                records = await self.get_medication_records()
+            reminders = await self.get_reminders()
+            records = await self.get_medication_records()
 
-                total_reminders = len(reminders)
-                active_reminders = len([r for r in reminders if r.get('enabled', True)])
-                taken_today = len([r for r in reminders if r.get('taken_today', False)])
-                pending_today = active_reminders - taken_today
+            total_reminders = len(reminders)
+            active_reminders = len([r for r in reminders if r.get('enabled', True)])
+            taken_today = len([r for r in reminders if r.get('taken_today', False)])
+            pending_today = active_reminders - taken_today
 
-                total_records = len(records)
-                confirmed_records = len([r for r in records if r.get('confirmed', False)])
-                adherence_rate = int((confirmed_records / total_records * 100) if total_records > 0 else 0)
+            total_records = len(records)
+            confirmed_records = len([r for r in records if r.get('confirmed', False)])
+            adherence_rate = int((confirmed_records / total_records * 100) if total_records > 0 else 0)
 
-                return {
-                    'summary': {
-                        'total_reminders': total_reminders,
-                        'active_reminders': active_reminders,
-                        'taken_today': taken_today,
-                        'pending_today': pending_today,
-                        'adherence_rate': adherence_rate,
-                        'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    },
-                    'upcoming_reminders': [
-                        {'id': r.get('id'), 'name': r.get('name'), 'time': r.get('time'), 'status': 'pending'}
-                        for r in reminders[:5] if r.get('enabled', True)
-                    ],
-                    'recent_activities': [
-                        {'id': r.get('id'), 'type': 'medication', 'action': '已服用',
-                         'name': r.get('medication_name'), 'time': r.get('taken_at'), 'icon': '💊'}
-                        for r in records[:5]
-                    ],
-                    'chart_data': [],
-                    'medications': []
-                }
+            return {
+                'summary': {
+                    'total_reminders': total_reminders,
+                    'active_reminders': active_reminders,
+                    'taken_today': taken_today,
+                    'pending_today': pending_today,
+                    'adherence_rate': adherence_rate,
+                    'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                },
+                'upcoming_reminders': [
+                    {'id': r.get('id'), 'name': r.get('name'), 'time': r.get('time'), 'status': 'pending'}
+                    for r in reminders[:5] if r.get('enabled', True)
+                ],
+                'recent_activities': [
+                    {'id': r.get('id'), 'type': 'medication', 'action': '已服用',
+                     'name': r.get('medication_name'), 'time': r.get('taken_at'), 'icon': '💊'}
+                    for r in records[:5]
+                ],
+                'chart_data': [],
+                'medications': []
+            }
         except Exception:
             pass
 

@@ -41,7 +41,7 @@
                 </a>
                 <div class="nav-user">
                     <span class="nav-username">{{ request.state.user or '用户' }}</span>
-                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm">
+                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();var m=document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);fetch('{{ prefix }}/logout',{method:'POST',headers:{'X-CSRF-Token':m?m[1]:''}}).finally(function(){window.location.href='{{ prefix }}/login';});">
                         <span>登出</span>
                     </a>
                 </div>
@@ -182,8 +182,8 @@
                 {% for record in records %}
                 <div class="record-item {% if not record.confirmed %}missed{% elif record.status == 'late' %}late{% endif %}" data-status="{% if not record.confirmed %}missed{% elif record.status == 'late' %}late{% else %}confirmed{% endif %}" data-med="{{ record.medication_name }}">
                     <div class="record-date {% if not record.confirmed %}missed{% elif record.status == 'late' %}late{% endif %}">
-                        <div class="record-day">{{ record.taken_at.split(' ')[0] if ' ' in record.taken_at else record.taken_at }}</div>
-                        <div class="record-time-small">{{ record.taken_at.split(' ')[1] if ' ' in record.taken_at else '' }}</div>
+                        <div class="record-day">{{ record.taken_at.split(' ')[0] if record.taken_at and ' ' in record.taken_at else record.taken_at }}</div>
+                        <div class="record-time-small">{{ record.taken_at.split(' ')[1] if record.taken_at and ' ' in record.taken_at else '' }}</div>
                     </div>
                     <div class="record-info">
                         <div class="record-name">{{ record.medication_name }}</div>

@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.2.0**（2026-07-01，安全加固版本） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.3.0**（2026-07-07，代码质量与安全加固版本） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
 一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
@@ -118,7 +118,7 @@
 | 7 | POST | `/api/v1/public/ai/ask` | AI 问答（经服务端中转智谱 AI） | TUI 中用户输入问题 |
 | 8 | POST | `/api/upload` | 上传服药/药品照片（multipart `file`） | TUI 确认服药 / 识别药品时 |
 
-> 所有请求统一携带 `X-Device-ID` 请求头用于设备识别；已注册设备敏感接口需带 `X-Device-Token`。
+> 所有请求统一携带 `X-Device-ID` 请求头用于设备识别；公开接口仅通过 device_id 校验。
 
 #### 老人端 → 服务端（WebSocket，仅 TUI 形态）
 
@@ -239,7 +239,6 @@
 │   │   ├── utils/                 # http_client/rate_limit/time_utils/validators
 │   │   ├── websocket/             # manager/notifier
 │   │   └── migrations/            # Alembic 迁移（已就位，生产建议启用）
-│   └── tests/                     # 测试用例（unit + integration）
 ├── family_monitor/                # 家属看护端
 │   ├── main.py                    # FastAPI 应用 + 中间件链
 │   ├── updater.py                 # 自动更新检查
@@ -255,8 +254,7 @@
 │   ├── static/css/                # 样式表
 │   └── templates/                 # 10 个 Jinja2 页面模板
 ├── history.md                     # 项目开发历史记录（版本基准）
-├── SECURITY_AUDIT_REPORT.md       # v2.2.0 安全审计报告
-├── VERSION                        # 当前版本号（v2.2.0）
+├── VERSION                        # 当前版本号（v2.3.0）
 ├── deploy/                        # 部署辅助文件（systemd 单元 + cloudflared 配置）
 │   ├── eating-medication-server.service
 │   ├── eating-medication-family.service
@@ -277,7 +275,7 @@
 | GUI / 硬件 | pinpong 1.2.0（行空板 M10）+ unihiker GUI | — | Jinja2 3.1 模板 |
 | HTTP 客户端 | requests 2.31.0 | httpx 0.27.2 | httpx 0.25.0 |
 | 数据库 | — | SQLAlchemy 2.0.36 + SQLite | users.json + 文件锁（bcrypt 4.1） |
-| 认证 | 设备 token `X-Device-Token` | python-jose 3.4.0（JWT HS256）+ bcrypt | itsdangerous 会话令牌（7 天） |
+| 认证 | 仅通过 device_id 校验 | python-jose 3.4.0（JWT HS256）+ bcrypt | itsdangerous 会话令牌（7 天） |
 | AI | pyttsx3 / edge-tts | 智谱 AI `glm-4.7-flash`（zhipuai SDK） | — |
 | OCR | pytesseract 0.3.10（本地） | 百度 OCR（aip.baidubce.com） | — |
 | 调度 | schedule 1.2.1 | APScheduler 3.11.0 | — |
@@ -375,7 +373,7 @@ ALLOWED_ORIGINS=https://your-domain.example.com
 WS_HEARTBEAT_INTERVAL=30
 ```
 
-首次启动 `server/main.py` 会自动生成 `.env` 模板（v2.2.0 已修复弱密钥问题，但生产环境仍需手动填入真实密钥）。
+首次启动 `server/main.py` 会自动生成 `.env` 模板（v2.3.0 已修复弱密钥问题，但生产环境仍需手动填入真实密钥）。
 
 ---
 
@@ -433,14 +431,14 @@ WS_HEARTBEAT_INTERVAL=30
 
 | 方法 | 路径 | 用途 | 认证 |
 |------|------|------|------|
-| POST | `/public/device/register` | 设备注册 / 心跳上报；首次返回 `device_token` | 首次无需；已注册需 `X-Device-Token` |
-| POST | `/public/device/message` | 接收设备上报消息（含 `emergency` 紧急） | 否（仅查 device_id） |
-| GET | `/public/device/check/{device_id}` | 检查设备是否已注册 | 否 |
-| GET | `/public/device/status/{device_id}` | 获取设备状态（计划/记录数） | `X-Device-Token` |
-| GET | `/public/device/schedule/{device_id}` | 获取设备用药计划（老人端轮询） | `X-Device-Token` |
-| GET | `/public/device/plans/{device_id}` | 获取设备所有用药计划 | `X-Device-Token` |
-| POST | `/public/device/medication_plan` | 家属通过 device_id 设置用药计划 | `X-Device-Token` |
-| DELETE | `/public/device/medication_plan/{plan_id}` | 删除用药计划 | `X-Device-Token` |
+| POST | `/public/device/register` | 设备注册 / 心跳上报 | device_id |
+| POST | `/public/device/message` | 接收设备上报消息（含 `emergency` 紧急） | device_id |
+| GET | `/public/device/check/{device_id}` | 检查设备是否已注册 | 无 |
+| GET | `/public/device/status/{device_id}` | 获取设备状态（计划/记录数） | device_id |
+| GET | `/public/device/schedule/{device_id}` | 获取设备用药计划（老人端轮询） | device_id |
+| GET | `/public/device/plans/{device_id}` | 获取设备所有用药计划 | device_id |
+| POST | `/public/device/medication_plan` | 家属通过 device_id 设置用药计划 | device_id |
+| DELETE | `/public/device/medication_plan/{plan_id}` | 删除用药计划 | device_id |
 | POST | `/public/ai/ask` | 设备端 AI 提问 | 否（限流 10 次/分钟/IP） |
 
 #### 根路径
@@ -554,11 +552,11 @@ WS_HEARTBEAT_INTERVAL=30
 
 | 模块 | SHA256 校验 | 异常处理 | 版本号 |
 |------|-------------|----------|--------|
-| elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 2.2.0 |
-| server | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.2.0 |
-| family_monitor | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.2.0 |
+| elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 2.3.0 |
+| server | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.3.0 |
+| family_monitor | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.3.0 |
 
-> 三个 `updater.py` 的 `__version__` 已与 `VERSION` 文件同步为 `2.2.0`。
+> 三个 `updater.py` 的 `__version__` 已与 `VERSION` 文件同步为 `2.3.0`。
 
 ---
 
@@ -615,10 +613,10 @@ journalctl -u cloudflared -f                    # 隧道日志
 
 ## 安全特性
 
-v2.2.0 完成安全加固，共修复 11 严重 + 15 高危 + 21 中危 + 20 低危问题（详见 [`SECURITY_AUDIT_REPORT.md`](./SECURITY_AUDIT_REPORT.md)）。关键特性：
+v2.3.0 完成安全加固，共修复 11 严重 + 15 高危 + 21 中危 + 20 低危问题。关键特性：
 
 - **密钥管理**：移除硬编码 `SECRET_KEY`，改用环境变量；生产模式弱密钥拒绝启动。
-- **设备认证**：首次注册设备返回 `device_token`，后续敏感操作须携带 `X-Device-Token`。
+- **设备认证**：所有公开接口仅通过 device_id 校验。
 - **JWT 强化**：有效期从 7 天缩短至 1 小时；含 `jti`/`type=access`；登录用户不存在也执行一次 bcrypt 防时序攻击。
 - **CORS 白名单**：从 `ALLOWED_ORIGINS` 环境变量读取，未配置则不启用 CORS（避免通配符）。
 - **CSRF 防护**：子女端所有 POST 须携带 `csrf_token`（表单字段或 `X-CSRF-Token` 头）。
@@ -649,20 +647,6 @@ cd server && pip install -r requirements-dev.txt
 - 子女端页面放 `family_monitor/templates/`，路由放 `family_monitor/routes/`，样式放 `family_monitor/static/css/`。
 - 老人端硬件相关放 `elderly_assistant/services/`，业务逻辑放 `elderly_assistant/core/`。
 
-### 运行测试
-
-服务端测试基于 `pytest`，覆盖单元测试与集成测试：
-
-```bash
-cd server
-pytest                          # 运行全部测试
-pytest tests/test_services/     # 仅服务层测试
-pytest tests/integration/       # 仅集成测试
-pytest -k auth                  # 按关键字过滤
-```
-
-测试依赖见 [`server/requirements-dev.txt`](./server/requirements-dev.txt)，包含 `pytest`、`pytest-asyncio`、`httpx`（测试客户端）等。
-
 ### 编码规范
 
 - 使用中文注释、中文提交信息、中文文档。
@@ -674,9 +658,8 @@ pytest -k auth                  # 按关键字过滤
 
 1. 从 `main` 拉取最新代码。
 2. 新建分支开发：`git checkout -b feat/xxx`。
-3. 本地通过测试：`pytest`。
-4. 提交并推送：`git commit -m "feat: xxx"` → `git push origin feat/xxx`。
-5. 默认理解为提交更改到 `main`；如需为他人仓库提 PR 请显式说明。
+3. 提交并推送：`git commit -m "feat: xxx"` → `git push origin feat/xxx`。
+4. 默认理解为提交更改到 `main`；如需为他人仓库提 PR 请显式说明。
 
 ---
 
@@ -684,14 +667,14 @@ pytest -k auth                  # 按关键字过滤
 
 > 完整开发历史见 [`history.md`](./history.md)。版本号基准以 `history.md` 为准。
 
-- **v2.2.0**（2026-07-01）：安全加固版本。基于对仓库审查发现的 47+ 个安全问题（11 严重 + 15 高危 + 21 中危 + 20+ 低危）。包括：移除硬编码 SECRET_KEY 改用环境变量、聊天/设备端点加认证、CORS 白名单、CSRF 防护、XSS 修复、自动更新加 SHA256 校验、热点 WPA2 加密、依赖升级（python-jose 3.4.0、pydantic 2.10.0、sqlalchemy 2.0.36）、Alembic 迁移修复等。**允许破坏性变更**：SECRET_KEY 必须配置、设备须重新注册获取 token、JWT 有效期缩至 1 小时。
+- **v2.2.0**（2026-07-01）：安全加固版本。基于对仓库审查发现的 47+ 个安全问题（11 严重 + 15 高危 + 21 中危 + 20+ 低危）。包括：移除硬编码 SECRET_KEY 改用环境变量、聊天/设备端点加认证、CORS 白名单、CSRF 防护、XSS 修复、自动更新加 SHA256 校验、热点 WPA2 加密、依赖升级（python-jose 3.4.0、pydantic 2.10.0、sqlalchemy 2.0.36）、Alembic 迁移修复等。**允许破坏性变更**：SECRET_KEY 必须配置、设备须重新注册获取 token（v2.3.0 已移除）、JWT 有效期缩至 1 小时。
 - **v2.1.0**（2026-06-30）：移除本地 SSL 证书机制，改为 Cloudflare 隧道边缘自动配置 HTTPS；新增路径前缀支持（`/eating-medication/server`、`/eating-medication/family`）；老人端默认服务器地址改为公网域名；清除项目内部代号字样。
 - **v2.0.0**（2026-06-27）：重大升级。老人端 pinpong/unihiker 重构，舍弃 TUI 改用 pinpong 库 + unihiker GUI 库实现行空板 M10 图形化交互；完善端到端流程（热点配网→注册设备→下发用药计划→到点提醒）；新增 5 个设备公开接口；从单文件吃药提醒工具升级为完整三端系统，新增自动更新检查、AI 语音问答、药品识别、家属聊天、紧急呼叫、库存管理等功能。
 
 ### v2.2.0 破坏性变更（升级注意）
 
 1. **SECRET_KEY 必须配置**：server 和 family_monitor 启动时若未配置 `SECRET_KEY`（或为已知弱值），生产模式（`DEBUG=False`）将拒绝启动。
-2. **设备 token 机制**：首次注册设备返回 `device_token`，后续读写操作需在 Header 携带 `X-Device-Token`，老设备需重新注册。
+2. **设备 token 机制**：首次注册设备返回 `device_token`，后续读写操作需在 Header 携带 `X-Device-Token`，老设备需重新注册。（v2.3.0 已移除，改为仅通过 device_id 校验）
 3. **JWT 有效期缩短**：从 7 天缩短至 1 小时（`ACCESS_TOKEN_EXPIRE_MINUTES=60`）。
 4. **CORS 白名单**：生产环境必须配置 `ALLOWED_ORIGINS` 环境变量。
 5. **CSRF 防护**：family_monitor 所有 POST 请求需携带 csrf_token。
@@ -701,7 +684,7 @@ pytest -k auth                  # 按关键字过滤
 
 ## 已知问题与待办
 
-- **chat.html 历史消息加载**：已修复（v2.2.1）。子女端 BFF 新增 `/chat/history` 代理路由，通过 device_token 从服务端 `/public/device/chat_history/{device_id}` 获取聊天历史，前端不再直连服务端 JWT 接口。
+- **chat.html 历史消息加载**：已修复（v2.2.1）。子女端 BFF 新增 `/chat/history` 代理路由，通过 device_id 从服务端 `/public/device/chat_history/{device_id}` 获取聊天历史，前端不再直连服务端 JWT 接口。
 - **未实现功能**：京东比价仅有配置项（`JD_*`），无实现代码；短信/APP 推送服务缺失，通知仅依赖 WebSocket；`users.py` 双向确认绑定机制标注 TODO；`public.py` emergency 消息推送标注 TODO。
 
 ---

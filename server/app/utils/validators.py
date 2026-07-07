@@ -28,24 +28,7 @@ def is_valid_password(password: str) -> bool:
     has_digit = any(c.isdigit() for c in password)
     return has_letter and has_digit
 
-def validate_drug_name(drug_name: str) -> bool:
-    """验证药品名称"""
-    if not drug_name:
-        return False
-    if len(drug_name) > 100:
-        return False
-    return True
-
 def is_valid_time_format(time_str: str) -> bool:
     """验证时间格式"""
     pattern = r'^([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$'
     return bool(re.match(pattern, time_str))
-
-def sanitize_string(text: str, max_length: int = 500) -> str:
-    """清理字符串"""
-    if not text:
-        return ""
-    text = text.strip()
-    if len(text) > max_length:
-        text = text[:max_length]
-    return text

@@ -131,4 +131,8 @@ async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Que
             elif data.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logger.error(f"WebSocket 异常: {e}")
+    finally:
         manager.disconnect(websocket, user_id)

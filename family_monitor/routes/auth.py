@@ -7,12 +7,12 @@
 
 import time
 import secrets
-from fastapi import APIRouter, Request, Form, Depends
+from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from core import config
 from core.auth import get_user_manager
-from core.session import get_session_manager, verify_csrf
+from core.session import get_session_manager
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,13 +29,16 @@ _login_attempts: dict[str, list[float]] = {}
 def _check_login_rate_limit(client_ip: str) -> bool:
     """检查登录限流：每分钟每 IP 最多 5 次登录尝试"""
     now = time.time()
-    if client_ip not in _login_attempts:
-        _login_attempts[client_ip] = []
     # 清理超过 60 秒的记录
-    _login_attempts[client_ip] = [t for t in _login_attempts[client_ip] if now - t < 60]
-    if len(_login_attempts[client_ip]) >= 5:
+    recent = [t for t in _login_attempts.get(client_ip, []) if now - t < 60]
+    # 修复内存泄漏：列表为空则删除该 key，避免 dict 累积空列表
+    if not recent:
+        _login_attempts.pop(client_ip, None)
+    if len(recent) >= 5:
+        _login_attempts[client_ip] = recent
         return False
-    _login_attempts[client_ip].append(now)
+    recent.append(now)
+    _login_attempts[client_ip] = recent
     return True
 
 
@@ -159,16 +162,19 @@ async def post_register(
         )
 
 
-@router.get("/logout")
+@router.post("/logout")
 async def logout(request: Request):
-    """处理登出请求：先使会话失效，再删除 cookie"""
-    session_manager = get_session_manager(config.SECRET_KEY)
-    # 从 cookie 读取 token 并使会话失效
-    token = request.cookies.get("session_token")
-    if token:
-        session_manager.invalidate_session(token)
+    """处理登出请求：POST + CSRF 校验，先使会话失效，再删除 cookie"""
+    csrf_token = request.headers.get("X-CSRF-Token")
+    cookie_token = request.cookies.get("csrf_token")
+    if not csrf_token or not cookie_token or not secrets.compare_digest(csrf_token, cookie_token):
+        raise HTTPException(status_code=403, detail="CSRF token invalid")
+    session_token = request.cookies.get("session_token")
+    if session_token:
+        session_manager = get_session_manager(config.SECRET_KEY)
+        session_manager.invalidate_session(session_token)
 
-    response = RedirectResponse(url="/login", status_code=302)
+    response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(key="session_token")
     response.delete_cookie(key="csrf_token")
     return response

@@ -104,6 +104,11 @@ class Buzzer:
         except Exception as e:
             logger.error(f"播放成功提示音失败: {e}")
 
+    def beep(self, volume=None):
+        """蜂鸣（play_reminder 的别名，兼容旧调用）"""
+        # volume 参数仅为兼容旧调用 signature，当前 play_reminder 不接受音量参数
+        self.play_reminder()
+
     def is_reminding(self):
         """是否正在持续提醒"""
         return self._reminding

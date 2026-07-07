@@ -124,7 +124,7 @@ async def device_message(
 
     # 根据消息类型处理
     if req.message_type == "emergency":
-        logger.warning(f"紧急消息: {req.device_id} - {req.content}")
+        logger.warning(f"紧急消息: {_masked} - {req.content}")
         # TODO: 通过WebSocket推送给子女端
 
     return {"status": "ok"}
@@ -136,7 +136,10 @@ async def get_device_status(
     db: Session = Depends(get_db),
 ):
     """获取设备状态信息（供子女端查询，仅校验 device_id）"""
-    logger.info(f"查询设备状态: {device_id}")
+    # H-3 修复：日志脱敏，仅记录 device_id 前4位+后4位
+    _did = device_id or ""
+    _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
+    logger.info(f"查询设备状态: {_masked}")
     user = _get_device_user(db, device_id)
 
     # 获取设备相关统计（G2 修复：使用 count 聚合，避免全量加载记录）
@@ -180,7 +183,10 @@ async def ai_ask(
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="问题不能为空")
 
-    logger.info(f"设备AI提问: {req.device_id} - {req.question}")
+    # H-3 修复：日志脱敏，仅记录 device_id 前4位+后4位
+    _did = req.device_id or ""
+    _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
+    logger.info(f"设备AI提问: {_masked} - {req.question}")
     answer = await AIService.ask(req.question)
 
     # 记录问答日志
@@ -258,7 +264,10 @@ async def set_device_medication_plan(
         low_stock_threshold=req.low_stock_threshold,
     )
     plan = MedicationService.create_plan(db, user.id, plan_data)
-    logger.info(f"家属为设备 {req.device_id} 设置用药计划: {req.drug_name}")
+    # H-3 修复：日志脱敏，仅记录 device_id 前4位+后4位
+    _did = req.device_id or ""
+    _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
+    logger.info(f"家属为设备 {_masked} 设置用药计划: {req.drug_name}")
 
     return {
         "status": "ok",
@@ -371,13 +380,17 @@ async def get_device_chat_history(
 @router.delete("/device/medication_plan/{plan_id}")
 async def delete_device_medication_plan(
     plan_id: int,
+    device_id: str,
     db: Session = Depends(get_db),
 ):
-    """删除用药计划（供子女端管理，仅校验计划是否存在）"""
-    plan = db.query(MedicationPlan).filter(MedicationPlan.id == plan_id).first()
+    """删除用药计划（校验设备归属）"""
+    user = _get_device_user(db, device_id)
+    plan = db.query(MedicationPlan).filter(
+        MedicationPlan.id == plan_id,
+        MedicationPlan.user_id == user.id
+    ).first()
     if not plan:
-        raise HTTPException(status_code=404, detail="计划不存在")
-
+        raise HTTPException(status_code=404, detail="计划不存在或不属于该设备")
     db.delete(plan)
     db.commit()
     return {"status": "ok"}

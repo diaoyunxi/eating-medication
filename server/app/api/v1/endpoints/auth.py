@@ -11,6 +11,8 @@ router = APIRouter(prefix="/auth", tags=["认证"])
 
 # L8：注册限流——每分钟每 IP 最多 5 次注册
 _REGISTER_RATE_LIMIT = 5
+# 登录限流——每分钟每 IP 最多 10 次登录
+_LOGIN_RATE_LIMIT = 10
 
 @router.post("/register", response_model=TokenResp, status_code=status.HTTP_201_CREATED)
 def register(
@@ -31,8 +33,12 @@ def register(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/login", response_model=TokenResp)
-def login(req: LoginReq, db: Session = Depends(get_db)):
+def login(req: LoginReq, request: Request, db: Session = Depends(get_db)):
     """用户登录"""
+    # 限流：每分钟每 IP 最多 10 次登录
+    client_ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(f"login:{client_ip}", _LOGIN_RATE_LIMIT):
+        raise HTTPException(status_code=429, detail="登录请求过于频繁，请稍后再试")
     token = AuthService.login(db, req.username, req.password)
     if token is None:
         raise HTTPException(status_code=401, detail="用户名或密码错误")

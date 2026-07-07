@@ -41,7 +41,7 @@
                 </a>
                 <div class="nav-user">
                     <span class="nav-username">{{ request.state.user or '用户' }}</span>
-                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm">
+                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();var m=document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);fetch('{{ prefix }}/logout',{method:'POST',headers:{'X-CSRF-Token':m?m[1]:''}}).finally(function(){window.location.href='{{ prefix }}/login';});">
                         <span>登出</span>
                     </a>
                 </div>
@@ -311,13 +311,13 @@
             setTimeout(function() {
                 /* 统计卡片数字 */
                 document.querySelectorAll('.stat-value[data-target]').forEach(function(el) {
-                    var target = parseInt(el.dataset.target);
+                    var target = parseInt(el.dataset.target) || 0;
                     animateNumber(el, target);
                 });
 
                 /* 进度条填充动画 */
                 document.querySelectorAll('.progress-fill[data-target]').forEach(function(el) {
-                    var target = parseInt(el.dataset.target);
+                    var target = parseInt(el.dataset.target) || 0;
                     setTimeout(function() {
                         el.style.width = target + '%';
                     }, 300);
@@ -325,7 +325,7 @@
 
                 /* 进度百分比文字 */
                 document.querySelectorAll('.progress-percentage[data-target]').forEach(function(el) {
-                    var target = parseInt(el.dataset.target);
+                    var target = parseInt(el.dataset.target) || 0;
                     animateNumber(el, target, 1500);
                 });
             }, 600);
