@@ -24,6 +24,7 @@ class User(Base):
     # L9：账号启用状态与最后登录时间
     is_active = Column(Boolean, default=True)
     last_login_at = Column(DateTime, nullable=True)
+    last_heartbeat_at = Column(DateTime, nullable=True)
 
     # 关联关系
     medication_plans = relationship("MedicationPlan", back_populates="user", cascade="all, delete-orphan")
