@@ -96,6 +96,10 @@ class HTTPClient:
             logger.warning(f"设备注册请求异常: {e}")
             return False
 
+    def send_heartbeat(self):
+        """向服务端发送心跳上报（每分钟调用一次）"""
+        return self.register_device()
+
     def get_medication_schedule(self):
         """
         拉取本设备的用药计划（每分钟轮询调用）

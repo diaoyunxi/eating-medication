@@ -277,15 +277,18 @@ class ElderlyAPIClient:
                 )
                 if response.status_code == 200:
                     data = response.json()
+                    # 根据服务端返回的 is_online 判断真实在线状态
+                    is_online = data.get('is_online', False)
                     return {
-                        'connected': True,
+                        'connected': is_online,
                         'device_id': data.get('device_id'),
                         'device_name': data.get('device_name'),
                         'role': data.get('role'),
                         'created_at': data.get('created_at'),
                         'total_plans': data.get('total_plans', 0),
                         'total_records': data.get('total_records', 0),
-                        'status': data.get('status', 'online'),
+                        'status': data.get('status', 'offline'),
+                        'last_heartbeat': data.get('last_heartbeat'),
                         'last_check': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     }
                 return {

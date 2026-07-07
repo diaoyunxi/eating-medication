@@ -141,6 +141,8 @@ class MedicationPoller:
                     with self._lock:
                         self._schedules = schedules or []
                     self.last_success = True
+                    # 心跳上报（每分钟一次，与用药计划轮询同频率）
+                    self.http_client.send_heartbeat()
                 else:
                     with self._lock:
                         self._schedules = []
