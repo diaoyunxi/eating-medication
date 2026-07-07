@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import logging
+import secrets
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, get_db
+from app.core.security import hash_password
 from app.models.user import User
 from app.schemas.user import UserOut, UserUpdate, BindFamilyReq
 from app.services.user_service import UserService
@@ -52,3 +54,40 @@ def bind_family(
     if not group_id:
         raise HTTPException(status_code=400, detail="绑定失败，请检查用户ID或角色")
     return {"group_id": group_id}
+
+
+@router.get("/device-token")
+def get_device_token(
+    device_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """家属获取老人端 device_token（需 JWT 认证）
+
+    由于 device_token 只存储了哈希值，无法反推明文，因此会生成新的 token 并返回。
+    注意：生成新 token 后，老人端下次心跳会发现 token 失效，需要重新注册获取新 token。
+    """
+    # 仅允许家属角色
+    if current_user.role != "family":
+        raise HTTPException(status_code=403, detail="只有家属可以获取设备 token")
+
+    # 查找设备用户
+    elderly_user = db.query(User).filter(
+        User.username == device_id,
+        User.role == "elderly"
+    ).first()
+    if not elderly_user:
+        raise HTTPException(status_code=404, detail="设备未注册")
+
+    # 生成新的 device_token
+    device_token = secrets.token_urlsafe(32)
+    elderly_user.hashed_password = hash_password(device_token)
+    db.commit()
+
+    logger.info(f"家属 {current_user.username} 获取设备 {device_id} 的 token")
+
+    return {
+        "device_id": device_id,
+        "device_token": device_token,
+        "message": "请注意：老人端下次心跳会发现 token 失效，需要重新注册获取新 token"
+    }
