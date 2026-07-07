@@ -3,6 +3,7 @@ server:
   upload_endpoint: /api/upload
   method: POST
   timeout: 10
+  heartbeat_interval: 30  # 心跳上报间隔（秒），独立于用药计划轮询，建议≤服务端在线判断阈值的一半
 
 # AI 客户端配置示例（base_url 与 server.base_url 可一致，api_key/model 按需补充）
 ai:

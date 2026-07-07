@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=Poppins:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.4.0">
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.5.0">
 </head>
 <body class="page-home">
     <!-- 导航栏 -->
@@ -335,8 +335,8 @@
             });
         });
 
-        // 自动刷新连接状态（每30秒）
-        setInterval(function() {
+        // 自动刷新设备状态（每15秒），轮询失败降级显示离线
+        function refreshDeviceStatus() {
             fetch('{{ prefix }}/status')
                 .then(function(response) { return response.json(); })
                 .then(function(data) {
@@ -344,33 +344,43 @@
                     var statusIndicator = document.querySelector('.status-indicator');
                     var statusTitle = document.querySelector('.status-title');
                     var statusBadge = document.querySelector('.status-badge');
+                    if (!statusCard) return;
 
-                    // 未绑定设备时保持红色离线状态，避免误显示"在线/连接正常"
                     if (!data.device_id) {
                         statusCard.classList.remove('online');
                         statusCard.classList.add('offline');
-                        statusIndicator.classList.remove('dot-online');
-                        statusIndicator.classList.add('dot-offline');
-                        statusTitle.textContent = '未绑定设备';
-                        statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备离线';
+                        if (statusIndicator) { statusIndicator.classList.remove('dot-online'); statusIndicator.classList.add('dot-offline'); }
+                        if (statusTitle) { statusTitle.textContent = '未绑定设备'; }
+                        if (statusBadge) { statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
                     } else if (data.connected) {
                         statusCard.classList.remove('offline');
                         statusCard.classList.add('online');
-                        statusIndicator.classList.remove('dot-offline');
-                        statusIndicator.classList.add('dot-online');
-                        statusTitle.textContent = data.device_name || '设备在线';
-                        statusBadge.innerHTML = '<span class="status-badge-dot"></span> 连接正常';
+                        if (statusIndicator) { statusIndicator.classList.remove('dot-offline'); statusIndicator.classList.add('dot-online'); }
+                        if (statusTitle) { statusTitle.textContent = data.device_name || '设备在线'; }
+                        if (statusBadge) { statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备在线'; }
                     } else {
                         statusCard.classList.remove('online');
                         statusCard.classList.add('offline');
-                        statusIndicator.classList.remove('dot-online');
-                        statusIndicator.classList.add('dot-offline');
-                        statusTitle.textContent = data.device_name || '设备离线';
-                        statusBadge.innerHTML = '<span class="status-badge-dot"></span> 连接断开';
+                        if (statusIndicator) { statusIndicator.classList.remove('dot-online'); statusIndicator.classList.add('dot-offline'); }
+                        if (statusTitle) { statusTitle.textContent = data.device_name || '设备离线'; }
+                        if (statusBadge) { statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
                     }
                 })
-                .catch(function(error) { console.error('状态刷新失败:', error); });
-        }, 30000);
+                .catch(function(error) {
+                    console.error('状态刷新失败:', error);
+                    // 轮询失败降级显示离线，避免网络抖动期间显示过期状态
+                    var statusCard = document.querySelector('.status-card');
+                    if (statusCard) {
+                        statusCard.classList.remove('online');
+                        statusCard.classList.add('offline');
+                        var statusIndicator = document.querySelector('.status-indicator');
+                        if (statusIndicator) { statusIndicator.classList.remove('dot-online'); statusIndicator.classList.add('dot-offline'); }
+                        var statusBadge = document.querySelector('.status-badge');
+                        if (statusBadge) { statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
+                    }
+                });
+        }
+        setInterval(refreshDeviceStatus, 15000);
     </script>
 
     <!-- 导航栏用户菜单（移动端头像下拉） -->

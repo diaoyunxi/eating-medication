@@ -113,9 +113,6 @@ def create_app_dirs():
             "# CORS 允许的来源（逗号分隔，生产环境必须修改为实际域名）\n"
             "ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000\n"
             "\n"
-            "# WebSocket 心跳间隔（秒）\n"
-            "WS_HEARTBEAT_INTERVAL=30\n"
-            "\n"
             "# 路径前缀（Cloudflare 隧道子路径，本地直连设为空）\n"
             "PATH_PREFIX=/eating-medication/server\n"
         )

@@ -55,6 +55,11 @@ class DeviceRegister(BaseModel):
     device_name: Optional[str] = None
 
 
+class DeviceOffline(BaseModel):
+    """设备主动下线通知"""
+    device_id: str
+
+
 class AIQuestion(BaseModel):
     """AI提问"""
     question: str
@@ -108,6 +113,34 @@ async def register_device(
     db.commit()
     logger.info(f"设备心跳更新: {_masked}")
     return {"status": "ok", "user_id": user.id}
+
+
+@router.post("/device/offline")
+async def device_offline(
+    req: DeviceOffline,
+    db: Session = Depends(get_db),
+):
+    """设备主动下线通知
+
+    设备正常退出（SIGINT/SIGTERM/进程关闭）时调用，
+    将 last_heartbeat_at 置为很早的时间，使 is_online 立即为 false，
+    避免子女端在心跳超时窗口内看到虚假的"在线"状态。
+    注意：掉电/SIGKILL 等异常退出仍需依赖心跳超时判定。
+    """
+    _did = req.device_id or ""
+    _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
+    logger.info(f"设备主动下线: {_masked}")
+
+    user = db.query(User).filter(User.username == req.device_id).first()
+    if not user:
+        # 设备未注册，无需下线
+        return {"status": "ok", "message": "设备未注册，无需下线"}
+
+    # 将 last_heartbeat_at 置为很早的时间，使在线判断立即返回 false
+    user.last_heartbeat_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    db.commit()
+    logger.info(f"设备已标记离线: {_masked}")
+    return {"status": "ok"}
 
 
 @router.post("/device/message")
