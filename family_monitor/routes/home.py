@@ -120,7 +120,7 @@ async def get_dashboard(request: Request):
 
 @router.get("/settings")
 async def get_settings(request: Request):
-    """设置页面（API_KEY 已移除，实际未使用）"""
+    """设置页面"""
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
     bound_device = elderly_client.get_bound_device()
@@ -130,69 +130,8 @@ async def get_settings(request: Request):
             "app_name": config.APP_NAME,
             "status": status,
             "device_info": device_info,
-            "current_server_url": config.ELDERLY_SERVER_URL,
-            "bound_device": bound_device,
-            'display_settings': config.DISPLAY_SETTINGS,})
+            "bound_device": bound_device,})
 
-
-@router.post("/settings/server")
-async def update_server_settings(request: Request, server_url: str = Form(...)):
-    """更新服务器设置（API_KEY 已移除，G12：增加 URL 格式校验防 SSRF）"""
-    # CSRF 校验
-    if not _check_csrf(request):
-        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
-    try:
-        # G12 修复：校验 URL 格式，仅允许 http/https 协议
-        from urllib.parse import urlparse
-        parsed = urlparse(server_url.strip())
-        if parsed.scheme not in ("http", "https"):
-            return JSONResponse(content={
-                "success": False,
-                "message": "服务器地址必须以 http:// 或 https:// 开头"
-            }, status_code=400)
-        if not parsed.netloc:
-            return JSONResponse(content={
-                "success": False,
-                "message": "服务器地址格式不正确"
-            }, status_code=400)
-
-        config.ELDERLY_SERVER_URL = server_url.strip()
-        config.save_config()
-        elderly_client.base_url = server_url.strip()
-        return JSONResponse(content={
-            "success": True,
-            "message": "服务器设置已更新"
-        })
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-
-@router.post("/settings/display")
-async def update_display_settings(
-    request: Request,
-    theme: str = Form("light"),
-    color: str = Form("purple"),
-    language: str = Form("zh-CN"),
-    animations: bool = Form(True),
-    compact: bool = Form(False),
-):
-    """更新显示设置"""
-    # CSRF 校验
-    if not _check_csrf(request):
-        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
-    try:
-        config.DISPLAY_SETTINGS = {
-            'theme': theme,
-            'color': color,
-            'language': language,
-            'animations': animations,
-            'compact': compact,
-        }
-        config.save_config()
-        return JSONResponse(content={"success": True, "message": "显示设置已更新"})
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/settings/bind_device")
 async def bind_device(request: Request, device_id: str = Form(...), device_name: str = Form("")):
