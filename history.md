@@ -869,3 +869,95 @@ unihiker GUI 库：
 - 修复老人端 requirements.txt 包含未使用依赖
 - 修复老人端 config.yaml.example 过时端点配置
 - 统一三个子项目的版本号到 2.3.0
+
+---
+
+# v2.4.0 - 移动端导航优化版本（2026-07-07）
+
+## 变更概述
+
+修复 family_monitor（子女看护 Web 端）在移动端导航栏占比过大的问题。原布局在手机/平板上因 `flex-wrap` 换行导致导航栏占据过多垂直空间，影响主内容可视区域。
+
+采用「横向滚动导航 + 头像下拉菜单」方案：
+- 导航项改为横向滚动（不再换行），mask-image 实现滚动渐隐提示
+- `nav-user`（用户名 + 登出按钮）在移动端折叠为圆形头像按钮，点击展开下拉菜单
+- 桌面端（≥769px）保持原布局不变，自动隐藏移动端专属组件
+
+## 响应式断点设计
+
+| 断点 | 范围 | 行为 |
+|------|------|------|
+| 平板 | ≤1024px | 缩小尺寸但保持横向布局（logo 38px、字号 0.9rem） |
+| 手机 | ≤768px | navbar-nav 横向滚动，nav-user 折叠为头像按钮 + 下拉菜单（核心改造） |
+| 小屏 | ≤480px | 进一步紧凑（头像 32×32、下拉菜单 min-width 180px） |
+| 桌面 | ≥769px | 隐藏头像按钮和下拉菜单，恢复原换行布局 |
+
+## 关键技术点
+
+### CSS 改造（style.css 末尾追加约 314 行）
+- `.navbar-container` 强制 `flex-direction: row` + `flex-wrap: nowrap`，避免换行
+- `.navbar-nav` 启用 `overflow-x: auto` + `-webkit-overflow-scrolling: touch`，并隐藏滚动条（`scrollbar-width: none` + `::-webkit-scrollbar { display: none }`）
+- `.nav-link` 加 `white-space: nowrap` + `flex-shrink: 0`，防止单项被压缩
+- 滚动渐隐提示：`mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 44px), transparent 100%)`
+- `.nav-user-avatar`：34×34 圆形按钮，使用 `--gradient-primary` 渐变背景，含 hover 放大 + active 缩小交互
+- `.nav-user-dropdown`：绝对定位下拉菜单，含 `opacity/visibility/transform` 三重过渡动画 + `.show` 状态类
+- 桌面端 `@media (min-width: 769px)` 显式 `display: none` 隐藏头像按钮和下拉菜单
+
+### HTML 结构改造（6 个模板统一）
+保留桌面端原有 `.nav-username` + 登出按钮结构，新增移动端专属元素：
+- `.nav-user-avatar` 头像按钮（含用户 SVG 图标 + ARIA 属性）
+- `.nav-user-dropdown` 下拉菜单容器（role="menu"）
+  - `.nav-user-dropdown-user`：用户信息区（含 `.nav-user-dropdown-avatar` 首字母圆形 + `.nav-user-dropdown-name` 用户名）
+  - `.nav-user-dropdown-item.danger`：登出按钮（含登出 SVG 图标）
+
+### JavaScript 交互（IIFE 模式注入）
+每个模板 `</body>` 前注入相同 IIFE 脚本：
+- `window.__navUserDropdownInit` 防重复初始化标志
+- `window.toggleNavUserDropdown(e)`：切换下拉菜单显示状态，同步 ARIA `aria-expanded`
+- `window.navLogout()`：登出流程，从 cookie 读取 `csrf_token`，`fetch` POST `/logout` 携带 `X-CSRF-Token` Header，完成后重定向到 `/login`
+- `document.click` 监听：点击下拉菜单外部时自动关闭
+- `document.keydown` 监听：按 ESC 键关闭下拉菜单
+
+## 涉及的文件清单
+
+### 修改文件（共 11 个）
+
+**CSS 样式（1 个）**：
+- `family_monitor/static/css/style.css`：末尾追加 4 个媒体查询块（共约 314 行）
+
+**HTML 模板（6 个，导航栏改造 + CSS 版本号升级）**：
+- `family_monitor/templates/index.html`
+- `family_monitor/templates/dashboard.html`
+- `family_monitor/templates/reminders.html`
+- `family_monitor/templates/records.html`
+- `family_monitor/templates/settings.html`
+- `family_monitor/templates/medication_settings.html`
+
+**CSS 缓存版本号升级（4 个，仅 ?v= 参数）**：
+- `family_monitor/templates/admin_settings.html`
+- `family_monitor/templates/chat.html`
+- `family_monitor/templates/login.html`
+- `family_monitor/templates/register.html`
+
+**版本号同步（5 个）**：
+- `VERSION`：2.3.0 → 2.4.0
+- `family_monitor/updater.py`：`__version__` = "2.3.0" → "2.4.0"
+- `server/updater.py`：`__version__` = "2.3.0" → "2.4.0"
+- `elderly_assistant/updater.py`：`__version__` = "2.3.0" → "2.4.0"
+- `README.md`：当前版本引用和三模块差异表格同步到 2.4.0
+- `elderly_assistant/README.md`：当前版本声明同步到 2.4.0
+
+## 兼容性说明
+
+- 桌面端（≥769px）行为完全不变，原有用户名 + 登出按钮正常显示
+- 移动端导航项支持横向滑动，长导航也不会换行占满屏幕
+- 头像下拉菜单点击外部或按 ESC 自动关闭，符合无障碍访问规范（ARIA 属性完整）
+- 登出流程保留 CSRF 防护，POST + X-CSRF-Token Header 与原桌面端一致
+- 所有改造均为渐进增强，不破坏现有桌面端功能
+
+## 验证结果
+
+- Jinja2 模板渲染：6 个改造模板全部渲染成功，包含完整新结构
+- curl 端到端测试：注册测试用户 testuser/Test1234 后访问首页，HTML 包含 `nav-user-avatar`、`nav-user-dropdown`、`nav-user-dropdown-item`、`toggleNavUserDropdown`、`navLogout` 等所有元素
+- 下拉菜单首字母显示正确（"T"），用户名显示 "testuser"
+

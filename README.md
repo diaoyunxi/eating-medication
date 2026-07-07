@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.3.0**（2026-07-07，代码质量与安全加固版本） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.4.0**（2026-07-07，移动端导航优化版本） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
 一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
@@ -254,7 +254,7 @@
 │   ├── static/css/                # 样式表
 │   └── templates/                 # 10 个 Jinja2 页面模板
 ├── history.md                     # 项目开发历史记录（版本基准）
-├── VERSION                        # 当前版本号（v2.3.0）
+├── VERSION                        # 当前版本号（v2.4.0）
 ├── deploy/                        # 部署辅助文件（systemd 单元 + cloudflared 配置）
 │   ├── eating-medication-server.service
 │   ├── eating-medication-family.service
@@ -552,11 +552,11 @@ WS_HEARTBEAT_INTERVAL=30
 
 | 模块 | SHA256 校验 | 异常处理 | 版本号 |
 |------|-------------|----------|--------|
-| elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 2.3.0 |
-| server | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.3.0 |
-| family_monitor | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.3.0 |
+| elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 2.4.0 |
+| server | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.4.0 |
+| family_monitor | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.4.0 |
 
-> 三个 `updater.py` 的 `__version__` 已与 `VERSION` 文件同步为 `2.3.0`。
+> 三个 `updater.py` 的 `__version__` 已与 `VERSION` 文件同步为 `2.4.0`。
 
 ---
 
