@@ -59,10 +59,10 @@
 
     <!-- 状态栏 -->
     <div class="status-bar">
-        <div class="status-card {% if status.connected %}online{% else %}offline{% endif %}">
+        <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
             <div class="status-info">
                 <div class="status-icon">
-                    {% if status.connected %}
+                    {% if device_info and device_info.connected %}
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                     {% else %}
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
@@ -70,20 +70,20 @@
                 </div>
                 <div class="status-text">
                     <div class="status-title">
-                        {% if status.connected %}
-                            老人端在线
+                        {% if device_info and device_info.device_id %}
+                            {% if device_info.connected %}老人端在线{% else %}老人端离线{% endif %}
                         {% else %}
-                            老人端离线
+                            未绑定设备
                         {% endif %}
                     </div>
                     <div class="status-subtitle">{{ status.url }}</div>
                 </div>
             </div>
             <div class="status-badge">
-                {% if status.connected %}
-                    连接正常
+                {% if device_info and device_info.device_id %}
+                    {% if device_info.connected %}连接正常{% else %}已断开{% endif %}
                 {% else %}
-                    已断开
+                    设备离线
                 {% endif %}
             </div>
         </div>

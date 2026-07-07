@@ -332,7 +332,15 @@
                     var statusTitle = document.querySelector('.status-title');
                     var statusBadge = document.querySelector('.status-badge');
 
-                    if (data.connected) {
+                    // 未绑定设备时保持红色离线状态，避免误显示"在线/连接正常"
+                    if (!data.device_id) {
+                        statusCard.classList.remove('online');
+                        statusCard.classList.add('offline');
+                        statusIndicator.classList.remove('dot-online');
+                        statusIndicator.classList.add('dot-offline');
+                        statusTitle.textContent = '未绑定设备';
+                        statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备离线';
+                    } else if (data.connected) {
                         statusCard.classList.remove('offline');
                         statusCard.classList.add('online');
                         statusIndicator.classList.remove('dot-offline');
