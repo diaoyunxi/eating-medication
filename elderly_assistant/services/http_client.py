@@ -53,8 +53,33 @@ class HTTPClient:
             return False
 
     def send_heartbeat(self):
-        """向服务端发送心跳上报（每分钟调用一次）"""
+        """向服务端发送心跳上报（每30秒调用一次，独立于业务轮询）"""
         return self.register_device()
+
+    def unregister_device(self):
+        """向服务端发送主动下线通知
+
+        设备正常退出（SIGINT/SIGTERM/进程关闭）时调用，
+        服务器收到后会立即将设备标记为离线，
+        避免子女端在心跳超时窗口内看到虚假的"在线"状态。
+        注意：超时设为 3 秒，避免退出清理阻塞过久。
+        """
+        url = f"{self.base_url}/api/v1/public/device/offline"
+        try:
+            resp = requests.post(
+                url,
+                json={"device_id": self.device_id},
+                timeout=3,
+                headers=self._headers()
+            )
+            if resp.status_code == 200:
+                logger.info("设备下线通知成功")
+                return True
+            logger.warning(f"设备下线通知失败，状态码: {resp.status_code}")
+            return False
+        except Exception as e:
+            logger.warning(f"设备下线通知异常: {e}")
+            return False
 
     def get_medication_schedule(self):
         """

@@ -112,6 +112,7 @@ class MedicationPoller:
     用药计划轮询线程
     每隔 poll_interval 秒向服务器请求用药计划，缓存到 self.schedules
     G14 修复：使用 threading.Lock 保护 schedules 的读写，防止跨线程迭代时被替换
+    注意：心跳上报已拆分到独立的 HeartbeatThread，避免业务请求失败导致心跳丢失
     """
 
     def __init__(self, http_client, poll_interval=60):
@@ -145,8 +146,6 @@ class MedicationPoller:
                     with self._lock:
                         self._schedules = schedules or []
                     self.last_success = True
-                    # 心跳上报（每分钟一次，与用药计划轮询同频率）
-                    self.http_client.send_heartbeat()
                 else:
                     with self._lock:
                         self._schedules = []
@@ -220,6 +219,44 @@ class ReminderState:
         if self.active:
             self.snooze_until = datetime.now() + timedelta(minutes=snooze_minutes)
         # active 保持 True，但蜂鸣器停止；到 snooze_until 后再次响铃
+
+
+class HeartbeatThread:
+    """
+    独立心跳线程
+    每隔 interval 秒向服务器发送一次心跳，与 MedicationPoller 业务轮询解耦。
+    这样业务请求（拉取用药计划）失败时不会导致心跳丢失，
+    服务器端能更稳定地判断设备在线状态。
+    """
+
+    def __init__(self, http_client, interval=30):
+        self.http_client = http_client
+        self.interval = interval
+        self._stop_flag = threading.Event()
+        self._thread = None
+
+    def start(self):
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._stop_flag.set()
+
+    def join(self, timeout=None):
+        """等待线程退出"""
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=timeout)
+
+    def _run(self):
+        # 启动后立即发送一次心跳，让服务器尽快感知设备上线
+        while not self._stop_flag.is_set():
+            try:
+                if self.http_client:
+                    self.http_client.send_heartbeat()
+            except Exception as e:
+                logger.warning(f"心跳发送失败: {e}")
+            # 等待下一次心跳（可被停止中断）
+            self._stop_flag.wait(self.interval)
 
 
 def main():
@@ -319,6 +356,12 @@ def main():
     poller.start()
     logger.info(f"用药计划轮询线程已启动，间隔 {poll_interval} 秒")
 
+    # 8.1 启动独立心跳线程（与业务轮询解耦，避免业务失败导致心跳丢失）
+    heartbeat_interval = config.get('server', {}).get('heartbeat_interval', 30)
+    heartbeat_thread = HeartbeatThread(http_client, interval=heartbeat_interval)
+    heartbeat_thread.start()
+    logger.info(f"独立心跳线程已启动，间隔 {heartbeat_interval} 秒")
+
     # 9. 显示主界面
     display.show_main_screen(fcc_id=fcc_id, server_url=server_url, connected=False)
 
@@ -397,6 +440,18 @@ def main():
     finally:
         # 清理资源（S7 修复：更完整地释放资源并等待线程退出）
         logger.info("正在清理资源...")
+        # 优先停止心跳线程，避免下线通知被后续心跳覆盖导致设备重新变为在线
+        try:
+            heartbeat_thread.stop()
+            heartbeat_thread.join(timeout=2)
+        except Exception as e:
+            logger.warning(f"停止心跳线程失败: {e}")
+        # 主动通知服务器下线，避免子女端在心跳超时窗口内看到虚假的"在线"状态
+        try:
+            if http_client:
+                http_client.unregister_device()
+        except Exception as e:
+            logger.warning(f"发送下线通知失败: {e}")
         try:
             poller.stop()
             # 等待轮询线程退出，避免阻塞在 HTTP 请求中导致僵尸线程
