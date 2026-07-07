@@ -166,10 +166,10 @@ def main():
     print("老人用药管理智能助手 - 服务端")
     print("=" * 50)
 
-    # 启动时检查更新（自动更新功能）
+    # 启动时检查更新（启用自动拉取）
     try:
         from updater import check_for_update
-        check_for_update()
+        check_for_update(auto_pull=True)
     except Exception as e:
         logging.warning(f"自动更新检查失败: {e}")
 

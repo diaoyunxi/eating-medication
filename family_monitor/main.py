@@ -209,10 +209,10 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
 
-    # 启动时检查更新（自动更新功能）
+    # 启动时检查更新（启用自动拉取）
     try:
         from updater import check_for_update
-        check_for_update()
+        check_for_update(auto_pull=True)
     except Exception as e:
         logger.warning(f"更新检查失败: {e}")
 
