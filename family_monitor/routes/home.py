@@ -7,10 +7,9 @@
 import secrets
 from datetime import datetime
 from fastapi import APIRouter, Request, Form, HTTPException
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from core import config, elderly_client
-from core.session import get_session_manager
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))

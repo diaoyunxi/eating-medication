@@ -831,3 +831,41 @@ unihiker GUI 库：
 - 服务端：`python -c "from app.main import app; print('OK')"` → OK
 - 家属端：`python -c "from main import app; print('OK')"` → OK（含端到端测试通过）
 - 老人端：`python -m py_compile` 全部通过，`import main` 成功
+
+# v2.3.0 - 代码质量与安全加固版本（2026-07-07）
+
+## 破坏性变更
+- 移除 device_token/X-Device-Token 机制，所有公开接口仅通过 device_id 校验
+- 家属端 logout 改为 POST 方法并要求 CSRF 校验
+- 老人端删除未使用的 TUI、ReminderManager、AIAssistant、LocalFallback、AIClient、OCREngine 模块
+
+## 安全修复
+- 服务端：修复 group_id 为 None 时的数据越权泄露
+- 服务端：登录端点添加 IP 限流（每分钟 10 次）
+- 服务端：DELETE 用药计划接口添加设备归属校验
+- 服务端：修复时区 aware/naive 混用导致的 TypeError
+- 服务端：WebSocket chat 异常完全捕获，防止连接泄漏
+- 家属端：修复 chat.html XSS 漏洞（用户名注入 JS 字符串）
+- 家属端：CSRF 比较改用 secrets.compare_digest 防止时序攻击
+- 家属端：_save_users 先加锁后截断，防止写入失败导致数据丢失
+- 家属端：修复 _login_attempts 和 _revoked_tokens 内存泄漏
+- 老人端：修复 socket 资源泄漏
+- 老人端：修复 upload_image 文件不存在异常未捕获
+
+## 功能修复
+- 服务端：修复 Alembic 迁移路径错误（始终回退 create_all）
+- 服务端：修复 env.py 缺少 chat_message 模型导入
+- 服务端：接线服药通知（notify_taken_medication）
+- 家属端：修复 chat.html parseInt 对字符串 device_id 返回 NaN
+- 家属端：修复 CSS 未定义变量（--font-sans、--brand-color 等）
+- 家属端：修复 dashboard/records/reminders 模板的 None 类型错误
+- 老人端：修复 Buzzer.beep() 调用不存在的方法
+- 老人端：修复 main.py 混用 logging 模块级 API 与 logger 实例
+- 老人端：修复 config_loader.py yaml 解析为 None 时的崩溃
+
+## 代码质量
+- 删除大量死代码和未使用导入（服务端 8 处、家属端 13 处、老人端 5 处）
+- 统一日志脱敏（device_id 前4+后4）
+- 修复老人端 requirements.txt 包含未使用依赖
+- 修复老人端 config.yaml.example 过时端点配置
+- 统一三个子项目的版本号到 2.3.0

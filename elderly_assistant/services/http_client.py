@@ -5,6 +5,7 @@ HTTP 客户端模块
 仅通过 device_id 标识设备
 """
 import requests
+from datetime import datetime
 from services.device_id import get_device_id
 from utils.logger import setup_logger
 
@@ -78,7 +79,6 @@ class HTTPClient:
         POST /api/v1/public/device/message
         message_type=medication
         """
-        from datetime import datetime
         if taken_at is None:
             taken_at = datetime.now().isoformat()
         url = f"{self.base_url}/api/v1/public/device/message"
@@ -106,17 +106,17 @@ class HTTPClient:
         if endpoint is None:
             endpoint = self.config['upload_endpoint']
         url = f"{self.base_url}{endpoint}"
-        with open(image_path, 'rb') as f:
-            files = {'file': f}
-            try:
+        try:
+            with open(image_path, 'rb') as f:
+                files = {'file': f}
                 resp = requests.post(url, files=files, timeout=self.timeout, headers=self._headers())
                 if resp.status_code == 200:
                     return True
                 logger.warning(f"上传图片失败，状态码: {resp.status_code}")
                 return False
-            except Exception as e:
-                logger.warning(f"上传图片异常: {e}")
-                return False
+        except Exception as e:
+            logger.warning(f"上传图片异常: {e}")
+            return False
 
     def send_emergency(self):
         """向服务端发送紧急消息"""
@@ -147,20 +147,13 @@ class HTTPClient:
         }
         try:
             resp = requests.post(url, json=data, timeout=self.timeout, headers=self._headers())
-            return resp.json()
+            if resp.status_code == 200:
+                return resp.json()
+            logger.warning(f"发送聊天消息失败，状态码: {resp.status_code}")
+            return None
         except Exception as e:
             logger.warning(f"发送聊天消息异常: {e}")
             return None
-
-    def get_chat_messages(self, since_id=0):
-        """获取聊天消息"""
-        url = f"{self.base_url}/api/v1/public/device/message"
-        try:
-            resp = requests.get(url, timeout=self.timeout, headers=self._headers())
-            return resp.json()
-        except Exception as e:
-            logger.warning(f"获取聊天消息异常: {e}")
-            return []
 
     def upload_medicine_photo(self, image_path):
         """上传药品照片"""

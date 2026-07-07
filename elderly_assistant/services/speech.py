@@ -73,7 +73,7 @@ class Speech:
         if self._engine:
             try:
                 self._engine.stop()
-            except:
+            except Exception:
                 pass
             self._engine = None
 

@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
         from alembic.config import Config
         from alembic import command
         import os as _os
-        alembic_ini = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "alembic.ini")
+        alembic_ini = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "migrations", "alembic.ini")
         if _os.path.exists(alembic_ini):
             alembic_cfg = Config(alembic_ini)
             command.upgrade(alembic_cfg, "head")

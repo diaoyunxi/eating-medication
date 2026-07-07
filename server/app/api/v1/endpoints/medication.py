@@ -33,6 +33,8 @@ def list_plans(
     if current_user.role == "elderly":
         return MedicationService.get_plans_by_user(db, current_user.id)
     elif current_user.role == "family":
+        if not current_user.group_id:
+            return []
         return MedicationService.get_plans_for_family(db, current_user.group_id)
     return []
 

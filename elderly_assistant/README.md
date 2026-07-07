@@ -1,5 +1,7 @@
 # 老人用药助手（Elderly Medication Assistant）
 
+> 当前版本：v2.3.0（2026-07-07）
+
 基于 Python 的智能用药管理系统（老人使用端），适用于行空板及通用设备（Windows/Linux）。提供用药提醒、药品识别、AI 语音问答、服药记录上传、库存管理、家属沟通和紧急呼叫等功能。所有配置均通过 YAML 文件管理，无硬编码。
 
 ---
@@ -12,7 +14,7 @@
 - **服药画面上传**：确认服药后自动拍照上传到服务器，便于家属通过小程序查看日志。
 - **库存管理与低量提醒**：记录药品剩余量，低于设定天数时提醒。
 - **网络状态切换**：WiFi 在线时支持与家属文字聊天及一键呼叫 120；离线时仅提供基础语音提醒。
-- **大字体 GUI**：全屏 Tkinter 界面，按钮大、操作简单，适合老人使用。
+- **大字体 GUI**：全屏 unihiker GUI 界面，按钮大、操作简单，适合老人使用。
 - **完整日志**：所有运行日志保存到本地，错误信息同时显示在界面状态栏并写入日志，程序不会因异常退出。
 
 ---
@@ -34,13 +36,6 @@ elderly_assistant/
 │   ├── uploader.py             # 服药画面上传
 │   ├── network.py              # 网络状态检测、聊天、紧急呼叫
 │   └── local_fallback.py       # 无网时的基础提醒
-├── gui/                        # 图形界面（Tkinter 大字体）
-│   ├── __init__.py
-│   ├── main_window.py          # 主窗口布局
-│   ├── reminder_settings.py    # 多人提醒时间编辑
-│   ├── medication_management.py# 药品库存查看
-│   ├── chat_window.py          # 家属聊天窗口
-│   └── components.py           # 可复用组件（大按钮、滚动列表）
 ├── services/                   # 底层服务抽象
 │   ├── __init__.py
 │   ├── speech.py               # 语音合成、语音识别（队列模式防冲突）
@@ -177,7 +172,7 @@ A：程序已使用队列模式解决线程冲突，若仍出现请检查 `servi
 A：修改 `config.yaml` 中 `ai.base_url` 为 `http://localhost:11434/v1`，`ai.model` 填写模型名（如 `qwen:7b`），`ai.api_key` 填任意非空字符串即可。
 
 **Q：如何在没有 GUI 的服务器上运行？**  
-A：当前版本依赖 Tkinter 图形界面，若需纯终端运行，可改写 `main.py` 为命令行交互模式（不推荐，老人端需大按钮）。
+A：当前版本依赖 unihiker GUI 图形界面，若需纯终端运行，可改写 `main.py` 为命令行交互模式（不推荐，老人端需大按钮）。
 
 ---
 
@@ -194,7 +189,7 @@ A：当前版本依赖 Tkinter 图形界面，若需纯终端运行，可改写 
 项目采用模块化设计，每个功能拆分为独立文件，方便二次开发：
 - 新增识别模式：修改 `core/camera.py` 和 `services/ocr_engine.py`
 - 更换语音引擎：替换 `services/speech.py` 中的 pyttsx3 为其他 TTS 服务
-- 自定义 GUI 组件：在 `gui/components.py` 中添加
+- 自定义 GUI 组件：在 `core/display.py` 中添加
 
 所有路径、接口、密钥均从 `config.yaml` 读取，切换环境时仅需修改该文件。
 
