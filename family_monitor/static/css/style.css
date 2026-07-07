@@ -54,12 +54,12 @@
     --font-heading: 'Newsreader', 'Georgia', serif;
     --font-body: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-accent: 'Lora', 'Georgia', serif;
-    /* 补充缺失的字体与品牌变量（部分样式引用但未定义） */
-    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-serif: Georgia, 'Times New Roman', serif;
-    --brand-color: #2563eb;
-    --brand-bg: #eff6ff;
-    --radius-card: 1rem;
+    /* 首页专用样式别名（映射到现有变量，保持主色调统一为赤陶橙红 #c96442） */
+    --font-sans: var(--font-body);
+    --font-serif: var(--font-heading);
+    --brand-color: var(--primary-color);
+    --brand-bg: rgba(201, 100, 66, 0.08);
+    --radius-card: var(--radius-lg);
 }
 
 ::selection {
