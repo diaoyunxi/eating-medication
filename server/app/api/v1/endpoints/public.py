@@ -34,7 +34,22 @@ _AI_RATE_LIMIT = 10
 
 
 def _get_device_user(db: Session, device_id: str) -> User:
-    """查找设备用户（仅校验 device_id 是否已注册）"""
+    """查找设备对应的真实用户
+
+    修复"设备即用户"设计缺陷：
+    - 优先按 User.device_id 字段查找（新逻辑，家属绑定后关联到真实老人）
+    - 回退按 User.username == device_id 查找（兼容旧虚拟用户）
+
+    :param db: 数据库会话
+    :param device_id: 设备 ID
+    :return: 设备关联的用户（真实老人或旧虚拟用户）
+    :raises HTTPException: 设备未注册时抛 404
+    """
+    # 优先按 device_id 字段查找（真实老人）
+    user = db.query(User).filter(User.device_id == device_id).first()
+    if user:
+        return user
+    # 回退按 username == device_id 查找（兼容旧虚拟用户）
     user = db.query(User).filter(User.username == device_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="设备未注册")
@@ -84,16 +99,30 @@ async def register_device(
     req: DeviceRegister,
     db: Session = Depends(get_db),
 ):
-    """设备注册/心跳上报（仅校验 device_id）"""
+    """设备注册/心跳上报
+
+    修复"设备即用户"设计缺陷后的查找逻辑：
+    1. 优先按 User.device_id 查找（家属已绑定到真实老人）
+    2. 回退按 User.username == device_id 查找（旧虚拟用户）
+    3. 都找不到则创建虚拟用户（兼容老人端开机即用场景，待家属后续绑定）
+
+    :param req: 设备注册请求（含 device_id 和可选 device_name）
+    :param db: 数据库会话
+    :return: {"status": "ok", "user_id": int}
+    """
     # H-3 修复：日志脱敏，仅记录 device_id 前4位+后4位
     _did = req.device_id or ""
     _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
     logger.info(f"设备注册/心跳: {_masked}")
 
-    # 查找或创建设备记录
-    user = db.query(User).filter(User.username == req.device_id).first()
+    # 1. 优先按 device_id 字段查找（真实老人，家属已绑定）
+    user = db.query(User).filter(User.device_id == req.device_id).first()
+    # 2. 回退按 username == device_id 查找（旧虚拟用户）
     if not user:
-        # 自动创建老人用户（以device_id为用户名）
+        user = db.query(User).filter(User.username == req.device_id).first()
+
+    if not user:
+        # 3. 都找不到，创建虚拟用户（待家属后续绑定到真实老人）
         user = User(
             username=req.device_id,
             # 生成不可登录的随机密码
@@ -105,7 +134,7 @@ async def register_device(
         db.add(user)
         db.commit()
         db.refresh(user)
-        logger.info(f"自动创建设备用户: {_masked}")
+        logger.info(f"自动创建设备用户（待绑定）: {_masked}")
         return {"status": "ok", "user_id": user.id}
 
     # 已注册设备 - 心跳上报
@@ -126,12 +155,17 @@ async def device_offline(
     将 last_heartbeat_at 置为很早的时间，使 is_online 立即为 false，
     避免子女端在心跳超时窗口内看到虚假的"在线"状态。
     注意：掉电/SIGKILL 等异常退出仍需依赖心跳超时判定。
+
+    查找逻辑同 register_device：优先 device_id 字段，回退 username。
     """
     _did = req.device_id or ""
     _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
     logger.info(f"设备主动下线: {_masked}")
 
-    user = db.query(User).filter(User.username == req.device_id).first()
+    # 优先按 device_id 字段查找（真实老人），回退 username（旧虚拟用户）
+    user = db.query(User).filter(User.device_id == req.device_id).first()
+    if not user:
+        user = db.query(User).filter(User.username == req.device_id).first()
     if not user:
         # 设备未注册，无需下线
         return {"status": "ok", "message": "设备未注册，无需下线"}
@@ -168,7 +202,12 @@ async def get_device_status(
     device_id: str,
     db: Session = Depends(get_db),
 ):
-    """获取设备状态信息（供子女端查询，仅校验 device_id）"""
+    """获取设备状态信息（供子女端查询，仅校验 device_id）
+
+    修复 #21 设备状态 500 错误：
+    - 设备-用户关联：通过 _get_device_user 反查到真实老人（修复虚拟用户问题）
+    - 时区兼容：SQLite 不保留时区信息，需把 naive datetime 补上 UTC 时区
+    """
     # H-3 修复：日志脱敏，仅记录 device_id 前4位+后4位
     _did = device_id or ""
     _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
@@ -180,16 +219,23 @@ async def get_device_status(
     total_records = db.query(MedicationRecord).filter(MedicationRecord.user_id == user.id).count()
 
     # 根据心跳时间判断在线状态（1分钟内有心跳视为在线）
+    # 时区兼容：SQLite 不保留时区信息，取出的 datetime 可能是 naive，需补上 UTC 时区
     now = datetime.now(timezone.utc)
     is_online = False
     last_heartbeat = None
     if user.last_heartbeat_at:
-        last_heartbeat = user.last_heartbeat_at.isoformat()
-        time_diff = (now - user.last_heartbeat_at).total_seconds()
+        heartbeat = user.last_heartbeat_at
+        # 若为 naive datetime（SQLite 取出），补上 UTC 时区
+        if heartbeat.tzinfo is None:
+            heartbeat = heartbeat.replace(tzinfo=timezone.utc)
+        last_heartbeat = heartbeat.isoformat()
+        time_diff = (now - heartbeat).total_seconds()
         is_online = time_diff <= 60
 
+    # device_id 优先取真实老人绑定的字段；回退路径参数；最后回退 username（旧虚拟用户）
+    resolved_device_id = user.device_id or device_id or user.username
     return {
-        "device_id": user.username,
+        "device_id": resolved_device_id,
         "device_name": user.full_name,
         "role": user.role,
         "created_at": user.created_at.isoformat() if user.created_at else None,
@@ -224,7 +270,10 @@ async def ai_ask(
 
     # 记录问答日志
     if req.device_id:
-        user = db.query(User).filter(User.username == req.device_id).first()
+        # 优先按 device_id 字段查找（真实老人），回退 username（旧虚拟用户）
+        user = db.query(User).filter(User.device_id == req.device_id).first()
+        if not user:
+            user = db.query(User).filter(User.username == req.device_id).first()
         if user:
             log = AIQueryLog(
                 user_id=user.id,
@@ -239,8 +288,14 @@ async def ai_ask(
 
 @router.get("/device/check/{device_id}")
 async def check_device(device_id: str, db: Session = Depends(get_db)):
-    """检查设备是否已注册（供子女端绑定时校验，P0-3 修复：仅返回 exists，不泄露敏感信息）"""
-    user = db.query(User).filter(User.username == device_id).first()
+    """检查设备是否已注册（供子女端绑定时校验，P0-3 修复：仅返回 exists，不泄露敏感信息）
+
+    查找逻辑：优先 device_id 字段，回退 username。
+    """
+    # 优先按 device_id 字段查找（真实老人），回退 username（旧虚拟用户）
+    user = db.query(User).filter(User.device_id == device_id).first()
+    if not user:
+        user = db.query(User).filter(User.username == device_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="设备未注册")
     # P0-3 修复：仅返回最少信息，移除 device_name/created_at 防止用户名枚举与信息泄露

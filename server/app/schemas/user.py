@@ -11,6 +11,8 @@ class UserOut(BaseModel):
     role: str
     phone: Optional[str] = None
     group_id: Optional[int] = None
+    # 设备ID（老人绑定设备后填充，家属为 None）
+    device_id: Optional[str] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
