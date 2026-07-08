@@ -50,3 +50,23 @@ class UserService:
     def get_family_members(db: Session, group_id: int) -> List[User]:
         """获取家庭组所有成员"""
         return db.query(User).filter(User.group_id == group_id).all()
+
+    @staticmethod
+    def delete_user(db: Session, user_id: int) -> bool:
+        """
+        硬删除指定用户
+
+        会触发级联删除（MedicationPlan / MedicationRecord / AIQueryLog，
+        依据 User 模型 relationship 的 cascade="all, delete-orphan" 配置），
+        删除后不可恢复。
+
+        :param db: 数据库会话
+        :param user_id: 待删除用户 ID
+        :return: True 删除成功，False 用户不存在
+        """
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return False
+        db.delete(user)
+        db.commit()
+        return True
