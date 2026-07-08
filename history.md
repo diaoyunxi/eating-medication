@@ -961,3 +961,34 @@ unihiker GUI 库：
 - curl 端到端测试：注册测试用户 testuser/Test1234 后访问首页，HTML 包含 `nav-user-avatar`、`nav-user-dropdown`、`nav-user-dropdown-item`、`toggleNavUserDropdown`、`navLogout` 等所有元素
 - 下拉菜单首字母显示正确（"T"），用户名显示 "testuser"
 
+---
+
+## v2.6.0 变更（2026-07-08）
+
+### server 模块
+
+#### 新增删除用户 API
+
+- **背景**：原 users 端点仅有 `GET /users/me`、`PUT /users/me`、`POST /users/bind`，缺少账号注销与家属清理老人账号的能力。
+- **新增端点**：
+  - `DELETE /users/me`：当前用户注销自己账号。采用**硬删除**（`db.delete`），会触发级联删除（`MedicationPlan` / `MedicationRecord` / `AIQueryLog`，依据 `User` 模型 relationship 的 `cascade="all, delete-orphan"` 配置），删除后不可恢复。
+  - `DELETE /users/{user_id}`：家属删除同家庭组的老人账号。校验链：
+    1. `current_user.role == "family"`（仅家属可调用）
+    2. `user_id != current_user.id`（禁止删除自己，应走 `/me`）
+    3. `current_user.group_id is not None`（家属须已绑定老人）
+    4. 目标用户存在且 `role == "elderly"`
+    5. `target.group_id == current_user.group_id`（必须同一家庭组）
+- **UserService 新增方法**：
+  - `delete_user(db, user_id) -> bool`：硬删除指定用户，返回是否成功（用户不存在返回 False）。
+- **响应格式**：`200 + {"status": "success", "message": "账号已删除"}`，与项目现有 `medication/take` 端点返回风格一致。
+- **删除策略决策**：采用硬删除而非软删除（`is_active=False`）。原因：用户已确认删除意图，且家庭组关系仅清空被删用户自身（用户记录整体移除，不影响同组其他成员）。
+- **路由顺序**：`/me` 在 `/{user_id}` 之前声明，避免路径参数误匹配（虽 `user_id: int` 类型注解已可拒绝 "me" 字符串，但顺序保障更稳健）。
+
+### 文档同步
+
+- `VERSION`：2.5.0 → 2.6.0
+- `README.md`：
+  - 版本头更新为 v2.6.0（2026-07-08）
+  - 用户 API 表格补充 `DELETE /users/me` 与 `DELETE /users/{user_id}` 两条记录
+  - 版本历史段落追加 v2.6.0 条目
+
