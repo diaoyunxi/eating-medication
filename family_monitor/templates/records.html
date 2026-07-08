@@ -11,37 +11,42 @@
     <nav class="navbar">
         <div class="navbar-container">
             <a href="{{ prefix }}/" class="navbar-brand">
-                <div class="navbar-logo">R</div>
+                <div class="navbar-logo">👨‍👩‍👧‍👦</div>
                 <span class="navbar-title">{{ app_name }}</span>
             </a>
             <div class="navbar-nav">
                 <a href="{{ prefix }}/" class="nav-link">
-                    <span class="nav-link-icon">H</span>
+                    <span class="nav-link-icon">🏠</span>
                     <span>首页</span>
                 </a>
                 <a href="{{ prefix }}/dashboard" class="nav-link">
-                    <span class="nav-link-icon">D</span>
+                    <span class="nav-link-icon">📊</span>
                     <span>仪表板</span>
                 </a>
                 <a href="{{ prefix }}/reminders" class="nav-link">
-                    <span class="nav-link-icon">R</span>
-                    <span>提醒</span>
+                    <span class="nav-link-icon">💊</span>
+                    <span>用药提醒</span>
                 </a>
                 <a href="{{ prefix }}/records" class="nav-link active">
-                    <span class="nav-link-icon">L</span>
-                    <span>记录</span>
+                    <span class="nav-link-icon">📋</span>
+                    <span>用药记录</span>
+                </a>
+                <a href="{{ prefix }}/medication_settings" class="nav-link">
+                    <span class="nav-link-icon">⏰</span>
+                    <span>用药设置</span>
                 </a>
                 <a href="{{ prefix }}/chat" class="nav-link">
-                    <span class="nav-link-icon">C</span>
+                    <span class="nav-link-icon">💬</span>
                     <span>消息</span>
                 </a>
                 <a href="{{ prefix }}/settings" class="nav-link">
-                    <span class="nav-link-icon">S</span>
+                    <span class="nav-link-icon">⚙️</span>
                     <span>设置</span>
                 </a>
                 <div class="nav-user">
-                    <span class="nav-username">{{ request.state.user or '用户' }}</span>
+                    <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
                     <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();var m=document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);fetch('{{ prefix }}/logout',{method:'POST',headers:{'X-CSRF-Token':m?m[1]:''}}).finally(function(){window.location.href='{{ prefix }}/login';});">
+                        <span>🚪</span>
                         <span>登出</span>
                     </a>
                     <button class="nav-user-avatar" type="button" aria-label="用户菜单" aria-haspopup="true" aria-expanded="false" onclick="toggleNavUserDropdown(event)">
