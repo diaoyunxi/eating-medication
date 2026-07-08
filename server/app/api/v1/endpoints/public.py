@@ -329,7 +329,7 @@ async def get_device_schedule(
         "device_id": device_id,
         "device_name": user.full_name,
         "schedules": schedules,
-        "updated_at": datetime.now().isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
