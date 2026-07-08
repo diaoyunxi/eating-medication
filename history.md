@@ -992,3 +992,84 @@ unihiker GUI 库：
   - 用户 API 表格补充 `DELETE /users/me` 与 `DELETE /users/{user_id}` 两条记录
   - 版本历史段落追加 v2.6.0 条目
 
+---
+
+## v2.7.0 变更（2026-07-08）- 修复"设备即用户"设计缺陷
+
+### 背景与根因
+
+测试发现 4 个失败项，其中 3 个（家属绑定老人、获取设备状态、删除用药计划）指向同一根本问题：**设备（device）与用户（user）的关联模型不完整**。
+
+原设计采用"设备即用户"：`device/register` 接口会自动创建一个 `role="elderly"` 的 User 记录，用 `username` 字段存储 `device_id`。这导致**两套并行的"老人"概念**：
+
+| 老人来源 | 创建方式 | user_id 示例 | 用药计划归属 |
+|---------|---------|------------|------------|
+| 真实老人 | `/auth/register` 注册（有账号密码） | 13 | plan.user_id=13 |
+| 设备老人 | `/public/device/register` 自动创建 | 15、16、17... | plan.user_id=15 |
+
+连锁失败：
+- **#9 家属绑定老人 (400)**：家属传 `elderly_user_id=13`（真实老人）+ `device_id=xxx`，但 `elderly.username != device_id`（真实老人 username 是账号名，不是 device_id）→ 400
+- **#29 删除用药计划 (404)**：老人用 JWT 创建计划 `plan.user_id=13`，但删除接口用 device_id 反查到虚拟用户 `user_id=15`，`plan.user_id(13) != 15` → 404
+- **#21 获取设备状态 (500)**：设备关联虚拟用户 user_id=15，因数据关联异常 → 500
+
+### 修复方案：设备绑定真实老人
+
+在 User 表新增 `device_id` 字段，建立 device_id 与真实老人的关联。家属绑定时把 device_id 关联到真实老人，并迁移虚拟用户数据。
+
+### server 模块改动
+
+#### 数据模型
+- `app/models/user.py`：User 模型新增 `device_id` 字段（nullable, unique, index），用于关联真实老人与设备 ID
+
+#### 数据迁移
+- `app/migrations/versions/20260708_001_add_device_id_to_users.py`：新增 Alembic 迁移脚本，升级时添加 `device_id` 字段及唯一索引
+
+#### 接口改造
+- `app/api/v1/endpoints/public.py`：
+  - `_get_device_user`：优先按 `User.device_id` 查找（真实老人），回退 `User.username == device_id`（兼容旧虚拟用户）
+  - `register_device`：同步采用新查找逻辑，找不到时才创建虚拟用户（待家属后续绑定）
+  - `device_offline`、`check_device`、`ai_ask`：统一采用新查找逻辑
+
+- `app/api/v1/endpoints/users.py`：
+  - `bind_family`：重写弱保护逻辑——校验 device_id 对应的设备已注册（虚拟用户或已绑定的真实老人），调用服务层完成数据迁移 + device_id 关联 + 家庭组绑定
+
+#### 服务层改造
+- `app/services/user_service.py`：
+  - `bind_family`：新增 `device_id` 参数，处理设备关联逻辑
+  - 新增 `_migrate_virtual_user_data`：将虚拟用户的用药计划、服药记录、AI 日志、聊天消息迁移到真实老人，然后删除虚拟用户
+  - 绑定流程：校验 device_id 未被占用 → 迁移虚拟用户数据 → 删除虚拟用户 → 把 device_id 关联到真实老人 → 家庭组绑定
+
+#### Schema 调整
+- `app/schemas/user.py`：`UserOut` 新增 `device_id` 字段，方便家属端查看老人绑定的设备
+
+### 兼容性说明
+
+- **旧虚拟用户兼容**：未绑定的虚拟用户 `device_id` 字段为 None，所有设备查询接口回退到 `username == device_id` 查找，旧数据不破坏
+- **设备端无感**：老人端 `elderly_assistant` 无需改动，仍通过 `X-Device-ID` 头标识设备
+- **数据迁移自动化**：家属绑定老人时自动迁移虚拟用户数据，无需手动清理
+
+### 验证
+
+- 修复后流程：
+  1. 老人通过 `/auth/register` 注册（user_id=13）
+  2. 设备通过 `/public/device/register` 注册（创建虚拟用户 user_id=15）
+  3. 家属调用 `/users/bind`（elderly_user_id=13, device_id=xxx）：
+     - 虚拟用户 user_id=15 的数据迁移到真实老人 user_id=13
+     - 删除虚拟用户 user_id=15
+     - 真实老人 user_id=13 的 device_id 字段 = xxx
+     - 家属加入家庭组
+  4. 设备心跳：device_id → 反查到真实老人 user_id=13 → 更新心跳
+  5. 设备状态查询：device_id → user_id=13 → 返回真实老人的计划/记录数
+  6. 老人创建计划：user_id=13
+  7. 删除计划：device_id → user_id=13 → 匹配 plan.user_id=13 → 200 OK
+
+### 文档同步
+
+- `VERSION`：2.6.0 → 2.7.0
+- 三个子项目的 `updater.py` 版本号统一升级到 2.7.0
+- `history.md` 追加 v2.7.0 变更说明
+
+### 未修复项
+
+- **#16 药名识别 (500)**：1x1 像素测试图无法识别，接口校验本身正常，P2 优先级暂不处理（用户已确认非 BUG）
+

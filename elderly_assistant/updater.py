@@ -13,7 +13,7 @@ import subprocess
 import urllib.request
 import logging
 
-__version__ = "2.5.0"
+__version__ = "2.7.0"
 GITHUB_REPO = "diaoyunxi/eating-medication"
 
 logger = logging.getLogger(__name__)

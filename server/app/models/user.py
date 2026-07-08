@@ -25,6 +25,12 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     last_login_at = Column(DateTime, nullable=True)
     last_heartbeat_at = Column(DateTime, nullable=True)
+    # 设备ID：家属绑定老人时，把 device_id 关联到真实老人用户
+    # 解决"设备即用户"设计缺陷：原设计 device/register 会创建虚拟老人用户，
+    # 导致家属绑定、设备状态查询、删除用药计划等接口因 user_id 不一致而失败。
+    # 新逻辑：device_id 关联到真实老人后，所有 device_id 查询都能反查到真实老人。
+    # 兼容旧数据：未绑定的虚拟用户 device_id 字段为 None，仍走 username == device_id 回退。
+    device_id = Column(String, nullable=True, unique=True, index=True)
 
     # 关联关系
     medication_plans = relationship("MedicationPlan", back_populates="user", cascade="all, delete-orphan")
