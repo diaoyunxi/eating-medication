@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.4.0**（2026-07-07，移动端导航优化版本） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.6.0**（2026-07-08，新增删除用户 API 版本） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
 一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
@@ -397,6 +397,8 @@ WS_HEARTBEAT_INTERVAL=30
 | GET | `/users/me` | 获取当前用户信息 | JWT |
 | PUT | `/users/me` | 更新当前用户信息 | JWT |
 | POST | `/users/bind` | 家属绑定老人（须提供老人 device_id） | JWT（仅 family） |
+| DELETE | `/users/me` | 注销当前用户账号（硬删除，级联清理用药计划/记录/AI日志） | JWT |
+| DELETE | `/users/{user_id}` | 家属删除同家庭组的老人账号（硬删除） | JWT（仅 family，须同组） |
 
 #### 用药管理 `/medication`
 
@@ -667,6 +669,7 @@ cd server && pip install -r requirements-dev.txt
 
 > 完整开发历史见 [`history.md`](./history.md)。版本号基准以 `history.md` 为准。
 
+- **v2.6.0**（2026-07-08）：新增删除用户 API。`DELETE /users/me` 支持用户注销自己账号（硬删除，级联清理用药计划/记录/AI日志）；`DELETE /users/{user_id}` 支持家属删除同家庭组的老人账号（校验 `role=family` 且同 `group_id`）。`UserService` 新增 `delete_user` 静态方法执行硬删除。
 - **v2.2.0**（2026-07-01）：安全加固版本。基于对仓库审查发现的 47+ 个安全问题（11 严重 + 15 高危 + 21 中危 + 20+ 低危）。包括：移除硬编码 SECRET_KEY 改用环境变量、聊天/设备端点加认证、CORS 白名单、CSRF 防护、XSS 修复、自动更新加 SHA256 校验、热点 WPA2 加密、依赖升级（python-jose 3.4.0、pydantic 2.10.0、sqlalchemy 2.0.36）、Alembic 迁移修复等。**允许破坏性变更**：SECRET_KEY 必须配置、设备须重新注册获取 token（v2.3.0 已移除）、JWT 有效期缩至 1 小时。
 - **v2.1.0**（2026-06-30）：移除本地 SSL 证书机制，改为 Cloudflare 隧道边缘自动配置 HTTPS；新增路径前缀支持（`/eating-medication/server`、`/eating-medication/family`）；老人端默认服务器地址改为公网域名；清除项目内部代号字样。
 - **v2.0.0**（2026-06-27）：重大升级。老人端 pinpong/unihiker 重构，舍弃 TUI 改用 pinpong 库 + unihiker GUI 库实现行空板 M10 图形化交互；完善端到端流程（热点配网→注册设备→下发用药计划→到点提醒）；新增 5 个设备公开接口；从单文件吃药提醒工具升级为完整三端系统，新增自动更新检查、AI 语音问答、药品识别、家属聊天、紧急呼叫、库存管理等功能。
