@@ -64,10 +64,18 @@ elderly_assistant/
 
 ### 2. 安装依赖
 
-直接运行安装脚本（会自动备份原有 pip 源并切换为清华源，Linux 下会添加 `--break-system-packages` 参数）：
+直接运行安装脚本（自动安装流程）：
+
 ```bash
 python install.py
 ```
+
+`install.py` 行为：
+
+1. 先检测 `pip` 是否存在；无则按平台自动安装（Linux 优先 `apt-get install python3-pip`，Windows 下载 `get-pip.py`，其他走 `ensurepip` 后备）。
+2. 正常 `pip install`（使用 `-i PIP_INDEX_URL` 临时指定镜像源，默认清华源，可通过环境变量覆盖，不修改全局 pip 配置）。
+3. 若 `pip install` 输出包含 `--break-system-packages`（PEP 668 `externally-managed-environment` 错误），自动加上该参数重新 `pip install`。
+4. 已安装的包自动跳过（优先 `importlib.import_module` 检测，回退 `pip show`）。
 
 或手动安装：
 ```bash

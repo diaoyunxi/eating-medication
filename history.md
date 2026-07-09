@@ -1073,3 +1073,45 @@ unihiker GUI 库：
 
 - **#16 药名识别 (500)**：1x1 像素测试图无法识别，接口校验本身正常，P2 优先级暂不处理（用户已确认非 BUG）
 
+## install.py 统一加固
+
+### 背景
+三模块（`elderly_assistant`、`server`、`family_monitor`）原本各自维护一份 `install.py`，逻辑存在差异：
+- `elderly_assistant/install.py`：未做 pip 缺失检测，错误时只 fallback 一次到 `--break-system-packages`
+- `server/install.py`：硬编码 Linux 默认加 `--break-system-packages`，其余平台不带
+- `family_monitor/install.py`：未处理 PEP 668 错误，无 `--break-system-packages` 重试
+
+新用户/新设备（尤其是精简 Python 镜像或全新 ARM 设备）经常遇到 `externally-managed-environment` 错误，需要手动加 `--break-system-packages`，体验不佳。
+
+### 改造方案
+
+将三份 `install.py` 统一为同一份脚本，逻辑分四步：
+
+1. **检测 pip** — `python -m pip --version`，失败则进入自动安装
+2. **按平台自动安装 pip**（pip 缺失时）：
+   - Linux：优先 `apt-get update && apt-get install -y python3-pip`，依次尝试 `sudo` 和直接执行
+   - Windows：标准库 `urllib.request` 下载 `https://bootstrap.pypa.io/get-pip.py` 并执行
+   - 跨平台后备：`python -m ensurepip --upgrade`
+3. **正常 pip install** — 使用 `-i PIP_INDEX_URL`（默认清华源）临时指定镜像源，不修改全局 pip 配置
+4. **失败重试** — 若 `pip install` 的 stdout/stderr 包含 `--break-system-packages`（PEP 668 提示），自动追加该参数重试一次
+
+### 兼容性
+
+- 保留 `PIP_INDEX_URL` 环境变量覆盖镜像源
+- 新增 `GET_PIP_URL` 环境变量覆盖 get-pip.py 下载地址
+- 已安装包自动跳过（先 `importlib.import_module` 再回退 `pip show`）
+- 失败重试只对 PEP 668 错误生效，其他错误（如版本不存在、No matching distribution）保持原样报错
+
+### 验证
+
+- 三个 `install.py` 内容完全一致（`diff` 无输出）
+- 15/15 单元测试通过（覆盖 _split_pkg_name / _check_pip_available / is_package_installed / install_package 重试 / ensure_pip 三个平台路径）
+- `elderly_assistant/install.py` 端到端跑通：8 个依赖，6 新装 / 1 跳过 / 1 失败（pinpong 1.2.0 镜像无此版本，合理失败）
+- `server/install.py` 端到端跑通：15 个依赖全部成功
+- `family_monitor/install.py` 端到端跑通：8 个依赖全部成功
+
+### 文档同步
+
+- `history.md` 追加本次 install.py 统一加固变更说明
+- `README.md` 快速开始章节的 `python install.py` 说明保持不变（用户视角体验一致，内部已加固）
+
