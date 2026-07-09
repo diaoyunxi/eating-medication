@@ -296,6 +296,12 @@
 - OCR 识别需安装 Tesseract（可选，老人端本地用）
 - HTTPS 由 Cloudflare 隧道处理，无需本地证书
 
+> 三模块的 `install.py` 内容已统一为同一份脚本，行为：
+> 1. 先检测 `pip` 是否存在，无则按平台自动安装（Linux 优先 `apt-get install python3-pip`、Windows 用 `get-pip.py`、其他走 `ensurepip` 后备）；
+> 2. 正常 `pip install`（使用 `-i PIP_INDEX_URL` 临时指定镜像源，默认清华源，可通过环境变量覆盖）；
+> 3. 若输出包含 `--break-system-packages`（PEP 668 错误），自动加该参数重试。
+> 已安装的包自动跳过，无需重复安装。可通过 `PIP_INDEX_URL` 环境变量切换镜像源。
+
 ### 老人端
 
 ```bash
