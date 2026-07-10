@@ -663,4 +663,4 @@ cd server && pip install -r requirements-dev.txt
 
 ## 许可
 
-本项目仅供学习和个人使用，药品信息及健康建议请以医生指导为准。
+本项目仅供学习和个人使用，最终解释权归github账户：diaoyunxi、ha-ji-mi-MAN-BO 所有。
