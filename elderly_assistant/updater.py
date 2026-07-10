@@ -199,16 +199,21 @@ def _find_release_zip(release_data):
     return None
 
 
-def _find_sha256_asset(release_data):
-    """在 Release 资产中查找 SHA256SUMS 或 SHA256 校验文件"""
+def _find_sha256_assets(release_data):
+    """在 Release 资产中查找所有 SHA256 校验文件
+
+    多模块发布时会有多个 .sha256 文件（如 family_monitor_v2.9.1.zip.sha256、
+    server_v2.9.1.zip.sha256 等），全部返回以便合并解析。
+    """
     if not release_data:
-        return None
+        return []
     assets = release_data.get("assets", []) or []
+    result = []
     for asset in assets:
         name = (asset.get("name") or "").lower()
         if "sha256" in name or name.endswith(".sha256") or "sha256sum" in name:
-            return asset
-    return None
+            result.append(asset)
+    return result
 
 
 def _download_text(url):
@@ -219,22 +224,30 @@ def _download_text(url):
 
 
 def _verify_release_signature(release_data):
-    """下载并解析 SHA256 校验文件，返回 {文件名: 哈希} 映射。返回 None 表示未找到或下载失败。"""
-    asset = _find_sha256_asset(release_data)
-    if not asset:
+    """下载并解析所有 SHA256 校验文件，合并返回 {文件名: 哈希} 映射。
+
+    多模块发布时 Release 会包含多个 .sha256 文件，需全部下载合并，
+    这样无论当前模块要校验哪个 zip，都能在映射中找到对应哈希。
+    返回 None 表示未找到任何校验文件或全部下载失败。
+    """
+    sha_assets = _find_sha256_assets(release_data)
+    if not sha_assets:
         return None
-    try:
-        content = _download_text(asset.get("browser_download_url"))
-        logger.info(f"[更新检查] 已找到校验文件: {asset.get('name')}")
-        sums = {}
-        for line in content.strip().splitlines():
-            parts = line.split(None, 1)
-            if len(parts) == 2:
-                sums[parts[1].strip()] = parts[0].strip().lower()
-        return sums if sums else None
-    except Exception as e:
-        logger.warning(f"[更新检查] 下载校验文件失败: {e}")
-        return None
+    sums = {}
+    found_names = []
+    for asset in sha_assets:
+        try:
+            content = _download_text(asset.get("browser_download_url"))
+            found_names.append(asset.get("name"))
+            for line in content.strip().splitlines():
+                parts = line.split(None, 1)
+                if len(parts) == 2:
+                    sums[parts[1].strip()] = parts[0].strip().lower()
+        except Exception as e:
+            logger.warning(f"[更新检查] 下载校验文件失败 {asset.get('name')}: {e}")
+    if found_names:
+        logger.info(f"[更新检查] 已找到校验文件: {', '.join(found_names)}")
+    return sums if sums else None
 
 
 def _download_file_with_hash(url, target_path, expected_hash=None):
