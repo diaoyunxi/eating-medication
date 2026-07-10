@@ -88,8 +88,9 @@ class Config:
         )
         self.ALLOWED_ORIGINS = [o.strip() for o in allowed_origins_env.split(',') if o.strip()]
 
-        # Cookie secure 标志：默认启用，本地 HTTP 调试时可设为 false
-        self.COOKIE_SECURE = os.getenv('COOKIE_SECURE', 'true').lower() == 'true'
+        # Cookie secure 标志：DEBUG=true（本地 HTTP 开发）默认关闭，生产环境（HTTPS）默认开启
+        # 避免本地 HTTP 调试时浏览器丢弃带 Secure 标志的 cookie 导致登录失败
+        self.COOKIE_SECURE = os.getenv('COOKIE_SECURE', 'false' if self.DEBUG else 'true').lower() == 'true'
 
         # 是否为生产环境（生产环境禁止通过 Web 修改 DEBUG）
         self.PRODUCTION = os.getenv('PRODUCTION', 'false').lower() == 'true'
@@ -113,11 +114,13 @@ class Config:
         secret_key = _generate_secret_key()
         env_content = (
             f"# 自动生成的环境配置文件（首次运行）\n"
-            f"# 生产部署时请将 DEBUG 改为 false\n\n"
+            f"# 生产部署时请将 DEBUG 改为 false，COOKIE_SECURE 改为 true\n\n"
             f"# 会话签名密钥（已随机生成，请勿泄露）\n"
             f"SECRET_KEY={secret_key}\n\n"
             f"# 调试模式：本地开发设为 true，生产环境设为 false\n"
-            f"DEBUG=true\n"
+            f"DEBUG=true\n\n"
+            f"# Cookie secure 标志：本地 HTTP 调试必须为 false，否则浏览器不保存 cookie\n"
+            f"COOKIE_SECURE=false\n"
         )
         try:
             env_path.write_text(env_content, encoding='utf-8')
