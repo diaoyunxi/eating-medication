@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 import os
 import secrets
+import logging
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 # C3：已知的不安全 SECRET_KEY 值（生产环境禁止使用）
@@ -21,6 +25,39 @@ _SECRET_KEY_SENTINEL = "__AUTO_GENERATED__"
 def _generate_secret_key():
     """生成安全的随机密钥"""
     return secrets.token_urlsafe(32)
+
+
+def _ensure_default_env():
+    """首次运行无 .env 时自动生成（含随机 SECRET_KEY + DEBUG=true），开箱即用
+
+    在 Settings 实例化前调用，确保 pydantic_settings 能加载到 .env。
+    .env 已在 .gitignore 中忽略，不会上传到仓库。
+    生产部署时请手动修改 DEBUG=false。
+    """
+    # .env 位于 server/ 目录（与 server/app/main.py 同级，即 BASE_DIR）
+    env_path = Path(__file__).resolve().parent.parent.parent / '.env'
+    if env_path.exists():
+        return
+    secret_key = _generate_secret_key()
+    env_content = (
+        f"# 自动生成的环境配置文件（首次运行）\n"
+        f"# 生产部署时请将 DEBUG 改为 false\n\n"
+        f"# 会话签名密钥（已随机生成，请勿泄露）\n"
+        f"SECRET_KEY={secret_key}\n\n"
+        f"# 调试模式：本地开发设为 true，生产环境设为 false\n"
+        f"DEBUG=true\n"
+    )
+    try:
+        env_path.write_text(env_content, encoding='utf-8')
+        os.chmod(env_path, 0o600)
+        logger.info(f"首次运行：已自动生成 {env_path}（含随机 SECRET_KEY，DEBUG=true）")
+        logger.warning("生产部署时请将 .env 中 DEBUG 改为 false")
+    except Exception as e:
+        logger.warning(f"自动生成 .env 失败: {e}")
+
+
+# 模块加载时确保 .env 存在
+_ensure_default_env()
 
 
 class Settings(BaseSettings):
