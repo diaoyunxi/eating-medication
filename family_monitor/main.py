@@ -31,7 +31,9 @@ from routes import auth_router
 from routes.admin import admin_router
 import logging
 
-logger = logging.getLogger(__name__)
+# 使用 uvicorn.error logger，确保启动阶段的 info/warning 日志能随 uvicorn 输出
+# 否则默认 Python logging 只显示 WARNING+，应用层的 info 诊断日志将不可见
+logger = logging.getLogger("uvicorn.error")
 
 # 路径前缀（Cloudflare 隧道子路径），默认 /eating-medication/family
 # 本地直连时设为空字符串即可
@@ -90,7 +92,8 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com data:; "
         "object-src 'none'; "
         "base-uri 'self'"
     )
@@ -195,8 +198,15 @@ async def path_prefix_middleware(request: Request, call_next):
 
 
 # 挂载静态文件
+# 注意：必须确保 static 目录存在，否则 /static/* 请求会全部 404，导致 UI 样式丢失
 if config.STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(config.STATIC_DIR)), name="static")
+    logger.info(f"静态文件已挂载: /static -> {config.STATIC_DIR}")
+else:
+    logger.warning(
+        f"静态文件目录不存在: {config.STATIC_DIR}，/static/* 请求将返回 404，"
+        f"UI 样式将无法加载。请检查 git clone 是否完整，目录应包含 css/style.css"
+    )
 
 # 注册路由
 app.include_router(auth_router)

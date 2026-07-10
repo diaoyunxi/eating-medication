@@ -324,6 +324,16 @@ def _perform_update(zip_path, project_dir):
         else:
             source_root = tmp_dir
 
+        # 修复：release zip 包含整个仓库结构（含 family_monitor/、server/ 等子目录）
+        # 当前 updater 在某模块目录内运行（如 server/），project_dir 也是该模块目录
+        # 若直接用 source_root，复制时路径会变成 server/server/...，文件放错位置
+        # 因此检测 source_root 下是否存在与当前模块同名的子目录，存在则进入该子目录
+        current_module_name = Path(__file__).resolve().parent.name
+        module_subdir = source_root / current_module_name
+        if module_subdir.is_dir():
+            source_root = module_subdir
+            logger.info(f"[更新检查] 检测到模块子目录 {current_module_name}/，使用: {source_root}")
+
         logger.info(f"[更新检查] 源根目录: {source_root}")
 
         # 备份关键保护文件路径（用于回滚，尽管概率低）
