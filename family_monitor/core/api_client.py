@@ -235,6 +235,56 @@ class ElderlyAPIClient:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    async def update_medication_plan(
+        self,
+        plan_id: int,
+        drug_name: str,
+        dosage: str,
+        schedule_times: List[str],
+        frequency: str = "daily",
+        total_quantity: int = 0,
+        remaining_quantity: Optional[int] = None,
+        unit: str = "片",
+        low_stock_threshold: int = 5,
+    ) -> Dict[str, Any]:
+        """更新用药计划
+
+        调用 PUT /api/v1/public/device/medication_plan/{plan_id}
+        """
+        if not self._device_id:
+            return {"success": False, "error": "未绑定设备，请先绑定设备"}
+
+        if remaining_quantity is None:
+            remaining_quantity = total_quantity
+
+        payload = {
+            "device_id": self._device_id,
+            "drug_name": drug_name,
+            "dosage": dosage,
+            "frequency": frequency,
+            "schedule_times": schedule_times,
+            "total_quantity": total_quantity,
+            "remaining_quantity": remaining_quantity,
+            "unit": unit,
+            "low_stock_threshold": low_stock_threshold,
+        }
+        try:
+            async with httpx.AsyncClient(
+                timeout=self.timeout,
+                verify=self._ssl_context if self._ssl_context else True
+            ) as client:
+                response = await client.put(
+                    f"{self.base_url}/api/v1/public/device/medication_plan/{plan_id}",
+                    json=payload,
+                    headers=self._headers()
+                )
+                if response.status_code == 200:
+                    return {"success": True, "data": response.json()}
+                else:
+                    return {"success": False, "error": f"状态码: {response.status_code}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
 
     async def get_device_info(self) -> Dict[str, Any]:
         """从服务端获取老人端设备信息"""

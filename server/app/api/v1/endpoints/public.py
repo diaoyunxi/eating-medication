@@ -521,3 +521,40 @@ async def delete_device_medication_plan(
     db.delete(plan)
     db.commit()
     return {"status": "ok"}
+
+
+@router.put("/device/medication_plan/{plan_id}")
+async def update_device_medication_plan(
+    plan_id: int,
+    req: FamilyMedicationPlan,
+    db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+):
+    """更新用药计划（F-01：校验 device_id 与 X-Device-Token 及设备归属）"""
+    user = _get_device_user_authed(db, req.device_id, device_token)
+
+    plan_data = MedicationPlanCreate(
+        drug_name=req.drug_name,
+        dosage=req.dosage,
+        frequency=req.frequency,
+        schedule_times=req.schedule_times,
+        total_quantity=req.total_quantity,
+        remaining_quantity=req.remaining_quantity,
+        unit=req.unit,
+        low_stock_threshold=req.low_stock_threshold,
+    )
+    try:
+        plan = MedicationService.update_plan(db, plan_id, user.id, plan_data)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    _did = req.device_id or ""
+    _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
+    logger.info(f"家属为设备 {_masked} 更新用药计划 {plan_id}: {req.drug_name}")
+
+    return {
+        "status": "ok",
+        "plan_id": plan.id,
+        "drug_name": plan.drug_name,
+        "schedule_times": plan.schedule_times,
+    }
