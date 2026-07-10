@@ -36,7 +36,7 @@ import logging
 import fnmatch
 from pathlib import Path
 
-__version__ = "2.7.3"
+__version__ = "2.9"
 GITHUB_REPO = "diaoyunxi/eating-medication"
 
 logger = logging.getLogger(__name__)
@@ -177,11 +177,25 @@ def _fetch_latest_version():
 
 
 def _find_release_zip(release_data):
-    """在 Release 资产中查找 zip 文件（自动更新用）"""
+    """在 Release 资产中查找 zip 文件（自动更新用）
+
+    匹配优先级：
+    1. 本模块专属包：{模块名}_v*.zip（如 server_v2.9.zip）
+       —— 避免误下其他模块的包导致目录错乱
+    2. 总包：eating-medication-v*.zip（包含所有模块的总发布包）
+    3. 回退：任意 zip（仅当上述均未找到时）
+    """
     if not release_data:
         return None
     assets = release_data.get("assets", []) or []
-    # 优先匹配 "eating-medication-v*.zip" 格式
+    # 通过 updater.py 所在目录名识别当前模块
+    module_name = Path(__file__).resolve().parent.name
+    # 优先匹配本模块专属包 "{module_name}_v*.zip"
+    for asset in assets:
+        name = asset.get("name", "")
+        if name.startswith(f"{module_name}_v") and name.endswith(".zip"):
+            return asset
+    # 次选：总包 "eating-medication-v*.zip"
     for asset in assets:
         name = asset.get("name", "")
         if name.startswith("eating-medication-") and name.endswith(".zip"):
