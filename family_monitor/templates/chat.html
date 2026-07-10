@@ -398,7 +398,9 @@
         const serverUrl = elderlyUrl.replace(/^https?:\/\//, '');
 
         function initWS() {
-            const url = `${wsProto}//${serverUrl}/api/v1/chat/ws/${encodeURIComponent(currentUser)}`;
+            // 从 cookie 读取 session_token，附加到 WebSocket URL 以通过服务端鉴权
+            const sessionToken = getCookie('session_token');
+            const url = `${wsProto}//${serverUrl}/api/v1/chat/ws/${encodeURIComponent(currentUser)}?token=${encodeURIComponent(sessionToken)}`;
             ws = new WebSocket(url);
             ws.onopen = () => {
                 statusDot.classList.add('connected');

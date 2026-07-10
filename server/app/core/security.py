@@ -1,26 +1,40 @@
 # -*- coding: utf-8 -*-
-from passlib.context import CryptContext
+import bcrypt
 from jose import jwt
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 import secrets
 from app.core.config import settings
 
-# 使用 bcrypt 但设置正确的 rounds
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+# F-05 修复：移除 passlib（与 bcrypt 4.x 不兼容），改用 bcrypt 原生 API
+# 密码哈希 rounds 固定为 12，与原 passlib 配置一致
 
 # L10：当前使用 HS256 对称加密，适用于单服务部署。
 # 微服务场景应改用 RS256 非对称加密（公钥验签、私钥签发），避免多服务共享密钥。
 
 
 def hash_password(password: str) -> str:
-    """哈希密码"""
-    return pwd_context.hash(password)
+    """哈希密码
+
+    :param password: 明文密码
+    :return: bcrypt 哈希字符串（含 salt 与 rounds）
+    """
+    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12))
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """验证密码"""
-    return pwd_context.verify(plain_password, hashed_password)
+    """验证密码
+
+    :param plain_password: 明文密码
+    :param hashed_password: bcrypt 哈希字符串
+    :return: 匹配返回 True，否则 False
+    """
+    try:
+        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except (ValueError, TypeError):
+        # 哈希格式非法或为空时返回 False，避免抛出异常
+        return False
 
 
 def create_access_token(data: Dict[str, Any], expires_delta: timedelta = None) -> str:

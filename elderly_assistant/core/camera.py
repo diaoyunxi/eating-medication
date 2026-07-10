@@ -52,16 +52,19 @@ def capture_image(config):
     cam_config = config.get('camera', {})
     try:
         hl = get_huskylens(config)
-        hl.takePhoto()
-        logger.info("HuskyLens 拍照指令已发送")
 
         save_path = cam_config.get('save_path', 'data/captures')
         os.makedirs(save_path, exist_ok=True)
         filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
         path = os.path.join(save_path, filename)
 
-        # HuskyLens 拍照后图片存储在设备内部，
-        # 返回路径标记供后续上传流程使用
+        hl.takePhoto()
+        logger.info("HuskyLens 拍照指令已发送")
+
+        # P2 修复：拍照后检查文件是否真正生成，避免返回不存在的路径导致后续 open 失败
+        if not os.path.exists(path):
+            logger.error(f"拍照后文件不存在: {path}，HuskyLens可能未回传图片")
+            return None
         logger.info(f"拍照成功: {path}")
         return path
     except ImportError:

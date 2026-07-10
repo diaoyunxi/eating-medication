@@ -3,11 +3,11 @@
 蜂鸣器服务模块
 行空板M10专用：使用 pinpong 库的 buzzer 控制蜂鸣器
 """
+import logging
 import threading
 import time
-from utils.logger import setup_logger
 
-logger = setup_logger()
+logger = logging.getLogger("ElderlyAssistant")
 
 
 class Buzzer:
@@ -85,6 +85,9 @@ class Buzzer:
         """停止蜂鸣器（停止持续提醒）"""
         with self._lock:
             self._reminding = False
+        # P15 修复：先 join 提醒线程再停止蜂鸣器，避免线程竞态
+        if self._reminder_thread and self._reminder_thread.is_alive():
+            self._reminder_thread.join(timeout=2)
         if self.buzzer:
             try:
                 self.buzzer.stop()

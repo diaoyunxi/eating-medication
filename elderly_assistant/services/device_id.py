@@ -3,11 +3,11 @@
 设备唯一标识符模块
 行空板M10专用：通过pinpong库获取FCC ID
 """
+import logging
 import os
 import uuid
-from utils.logger import setup_logger
 
-logger = setup_logger()
+logger = logging.getLogger("ElderlyAssistant")
 
 
 def get_device_id():

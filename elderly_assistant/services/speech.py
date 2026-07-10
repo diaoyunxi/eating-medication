@@ -9,7 +9,7 @@ class Speech:
     def __init__(self, config=None):
         self.logger = setup_logger()
         self.config = config.get('speech', {}) if (config and 'speech' in config) else {}
-        self._speak_queue = queue.Queue()
+        self._speak_queue = queue.Queue(maxsize=20)  # P13 修复：有界队列，避免无界增长
         self._stop_event = threading.Event()
         self._engine = None
 
@@ -61,11 +61,19 @@ class Speech:
                 self.logger.warning("Speech synthesis unavailable")
                 return
 
-        self._speak_queue.put(text)
+        # P13 修复：队列有界，满时丢弃并告警，避免无界增长导致内存溢出
+        try:
+            self._speak_queue.put_nowait(text)
+        except queue.Full:
+            self.logger.warning("语音队列已满，丢弃")
 
     def stop(self):
+        # P14 修复：先 put 哨兵并 join worker，再置 None，避免竞态
         self._stop_event.set()
-        self._speak_queue.put(None)
+        try:
+            self._speak_queue.put_nowait(None)
+        except queue.Full:
+            pass
 
         if hasattr(self, '_worker_thread') and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=2)

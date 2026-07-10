@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-from utils.logger import setup_logger
+import logging
 
-logger = setup_logger()
+logger = logging.getLogger("ElderlyAssistant")
 
 
 def upload_medication_image(image_path, http_client):

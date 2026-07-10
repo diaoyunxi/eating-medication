@@ -1,3 +1,6 @@
+# 注意：当 cloudflared.service 使用 --token 参数（remotely-managed）时，本文件不生效。
+# 本文件仅适用于 locally-managed 隧道模式（需移除 service 中的 --token 参数）。
+#
 # Cloudflare 隧道路由配置示例
 # 路径：~/.cloudflared/config.yml （或通过 Zero Trust 控制台配置）
 # 说明：本地服务监听 HTTP，cloudflared 建立加密隧道到 Cloudflare 边缘节点，
@@ -8,7 +11,7 @@
 #   https://your-domain.example.com/eating-medication/family   → 本地 :4430（家属看护端）
 
 tunnel: <TUNNEL_ID>
-credentials-file: /root/.cloudflared/<TUNNEL_ID>.json
+credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
 
 ingress:
   # 服务端：/eating-medication/server/* 转发到本地 1059

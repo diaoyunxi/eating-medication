@@ -26,6 +26,8 @@ class MedicationPlan(Base):
     low_stock_threshold = Column(Float, default=5.0)   # 低于此数量提醒（单位：片/粒）
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+    # S-05 修复：记录上次低库存通知时间，避免重复通知（每天最多通知一次）
+    last_notified_at = Column(DateTime, nullable=True)
 
     # 关联关系
     user = relationship("User", back_populates="medication_plans")

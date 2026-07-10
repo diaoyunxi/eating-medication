@@ -253,7 +253,7 @@ def install_package(pkg):
 
     print("  正在安装", pkg_name, "...")
     base_cmd = [
-        sys.executable, "-m", "pip", "install",pkg,
+        sys.executable, "-m", "pip", "install", pkg, "-i", PIP_INDEX_URL,
     ]
 
     # 第一次: 正常 pip

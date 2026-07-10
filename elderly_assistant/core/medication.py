@@ -4,6 +4,24 @@ import os
 from datetime import datetime
 from utils.logger import setup_logger
 
+# P12 修复：中文数字映射，用于解析中文剂量（如"两片"、"半片"）
+CN_NUM = {'半': 0.5, '一': 1, '两': 2, '二': 2, '三': 3, '四': 4,
+          '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}
+
+
+def _parse_dosage(s):
+    """解析剂量字符串，支持阿拉伯数字与中文数字"""
+    import re
+    nums = re.findall(r'\d+', str(s))
+    if nums:
+        return int(nums[0])
+    # 尝试中文数字
+    for k, v in CN_NUM.items():
+        if k in str(s):
+            return v
+    return 0
+
+
 class MedicationManager:
     def __init__(self, data_path="data/medications.json"):
         self.data_path = data_path
@@ -21,9 +39,16 @@ class MedicationManager:
                         if isinstance(data, list):
                             return data
                         else:
-                            self.logger.error(f"药品数据格式错误，期望列表但得到 {type(data)}")
+                            # P11 修复：数据格式异常时先备份原文件，避免直接覆盖丢失数据
+                            self.logger.error(f"药品数据格式错误，期望列表但得到 {type(data)}，备份原文件")
+                            import shutil
+                            shutil.copy2(self.data_path, self.data_path + '.bak')
         except json.JSONDecodeError as e:
             self.logger.error(f"药品数据 JSON 解析失败: {e}")
+            # P11 修复：JSON 解析失败也备份原文件
+            if os.path.exists(self.data_path):
+                import shutil
+                shutil.copy2(self.data_path, self.data_path + '.bak')
         except Exception as e:
             self.logger.error(f"加载药品数据失败: {e}")
 
@@ -36,11 +61,13 @@ class MedicationManager:
         return []
 
     def save(self):
-        """保存药品数据到文件"""
+        """保存药品数据到文件（P11：临时文件 + os.replace 原子写入）"""
         try:
             os.makedirs(os.path.dirname(self.data_path) or ".", exist_ok=True)
-            with open(self.data_path, 'w', encoding='utf-8') as f:
+            tmp = self.data_path + '.tmp'
+            with open(tmp, 'w', encoding='utf-8') as f:
                 json.dump(self.medications, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, self.data_path)
         except Exception as e:
             self.logger.error(f"保存药品数据失败: {e}")
 
@@ -68,9 +95,8 @@ class MedicationManager:
     def consume(self, med_name, dosage_str):
         """消耗药品（从提醒确认调用）"""
         try:
-            import re
-            num = re.findall(r'\d+', str(dosage_str))
-            dose = float(num[0]) if num else 0
+            # P12 修复：使用 _parse_dosage 支持中文数字（如"两片"、"半片"）
+            dose = float(_parse_dosage(dosage_str))
             if dose <= 0:
                 return False
 

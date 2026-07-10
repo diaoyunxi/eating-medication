@@ -3,6 +3,7 @@ from typing import Optional
 from app.core.config import settings
 import logging
 import threading
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,9 @@ class AIService:
         logger.info(f"🤔 AI 请求 - 问题: {question}")
         
         try:
-            response = client.chat.completions.create(
+            # S-06 修复：同步 SDK 调用放入线程池，避免阻塞事件循环
+            response = await asyncio.to_thread(
+                client.chat.completions.create,
                 model=settings.ZHIPUAI_MODEL,
                 messages=[
                     {

@@ -7,12 +7,12 @@
 - 配网Web端口: 8088
 - 密码: 启动时随机生成（WPA2）
 """
+import logging
 import subprocess
 import time
 import secrets
-from utils.logger import setup_logger
 
-logger = setup_logger()
+logger = logging.getLogger("ElderlyAssistant")
 
 # 默认热点参数
 HOTSPOT_SSID = "M10-Config"
@@ -55,9 +55,8 @@ class HotspotManager:
 
             if result.returncode == 0:
                 self.is_running = True
-                logger.info(f"热点已创建: {self.ssid} (WPA2 加密)")
-                # 启动时打印/显示热点密码，便于用户连接
-                logger.info(f"热点密码: {self.password}")
+                # P4 修复：密码脱敏，日志不记录明文密码，仅终端 print 便于用户连接
+                logger.info(f"热点已创建: {self.ssid} (WPA2加密)")
                 print(f"[热点] SSID: {self.ssid}  密码: {self.password}")
                 logger.info(
                     f"用户连接后可访问 http://{self.ip}:{self.web_port} 进行配网"

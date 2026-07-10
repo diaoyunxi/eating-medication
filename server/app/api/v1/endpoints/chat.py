@@ -26,10 +26,11 @@ async def send_message(
 ):
     """发送聊天消息"""
     # C4：sender_id 从 token 提取，覆盖任何客户端传入值
+    # S-01 修复：sender_name 从服务端 current_user.full_name 获取，防止客户端伪造
     db_msg = ChatMessage(
         sender_id=current_user.id,
         receiver_id=msg.receiver_id,
-        sender_name=msg.sender_name,
+        sender_name=current_user.full_name,
         content=msg.content
     )
     db.add(db_msg)
@@ -103,10 +104,12 @@ async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Que
             if data.get("type") == "chat":
                 content = data.get("content", "")
                 receiver_id = data.get("receiver_id")
-                sender_name = data.get("sender_name", "未知")
                 if content and receiver_id:
                     # M16：改用 with 语法管理数据库会话
                     with SessionLocal() as db:
+                        # S-01 修复：sender_name 从服务端查库获取，防止客户端伪造
+                        sender = db.query(User).filter(User.id == user_id).first()
+                        sender_name = sender.full_name if sender else "未知"
                         db_msg = ChatMessage(
                             sender_id=user_id,
                             receiver_id=receiver_id,

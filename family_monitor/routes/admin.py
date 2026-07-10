@@ -94,49 +94,7 @@ async def update_server_config(
     config.save_config()
 
     logger.info(f"管理员 {username} 更新了服务端配置")
-    return JSONResponse({"success": True, "message": "服务端配置已保存"})
-
-
-@router.post("/administrator/setting/advanced")
-async def update_advanced_config(
-    request: Request,
-    csrf_token: str = Form(...),
-    debug_mode: str = Form(None),
-):
-    """更新高级配置
-    注意：DEBUG 在生产环境（PRODUCTION=true）下禁止通过 Web 修改，仅通过 .env 配置。
-    非生产环境下允许通过 Web 修改 DEBUG 配置。"""
-    # CSRF 校验（H-2 修复：常量时间比较）
-    cookie_token = request.cookies.get("csrf_token", "")
-    if not cookie_token or not secrets.compare_digest(csrf_token, cookie_token):
-        return JSONResponse({"success": False, "message": "CSRF 校验失败"}, status_code=403)
-
-    session_token = request.cookies.get("session_token")
-    if not session_token:
-        return JSONResponse({"success": False, "message": "未登录"}, status_code=401)
-
-    session_manager = get_session_manager(config.SECRET_KEY)
-    session_data = session_manager.verify_session(session_token)
-    if not session_data:
-        return JSONResponse({"success": False, "message": "会话过期"}, status_code=401)
-
-    username = session_data.get("username")
-    user_manager = get_user_manager(config.DATA_DIR)
-    if not user_manager.is_admin(username):
-        return JSONResponse({"success": False, "message": "无权限"}, status_code=403)
-
-    # DEBUG 不可通过 Web 修改，生产环境强制 False
-    if config.PRODUCTION:
-        logger.warning(f"管理员 {username} 尝试在生产环境修改 DEBUG，已拒绝")
-        return JSONResponse({"success": False, "message": "生产环境不允许修改调试模式"}, status_code=403)
-
-    # 实际保存 DEBUG 配置（非生产环境允许通过 Web 修改）
-    if debug_mode is not None:
-        config.DEBUG = debug_mode.lower() == "true"
-        config.save_config()
-
-    logger.info(f"管理员 {username} 更新了高级配置")
-    return JSONResponse({"success": True, "message": "高级配置已保存"})
+    return JSONResponse({"success": True, "message": "配置已保存，重启服务后生效"})
 
 
 admin_router = router
