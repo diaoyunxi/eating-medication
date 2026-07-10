@@ -23,8 +23,11 @@ class Config:
         self.BASE_DIR = Path(__file__).resolve().parent.parent
 
         env_path = self.BASE_DIR / '.env'
-        if env_path.exists():
-            load_dotenv(env_path)
+        # 首次运行无 .env 时自动生成（含随机 SECRET_KEY + DEBUG=true），开箱即用
+        # .env 已在 .gitignore 中，不会上传到仓库
+        if not env_path.exists():
+            self._generate_default_env(env_path)
+        load_dotenv(env_path)
 
         self.config_file = self.BASE_DIR / 'config.json'
         self._config_data = {}
@@ -96,6 +99,34 @@ class Config:
 
         self.DATA_DIR = self.BASE_DIR / 'data'
         self.DATA_DIR.mkdir(exist_ok=True)
+
+    def _generate_default_env(self, env_path: Path):
+        """首次运行时自动生成 .env 文件（含随机 SECRET_KEY + DEBUG=true）
+
+        开箱即用设计：用户克隆后可直接 python3 main.py 启动，无需手动配置。
+        生成的 .env 包含：
+        - SECRET_KEY：随机生成的安全密钥（secrets.token_urlsafe(32)）
+        - DEBUG=true：开发模式，允许本地 HTTP 调试
+        .env 已在 .gitignore 中忽略，不会上传到仓库。
+        生产部署时请手动修改 DEBUG=false 并按需调整 SECRET_KEY。
+        """
+        secret_key = _generate_secret_key()
+        env_content = (
+            f"# 自动生成的环境配置文件（首次运行）\n"
+            f"# 生产部署时请将 DEBUG 改为 false\n\n"
+            f"# 会话签名密钥（已随机生成，请勿泄露）\n"
+            f"SECRET_KEY={secret_key}\n\n"
+            f"# 调试模式：本地开发设为 true，生产环境设为 false\n"
+            f"DEBUG=true\n"
+        )
+        try:
+            env_path.write_text(env_content, encoding='utf-8')
+            # 设置文件权限为 600，仅所有者可读写（保护密钥）
+            os.chmod(env_path, 0o600)
+            logger.info(f"首次运行：已自动生成 {env_path}（含随机 SECRET_KEY，DEBUG=true）")
+            logger.warning("生产部署时请将 .env 中 DEBUG 改为 false")
+        except Exception as e:
+            logger.warning(f"自动生成 .env 失败: {e}，将使用临时密钥启动")
 
     def _load_from_json(self):
         """从JSON配置文件加载配置到内部字典（不写回 os.environ）。
