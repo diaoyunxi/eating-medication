@@ -75,10 +75,59 @@ MOCK_DEVICE_INFO = {
     "device_name": "爷爷的设备",
 }
 
+# 模拟仪表板数据
+MOCK_DASHBOARD = {
+    "summary": {
+        "total_reminders": 5,
+        "active_reminders": 4,
+        "taken_today": 3,
+        "pending_today": 1,
+        "adherence_rate": 85,
+        "last_updated": "2026-07-10 14:30:00",
+    },
+    "upcoming_reminders": [
+        {"id": 1, "name": "阿司匹林肠溶片", "time": "20:00", "status": "pending"},
+        {"id": 2, "name": "维生素D3", "time": "21:00", "status": "pending"},
+    ],
+    "recent_activities": [
+        {"id": 1, "type": "medication", "action": "已服用", "name": "二甲双胍缓释片", "time": "12:30", "icon": "💊"},
+        {"id": 2, "type": "medication", "action": "已服用", "name": "硝苯地平控释片", "time": "07:00", "icon": "💊"},
+    ],
+    "chart_data": [
+        {"date": "2026-07-04", "taken": 3, "scheduled": 4},
+        {"date": "2026-07-05", "taken": 4, "scheduled": 4},
+        {"date": "2026-07-06", "taken": 2, "scheduled": 4},
+        {"date": "2026-07-07", "taken": 5, "scheduled": 5},
+        {"date": "2026-07-08", "taken": 4, "scheduled": 5},
+        {"date": "2026-07-09", "taken": 3, "scheduled": 4},
+        {"date": "2026-07-10", "taken": 4, "scheduled": 4},
+    ],
+    "medications": [
+        {"name": "阿司匹林肠溶片", "remaining": 12, "total": 30, "status": "ok"},
+        {"name": "二甲双胍缓释片", "remaining": 45, "total": 60, "status": "ok"},
+        {"name": "硝苯地平控释片", "remaining": 3, "total": 28, "status": "low"},
+        {"name": "维生素D3", "remaining": 78, "total": 90, "status": "ok"},
+    ],
+}
+
 
 @app.get("/")
 async def root():
-    return RedirectResponse(url="/reminders", status_code=302)
+    return RedirectResponse(url="/dashboard", status_code=302)
+
+
+@app.get("/dashboard")
+async def dashboard(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "dashboard.html",
+        {
+            "app_name": "用药看护系统",
+            "dashboard": MOCK_DASHBOARD,
+            "status": {"connected": True},
+            "device_info": MOCK_DEVICE_INFO,
+        },
+    )
 
 
 @app.get("/reminders")

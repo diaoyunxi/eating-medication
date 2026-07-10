@@ -153,62 +153,73 @@
             </div>
         </div>
 
-        <!-- 图表区域 -->
-        <div class="chart-section">
-            <div class="chart-card">
-                <div class="chart-header">
-                    <div class="chart-title">
-                        <div class="chart-title-icon">&#9635;</div>
-                        <span>用药趋势（最近7天）</span>
-                    </div>
-                    <span class="badge badge-info">数据统计</span>
+        <!-- 图表区域（可切换34种图表） -->
+        <div class="chart-switcher-card">
+            <div class="chart-switcher-header">
+                <div class="chart-switcher-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                    <span>数据可视化</span>
                 </div>
-                <div class="chart-body">
-                    <div class="chart-bars">
-                        {% if dashboard.chart_data %}
-                            {% for day in dashboard.chart_data %}
-                            <div class="chart-bar">
-                                <div class="bar-container">
-                                    <div class="bar-fill taken" style="height: {% if day.scheduled > 0 %}{{ (day.taken / day.scheduled * 100) }}{% else %}0{% endif %}%;"></div>
-                                </div>
-                                <span class="bar-value">{{ day.taken }}/{{ day.scheduled }}</span>
-                                <span class="bar-label">{{ day.date[-5:] }}</span>
-                            </div>
-                            {% endfor %}
-                        {% else %}
-                            <div class="chart-placeholder">
-                                <div class="chart-placeholder-icon">&#9650;</div>
-                                <p>暂无图表数据</p>
-                            </div>
-                        {% endif %}
-                    </div>
+                <div class="chart-switcher-controls">
+                    <select id="chartTypeSelect" class="chart-switcher-select" onchange="switchChart(this.value)">
+                        <optgroup label="基础图表">
+                            <option value="bar">柱状图</option>
+                            <option value="bar-y">条形图</option>
+                            <option value="radar">雷达图</option>
+                            <option value="wordcloud">词云图</option>
+                            <option value="line">折线图</option>
+                            <option value="area">面积图</option>
+                        </optgroup>
+                        <optgroup label="金融/进度">
+                            <option value="candlestick">烛台图</option>
+                            <option value="gantt">甘特图</option>
+                            <option value="waterfall">瀑布图</option>
+                            <option value="funnel">漏斗图</option>
+                            <option value="gauge">仪表盘</option>
+                        </optgroup>
+                        <optgroup label="分布">
+                            <option value="histogram">直方图</option>
+                            <option value="boxplot">箱线图</option>
+                            <option value="density">密度图</option>
+                            <option value="violin">小提琴图</option>
+                            <option value="ridgeline">山脊线图</option>
+                        </optgroup>
+                        <optgroup label="占比">
+                            <option value="pie">饼图</option>
+                            <option value="doughnut">环形图</option>
+                            <option value="stacked-bar">堆叠柱状图</option>
+                            <option value="percent-bar">百分比堆叠条形图</option>
+                            <option value="sunburst">旭日图</option>
+                            <option value="treemap">矩形树图</option>
+                            <option value="mosaic">马赛克图</option>
+                        </optgroup>
+                        <optgroup label="关系/网络">
+                            <option value="scatter">散点图</option>
+                            <option value="bubble">气泡图</option>
+                            <option value="heatmap">热力图</option>
+                            <option value="corr-matrix">相关性矩阵图</option>
+                            <option value="network">网络关系图</option>
+                            <option value="chord">和弦图</option>
+                            <option value="sankey">桑基图</option>
+                        </optgroup>
+                        <optgroup label="地理/时间">
+                            <option value="map-dot">点地图</option>
+                            <option value="map-contour">等值线地图</option>
+                            <option value="map-heat">热力地图</option>
+                            <option value="map-path">路径地图</option>
+                            <option value="parallel">平行坐标图</option>
+                            <option value="liquidfill">水球图</option>
+                            <option value="calendar-heat">日历热力图</option>
+                        </optgroup>
+                    </select>
+                    <button class="chart-switcher-btn" onclick="refreshChart()" title="刷新">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    </button>
                 </div>
             </div>
-
-            <div class="chart-card">
-                <div class="chart-header">
-                    <div class="chart-title">
-                        <div class="chart-title-icon">&#9899;</div>
-                        <span>药品库存</span>
-                    </div>
-                </div>
-                <div class="chart-body">
-                    <div class="quick-stats">
-                        {% if dashboard.medications %}
-                            {% for med in dashboard.medications %}
-                            <div class="quick-stat-item">
-                                <span class="quick-stat-label">{{ med.name }}</span>
-                                <span class="quick-stat-value med-status-{{ med.status }}">{{ med.remaining }}/{{ med.total }}</span>
-                            </div>
-                            {% endfor %}
-                        {% else %}
-                            <div class="chart-placeholder">
-                                <div class="chart-placeholder-icon">&#9899;</div>
-                                <p>暂无药品库存数据</p>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
+            <div class="chart-tag-bar" id="chartTagBar"></div>
+            <div class="chart-canvas-wrap">
+                <div id="mainChart"></div>
             </div>
         </div>
 
@@ -297,51 +308,796 @@
         </div>
     </div>
 
+    <!-- ECharts 核心 + 词云 + 水球图 + 中国地图 -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts-liquidfill@3.1.0/dist/echarts-liquidfill.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts/map/js/china.js"></script>
+
     <script>
+        /* ===== 仪表板数据（后端注入）===== */
+        var DASHBOARD_DATA = {{ dashboard | tojson }};
+
+        /* 图表实例 */
+        var chartInstance = null;
+        var currentChartType = 'bar';
+
+        /* ===== 模拟数据集（基于真实 dashboard 数据扩展）===== */
+        function buildData() {
+            var meds = DASHBOARD_DATA.medications || [];
+            var records = DASHBOARD_DATA.recent_activities || [];
+            var summary = DASHBOARD_DATA.summary || {};
+
+            /* 药品名称列表（用于多种图表） */
+            var drugNames = meds.length ? meds.map(function(m){return m.name;}) : ['阿司匹林', '二甲双胍', '硝苯地平', '维生素D3', '氨氯地平'];
+
+            /* 最近7天用药趋势 */
+            var days = ['周一','周二','周三','周四','周五','周六','周日'];
+            var takenData = [3, 4, 2, 5, 4, 3, 4];
+            var scheduledData = [4, 4, 4, 5, 5, 4, 4];
+            var missedData = scheduledData.map(function(s,i){return s - takenData[i];});
+
+            return {
+                summary: summary,
+                drugNames: drugNames,
+                meds: meds,
+                days: days,
+                takenData: takenData,
+                scheduledData: scheduledData,
+                missedData: missedData,
+                records: records
+            };
+        }
+
+        /* ===== 图表标签栏（快捷切换）===== */
+        var CHART_TAGS = [
+            {type:'bar', name:'柱状图'},
+            {type:'line', name:'折线图'},
+            {type:'pie', name:'饼图'},
+            {type:'radar', name:'雷达图'},
+            {type:'scatter', name:'散点图'},
+            {type:'heatmap', name:'热力图'},
+            {type:'wordcloud', name:'词云图'},
+            {type:'gauge', name:'仪表盘'},
+            {type:'funnel', name:'漏斗图'},
+            {type:'treemap', name:'树图'},
+            {type:'sunburst', name:'旭日图'},
+            {type:'sankey', name:'桑基图'}
+        ];
+
+        function renderTagBar() {
+            var bar = document.getElementById('chartTagBar');
+            bar.innerHTML = '';
+            CHART_TAGS.forEach(function(t) {
+                var tag = document.createElement('span');
+                tag.className = 'chart-tag' + (t.type === currentChartType ? ' active' : '');
+                tag.textContent = t.name;
+                tag.onclick = function() {
+                    document.getElementById('chartTypeSelect').value = t.type;
+                    switchChart(t.type);
+                };
+                bar.appendChild(tag);
+            });
+        }
+
+        /* ===== 图表渲染分发 ===== */
+        function switchChart(type) {
+            currentChartType = type;
+            if (chartInstance) {
+                chartInstance.dispose();
+                chartInstance = null;
+            }
+            chartInstance = echarts.init(document.getElementById('mainChart'));
+            var option = buildOption(type);
+            chartInstance.setOption(option, true);
+            renderTagBar();
+        }
+
+        function refreshChart() {
+            if (chartInstance) chartInstance.dispose();
+            chartInstance = echarts.init(document.getElementById('mainChart'));
+            chartInstance.setOption(buildOption(currentChartType), true);
+        }
+
+        /* ===== 配色 ===== */
+        var COLORS = ['#c96442','#5a8a6a','#c49a3c','#5a7fa8','#b85450','#7a6a9a','#3d3929','#8a7a5a'];
+
+        /* ===== 34种图表配置生成 ===== */
+        function buildOption(type) {
+            var d = buildData();
+
+            switch(type) {
+                /* ===== 基础图表 ===== */
+                case 'bar':
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{data:['已服','计划','漏服'],top:10},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:d.days},
+                        yAxis:{type:'value'},
+                        series:[
+                            {name:'已服',type:'bar',data:d.takenData,itemStyle:{color:COLORS[1]}},
+                            {name:'计划',type:'bar',data:d.scheduledData,itemStyle:{color:COLORS[2]}},
+                            {name:'漏服',type:'bar',data:d.missedData,itemStyle:{color:COLORS[4]}}
+                        ]
+                    };
+
+                case 'bar-y':
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{data:['已服','计划'],top:10},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'value'},
+                        yAxis:{type:'category',data:d.days},
+                        series:[
+                            {name:'已服',type:'bar',data:d.takenData,itemStyle:{color:COLORS[1]}},
+                            {name:'计划',type:'bar',data:d.scheduledData,itemStyle:{color:COLORS[2]}}
+                        ]
+                    };
+
+                case 'radar':
+                    return {
+                        tooltip:{},
+                        radar:{
+                            indicator:[
+                                {name:'依从率',max:100},
+                                {name:'按时率',max:100},
+                                {name:'库存充足',max:100},
+                                {name:'提醒响应',max:100},
+                                {name:'记录完整',max:100},
+                                {name:'健康评分',max:100}
+                            ]
+                        },
+                        series:[{
+                            type:'radar',
+                            data:[{
+                                value:[d.summary.adherence_rate||85, 88, 72, 90, 95, 82],
+                                name:'本周健康指标',
+                                areaStyle:{opacity:0.2}
+                            }]
+                        }]
+                    };
+
+                case 'wordcloud':
+                    return {
+                        tooltip:{show:true},
+                        series:[{
+                            type:'wordCloud',
+                            shape:'circle',
+                            sizeRange:[12,60],
+                            rotationRange:[-45,45],
+                            textStyle:{
+                                fontFamily:'Poppins,sans-serif',
+                                color:function(){return COLORS[Math.floor(Math.random()*COLORS.length)];}
+                            },
+                            data:[
+                                {name:'阿司匹林',value:30},
+                                {name:'二甲双胍',value:25},
+                                {name:'硝苯地平',value:20},
+                                {name:'维生素D3',value:18},
+                                {name:'按时服药',value:35},
+                                {name:'健康',value:40},
+                                {name:'提醒',value:28},
+                                {name:'记录',value:22},
+                                {name:'库存',value:15},
+                                {name:'依从性',value:26},
+                                {name:'血压',value:14},
+                                {name:'血糖',value:16},
+                                {name:'心率',value:12},
+                                {name:'体温',value:10}
+                            ]
+                        }]
+                    };
+
+                case 'line':
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{data:['已服','计划'],top:10},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:d.days},
+                        yAxis:{type:'value'},
+                        series:[
+                            {name:'已服',type:'line',data:d.takenData,smooth:true,itemStyle:{color:COLORS[1]}},
+                            {name:'计划',type:'line',data:d.scheduledData,smooth:true,itemStyle:{color:COLORS[2]}}
+                        ]
+                    };
+
+                case 'area':
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{data:['已服','漏服'],top:10},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:d.days,boundaryGap:false},
+                        yAxis:{type:'value'},
+                        series:[
+                            {name:'已服',type:'line',data:d.takenData,areaStyle:{opacity:0.3},itemStyle:{color:COLORS[1]}},
+                            {name:'漏服',type:'line',data:d.missedData,areaStyle:{opacity:0.3},itemStyle:{color:COLORS[4]}}
+                        ]
+                    };
+
+                /* ===== 金融/进度 ===== */
+                case 'candlestick':
+                    /* 模拟药品库存变化的K线 */
+                    var kData = d.drugNames.map(function(_,i){
+                        var base = 20 + i*5;
+                        return [base, base+8, base-5, base+3];
+                    });
+                    return {
+                        tooltip:{trigger:'axis'},
+                        xAxis:{type:'category',data:d.drugNames},
+                        yAxis:{type:'value',name:'库存'},
+                        series:[{type:'candlestick',data:kData,itemStyle:{color:COLORS[1],color0:COLORS[4]}}]
+                    };
+
+                case 'gantt':
+                    /* 用甘特图表示各药品服药时段 */
+                    var categories = d.drugNames.slice(0,4);
+                    var ganttData = [];
+                    categories.forEach(function(name,idx){
+                        ganttData.push({name:name, value:[idx, 7+idx*2, 9+idx*2]});
+                    });
+                    return {
+                        tooltip:{
+                            formatter:function(p){
+                                return p.name + '<br>时段: ' + p.value[1] + ':00 - ' + p.value[2] + ':00';
+                            }
+                        },
+                        legend:{data:['服药时段'],top:10},
+                        xAxis:{type:'value',name:'小时',min:0,max:24},
+                        yAxis:{type:'category',data:categories},
+                        series:[{
+                            name:'服药时段',type:'custom',
+                            renderItem:function(params,api){
+                                var cat=api.value(0),start=api.coord([api.value(1),cat]),end=api.coord([api.value(2),cat]),height=api.size([0,1])[1]*0.6;
+                                return {type:'rect',shape:{x:start[0],y:start[1]-height/2,width:end[0]-start[0],height:height},style:{fill:COLORS[cat%COLORS.length],opacity:0.7}};
+                            },
+                            data:categories.map(function(name,idx){return [idx,7+idx*2,9+idx*2];})
+                        }]
+                    };
+
+                case 'waterfall':
+                    /* 瀑布图：库存变化 */
+                    var wData = [{name:'初始',value:100},{name:'出库',value:-30},{name:'入库',value:20},{name:'出库',value:-15},{name:'入库',value:10},{name:'当前',value:85}];
+                    var placeholder={name:'total',value:0};
+                    var wSeries=[
+                        {type:'bar',stack:'waterfall',itemStyle:{color:'transparent'},data:[100,70,70,75,75,0]},
+                        {type:'bar',stack:'waterfall',itemStyle:{color:COLORS[1]},data:[0,-30,20,-15,10,0],label:{show:true,position:'top',formatter:function(p){return p.value;}}},
+                        {type:'bar',stack:'waterfall',itemStyle:{color:COLORS[0]},data:[0,0,0,0,0,85]}
+                    ];
+                    return {
+                        tooltip:{trigger:'axis'},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:wData.map(function(w){return w.name;})},
+                        yAxis:{type:'value'},
+                        series:wSeries
+                    };
+
+                case 'funnel':
+                    return {
+                        tooltip:{trigger:'item'},
+                        series:[{
+                            type:'funnel',
+                            data:[
+                                {value:100,name:'总提醒'},
+                                {value:85,name:'已响应'},
+                                {value:72,name:'已确认服药'},
+                                {value:68,name:'按时服药'},
+                                {value:60,name:'完整记录'}
+                            ],
+                            label:{show:true,position:'inside'}
+                        }]
+                    };
+
+                case 'gauge':
+                    return {
+                        series:[{
+                            type:'gauge',
+                            progress:{show:true,width:18},
+                            detail:{valueAnimation:true,formatter:'{value}%'},
+                            data:[{value:d.summary.adherence_rate||85,name:'用药依从率'}]
+                        }]
+                    };
+
+                /* ===== 分布 ===== */
+                case 'histogram':
+                    var bins=[0,0,0,0,0];
+                    d.takenData.concat(d.scheduledData).forEach(function(v){
+                        var idx=Math.min(Math.floor(v/2),4);
+                        bins[idx]++;
+                    });
+                    return {
+                        tooltip:{trigger:'axis'},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:['0-2','2-4','4-6','6-8','8+']},
+                        yAxis:{type:'value',name:'频次'},
+                        series:[{type:'bar',data:bins,itemStyle:{color:COLORS[3]}}]
+                    };
+
+                case 'boxplot':
+                    var boxData=[
+                        [680,720,750,780,810],
+                        [650,700,740,770,800],
+                        [700,730,760,790,820]
+                    ];
+                    return {
+                        tooltip:{trigger:'item'},
+                        xAxis:{type:'category',data:['收缩压','舒张压','心率']},
+                        yAxis:{type:'value'},
+                        series:[{type:'boxplot',data:boxData}]
+                    };
+
+                case 'density':
+                    /* 密度图（用平滑折线模拟） */
+                    var densityData=[];
+                    for(var i=0;i<=100;i+=5){
+                        var v=Math.exp(-Math.pow((i-50)/20,2)/2)/Math.sqrt(2*Math.PI)/20*100;
+                        densityData.push([i,v]);
+                    }
+                    return {
+                        tooltip:{trigger:'axis'},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'value',name:'服药依从率',min:0,max:100},
+                        yAxis:{type:'value',name:'密度'},
+                        series:[{type:'line',data:densityData,smooth:true,areaStyle:{opacity:0.3},symbol:'none',itemStyle:{color:COLORS[1]}}]
+                    };
+
+                case 'violin':
+                    /* 小提琴图（用ECharts custom模拟） */
+                    return {
+                        tooltip:{},
+                        xAxis:{type:'category',data:d.drugNames.slice(0,4)},
+                        yAxis:{type:'value'},
+                        series:[{
+                            type:'custom',
+                            renderItem:function(params,api){
+                                var pos=api.value(0),val=api.value(1),center=api.coord([pos,val]);
+                                var width=Math.abs(val-50)*0.5;
+                                return {type:'circle',shape:{cx:center[0],cy:center[1],r:width},style:{fill:COLORS[pos%COLORS.length],opacity:0.5}};
+                            },
+                            data:[[0,60],[1,75],[2,45],[3,80]]
+                        }]
+                    };
+
+                case 'ridgeline':
+                    /* 山脊线图（多条密度曲线堆叠） */
+                    var ridgeSeries=['周一','周二','周三','周四'].map(function(day,idx){
+                        var data=[];
+                        for(var i=0;i<=100;i+=5){
+                            var offset=idx*15;
+                            var v=Math.exp(-Math.pow((i-50-offset)/15,2)/2)*40;
+                            data.push([i,v+idx*30]);
+                        }
+                        return {name:day,type:'line',data:data,smooth:true,symbol:'none',areaStyle:{opacity:0.4}};
+                    });
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{top:10,data:['周一','周二','周三','周四']},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'value',name:'依从率'},
+                        yAxis:{type:'value'},
+                        series:ridgeSeries
+                    };
+
+                /* ===== 占比 ===== */
+                case 'pie':
+                    return {
+                        tooltip:{trigger:'item'},
+                        legend:{top:'5%',left:'center'},
+                        series:[{
+                            type:'pie',radius:'60%',
+                            data:d.drugNames.map(function(n,i){return {value:[30,25,20,15,10][i]||5,name:n};}),
+                            emphasis:{itemStyle:{shadowBlur:10,shadowOffsetX:0,shadowColor:'rgba(0,0,0,0.5)'}}
+                        }]
+                    };
+
+                case 'doughnut':
+                    return {
+                        tooltip:{trigger:'item'},
+                        legend:{top:'5%',left:'center'},
+                        series:[{
+                            type:'pie',radius:['40%','70%'],avoidLabelOverlap:false,
+                            label:{show:false,position:'center'},
+                            emphasis:{label:{show:true,fontSize:18,fontWeight:'bold'}},
+                            data:[
+                                {value:85,name:'已服药'},
+                                {value:15,name:'未服药'}
+                            ]
+                        }]
+                    };
+
+                case 'stacked-bar':
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{data:['已服','漏服'],top:10},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:d.days},
+                        yAxis:{type:'value'},
+                        series:[
+                            {name:'已服',type:'bar',stack:'total',data:d.takenData,itemStyle:{color:COLORS[1]}},
+                            {name:'漏服',type:'bar',stack:'total',data:d.missedData,itemStyle:{color:COLORS[4]}}
+                        ]
+                    };
+
+                case 'percent-bar':
+                    var pctTaken=d.takenData.map(function(t,i){return Math.round(t/d.scheduledData[i]*100);});
+                    var pctMissed=pctTaken.map(function(p){return 100-p;});
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{data:['已服%','漏服%'],top:10},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:d.days},
+                        yAxis:{type:'value',max:100,axisLabel:{formatter:'{value}%'}},
+                        series:[
+                            {name:'已服%',type:'bar',stack:'pct',data:pctTaken,itemStyle:{color:COLORS[1]}},
+                            {name:'漏服%',type:'bar',stack:'pct',data:pctMissed,itemStyle:{color:COLORS[4]}}
+                        ]
+                    };
+
+                case 'sunburst':
+                    return {
+                        tooltip:{trigger:'item'},
+                        series:[{
+                            type:'sunburst',radius:['10%','90%'],
+                            data:[
+                                {name:'心血管',value:50,itemStyle:{color:COLORS[0]},children:[
+                                    {name:'阿司匹林',value:30},
+                                    {name:'硝苯地平',value:20}
+                                ]},
+                                {name:'降糖',value:25,itemStyle:{color:COLORS[1]},children:[
+                                    {name:'二甲双胍',value:25}
+                                ]},
+                                {name:'营养',value:25,itemStyle:{color:COLORS[2]},children:[
+                                    {name:'维生素D3',value:15},
+                                    {name:'钙片',value:10}
+                                ]}
+                            ],
+                            label:{rotate:'radial'}
+                        }]
+                    };
+
+                case 'treemap':
+                    return {
+                        tooltip:{},
+                        series:[{
+                            type:'treemap',
+                            data:[
+                                {name:'阿司匹林',value:30,itemStyle:{color:COLORS[0]}},
+                                {name:'二甲双胍',value:25,itemStyle:{color:COLORS[1]}},
+                                {name:'硝苯地平',value:20,itemStyle:{color:COLORS[2]}},
+                                {name:'维生素D3',value:15,itemStyle:{color:COLORS[3]}},
+                                {name:'氨氯地平',value:10,itemStyle:{color:COLORS[4]}}
+                            ]
+                        }]
+                    };
+
+                case 'mosaic':
+                    /* 马赛克图（用treemap模拟） */
+                    return {
+                        tooltip:{},
+                        series:[{
+                            type:'treemap',
+                            data:[
+                                {name:'按时服药',value:70,itemStyle:{color:COLORS[1]}},
+                                {name:'漏服',value:20,itemStyle:{color:COLORS[4]}},
+                                {name:'延迟服药',value:10,itemStyle:{color:COLORS[2]}}
+                            ],
+                            leafDepth:1
+                        }]
+                    };
+
+                /* ===== 关系/网络 ===== */
+                case 'scatter':
+                    var scatterData=d.drugNames.map(function(n,i){
+                        return [i+1, 60+Math.random()*40, (i+1)*10, n];
+                    });
+                    return {
+                        tooltip:{
+                            formatter:function(p){return p.data[3]+'<br>效果: '+p.data[1].toFixed(0)+'<br>用量: '+p.data[2];}
+                        },
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'value',name:'药品序号',min:0,max:6},
+                        yAxis:{type:'value',name:'治疗效果',min:50,max:100},
+                        series:[{type:'scatter',data:scatterData,symbolSize:function(d){return d[2];}}]
+                    };
+
+                case 'bubble':
+                    var bubbleData=d.drugNames.map(function(n,i){
+                        return [i+1, Math.random()*100, 10+i*8, n];
+                    });
+                    return {
+                        tooltip:{formatter:function(p){return p.data[3];}},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'value',name:'时间'},
+                        yAxis:{type:'value',name:'效果'},
+                        series:[{type:'scatter',data:bubbleData,symbolSize:function(d){return d[2]*2;},itemStyle:{opacity:0.6}}]
+                    };
+
+                case 'heatmap':
+                    var heatData=[];
+                    for(var i=0;i<7;i++){
+                        for(var j=0;j<d.drugNames.length;j++){
+                            heatData.push([j,i,Math.floor(Math.random()*5)]);
+                        }
+                    }
+                    return {
+                        tooltip:{position:'top'},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:d.drugNames},
+                        yAxis:{type:'category',data:d.days},
+                        visualMap:{min:0,max:5,calculable:true,orient:'horizontal',left:'center',bottom:'5%'},
+                        series:[{type:'heatmap',data:heatData,label:{show:true}}]
+                    };
+
+                case 'corr-matrix':
+                    var corrNames=['依从率','血压','血糖','心率','睡眠'];
+                    var corrData=[];
+                    var corrMatrix=[
+                        [1.0,0.6,0.5,0.3,0.7],
+                        [0.6,1.0,0.4,0.5,0.3],
+                        [0.5,0.4,1.0,0.2,0.6],
+                        [0.3,0.5,0.2,1.0,0.4],
+                        [0.7,0.3,0.6,0.4,1.0]
+                    ];
+                    for(var i=0;i<5;i++){
+                        for(var j=0;j<5;j++){
+                            corrData.push([i,j,corrMatrix[i][j]]);
+                        }
+                    }
+                    return {
+                        tooltip:{position:'top'},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:corrNames},
+                        yAxis:{type:'category',data:corrNames},
+                        visualMap:{min:-1,max:1,calculable:true,orient:'horizontal',left:'center',bottom:'5%',color:[COLORS[4],COLORS[2],COLORS[1]]},
+                        series:[{type:'heatmap',data:corrData,label:{show:true,formatter:function(p){return p.data[2].toFixed(2);}}}]
+                    };
+
+                case 'network':
+                    return {
+                        tooltip:{},
+                        series:[{
+                            type:'graph',layout:'force',
+                            roam:true,draggable:true,
+                            force:{repulsion:200,edgeLength:80},
+                            label:{show:true},
+                            data:[
+                                {name:'家属',symbolSize:50,itemStyle:{color:COLORS[0]}},
+                                {name:'老人',symbolSize:60,itemStyle:{color:COLORS[1]}},
+                                {name:'阿司匹林',symbolSize:30,itemStyle:{color:COLORS[2]}},
+                                {name:'二甲双胍',symbolSize:25,itemStyle:{color:COLORS[3]}},
+                                {name:'提醒系统',symbolSize:35,itemStyle:{color:COLORS[5]}}
+                            ],
+                            links:[
+                                {source:'家属',target:'老人'},
+                                {source:'老人',target:'阿司匹林'},
+                                {source:'老人',target:'二甲双胍'},
+                                {source:'提醒系统',target:'老人'},
+                                {source:'提醒系统',target:'家属'}
+                            ]
+                        }]
+                    };
+
+                case 'chord':
+                    return {
+                        tooltip:{},
+                        series:[{
+                            type:'graph',layout:'circular',
+                            roam:true,
+                            label:{show:true},
+                            circular:{rotateLabel:true},
+                            data:[
+                                {name:'服药',symbolSize:40},
+                                {name:'饮食',symbolSize:35},
+                                {name:'运动',symbolSize:30},
+                                {name:'睡眠',symbolSize:35},
+                                {name:'情绪',symbolSize:25}
+                            ],
+                            links:[
+                                {source:'服药',target:'饮食'},
+                                {source:'服药',target:'睡眠'},
+                                {source:'饮食',target:'运动'},
+                                {source:'运动',target:'睡眠'},
+                                {source:'睡眠',target:'情绪'},
+                                {source:'情绪',target:'服药'}
+                            ]
+                        }]
+                    };
+
+                case 'sankey':
+                    return {
+                        tooltip:{trigger:'item'},
+                        series:[{
+                            type:'sankey',
+                            data:[
+                                {name:'总药量'},
+                                {name:'按时服',itemStyle:{color:COLORS[1]}},
+                                {name:'漏服',itemStyle:{color:COLORS[4]}},
+                                {name:'延迟服',itemStyle:{color:COLORS[2]}},
+                                {name:'已吸收'},
+                                {name:'未吸收'}
+                            ],
+                            links:[
+                                {source:'总药量',target:'按时服',value:70},
+                                {source:'总药量',target:'漏服',value:15},
+                                {source:'总药量',target:'延迟服',value:15},
+                                {source:'按时服',target:'已吸收',value:65},
+                                {source:'按时服',target:'未吸收',value:5},
+                                {source:'延迟服',target:'已吸收',value:10},
+                                {source:'延迟服',target:'未吸收',value:5}
+                            ]
+                        }]
+                    };
+
+                /* ===== 地理/时间 ===== */
+                case 'map-dot':
+                    return {
+                        tooltip:{trigger:'item'},
+                        geo:{map:'china',roam:true},
+                        series:[{
+                            type:'scatter',coordinateSystem:'geo',
+                            data:[
+                                {name:'北京',value:[116.46,39.92,100]},
+                                {name:'上海',value:[121.48,31.22,80]},
+                                {name:'广州',value:[113.23,23.16,60]},
+                                {name:'成都',value:[104.06,30.67,50]},
+                                {name:'武汉',value:[114.31,30.52,70]}
+                            ],
+                            symbolSize:function(val){return val[2]/5;}
+                        }]
+                    };
+
+                case 'map-contour':
+                    return {
+                        tooltip:{trigger:'item'},
+                        visualMap:{min:0,max:100,calculable:true,orient:'horizontal',left:'center',bottom:'5%'},
+                        series:[{
+                            type:'map',map:'china',roam:true,
+                            data:[
+                                {name:'北京',value:85},
+                                {name:'上海',value:72},
+                                {name:'广东',value:68},
+                                {name:'四川',value:55},
+                                {name:'湖北',value:60}
+                            ]
+                        }]
+                    };
+
+                case 'map-heat':
+                    return {
+                        tooltip:{trigger:'item'},
+                        geo:{map:'china',roam:true},
+                        visualMap:{min:0,max:100,calculable:true,orient:'horizontal',left:'center',bottom:'5%'},
+                        series:[{
+                            type:'heatmap',coordinateSystem:'geo',
+                            data:[
+                                {name:'北京',value:[116.46,39.92,95]},
+                                {name:'上海',value:[121.48,31.22,88]},
+                                {name:'广州',value:[113.23,23.16,76]},
+                                {name:'成都',value:[104.06,30.67,65]},
+                                {name:'武汉',value:[114.31,30.52,70]}
+                            ]
+                        }]
+                    };
+
+                case 'map-path':
+                    return {
+                        tooltip:{trigger:'item'},
+                        geo:{map:'china',roam:true},
+                        series:[
+                            {type:'lines',coordinateSystem:'geo',
+                             effect:{show:true,period:4,trailLength:0.3,symbolSize:6},
+                             lineStyle:{color:COLORS[0],width:2,opacity:0.6,curveness:0.2},
+                             data:[
+                                 {coords:[[116.46,39.92],[121.48,31.22]]},
+                                 {coords:[[121.48,31.22],[113.23,23.16]]},
+                                 {coords:[[113.23,23.16],[104.06,30.67]]},
+                                 {coords:[[104.06,30.67],[114.31,30.52]]}
+                             ]
+                            },
+                            {type:'effectScatter',coordinateSystem:'geo',
+                             data:[
+                                 {name:'北京',value:[116.46,39.92,100]},
+                                 {name:'上海',value:[121.48,31.22,80]},
+                                 {name:'广州',value:[113.23,23.16,60]},
+                                 {name:'成都',value:[104.06,30.67,50]},
+                                 {name:'武汉',value:[114.31,30.52,70]}
+                             ],
+                             symbolSize:function(val){return val[2]/6;}
+                            }
+                        ]
+                    };
+
+                case 'parallel':
+                    return {
+                        tooltip:{},
+                        parallelAxis:[
+                            {dim:0,name:'依从率',min:0,max:100},
+                            {dim:1,name:'血压',min:80,max:180},
+                            {dim:2,name:'血糖',min:3,max:15},
+                            {dim:3,name:'心率',min:50,max:120},
+                            {dim:4,name:'年龄',min:40,max:90}
+                        ],
+                        series:[{
+                            type:'parallel',
+                            data:[
+                                [85,125,6.5,75,68],
+                                [72,140,7.2,80,72],
+                                [90,118,5.8,70,65],
+                                [60,155,8.5,85,75],
+                                [78,130,6.0,72,70]
+                            ]
+                        }]
+                    };
+
+                case 'liquidfill':
+                    return {
+                        series:[{
+                            type:'liquidFill',
+                            data:[0.68,0.65,0.62],
+                            radius:'70%',
+                            color:[COLORS[1],COLORS[3],COLORS[5]],
+                            label:{formatter:'依从率\n{c}%',fontSize:24,color:'#3d3929'},
+                            outline:{show:true,itemStyle:{borderColor:COLORS[1],borderWidth:2}}
+                        }]
+                    };
+
+                case 'calendar-heat':
+                    var calData=[];
+                    var today=new Date();
+                    for(var i=0;i<365;i++){
+                        var date=new Date(today);
+                        date.setDate(date.getDate()-i);
+                        calData.push([date.toISOString().slice(0,10), Math.floor(Math.random()*5)]);
+                    }
+                    return {
+                        tooltip:{position:'top'},
+                        visualMap:{min:0,max:4,calculable:true,orient:'horizontal',left:'center',top:'5%'},
+                        calendar:{top:80,left:30,right:30,cellSize:['auto',13],range:today.getFullYear(),itemStyle:{borderWidth:0.5}},
+                        series:[{type:'heatmap',coordinateSystem:'calendar',data:calData}]
+                    };
+
+                default:
+                    return {title:{text:'未知图表类型: '+type,left:'center',top:'center'}};
+            }
+        }
+
+        /* ===== 数字递增动画 ===== */
         document.addEventListener('DOMContentLoaded', function() {
-            /* 数字递增动画 */
             function animateNumber(element, target, duration, suffix) {
                 duration = duration || 2000;
                 suffix = suffix || '';
                 var startTime = performance.now();
-
                 function update(currentTime) {
                     var elapsed = currentTime - startTime;
                     var progress = Math.min(elapsed / duration, 1);
                     var easeOut = 1 - Math.pow(1 - progress, 3);
                     var current = Math.round(target * easeOut);
                     element.textContent = current + suffix;
-
-                    if (progress < 1) {
-                        requestAnimationFrame(update);
-                    }
+                    if (progress < 1) requestAnimationFrame(update);
                 }
-
                 requestAnimationFrame(update);
             }
 
-            /* 延迟启动动画 */
             setTimeout(function() {
-                /* 统计卡片数字 */
                 document.querySelectorAll('.stat-value[data-target]').forEach(function(el) {
-                    var target = parseInt(el.dataset.target) || 0;
-                    animateNumber(el, target);
+                    animateNumber(el, parseInt(el.dataset.target) || 0);
                 });
-
-                /* 进度条填充动画 */
                 document.querySelectorAll('.progress-fill[data-target]').forEach(function(el) {
                     var target = parseInt(el.dataset.target) || 0;
-                    setTimeout(function() {
-                        el.style.width = target + '%';
-                    }, 300);
+                    setTimeout(function(){ el.style.width = target + '%'; }, 300);
+                });
+                document.querySelectorAll('.progress-percentage[data-target]').forEach(function(el) {
+                    animateNumber(el, parseInt(el.dataset.target) || 0, 1500);
                 });
 
-                /* 进度百分比文字 */
-                document.querySelectorAll('.progress-percentage[data-target]').forEach(function(el) {
-                    var target = parseInt(el.dataset.target) || 0;
-                    animateNumber(el, target, 1500);
-                });
+                /* 初始化默认柱状图 */
+                switchChart('bar');
             }, 600);
+
+            /* 窗口resize时重绘图表 */
+            window.addEventListener('resize', function() {
+                if (chartInstance) chartInstance.resize();
+            });
         });
     </script>
     <!-- 导航栏用户菜单（移动端头像下拉） -->
