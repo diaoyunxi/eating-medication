@@ -311,6 +311,87 @@ async def delete_medication_plan(request: Request, plan_id: int):
         raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
 
 
+@router.post("/medication_settings/update/{plan_id}")
+async def update_medication_plan(request: Request, plan_id: int):
+    """更新用药计划
+
+    接收 JSON 表单数据并调用服务端更新用药计划。
+    """
+    try:
+        try:
+            payload = await request.json()
+        except Exception:
+            return JSONResponse(content={
+                "success": False,
+                "message": "请求体格式错误，需要 JSON 数据"
+            }, status_code=400)
+
+        drug_name = (payload.get("drug_name") or "").strip()
+        dosage = (payload.get("dosage") or "").strip()
+        schedule_times = payload.get("schedule_times") or []
+        frequency = (payload.get("frequency") or "daily").strip()
+        total_quantity = payload.get("total_quantity", 0)
+        remaining_quantity = payload.get("remaining_quantity")
+        unit = (payload.get("unit") or "片").strip()
+        low_stock_threshold = payload.get("low_stock_threshold", 5)
+
+        # 基础参数校验
+        if not drug_name:
+            return JSONResponse(content={"success": False, "message": "请填写药品名称"}, status_code=400)
+        if not dosage:
+            return JSONResponse(content={"success": False, "message": "请填写剂量"}, status_code=400)
+        if not schedule_times or not isinstance(schedule_times, list):
+            return JSONResponse(content={"success": False, "message": "请至少添加一个服药时间"}, status_code=400)
+        schedule_times = [t.strip() for t in schedule_times if isinstance(t, str) and t.strip()]
+        if not schedule_times:
+            return JSONResponse(content={"success": False, "message": "请至少添加一个服药时间"}, status_code=400)
+
+        # 数量转换与校验
+        try:
+            total_quantity = int(total_quantity)
+        except (TypeError, ValueError):
+            total_quantity = 0
+        if remaining_quantity is None:
+            remaining_quantity = total_quantity
+        else:
+            try:
+                remaining_quantity = int(remaining_quantity)
+            except (TypeError, ValueError):
+                remaining_quantity = total_quantity
+        try:
+            low_stock_threshold = int(low_stock_threshold)
+        except (TypeError, ValueError):
+            low_stock_threshold = 5
+
+        result = await elderly_client.update_medication_plan(
+            plan_id=plan_id,
+            drug_name=drug_name,
+            dosage=dosage,
+            schedule_times=schedule_times,
+            frequency=frequency,
+            total_quantity=total_quantity,
+            remaining_quantity=remaining_quantity,
+            unit=unit,
+            low_stock_threshold=low_stock_threshold,
+        )
+
+        if result.get("success"):
+            return JSONResponse(content={
+                "success": True,
+                "message": f"用药计划 {drug_name} 更新成功"
+            })
+        else:
+            return JSONResponse(content={
+                "success": False,
+                "message": f"更新失败: {result.get('error', '未知错误')}"
+            }, status_code=400)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("更新用药计划失败")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
+
+
 @router.post("/settings/unbind_device")
 async def unbind_device(request: Request):
     """解绑设备"""

@@ -38,6 +38,28 @@ class MedicationService:
         return db.query(MedicationPlan).filter(MedicationPlan.user_id == user_id).all()
 
     @staticmethod
+    def update_plan(db: Session, plan_id: int, user_id: int, plan_data: MedicationPlanCreate) -> MedicationPlan:
+        """更新用药计划（校验 plan_id 归属当前 user_id，防止越权修改他人计划）"""
+        plan = db.query(MedicationPlan).filter(
+            MedicationPlan.id == plan_id,
+            MedicationPlan.user_id == user_id,
+        ).first()
+        if not plan:
+            raise ValueError("用药计划不存在或不属于当前用户")
+
+        plan.drug_name = plan_data.drug_name
+        plan.dosage = plan_data.dosage
+        plan.frequency = plan_data.frequency
+        plan.schedule_times = plan_data.schedule_times
+        plan.total_quantity = plan_data.total_quantity
+        plan.remaining_quantity = plan_data.remaining_quantity
+        plan.unit = plan_data.unit
+        plan.low_stock_threshold = plan_data.low_stock_threshold
+        db.commit()
+        db.refresh(plan)
+        return plan
+
+    @staticmethod
     def get_plans_for_family(db: Session, group_id: int) -> List[MedicationPlan]:
         """获取家庭组所有老人的用药计划"""
         elderly_users = db.query(User).filter(User.group_id == group_id, User.role == "elderly").all()
