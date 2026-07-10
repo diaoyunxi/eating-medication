@@ -11,7 +11,6 @@
 3. 若 pip 输出包含 --break-system-packages (PEP 668 错误),
    自动加上该参数重新执行 pip install
 
-不修改全局 pip 配置, 通过 -i 参数临时指定镜像源。
 建议在虚拟环境中运行。
 """
 
@@ -238,7 +237,7 @@ def _run_pip(cmd):
 
 
 def install_package(pkg):
-    """安装单个包, 使用 -i 临时指定镜像源
+    """安装单个包
 
     若 pip 输出 (stdout+stderr) 包含 --break-system-packages
     (典型 PEP 668 / externally-managed-environment 错误),
@@ -254,8 +253,7 @@ def install_package(pkg):
 
     print("  正在安装", pkg_name, "...")
     base_cmd = [
-        sys.executable, "-m", "pip", "install",
-        "-i", PIP_INDEX_URL, pkg,
+        sys.executable, "-m", "pip", "install",pkg,
     ]
 
     # 第一次: 正常 pip
