@@ -101,35 +101,6 @@ async def security_headers_middleware(request: Request, call_next):
 
 
 @app.middleware("http")
-async def csrf_middleware(request: Request, call_next):
-    """CSRF 中间件：
-    - 为每个请求确保 csrf_token cookie 存在（不存在则生成并设置到响应）
-    - 将 csrf_token 注入 request.state 供模板使用
-    """
-    csrf_token = request.cookies.get("csrf_token")
-    if not csrf_token:
-        session_manager = get_session_manager(config.SECRET_KEY)
-        csrf_token = session_manager.generate_csrf_token()
-    # 注入到 request.state 供模板渲染时读取
-    request.state.csrf_token = csrf_token
-
-    response = await call_next(request)
-
-    # 如果请求中没有 csrf_token cookie，则在响应中设置
-    if not request.cookies.get("csrf_token"):
-        response.set_cookie(
-            key="csrf_token",
-            value=csrf_token,
-            httponly=False,  # 允许 JS 读取，用于 AJAX 请求附带 header
-            samesite="strict",
-            secure=config.COOKIE_SECURE,
-            max_age=86400 * 7,
-        )
-
-    return response
-
-
-@app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     """认证中间件，保护需要登录的页面。
     注意：使用 request.scope["path"]（已被前缀中间件剥离前缀后的路径）。"""
