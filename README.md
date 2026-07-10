@@ -605,39 +605,6 @@ journalctl -u eating-medication-family -f       # 家属端日志
 journalctl -u cloudflared -f                    # 隧道日志
 ```
 
-### 生产环境检查清单
-
-- [ ] `SECRET_KEY` 已设置为强随机值（服务端 + 子女端，生产模式弱密钥拒绝启动）
-- [ ] `ALLOWED_ORIGINS` 已配置为实际域名白名单（未配置则不启用 CORS）
-- [ ] `PATH_PREFIX` 与 Cloudflare 隧道路由一致
-- [ ] `ZHIPUAI_API_KEY`、`OCR_*` 已填入真实凭证
-- [ ] 数据库目录 `server/data/` 可写
-- [ ] cloudflared 隧道已建立并指向正确的本地端口（1059 / 4430）
-- [ ] systemd 单元已启用开机自启
-- [ ] 防火墙仅暴露 cloudflared 出站（本地 1059/4430 不对外）
-- [ ] 定期备份 `server/data/elderly_care.db` 与 `family_monitor/data/users.json`
-
----
-
-## 安全特性
-
-v2.3.0 完成安全加固，共修复 11 严重 + 15 高危 + 21 中危 + 20 低危问题。关键特性：
-
-- **密钥管理**：移除硬编码 `SECRET_KEY`，改用环境变量；生产模式弱密钥拒绝启动。
-- **设备认证**：所有公开接口仅通过 device_id 校验。
-- **JWT 强化**：有效期从 7 天缩短至 1 小时；含 `jti`/`type=access`；登录用户不存在也执行一次 bcrypt 防时序攻击。
-- **CORS 白名单**：从 `ALLOWED_ORIGINS` 环境变量读取，未配置则不启用 CORS（避免通配符）。
-- **CSRF 防护**：子女端所有 POST 须携带 `csrf_token`（表单字段或 `X-CSRF-Token` 头）。
-- **XSS 修复**：模板输出转义 + CSP 头（`default-src 'self'`）。
-- **安全响应头**：`X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy`。
-- **Cookie 安全**：`httponly`、`samesite=strict`、`secure`（生产）。
-- **自动更新校验**：服务端 updater 在 Release 资产中查找 SHA256SUMS 校验文件。
-- **热点加密**：老人端热点改为 WPA2 加密，密码启动时随机生成。
-- **限流**：注册 5 次/分钟/IP、AI 公开 10 次/分钟/IP、登录 5 次/分钟/IP。
-- **依赖升级**：python-jose 3.4.0（修 CVE-2024-33664）、pydantic 2.10.0（修 CVE-2024-1561）、sqlalchemy 2.0.36（修 CVE-2024-29906）、bcrypt 4.0~4.1。
-
----
-
 ## 贡献与开发指南
 
 ### 开发环境
