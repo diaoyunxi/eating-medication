@@ -6,7 +6,6 @@ DEBUG 在生产环境（PRODUCTION=true）下禁止通过 Web 修改
 """
 
 import logging
-import secrets
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -66,14 +65,8 @@ async def update_server_config(
     elderly_server_url: str = Form(""),
     server_host: str = Form("0.0.0.0"),
     server_port: int = Form(4430),
-    csrf_token: str = Form(...),
 ):
     """更新服务端连接配置"""
-    # CSRF 校验（H-2 修复：常量时间比较）
-    cookie_token = request.cookies.get("csrf_token", "")
-    if not cookie_token or not secrets.compare_digest(csrf_token, cookie_token):
-        return JSONResponse({"success": False, "message": "CSRF 校验失败"}, status_code=403)
-
     session_token = request.cookies.get("session_token")
     if not session_token:
         return JSONResponse({"success": False, "message": "未登录"}, status_code=401)

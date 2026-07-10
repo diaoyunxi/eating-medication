@@ -45,7 +45,7 @@
                 </a>
                 <div class="nav-user">
                     <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
-                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();var m=document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);fetch('{{ prefix }}/logout',{method:'POST',headers:{'X-CSRF-Token':m?m[1]:''}}).finally(function(){window.location.href='{{ prefix }}/login';});">
+                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();fetch('{{ prefix }}/logout',{method:'POST'}).finally(function(){window.location.href='{{ prefix }}/login';});">
                         <span>🚪</span>
                         <span>登出</span>
                     </a>
@@ -305,10 +305,8 @@
             };
 
             window.navLogout = function () {
-                var m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
                 fetch('{{ prefix }}/logout', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-Token': m ? m[1] : '' }
+                    method: 'POST'
                 }).finally(function () {
                     window.location.href = '{{ prefix }}/login';
                 });

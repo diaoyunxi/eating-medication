@@ -52,7 +52,7 @@
                     </a>
                     <div class="nav-user">
                         <span class="nav-username">👤 {{ request.state.user or '用户' }}</span>
-                        <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();var m=document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);fetch('{{ prefix }}/logout',{method:'POST',headers:{'X-CSRF-Token':m?m[1]:''}}).finally(function(){window.location.href='{{ prefix }}/login';});">
+                        <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();fetch('{{ prefix }}/logout',{method:'POST'}).finally(function(){window.location.href='{{ prefix }}/login';});">
                             <span>🚪</span>
                             <span>登出</span>
                         </a>
@@ -300,12 +300,6 @@
     </div>
 
     <script>
-        // 从 cookie 读取 CSRF token，用于 AJAX 请求
-        function getCsrfToken() {
-            const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
-            return match ? decodeURIComponent(match[1]) : '';
-        }
-
         // Toast通知（与 settings.html 一致的样式）
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
@@ -403,8 +397,7 @@
                 const response = await fetch('{{ prefix }}/medication_settings/add', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': getCsrfToken()
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(payload)
                 });
@@ -429,8 +422,7 @@
 
             try {
                 const response = await fetch('{{ prefix }}/medication_settings/delete/' + planId, {
-                    method: 'POST',
-                    headers: { 'X-CSRF-Token': getCsrfToken() }
+                    method: 'POST'
                 });
 
                 const data = await response.json();
@@ -482,10 +474,8 @@
             };
 
             window.navLogout = function () {
-                var m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
                 fetch('{{ prefix }}/logout', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-Token': m ? m[1] : '' }
+                    method: 'POST'
                 }).finally(function () {
                     window.location.href = '{{ prefix }}/login';
                 });

@@ -36,7 +36,6 @@
                         服务端配置
                     </h2>
                     <form action="{{ prefix }}/admin/administrator/setting/server" method="POST" class="auth-form">
-                        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                         <div class="form-group">
                             <label class="form-label" for="elderly_server_url">老人端服务器地址</label>
                             <input type="text" class="form-input" id="elderly_server_url"

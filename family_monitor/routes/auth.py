@@ -2,13 +2,12 @@
 """
 认证路由模块
 处理用户注册、登录和登出
-包含 CSRF 防护、cookie 安全标志、登录限流
+包含 cookie 安全标志、登录限流
 """
 
 import time
 import json
 import fcntl
-import secrets
 from pathlib import Path
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import RedirectResponse
@@ -79,18 +78,8 @@ async def post_login(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
-    csrf_token: str = Form(...),
 ):
     """处理登录请求"""
-    # CSRF 校验（H-2 修复：常量时间比较）
-    cookie_token = request.cookies.get("csrf_token", "")
-    if not cookie_token or not secrets.compare_digest(csrf_token, cookie_token):
-        return templates.TemplateResponse(
-            "login.html",
-            {"request": request, "app_name": config.APP_NAME, "error": "CSRF 校验失败，请刷新页面重试"},
-            status_code=403,
-        )
-
     # 登录限流（优先读取反向代理真实 IP）
     client_ip = (
         request.headers.get("CF-Connecting-IP")
@@ -150,18 +139,8 @@ async def post_register(
     username: str = Form(...),
     password: str = Form(...),
     confirm_password: str = Form(...),
-    csrf_token: str = Form(...),
 ):
     """处理注册请求"""
-    # CSRF 校验（H-2 修复：常量时间比较）
-    cookie_token = request.cookies.get("csrf_token", "")
-    if not cookie_token or not secrets.compare_digest(csrf_token, cookie_token):
-        return templates.TemplateResponse(
-            "register.html",
-            {"request": request, "app_name": config.APP_NAME, "error": "CSRF 校验失败，请刷新页面重试"},
-            status_code=403,
-        )
-
     user_manager = get_user_manager(config.DATA_DIR)
 
     success, message = user_manager.register_user(username, password, confirm_password)
@@ -188,11 +167,7 @@ async def post_register(
 
 @router.post("/logout")
 async def logout(request: Request):
-    """处理登出请求：POST + CSRF 校验，先使会话失效，再删除 cookie"""
-    csrf_token = request.headers.get("X-CSRF-Token")
-    cookie_token = request.cookies.get("csrf_token")
-    if not csrf_token or not cookie_token or not secrets.compare_digest(csrf_token, cookie_token):
-        raise HTTPException(status_code=403, detail="CSRF token invalid")
+    """处理登出请求：POST，先使会话失效，再删除 cookie"""
     session_token = request.cookies.get("session_token")
     if session_token:
         session_manager = get_session_manager(config.SECRET_KEY)
@@ -200,5 +175,4 @@ async def logout(request: Request):
 
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(key="session_token")
-    response.delete_cookie(key="csrf_token")
     return response

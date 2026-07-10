@@ -4,7 +4,6 @@
 S9 修复：增加 /chat/history BFF 代理接口，从服务端获取聊天历史
 """
 
-import secrets
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -15,13 +14,6 @@ templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
 templates.env.cache = {}
 # 注入路径前缀变量，供模板链接加前缀
 templates.env.globals["prefix"] = config.PATH_PREFIX
-
-
-def _check_csrf(request: Request) -> bool:
-    """校验 X-CSRF-Token header 是否与 cookie 一致（H-2 修复：常量时间比较防止时序攻击）"""
-    cookie_token = request.cookies.get("csrf_token", "")
-    header_token = request.headers.get("X-CSRF-Token", "")
-    return bool(cookie_token and header_token and secrets.compare_digest(cookie_token, header_token))
 
 
 @router.get("/chat")
@@ -57,8 +49,6 @@ async def chat(request: Request):
 @router.get("/chat/history")
 async def chat_history(request: Request, limit: int = 50):
     """S9 修复：BFF 代理聊天历史接口"""
-    if not _check_csrf(request):
-        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     # 边界校验：限制 1~200，防止过大查询拖慢服务
     limit = max(1, min(limit, 200))
     messages = await elderly_client.get_chat_history(limit=limit)

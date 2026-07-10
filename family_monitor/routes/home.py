@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 首页路由 - 完善版
-所有 POST 路由均通过 X-CSRF-Token header 校验 CSRF
 """
 
-import secrets
 import logging
 from datetime import datetime
 from fastapi import APIRouter, Request, Form, HTTPException
@@ -22,13 +20,6 @@ templates.env.cache = {}
 templates.env.globals["prefix"] = config.PATH_PREFIX
 # 注入当前年份变量，供页脚版权信息使用（替换原硬编码年份）
 templates.env.globals["current_year"] = datetime.now().year
-
-
-def _check_csrf(request: Request) -> bool:
-    """校验 X-CSRF-Token header 是否与 cookie 一致（H-2 修复：常量时间比较）"""
-    cookie_token = request.cookies.get("csrf_token", "")
-    header_token = request.headers.get("X-CSRF-Token", "")
-    return bool(cookie_token and header_token and secrets.compare_digest(cookie_token, header_token))
 
 
 def _require_login(request: Request) -> bool:
@@ -157,9 +148,6 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
     # G11：显式校验登录
     if not _require_login(request):
         return JSONResponse(content={"success": False, "message": "请先登录"}, status_code=401)
-    # CSRF 校验
-    if not _check_csrf(request):
-        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     try:
         # 1. 先校验设备是否已在服务端注册
         check_result = await elderly_client.check_device(device_id)
@@ -214,11 +202,7 @@ async def add_medication_plan(request: Request):
     """添加用药计划
 
     接收 JSON 表单数据并调用服务端设置用药计划。
-    CSRF 通过 X-CSRF-Token header 校验。
     """
-    # CSRF 校验
-    if not _check_csrf(request):
-        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     try:
         # 解析 JSON 请求体
         try:
@@ -310,9 +294,6 @@ async def add_medication_plan(request: Request):
 @router.post("/medication_settings/delete/{plan_id}")
 async def delete_medication_plan(request: Request, plan_id: int):
     """删除用药计划"""
-    # CSRF 校验
-    if not _check_csrf(request):
-        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     try:
         result = await elderly_client.delete_medication_plan(plan_id)
         if result.get("success"):
@@ -333,9 +314,6 @@ async def delete_medication_plan(request: Request, plan_id: int):
 @router.post("/settings/unbind_device")
 async def unbind_device(request: Request):
     """解绑设备"""
-    # CSRF 校验
-    if not _check_csrf(request):
-        return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
     try:
         elderly_client.clear_bound_device()
         return JSONResponse(content={

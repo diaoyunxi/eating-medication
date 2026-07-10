@@ -374,7 +374,7 @@
     </div>
 
     <script>
-        // 读取 cookie 工具函数（用于 CSRF token）
+        // 读取 cookie 工具函数
         function getCookie(name) {
             const value = `; ${document.cookie}`;
             const parts = value.split(`; ${name}=`);
@@ -463,12 +463,9 @@
         }
 
         async function loadHistory() {
-            // S9 修复：改用子女端 BFF 代理接口 /chat/history（带 CSRF header 鉴权）
+            // S9 修复：改用子女端 BFF 代理接口 /chat/history
             try {
-                const csrfToken = getCookie('csrf_token');
-                const resp = await fetch(`{{ prefix }}/chat/history?limit=100`, {
-                    headers: { 'X-CSRF-Token': csrfToken }
-                });
+                const resp = await fetch(`{{ prefix }}/chat/history?limit=100`);
                 if (resp.ok) {
                     const data = await resp.json();
                     const msgs = data.messages || [];
