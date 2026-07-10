@@ -4,8 +4,11 @@
 import os
 import secrets
 import json
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 
 def _generate_secret_key():
@@ -52,13 +55,28 @@ class Config:
 
         self.APP_NAME = os.getenv('APP_NAME', self._config_data.get('APP_NAME', '子女守护中心'))
 
-        # SECRET_KEY：优先从环境变量读取，其次从配置文件，均为空则生成临时密钥
+        # SECRET_KEY：优先从环境变量读取，其次从配置文件
         # 注意：SECRET_KEY 仅通过 .env 配置，不应写入 config.json
         secret_key = os.getenv('SECRET_KEY') or self._config_data.get('SECRET_KEY', '')
         if not secret_key:
+            # 生产环境（PRODUCTION=true）或非调试模式（DEBUG=false）必须显式配置 SECRET_KEY，拒绝启动
+            is_production = os.getenv('PRODUCTION', 'false').lower() == 'true'
+            if is_production or not self.DEBUG:
+                raise RuntimeError(
+                    "SECRET_KEY 未配置：生产/非调试环境拒绝以降级密钥启动，"
+                    "请通过 .env 设置 SECRET_KEY。"
+                )
+            # 仅 DEBUG=true 的开发环境允许降级，使用 logger.warning 而非 print
             secret_key = _generate_secret_key()
-            print("⚠️ SECRET_KEY 未配置，已生成临时密钥，重启后会话将失效。请通过 .env 配置 SECRET_KEY")
+            logger.warning(
+                "SECRET_KEY 未配置，已生成临时密钥，重启后会话将失效。"
+                "请通过 .env 配置 SECRET_KEY。"
+            )
         self.SECRET_KEY = secret_key
+
+        # 设备共享密钥：用于后端 API 调用时注入 X-Device-Secret header 做服务端鉴权
+        # 未配置时保持兼容（不发送该 header）
+        self.DEVICE_SECRET = os.getenv('DEVICE_SECRET', '')
 
         # CORS 允许的来源（逗号分隔），默认仅允许本地
         allowed_origins_env = os.getenv(

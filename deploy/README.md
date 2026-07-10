@@ -18,8 +18,11 @@
 sudo cp eating-medication-server.service eating-medication-family.service /etc/systemd/system/
 sudo cp cloudflared.service /etc/systemd/system/
 
-# 2. 编辑 cloudflared.service，把 <TUNNEL_TOKEN> 替换为 Cloudflare Zero Trust 控制台中的隧道 token
-sudo vi /etc/systemd/system/cloudflared.service
+# 2. 创建 cloudflared 隧道 token 环境文件（避免命令行暴露 token）
+sudo mkdir -p /etc/cloudflared
+echo "TUNNEL_TOKEN=你的隧道token" | sudo tee /etc/cloudflared/cloudflared.env
+sudo chmod 0600 /etc/cloudflared/cloudflared.env
+sudo chown cloudflared:cloudflared /etc/cloudflared/cloudflared.env
 
 # 3. 重载 systemd 并启用开机自启
 sudo systemctl daemon-reload
@@ -39,7 +42,7 @@ sudo systemctl status eating-medication-server eating-medication-family cloudfla
 ## Cloudflare 隧道配置
 
 `cloudflared-config.yml` 仅作示例，推荐通过 Cloudflare Zero Trust 控制台配置隧道路由：
-1. 控制台创建隧道，复制 token 填入 `cloudflared.service`。
+1. 控制台创建隧道，复制 token 写入 `/etc/cloudflared/cloudflared.env`（内容 `TUNNEL_TOKEN=xxx`，权限 0600），`cloudflared.service` 通过 `EnvironmentFile` 读取，避免命令行暴露。
 2. 添加两条 Public Hostname 路由：
    - 子路径 `/eating-medication/server` → `http://localhost:1059`
    - 子路径 `/eating-medication/family` → `http://localhost:4430`

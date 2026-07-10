@@ -4,19 +4,23 @@ HTTP 客户端模块
 负责与服务器通信：设备注册、用药计划轮询、服药确认等
 仅通过 device_id 标识设备
 """
+import logging
 import requests
 from datetime import datetime
 from services.device_id import get_device_id
-from utils.logger import setup_logger
 
-logger = setup_logger()
+logger = logging.getLogger("ElderlyAssistant")
 
 
 class HTTPClient:
     def __init__(self, config):
-        self.config = config['server']
-        self.base_url = self.config['base_url']
-        self.timeout = self.config.get('timeout', 10)
+        # P7 修复：安全取值，避免 config 缺少 server 键时构造崩溃
+        server_cfg = config.get('server') or {}
+        self.config = server_cfg
+        self.base_url = server_cfg.get('base_url', '')
+        if not self.base_url:
+            raise ValueError("配置缺少 server.base_url，请检查config.yaml")
+        self.timeout = server_cfg.get('timeout', 10)
         self.device_id = get_device_id()
 
     def _headers(self):
@@ -92,7 +96,14 @@ class HTTPClient:
             resp = requests.get(url, timeout=self.timeout, headers=self._headers())
             if resp.status_code == 200:
                 data = resp.json()
-                return data.get('schedules', []) or []
+                # P8 修复：校验响应类型，避免非 dict 响应调用 .get 崩溃
+                if isinstance(data, dict):
+                    return data.get('schedules', []) or []
+                elif isinstance(data, list):
+                    return data
+                else:
+                    logger.warning(f"用药计划响应格式异常: {type(data)}")
+                    return []
             return []
         except Exception as e:
             logger.warning(f"拉取用药计划异常: {e}")

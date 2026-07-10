@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 公开端点 - 供老人端设备使用。
-仅通过 device_id 校验设备是否已注册。
+F-01 修复：除 device_id 外，还需通过 X-Device-Token 头校验设备令牌，
+防止仅凭 device_id 即可访问设备数据。register_device 例外（首次注册无 token）。
 """
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from pydantic import BaseModel
@@ -53,6 +54,29 @@ def _get_device_user(db: Session, device_id: str) -> User:
     user = db.query(User).filter(User.username == device_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="设备未注册")
+    return user
+
+
+def _get_device_user_authed(db: Session, device_id: str, device_token: Optional[str]) -> User:
+    """查找设备对应的真实用户并校验 device_token
+
+    F-01 修复：设备端点除 device_id 外，还需校验 X-Device-Token 头，
+    防止仅凭 device_id 即可访问设备数据。
+
+    兼容策略：若用户尚未设置 device_token（旧数据），则放行，允许其通过
+    register_device 补领令牌后再生效。
+
+    :param db: 数据库会话
+    :param device_id: 设备 ID
+    :param device_token: 请求头 X-Device-Token 中的设备令牌
+    :return: 设备关联的用户
+    :raises HTTPException: 设备未注册(404)或令牌不匹配(403)
+    """
+    user = _get_device_user(db, device_id)
+    # 若用户已设置 device_token，则必须校验请求头中的 token 是否匹配
+    if user.device_token:
+        if not device_token or not secrets.compare_digest(user.device_token, device_token):
+            raise HTTPException(status_code=403, detail="设备令牌无效或缺失")
     return user
 
 
@@ -123,6 +147,8 @@ async def register_device(
 
     if not user:
         # 3. 都找不到，创建虚拟用户（待家属后续绑定到真实老人）
+        # F-01：生成设备访问令牌
+        device_token = secrets.token_urlsafe(32)
         user = User(
             username=req.device_id,
             # 生成不可登录的随机密码
@@ -130,24 +156,31 @@ async def register_device(
             full_name=req.device_name or req.device_id,
             role="elderly",
             last_heartbeat_at=datetime.now(timezone.utc),
+            device_token=device_token,
         )
         db.add(user)
         db.commit()
         db.refresh(user)
         logger.info(f"自动创建设备用户（待绑定）: {_masked}")
-        return {"status": "ok", "user_id": user.id}
+        return {"status": "ok", "user_id": user.id, "device_token": device_token}
 
     # 已注册设备 - 心跳上报
     user.last_heartbeat_at = datetime.now(timezone.utc)
+    # F-01：若旧用户尚无 device_token，补生成一个并返回（兼容旧数据）
+    device_token = user.device_token
+    if not device_token:
+        device_token = secrets.token_urlsafe(32)
+        user.device_token = device_token
     db.commit()
     logger.info(f"设备心跳更新: {_masked}")
-    return {"status": "ok", "user_id": user.id}
+    return {"status": "ok", "user_id": user.id, "device_token": device_token}
 
 
 @router.post("/device/offline")
 async def device_offline(
     req: DeviceOffline,
     db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
     """设备主动下线通知
 
@@ -156,19 +189,14 @@ async def device_offline(
     避免子女端在心跳超时窗口内看到虚假的"在线"状态。
     注意：掉电/SIGKILL 等异常退出仍需依赖心跳超时判定。
 
-    查找逻辑同 register_device：优先 device_id 字段，回退 username。
+    F-01：需校验 X-Device-Token。
     """
     _did = req.device_id or ""
     _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
     logger.info(f"设备主动下线: {_masked}")
 
-    # 优先按 device_id 字段查找（真实老人），回退 username（旧虚拟用户）
-    user = db.query(User).filter(User.device_id == req.device_id).first()
-    if not user:
-        user = db.query(User).filter(User.username == req.device_id).first()
-    if not user:
-        # 设备未注册，无需下线
-        return {"status": "ok", "message": "设备未注册，无需下线"}
+    # F-01：校验 device_token
+    user = _get_device_user_authed(db, req.device_id, device_token)
 
     # 将 last_heartbeat_at 置为很早的时间，使在线判断立即返回 false
     user.last_heartbeat_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
@@ -181,13 +209,14 @@ async def device_offline(
 async def device_message(
     req: DeviceMessage,
     db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
-    """接收设备上报消息（仅校验 device_id 是否已注册）"""
+    """接收设备上报消息（F-01：校验 device_id 与 X-Device-Token）"""
     # H-3 修复：日志脱敏
     _did = req.device_id or ""
     _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
     logger.info(f"收到设备消息: {_masked} - {req.message_type}")
-    user = _get_device_user(db, req.device_id)
+    user = _get_device_user_authed(db, req.device_id, device_token)
 
     # 根据消息类型处理
     if req.message_type == "emergency":
@@ -201,8 +230,9 @@ async def device_message(
 async def get_device_status(
     device_id: str,
     db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
-    """获取设备状态信息（供子女端查询，仅校验 device_id）
+    """获取设备状态信息（供子女端查询，F-01：校验 device_id 与 X-Device-Token）
 
     修复 #21 设备状态 500 错误：
     - 设备-用户关联：通过 _get_device_user 反查到真实老人（修复虚拟用户问题）
@@ -212,7 +242,7 @@ async def get_device_status(
     _did = device_id or ""
     _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
     logger.info(f"查询设备状态: {_masked}")
-    user = _get_device_user(db, device_id)
+    user = _get_device_user_authed(db, device_id, device_token)
 
     # 获取设备相关统计（G2 修复：使用 count 聚合，避免全量加载记录）
     total_plans = db.query(MedicationPlan).filter(MedicationPlan.user_id == user.id).count()
@@ -252,8 +282,12 @@ async def ai_ask(
     req: AIQuestion,
     request: Request,
     db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
-    """AI问答（设备端，C5.6/M21：基于 IP 限流，每分钟每 IP 最多 10 次）"""
+    """AI问答（设备端，C5.6/M21：基于 IP 限流，每分钟每 IP 最多 10 次）
+
+    F-01：若提供 device_id，需校验 X-Device-Token。
+    """
     # C5.6/M21：限流
     client_ip = request.client.host if request.client else "unknown"
     if not check_rate_limit(f"ai_ask:{client_ip}", _AI_RATE_LIMIT):
@@ -262,26 +296,25 @@ async def ai_ask(
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="问题不能为空")
 
-    # H-3 修复：日志脱敏，仅记录 device_id 前4位+后4位
-    _did = req.device_id or ""
-    _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
-    logger.info(f"设备AI提问: {_masked} - {req.question}")
+    # F-01：若提供 device_id，校验设备令牌
+    user = None
+    if req.device_id:
+        _did = req.device_id or ""
+        _masked = _did[:4] + "***" + _did[-4:] if len(_did) > 8 else "***"
+        logger.info(f"设备AI提问: {_masked} - {req.question}")
+        user = _get_device_user_authed(db, req.device_id, device_token)
+
     answer = await AIService.ask(req.question)
 
     # 记录问答日志
-    if req.device_id:
-        # 优先按 device_id 字段查找（真实老人），回退 username（旧虚拟用户）
-        user = db.query(User).filter(User.device_id == req.device_id).first()
-        if not user:
-            user = db.query(User).filter(User.username == req.device_id).first()
-        if user:
-            log = AIQueryLog(
-                user_id=user.id,
-                question=req.question,
-                answer=answer,
-            )
-            db.add(log)
-            db.commit()
+    if user:
+        log = AIQueryLog(
+            user_id=user.id,
+            question=req.question,
+            answer=answer,
+        )
+        db.add(log)
+        db.commit()
 
     return {"answer": answer}
 
@@ -306,9 +339,10 @@ async def check_device(device_id: str, db: Session = Depends(get_db)):
 async def get_device_schedule(
     device_id: str,
     db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
-    """获取设备的用药计划（供老人端每分钟轮询，仅校验 device_id）"""
-    user = _get_device_user(db, device_id)
+    """获取设备的用药计划（供老人端每分钟轮询，F-01：校验 device_id 与 X-Device-Token）"""
+    user = _get_device_user_authed(db, device_id, device_token)
 
     plans = db.query(MedicationPlan).filter(MedicationPlan.user_id == user.id).all()
 
@@ -337,9 +371,10 @@ async def get_device_schedule(
 async def set_device_medication_plan(
     req: FamilyMedicationPlan,
     db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
-    """家属通过设备ID设置用药计划（仅校验 device_id）"""
-    user = _get_device_user(db, req.device_id)
+    """家属通过设备ID设置用药计划（F-01：校验 device_id 与 X-Device-Token）"""
+    user = _get_device_user_authed(db, req.device_id, device_token)
 
     plan_data = MedicationPlanCreate(
         drug_name=req.drug_name,
@@ -369,9 +404,10 @@ async def set_device_medication_plan(
 async def get_device_plans(
     device_id: str,
     db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
-    """获取设备的所有用药计划（供子女端查看，仅校验 device_id）"""
-    user = _get_device_user(db, device_id)
+    """获取设备的所有用药计划（供子女端查看，F-01：校验 device_id 与 X-Device-Token）"""
+    user = _get_device_user_authed(db, device_id, device_token)
 
     plans = MedicationService.get_plans_by_user(db, user.id)
     return {
@@ -398,9 +434,10 @@ async def get_device_records(
     device_id: str,
     limit: int = 100,
     db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
-    """获取设备的服药记录（F2 修复：供子女端 BFF 调用，仅校验 device_id）"""
-    user = _get_device_user(db, device_id)
+    """获取设备的服药记录（F2 修复：供子女端 BFF 调用，F-01：校验 device_id 与 X-Device-Token）"""
+    user = _get_device_user_authed(db, device_id, device_token)
 
     # 限制 limit 范围，防止一次拉取过多记录
     limit = max(1, min(limit, 500))
@@ -432,9 +469,10 @@ async def get_device_chat_history(
     device_id: str,
     limit: int = 50,
     db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
-    """获取设备相关的聊天历史（S9 修复：供子女端 BFF 调用，仅校验 device_id）"""
-    user = _get_device_user(db, device_id)
+    """获取设备相关的聊天历史（S9 修复：供子女端 BFF 调用，F-01：校验 device_id 与 X-Device-Token）"""
+    user = _get_device_user_authed(db, device_id, device_token)
 
     limit = max(1, min(limit, 200))
     messages = (
@@ -470,9 +508,10 @@ async def delete_device_medication_plan(
     plan_id: int,
     device_id: str,
     db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
-    """删除用药计划（校验设备归属）"""
-    user = _get_device_user(db, device_id)
+    """删除用药计划（F-01：校验 device_id 与 X-Device-Token 及设备归属）"""
+    user = _get_device_user_authed(db, device_id, device_token)
     plan = db.query(MedicationPlan).filter(
         MedicationPlan.id == plan_id,
         MedicationPlan.user_id == user.id

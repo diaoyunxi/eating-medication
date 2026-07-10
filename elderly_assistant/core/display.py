@@ -4,10 +4,10 @@
 行空板M10专用：使用 unihiker 库的 GUI 类控制屏幕显示
 所有 pinpong / unihiker 库的导入放在 try-except 中，在非 M10 环境下优雅降级
 """
+import logging
 from datetime import datetime
-from utils.logger import setup_logger
 
-logger = setup_logger()
+logger = logging.getLogger("ElderlyAssistant")
 
 
 class Display:

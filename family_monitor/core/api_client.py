@@ -87,6 +87,9 @@ class ElderlyAPIClient:
         headers = {}
         if self._device_id:
             headers["X-Device-ID"] = self._device_id
+        # 注入共享设备密钥用于服务端鉴权（未配置则保持兼容，不发送）
+        if config.DEVICE_SECRET:
+            headers["X-Device-Secret"] = config.DEVICE_SECRET
         return headers
 
     async def register_device(self, device_id: str, device_name: str = "") -> Dict[str, Any]:

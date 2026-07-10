@@ -7,7 +7,7 @@ FastAPI 应用入口 - 最终版
 import logging
 import sys
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
@@ -19,7 +19,6 @@ from app.middleware.cors import setup_cors
 from app.api.v1.endpoints import (
     auth, users, medication, ai, vision, public, chat
 )
-from app.api.v1.websocket import router as ws_router
 from app.tasks.stock_checker import start_scheduler, shutdown_scheduler
 
 # 配置更详细的日志
@@ -60,7 +59,7 @@ async def lifespan(app: FastAPI):
         from alembic.config import Config
         from alembic import command
         import os as _os
-        alembic_ini = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "migrations", "alembic.ini")
+        alembic_ini = _os.path.join(_os.path.dirname(__file__), "migrations", "alembic.ini")
         if _os.path.exists(alembic_ini):
             alembic_cfg = Config(alembic_ini)
             command.upgrade(alembic_cfg, "head")
@@ -97,7 +96,7 @@ PATH_PREFIX = settings.PATH_PREFIX.rstrip("/")
 # 创建 FastAPI 实例
 app = FastAPI(
     title=settings.APP_NAME,
-    version="2.2.0",
+    version="2.7.3",
     description="老人用药管理智能助手后端 API",
     debug=settings.DEBUG,
     lifespan=lifespan,
@@ -112,27 +111,7 @@ setup_cors(app)
 # 请求日志中间件
 app.add_middleware(LoggingMiddleware)
 
-# 路径前缀中间件（Cloudflare 隧道子路径，最先执行：剥离前缀供路由匹配，响应时给重定向加前缀）
-@app.middleware("http")
-async def path_prefix_middleware(request: Request, call_next):
-    if PATH_PREFIX:
-        original = request.scope.get("path", "")
-        if original == PATH_PREFIX:
-            request.scope["path"] = "/"
-            request.scope["raw_path"] = b"/"
-        elif original.startswith(PATH_PREFIX + "/"):
-            new_path = original[len(PATH_PREFIX):]
-            request.scope["path"] = new_path
-            request.scope["raw_path"] = new_path.encode()
-        response = await call_next(request)
-        if response.status_code in (301, 302, 303, 307, 308):
-            location = response.headers.get("location", "")
-            if (location.startswith("/")
-                    and not location.startswith(PATH_PREFIX + "/")
-                    and location != PATH_PREFIX):
-                response.headers["location"] = PATH_PREFIX + location
-        return response
-    return await call_next(request)
+# S13 修复：移除手动 path_prefix 中间件，前缀剥离统一由 root_path 处理，避免双重处理
 
 # 全局异常处理器
 add_exception_handlers(app)
@@ -148,8 +127,8 @@ app.include_router(vision.router, prefix=api_prefix)
 app.include_router(public.router, prefix=api_prefix)
 app.include_router(chat.router, prefix=api_prefix)
 
-# WebSocket 路由（独立路径，不加 /api/v1 前缀）
-app.include_router(ws_router, prefix="/ws")
+# S8 修复：移除冲突的 ws_router（/ws 与 chat.py 的 /chat/ws/{user_id} 重叠）
+# WebSocket 聊天功能统一由 chat.py 的 ws_chat 提供
 
 # ==================== 健康检查 ====================
 

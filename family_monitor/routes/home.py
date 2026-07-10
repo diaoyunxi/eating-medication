@@ -5,11 +5,14 @@
 """
 
 import secrets
+import logging
 from datetime import datetime
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from core import config, elderly_client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
@@ -186,7 +189,8 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
                 "message": f"绑定失败: {result.get('error', '未知错误')}"
             }, status_code=400)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("绑定设备失败")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
 
 
 @router.get("/medication_settings")
@@ -299,7 +303,8 @@ async def add_medication_plan(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("添加用药计划失败")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
 
 
 @router.post("/medication_settings/delete/{plan_id}")
@@ -321,7 +326,8 @@ async def delete_medication_plan(request: Request, plan_id: int):
                 "message": f"删除失败: {result.get('error', '未知错误')}"
             }, status_code=400)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("删除用药计划失败")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
 
 
 @router.post("/settings/unbind_device")
@@ -337,4 +343,5 @@ async def unbind_device(request: Request):
             "message": "设备已解绑"
         })
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("解绑设备失败")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")

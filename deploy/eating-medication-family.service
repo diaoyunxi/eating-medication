@@ -17,6 +17,14 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 Environment=PYTHONUNBUFFERED=1
+# 安全加固
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/eating-medication
+# 环境变量文件（前缀 - 表示不存在时不报错）
+EnvironmentFile=-/opt/eating-medication/family_monitor/.env
 # 如需在此处覆盖 .env / config.json，可加 Environment= 行
 
 [Install]

@@ -1,5 +1,4 @@
 ﻿# -*- coding: utf-8 -*-
-import asyncio
 import logging
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
@@ -48,8 +47,12 @@ class MedicationService:
         return db.query(MedicationPlan).filter(MedicationPlan.user_id.in_(elderly_ids)).all()
 
     @staticmethod
-    def take_medication(db: Session, user_id: int, req: TakeMedicationRequest) -> MedicationRecord:
-        """记录服药并扣减库存（H9：原子扣减 + 去重 + 状态计算）"""
+    async def take_medication(db: Session, user_id: int, req: TakeMedicationRequest) -> MedicationRecord:
+        """记录服药并扣减库存（H9：原子扣减 + 去重 + 状态计算）
+
+        F-02 修复：改为 async def，通知部分直接 await，避免同步函数中 asyncio.run
+        访问主事件循环导致 WebSocket 推送失败。
+        """
         from sqlalchemy import update
 
         plan = db.query(MedicationPlan).filter(
@@ -113,11 +116,12 @@ class MedicationService:
         db.refresh(record)
 
         # 服药后通知家属（仅在确实服药时）
+        # F-02 修复：直接 await 异步通知，不再使用 asyncio.run
         if status == "taken":
             try:
                 from app.websocket.notifier import notifier
                 taken_time_str = record.taken_time.isoformat() if record.taken_time else None
-                asyncio.run(notifier.notify_taken_medication(db, user_id, plan.drug_name, taken_time_str))
+                await notifier.notify_taken_medication(db, user_id, plan.drug_name, taken_time_str)
             except Exception as e:
                 logger.error(f"服药通知发送失败: {e}")
 

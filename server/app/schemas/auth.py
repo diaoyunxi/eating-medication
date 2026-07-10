@@ -7,7 +7,7 @@ from app.utils.validators import is_valid_phone, is_valid_username, is_valid_pas
 
 class RegisterReq(BaseModel):
     """用户注册请求"""
-    username: str = Field(..., min_length=3, max_length=50, description="用户名")
+    username: str = Field(..., min_length=3, max_length=20, description="用户名")
     password: str = Field(..., min_length=6, max_length=100, description="密码")
     full_name: str = Field(..., min_length=1, max_length=50, description="姓名")
     role: str = Field(..., description="角色: elderly 或 family")

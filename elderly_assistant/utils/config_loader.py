@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import copy
 import yaml
 import os
 
@@ -35,23 +36,23 @@ def load_config(config_path="config.yaml"):
     """加载配置，如文件不存在或为空则返回默认配置"""
     if not os.path.exists(config_path):
         _save_default_config(config_path)
-        return DEFAULT_CONFIG.copy()
+        return copy.deepcopy(DEFAULT_CONFIG)
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             content = f.read().strip()
             if not content:
                 _save_default_config(config_path)
-                return DEFAULT_CONFIG.copy()
+                return copy.deepcopy(DEFAULT_CONFIG)
             config = yaml.safe_load(content)
             if config is None:
                 _save_default_config(config_path)
-                return DEFAULT_CONFIG.copy()
+                return copy.deepcopy(DEFAULT_CONFIG)
     except Exception:
         _save_default_config(config_path)
-        return DEFAULT_CONFIG.copy()
+        return copy.deepcopy(DEFAULT_CONFIG)
 
     # 深度合并默认值，保证新字段出现
-    merged = _deep_merge(DEFAULT_CONFIG.copy(), config)
+    merged = _deep_merge(copy.deepcopy(DEFAULT_CONFIG), config)
     return merged
 
 

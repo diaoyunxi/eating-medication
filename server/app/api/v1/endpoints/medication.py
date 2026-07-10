@@ -39,16 +39,19 @@ def list_plans(
     return []
 
 @router.post("/take")
-def take_medication(
+async def take_medication(
     req: TakeMedicationRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """记录服药（仅老人）"""
+    """记录服药（仅老人）
+
+    F-02 修复：端点改为 async def，await 异步的 take_medication。
+    """
     if current_user.role != "elderly":
         raise HTTPException(status_code=403, detail="只有老人可以记录服药")
     try:
-        record = MedicationService.take_medication(db, current_user.id, req)
+        record = await MedicationService.take_medication(db, current_user.id, req)
         return {"status": "success", "record_id": record.id}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -139,10 +139,19 @@ def _is_protected_path(rel_path: str) -> bool:
 # ============================================================
 # GitHub API 与版本比较
 # ============================================================
+def _gh_headers():
+    """构建 GitHub API 请求头，优先注入 PAT 提升速率限制并认证"""
+    headers = {"User-Agent": "eating-medication-updater"}
+    gh_token = os.environ.get("GITHUB_TOKEN")
+    if gh_token:
+        headers["Authorization"] = f"token {gh_token}"
+    return headers
+
+
 def _fetch_latest_release():
     """从 GitHub 获取最新 Release 信息（含资产列表）"""
     url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-    req = urllib.request.Request(url, headers={"User-Agent": "eating-medication"})
+    req = urllib.request.Request(url, headers=_gh_headers())
     with urllib.request.urlopen(req, timeout=10) as resp:
         return json.loads(resp.read().decode())
 
@@ -156,7 +165,7 @@ def _fetch_latest_version():
         logger.warning(f"获取 Release 失败: {e}")
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/tags"
-        req = urllib.request.Request(url, headers={"User-Agent": "eating-medication"})
+        req = urllib.request.Request(url, headers=_gh_headers())
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode())
             if data:
@@ -199,7 +208,7 @@ def _find_sha256_asset(release_data):
 
 def _download_text(url):
     """下载文本内容"""
-    req = urllib.request.Request(url, headers={"User-Agent": "eating-medication"})
+    req = urllib.request.Request(url, headers=_gh_headers())
     with urllib.request.urlopen(req, timeout=15) as resp:
         return resp.read().decode("utf-8", errors="replace")
 
@@ -227,7 +236,7 @@ def _download_file_with_hash(url, target_path, expected_hash=None):
     """下载文件到 target_path，可选校验 SHA256"""
     h = hashlib.sha256()
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "eating-medication"})
+        req = urllib.request.Request(url, headers=_gh_headers())
         with urllib.request.urlopen(req, timeout=300) as resp:
             with open(target_path, "wb") as f:
                 while True:
@@ -242,13 +251,17 @@ def _download_file_with_hash(url, target_path, expected_hash=None):
             os.remove(target_path)
         return False
 
-    if expected_hash:
-        actual = h.hexdigest().lower()
-        if actual != expected_hash.lower():
-            logger.warning(f"[更新检查] SHA256 校验失败: 期望 {expected_hash}，实际 {actual}")
+    if not expected_hash:
+        logger.warning("[更新检查] 缺少期望哈希，拒绝未校验的下载")
+        if os.path.exists(target_path):
             os.remove(target_path)
-            return False
-        logger.info("[更新检查] SHA256 校验通过")
+        return False
+    actual = h.hexdigest().lower()
+    if actual != expected_hash.lower():
+        logger.warning(f"[更新检查] SHA256 校验失败: 期望 {expected_hash}，实际 {actual}")
+        os.remove(target_path)
+        return False
+    logger.info("[更新检查] SHA256 校验通过")
     return True
 
 
@@ -313,6 +326,10 @@ def _perform_update(zip_path, project_dir):
 
     # 创建临时解压目录
     tmp_dir = Path(tempfile.mkdtemp(prefix="update_"))
+    # 更新前备份整个项目目录，便于失败时回滚
+    import time
+    backup_dir = f"{project_dir}.bak.{int(time.time())}"
+    shutil.copytree(project_dir, backup_dir)
     try:
         logger.info(f"[更新检查] 解压到临时目录: {tmp_dir}")
         _safe_extract_zip(str(zip_path), str(tmp_dir))
@@ -379,11 +396,21 @@ def _perform_update(zip_path, project_dir):
             else:
                 skipped_count += 1
 
+        # 校验关键文件存在，确认更新完整性
+        if not (Path(project_dir) / "main.py").exists():
+            raise RuntimeError("更新后main.py缺失")
+
         logger.info(f"[更新检查] 更新完成: 复制 {updated_count} 个文件，跳过 {skipped_count} 个保护文件")
+        # 更新成功，清理备份
+        shutil.rmtree(backup_dir, ignore_errors=True)
+        logger.info("[更新] 完成，已清理备份")
         return True, updated_count, skipped_count
 
     except Exception as e:
-        logger.error(f"[更新检查] 更新过程出错: {e}")
+        logger.error(f"[更新] 失败，回滚: {e}")
+        # 回滚：用备份恢复项目目录
+        shutil.rmtree(project_dir, ignore_errors=True)
+        shutil.move(backup_dir, str(project_dir))
         return False, 0, 0
     finally:
         # 清理临时目录
@@ -465,7 +492,12 @@ def check_for_update(auto_pull=False):
             logger.info("[更新检查] 提示：设置 auto_pull=True 可启用安全自动更新（保留配置文件与数据库）")
             return
 
-        # 自动更新流程
+        # 自动更新流程：缺少校验文件时拒绝自动更新（安全要求）
+        if sha_sums is None:
+            logger.error("[更新检查] 未找到SHA256校验文件，出于安全考虑拒绝自动更新")
+            logger.info(f"[更新检查] 请手动访问 {release_url} 下载并人工校验")
+            return
+
         logger.warning("⚠️ 自动更新：将下载并安装新版本")
         logger.info("[更新检查] 保护文件将保留：.env、config.json、data/、logs/、*.db 等")
 

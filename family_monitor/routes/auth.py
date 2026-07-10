@@ -6,7 +6,10 @@
 """
 
 import time
+import json
+import fcntl
 import secrets
+from pathlib import Path
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -22,24 +25,41 @@ templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
 # 注入路径前缀变量，供模板链接加前缀
 templates.env.globals["prefix"] = config.PATH_PREFIX
 
-# 登录限流：内存 dict，记录每 IP 的登录尝试时间戳
-_login_attempts: dict[str, list[float]] = {}
+# 登录限流：基于文件持久化（data/login_attempts.json）+ fcntl 排他锁，
+# 支持多 worker/多进程共享限流计数，避免内存 dict 在多进程下失效
+_ATTEMPTS_FILE = Path(__file__).resolve().parent.parent / "data" / "login_attempts.json"
 
 
 def _check_login_rate_limit(client_ip: str) -> bool:
-    """检查登录限流：每分钟每 IP 最多 5 次登录尝试"""
+    """检查登录限流：每分钟每 IP 最多 5 次登录尝试（文件持久化 + fcntl 锁，支持多进程）"""
     now = time.time()
-    # 清理超过 60 秒的记录
-    recent = [t for t in _login_attempts.get(client_ip, []) if now - t < 60]
-    # 修复内存泄漏：列表为空则删除该 key，避免 dict 累积空列表
-    if not recent:
-        _login_attempts.pop(client_ip, None)
-    if len(recent) >= 5:
-        _login_attempts[client_ip] = recent
-        return False
-    recent.append(now)
-    _login_attempts[client_ip] = recent
-    return True
+    _ATTEMPTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        # 'a+' 保证文件不存在时自动创建
+        with open(_ATTEMPTS_FILE, 'a+', encoding='utf-8') as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.seek(0)
+                raw = f.read()
+                data = json.loads(raw) if raw.strip() else {}
+            except (json.JSONDecodeError, ValueError):
+                data = {}
+            # 仅保留 60 秒内的尝试记录
+            attempts = [t for t in data.get(client_ip, []) if now - t < 60]
+            if len(attempts) >= 5:
+                allowed = False
+            else:
+                attempts.append(now)
+                allowed = True
+            data[client_ip] = attempts
+            f.seek(0)
+            f.truncate()
+            json.dump(data, f, ensure_ascii=False)
+            return allowed
+    except Exception as e:
+        # 限流文件读写异常时放行，避免因限流故障阻断正常登录
+        logger.warning(f"登录限流文件读写失败，本次放行: {e}")
+        return True
 
 
 @router.get("/login")
@@ -71,8 +91,12 @@ async def post_login(
             status_code=403,
         )
 
-    # 登录限流
-    client_ip = request.client.host if request.client else "unknown"
+    # 登录限流（优先读取反向代理真实 IP）
+    client_ip = (
+        request.headers.get("CF-Connecting-IP")
+        or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        or (request.client.host if request.client else "unknown")
+    )
     if not _check_login_rate_limit(client_ip):
         return templates.TemplateResponse(
             "login.html",

@@ -14,7 +14,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String(20), unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
     role = Column(String, nullable=False)  # "elderly" 或 "family"
@@ -31,6 +31,8 @@ class User(Base):
     # 新逻辑：device_id 关联到真实老人后，所有 device_id 查询都能反查到真实老人。
     # 兼容旧数据：未绑定的虚拟用户 device_id 字段为 None，仍走 username == device_id 回退。
     device_id = Column(String, nullable=True, unique=True, index=True)
+    # F-01 修复：设备访问令牌，register_device 时生成，设备端点需通过 X-Device-Token 校验
+    device_token = Column(String(64), nullable=True, index=True)
 
     # 关联关系
     medication_plans = relationship("MedicationPlan", back_populates="user", cascade="all, delete-orphan")

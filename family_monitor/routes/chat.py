@@ -59,5 +59,7 @@ async def chat_history(request: Request, limit: int = 50):
     """S9 修复：BFF 代理聊天历史接口"""
     if not _check_csrf(request):
         return JSONResponse(content={"success": False, "message": "CSRF 校验失败"}, status_code=403)
+    # 边界校验：限制 1~200，防止过大查询拖慢服务
+    limit = max(1, min(limit, 200))
     messages = await elderly_client.get_chat_history(limit=limit)
     return JSONResponse(content={"success": True, "messages": messages})

@@ -67,32 +67,6 @@
                 <!-- 分隔线 -->
                 <hr class="admin-divider">
 
-                <!-- 高级配置表单 -->
-                <div class="admin-section">
-                    <h2 class="admin-section-title">
-                        <span class="admin-section-icon">&#128736;</span>
-                        高级配置
-                    </h2>
-                    <form action="{{ prefix }}/admin/administrator/setting/advanced" method="POST" class="auth-form">
-                        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-                        <div class="form-group">
-                            <label class="form-label" for="debug_mode">调试模式</label>
-                            <select class="form-select" id="debug_mode" name="debug_mode" disabled>
-                                <option value="false" {% if not debug_mode %}selected{% endif %}>关闭</option>
-                                <option value="true" {% if debug_mode %}selected{% endif %}>开启</option>
-                            </select>
-                            <p class="form-hint">DEBUG 仅可通过 .env 环境变量配置，生产环境强制关闭</p>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary btn-lg w-full">
-                            <span>保存高级配置</span>
-                        </button>
-                    </form>
-                </div>
-
-                <!-- 分隔线 -->
-                <hr class="admin-divider">
-
                 <!-- SECRET_KEY 说明 -->
                 <div class="admin-section">
                     <div class="admin-notice">

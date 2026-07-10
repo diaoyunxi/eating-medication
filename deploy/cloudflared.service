@@ -8,10 +8,18 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+User=cloudflared
+Group=cloudflared
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
 TimeoutStartSec=0
 Type=notify
-# 把 <TUNNEL_TOKEN> 替换为 Cloudflare Zero Trust 控制台中的隧道 token
-ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate run --token <TUNNEL_TOKEN>
+# 隧道 token 通过环境文件注入，避免命令行暴露（ps/进程列表可见）
+# 需创建 /etc/cloudflared/cloudflared.env，内容形如：TUNNEL_TOKEN=xxx，权限 0600
+EnvironmentFile=/etc/cloudflared/cloudflared.env
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate run
 Restart=on-failure
 RestartSec=5s
 

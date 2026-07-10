@@ -38,7 +38,8 @@ class ConnectionManager:
     async def send_to_user(self, user_id: int, message: dict):
         """向指定用户的所有连接发送消息"""
         if user_id in self.active_connections:
-            for connection in self.active_connections[user_id]:
+            # S-04 修复：遍历副本，避免遍历过程中 disconnect 修改原列表导致 RuntimeError
+            for connection in list(self.active_connections[user_id]):
                 try:
                     await connection.send_json(message)
                 except Exception as e:

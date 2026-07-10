@@ -32,6 +32,17 @@ if BASE_DIR not in sys.path:
 DEBUG_MODE = False
 
 
+def _normalize_hhmm(t):
+    """P17 修复：归一化 HH:MM 时间格式，非法返回 None"""
+    if not t:
+        return None
+    try:
+        from datetime import datetime
+        return datetime.strptime(str(t).strip()[:5], "%H:%M").strftime("%H:%M")
+    except Exception:
+        return None
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description='老人用药助手 (M10)')
     parser.add_argument('--debug', '-d', action='store_true',
@@ -170,7 +181,7 @@ class MedicationPoller:
         now_hm = now.strftime("%H:%M")
         upcoming = []
         for s in schedules:
-            t = s.get('time', '')
+            t = _normalize_hhmm(s.get('time'))
             if not t:
                 continue
             # 仅返回当前时间之后（>now）的提醒
@@ -511,7 +522,7 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooz
             reminder_state._fired_day = today
 
         for s in poller.schedules:
-            t = s.get('time', '')
+            t = _normalize_hhmm(s.get('time'))
             if not t or t != now_hm:
                 continue
             drug_name = s.get('drug_name', '药品')

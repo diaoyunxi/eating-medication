@@ -219,10 +219,18 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
 
-    # 启动时检查更新（启用自动拉取）
+    # 启动时检查更新
+    # 默认仅提示有新版本，不自动拉取（避免供应链风险）
+    # 需通过环境变量 AUTO_UPDATE=true 才启用自动拉取
+    auto_pull = os.environ.get("AUTO_UPDATE", "").lower() == "true"
+    if auto_pull:
+        logger.warning(
+            "⚠️ AUTO_UPDATE=true 已启用自动拉取更新，存在供应链风险，"
+            "请确保运行环境可信且更新源已校验。"
+        )
     try:
         from updater import check_for_update
-        check_for_update(auto_pull=True)
+        check_for_update(auto_pull=auto_pull)
     except Exception as e:
         logger.warning(f"更新检查失败: {e}")
 

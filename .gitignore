@@ -53,3 +53,12 @@ logs/
 # ===== OS =====
 .DS_Store
 Thumbs.db
+
+# ===== 运行时数据与敏感文件补全 =====
+server/data/
+*.log
+*.pid
+*.sqlite*
+logs/
+pan_credentials.json
+*.secret

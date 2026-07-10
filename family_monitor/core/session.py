@@ -7,6 +7,7 @@
 
 import json
 import logging
+import os
 import secrets
 from pathlib import Path
 from datetime import datetime
@@ -39,11 +40,13 @@ class SessionManager:
                 self._revoked_tokens = set()
 
     def _save_revoked_tokens(self):
-        """将撤销令牌持久化到文件"""
+        """将撤销令牌持久化到文件（原子写入：先写临时文件再 os.replace 替换，避免并发损坏）"""
         if self._revocation_file:
             try:
-                with open(self._revocation_file, 'w', encoding='utf-8') as f:
+                tmp = str(self._revocation_file) + '.tmp'
+                with open(tmp, 'w', encoding='utf-8') as f:
                     json.dump(list(self._revoked_tokens), f, ensure_ascii=False)
+                os.replace(tmp, self._revocation_file)
             except Exception as e:
                 logger.warning(f"保存撤销令牌文件失败: {e}")
 
