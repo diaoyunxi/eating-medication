@@ -40,8 +40,8 @@ class Config:
             self._config_data.get('ELDERLY_SERVER_URL', 'https://my-website.ccwu.cc/eating-medication/server')
         )
 
-        # 路径前缀（Cloudflare 隧道子路径），本地直连设为空
-        self.PATH_PREFIX = os.getenv('PATH_PREFIX', self._config_data.get('PATH_PREFIX', '/eating-medication/family')).rstrip('/')
+        # 路径前缀（Cloudflare 隧道子路径），本地直连默认为空
+        self.PATH_PREFIX = os.getenv('PATH_PREFIX', self._config_data.get('PATH_PREFIX', '')).rstrip('/')
 
         self.DISPLAY_SETTINGS = {
             'theme': os.getenv('DISPLAY_THEME', self._config_data.get('DISPLAY_THEME', 'light')),
@@ -98,16 +98,33 @@ class Config:
         self.DATA_DIR.mkdir(exist_ok=True)
 
     def _load_from_json(self):
-        """从JSON配置文件加载配置到内部字典（不写回 os.environ）"""
+        """从JSON配置文件加载配置到内部字典（不写回 os.environ）。
+        首次运行（文件不存在）时自动生成适合本地运行的配置文件，无需手动复制模板。"""
         if self.config_file.exists():
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     self._config_data = json.load(f)
             except Exception as e:
-                print(f"加载配置文件失败: {e}")
+                logger.warning(f"加载配置文件失败: {e}，使用默认配置")
                 self._config_data = {}
         else:
-            self._config_data = {}
+            # 首次运行：自动生成适合本地直连的配置文件
+            logger.info(f"首次运行：配置文件不存在，自动生成 {self.config_file}")
+            self._config_data = {
+                'SERVER_HOST': '0.0.0.0',
+                'SERVER_PORT': 4430,
+                'ELDERLY_SERVER_URL': 'https://my-website.ccwu.cc/eating-medication/server',
+                # 本地直连为空字符串；Cloudflare 隧道子路径部署时改为 /eating-medication/family
+                'PATH_PREFIX': '',
+                'APP_NAME': '子女守护中心',
+                'DEBUG': 'False',
+            }
+            try:
+                with open(self.config_file, 'w', encoding='utf-8') as f:
+                    json.dump(self._config_data, f, indent=2, ensure_ascii=False)
+                logger.info(f"已自动生成配置文件: {self.config_file}（本地直连模式，PATH_PREFIX 为空）")
+            except Exception as e:
+                logger.warning(f"自动生成配置文件失败: {e}，使用内存默认配置")
 
     def save_config(self):
         """保存当前配置到JSON文件
