@@ -36,7 +36,7 @@ import logging
 import fnmatch
 from pathlib import Path
 
-__version__ = "2.7.0"
+__version__ = "2.7.3"
 GITHUB_REPO = "diaoyunxi/eating-medication"
 
 logger = logging.getLogger(__name__)
