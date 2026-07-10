@@ -208,6 +208,21 @@ else:
         f"UI 样式将无法加载。请检查 git clone 是否完整，目录应包含 css/style.css"
     )
 
+
+@app.middleware("http")
+async def static_404_hint_middleware(request: Request, call_next):
+    """静态文件 404 提示中间件：当 /static/ 请求返回 404 时，输出日志提示检查配置"""
+    response = await call_next(request)
+    path = request.scope.get("path", request.url.path)
+    if path.startswith("/static/") and response.status_code == 404:
+        logger.warning(
+            f"静态文件 404: {path} | 可能原因: "
+            f"1) 文件不存在请检查 static/ 目录; "
+            f"2) PATH_PREFIX 配置不当（当前: '{PATH_PREFIX}'，本地直连应为空）; "
+            f"3) 通过 Cloudflare 隧道子路径访问时需确保前缀剥离正确"
+        )
+    return response
+
 # 注册路由
 app.include_router(auth_router)
 app.include_router(home_router)
