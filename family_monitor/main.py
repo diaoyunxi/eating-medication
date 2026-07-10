@@ -16,12 +16,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+import struct
 import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse, Response
 from core import config
 from core.auth import get_user_manager
 from core.session import get_session_manager
@@ -107,7 +108,7 @@ async def auth_middleware(request: Request, call_next):
     # 公开路径精确匹配，防止路径前缀绕过
     public_paths = ["/login", "/register", "/favicon.ico"]
     path = request.scope.get("path", request.url.path)
-    is_public = path in public_paths or path.startswith("/static/")
+    is_public = path in public_paths or path.startswith("/static/") or path.startswith("/.well-known/")
 
     request.state.user = None
 
@@ -193,6 +194,63 @@ async def static_404_hint_middleware(request: Request, call_next):
             f"3) 通过 Cloudflare 隧道子路径访问时需确保前缀剥离正确"
         )
     return response
+
+
+# ---------------------------------------------------------------------------
+# 浏览器自动请求的辅助路由（避免 404 噪音）
+# ---------------------------------------------------------------------------
+
+def _generate_favicon_ico() -> bytes:
+    """生成 16x16 蓝色 ICO 图标字节（BGRA 格式，不依赖第三方库）"""
+    width = height = 16
+    # BMP Info Header (40 bytes)
+    bmp_header = struct.pack(
+        '<IiiHHIIiiII',
+        40,            # biSize
+        width,         # biWidth
+        height * 2,    # biHeight（ICO 中需翻倍，含 AND mask）
+        1,             # biPlanes
+        32,            # biBitCount
+        0, 0, 0, 0,    # compression, imageSize, x/y ppm
+        0, 0,          # colors used, important
+    )
+    # 像素数据：16x16 BGRA，蓝色 #007CFF（B=0xFF, G=0x7C, R=0x00, A=0xFF）
+    pixel_data = bytes([0xFF, 0x7C, 0x00, 0xFF]) * (width * height)
+    # AND mask：每行按 4 字节对齐，16 行共 64 字节，全 0 表示不透明
+    and_mask = bytes([0x00] * (4 * height))
+    image_data = bmp_header + pixel_data + and_mask
+
+    # ICO Header (6 bytes) + Directory Entry (16 bytes)
+    ico_header = struct.pack('<HHH', 0, 1, 1)  # reserved, type=ICO, count=1
+    dir_entry = struct.pack(
+        '<BBBBHHII',
+        width,            # bWidth（<256 时直接填像素值）
+        height,           # bHeight
+        0,                # bColorCount
+        0,                # bReserved
+        1,                # wPlanes
+        32,               # wBitCount
+        len(image_data),  # dwBytesInRes
+        6 + 16,           # dwImageOffset
+    )
+    return ico_header + dir_entry + image_data
+
+
+# 预生成 favicon 字节（模块级缓存，避免每次请求重新生成）
+_FAVICON_BYTES = _generate_favicon_ico()
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    """返回 favicon.ico，避免浏览器请求 404"""
+    return Response(content=_FAVICON_BYTES, media_type="image/x-icon")
+
+
+@app.get("/.well-known/appspecific/com.chrome.devtools.json")
+async def chrome_devtools_json():
+    """Chrome DevTools 自动探测文件，返回空 JSON 避免 404"""
+    return JSONResponse(content={})
+
 
 # 注册路由
 app.include_router(auth_router)
