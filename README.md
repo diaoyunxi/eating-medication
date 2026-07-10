@@ -667,36 +667,7 @@ cd server && pip install -r requirements-dev.txt
 1. 从 `main` 拉取最新代码。
 2. 新建分支开发：`git checkout -b feat/xxx`。
 3. 提交并推送：`git commit -m "feat: xxx"` → `git push origin feat/xxx`。
-4. 默认理解为提交更改到 `main`；如需为他人仓库提 PR 请显式说明。
-
----
-
-## 版本历史
-
-> 完整开发历史见 [`history.md`](./history.md)。版本号基准以 `history.md` 为准。
-
-- **v2.6.0**（2026-07-08）：新增删除用户 API。`DELETE /users/me` 支持用户注销自己账号（硬删除，级联清理用药计划/记录/AI日志）；`DELETE /users/{user_id}` 支持家属删除同家庭组的老人账号（校验 `role=family` 且同 `group_id`）。`UserService` 新增 `delete_user` 静态方法执行硬删除。
-- **v2.2.0**（2026-07-01）：安全加固版本。基于对仓库审查发现的 47+ 个安全问题（11 严重 + 15 高危 + 21 中危 + 20+ 低危）。包括：移除硬编码 SECRET_KEY 改用环境变量、聊天/设备端点加认证、CORS 白名单、CSRF 防护、XSS 修复、自动更新加 SHA256 校验、热点 WPA2 加密、依赖升级（python-jose 3.4.0、pydantic 2.10.0、sqlalchemy 2.0.36）、Alembic 迁移修复等。**允许破坏性变更**：SECRET_KEY 必须配置、设备须重新注册获取 token（v2.3.0 已移除）、JWT 有效期缩至 1 小时。
-- **v2.1.0**（2026-06-30）：移除本地 SSL 证书机制，改为 Cloudflare 隧道边缘自动配置 HTTPS；新增路径前缀支持（`/eating-medication/server`、`/eating-medication/family`）；老人端默认服务器地址改为公网域名；清除项目内部代号字样。
-- **v2.0.0**（2026-06-27）：重大升级。老人端 pinpong/unihiker 重构，舍弃 TUI 改用 pinpong 库 + unihiker GUI 库实现行空板 M10 图形化交互；完善端到端流程（热点配网→注册设备→下发用药计划→到点提醒）；新增 5 个设备公开接口；从单文件吃药提醒工具升级为完整三端系统，新增自动更新检查、AI 语音问答、药品识别、家属聊天、紧急呼叫、库存管理等功能。
-
-### v2.2.0 破坏性变更（升级注意）
-
-1. **SECRET_KEY 必须配置**：server 和 family_monitor 启动时若未配置 `SECRET_KEY`（或为已知弱值），生产模式（`DEBUG=False`）将拒绝启动。
-2. **设备 token 机制**：首次注册设备返回 `device_token`，后续读写操作需在 Header 携带 `X-Device-Token`，老设备需重新注册。（v2.3.0 已移除，改为仅通过 device_id 校验）
-3. **JWT 有效期缩短**：从 7 天缩短至 1 小时（`ACCESS_TOKEN_EXPIRE_MINUTES=60`）。
-4. **CORS 白名单**：生产环境必须配置 `ALLOWED_ORIGINS` 环境变量。
-5. **CSRF 防护**：family_monitor 所有 POST 请求需携带 csrf_token。
-6. **热点加密**：elderly_assistant 热点现在需要 WPA2 密码连接。
-
----
-
-## 已知问题与待办
-
-- **chat.html 历史消息加载**：已修复（v2.2.1）。子女端 BFF 新增 `/chat/history` 代理路由，通过 device_id 从服务端 `/public/device/chat_history/{device_id}` 获取聊天历史，前端不再直连服务端 JWT 接口。
-- **未实现功能**：京东比价仅有配置项（`JD_*`），无实现代码；短信/APP 推送服务缺失，通知仅依赖 WebSocket；`users.py` 双向确认绑定机制标注 TODO；`public.py` emergency 消息推送标注 TODO。
-
----
+4. 以提交PR形式给上流仓库提交代码，在经过AI的review并更改（ai的不一定符合规范，需要手动检查）再经过简单人工review后合并。
 
 ## 感谢贡献
 
@@ -712,7 +683,6 @@ cd server && pip install -r requirements-dev.txt
 ### AI 与识别服务
 
 - **[智谱 AI](https://open.bigmodel.cn/)** — 提供 GLM-4 系列大模型（默认 `glm-4.7-flash`），支撑老人端 / 子女端的健康问答与用药咨询。
-- **[百度智能云 OCR](https://cloud.baidu.com/product/ocr.html)** — 提供通用文字识别，用于服务端药品图片识别药名。
 - **[Tesseract OCR](https://github.com/tesseract-ocr/tesseract)** — 开源本地 OCR 引擎，供老人端离线识别药名。
 - **[pyttsx3](https://github.com/nateshmbhat/pyttsx3)** — 离线中文 TTS 引擎，供老人端语音播报用药提醒。
 
