@@ -1,5 +1,15 @@
 # 项目开发历史记录
 
+## v2.9.4 (2026-07-15)
+
+### Bug 修复
+- **family_monitor**: 修复 Starlette 0.28+ 版本兼容性问题
+  - `Jinja2Templates.TemplateResponse` 签名变更：`request` 参数变为第一个位置参数
+  - 影响文件：`routes/auth.py`、`routes/home.py`、`routes/chat.py`、`routes/admin.py`
+  - 错误表现：`TypeError: unhashable type: 'dict'`（GET /login 500 Internal Server Error）
+
+---
+
 ## 项目概述
 
 本项目包含三个主要模块：
