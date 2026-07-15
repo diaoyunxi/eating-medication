@@ -33,6 +33,7 @@ async def chat(request: Request):
     current_user_id = None
 
     return templates.TemplateResponse(
+        request,
         "chat.html",
         {
             "request": request,
