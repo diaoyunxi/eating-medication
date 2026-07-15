@@ -36,6 +36,7 @@ async def index(request: Request):
     dashboard_data = await elderly_client.get_dashboard_data()
 
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
             "request": request,
@@ -74,6 +75,7 @@ async def get_reminders(request: Request):
     device_info = await elderly_client.get_device_info()
 
     return templates.TemplateResponse(
+        request,
         "reminders.html",
         {
             "request": request,
@@ -93,6 +95,7 @@ async def get_records(request: Request):
     device_info = await elderly_client.get_device_info()
 
     return templates.TemplateResponse(
+        request,
         "records.html",
         {
             "request": request,
@@ -112,6 +115,7 @@ async def get_dashboard(request: Request):
     dashboard_data = await elderly_client.get_dashboard_data()
 
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
             "request": request,
@@ -130,7 +134,7 @@ async def get_settings(request: Request):
     device_info = await elderly_client.get_device_info()
     bound_device = elderly_client.get_bound_device()
 
-    return templates.TemplateResponse("settings.html", {
+    return templates.TemplateResponse(request, "settings.html", {
             "request": request,
             "app_name": config.APP_NAME,
             "status": status,
@@ -188,7 +192,7 @@ async def medication_settings(request: Request):
     device_info = await elderly_client.get_device_info()
     plans = await elderly_client.get_device_plans()
 
-    return templates.TemplateResponse("medication_settings.html", {
+    return templates.TemplateResponse(request, "medication_settings.html", {
         "request": request,
         "app_name": config.APP_NAME,
         "status": status,
