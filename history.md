@@ -1,5 +1,32 @@
 # 项目开发历史记录
 
+## v2.9.6 (2026-07-15)
+
+### 安全清理
+- 使用 `git filter-repo` 清理 Git 历史中的敏感文件：
+  - 删除 `upload_123pan.py`（含明文账号密码）
+  - 删除 `代码审查报告.md`（含敏感信息引用）
+  - 删除所有 `.zip` 和 `.sha256` 文件历史记录
+- 统一所有 commit 的 author/committer 为 diaoyunxi
+- 删除 main 以外的分支
+
+### 文档更新
+- 更新 `README.md`：版本号、三模块差异表格版本号同步到 2.9.6
+- 更新 `elderly_assistant/README.md`：版本号同步到 2.9.6
+- 更新 `history.md`：追加 v2.9.6 ~ v2.9.5 变更记录
+
+### 版本统一
+- 全模块版本号统一至 2.9.6（server、family_monitor、elderly_assistant）
+
+---
+
+## v2.9.5 (2026-07-15)
+
+### 版本统一
+- 全模块版本号统一至 2.9.5
+
+---
+
 ## v2.9.4 (2026-07-15)
 
 ### Bug 修复
