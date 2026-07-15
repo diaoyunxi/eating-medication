@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=config.APP_NAME,
     description="子女看护Web端",
-    version="2.9.6",
+    version="2.9.7",
     debug=config.DEBUG,
     lifespan=lifespan,
     root_path=PATH_PREFIX,
@@ -81,6 +81,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def path_prefix_middleware(request: Request, call_next):
+    """路径前缀中间件（最先执行）：
+    - 请求阶段：设置 scope["root_path"] = PATH_PREFIX，让 Starlette 自动处理前缀剥离
+    - 响应阶段：给 3xx 重定向的 Location 头补回前缀
+    本地直连（PATH_PREFIX 为空）时直接放行。
+    
+    关键修复：不再直接修改 scope["path"]，而是通过 root_path 告诉 Starlette 有前缀。
+    Starlette 在 Mount 路由匹配时会正确处理前缀剥离，StaticFiles 拿到的路径就是干净的。
+    """
+    if PATH_PREFIX:
+        request.scope["root_path"] = PATH_PREFIX
+        response = await call_next(request)
+        # 重定向 Location 补前缀
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("location", "")
+            if (location.startswith("/")
+                    and not location.startswith(PATH_PREFIX + "/")
+                    and location != PATH_PREFIX):
+                response.headers["location"] = PATH_PREFIX + location
+        return response
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -104,7 +128,7 @@ async def security_headers_middleware(request: Request, call_next):
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     """认证中间件，保护需要登录的页面。
-    注意：使用 request.scope["path"]（已被前缀中间件剥离前缀后的路径）。"""
+    使用 request.scope["path"]（Starlette 已通过 root_path 正确剥离前缀）。"""
     # 公开路径精确匹配，防止路径前缀绕过
     public_paths = ["/login", "/register", "/favicon.ico"]
     path = request.scope.get("path", request.url.path)
@@ -118,7 +142,7 @@ async def auth_middleware(request: Request, call_next):
     session_manager = get_session_manager(config.SECRET_KEY)
     session_token = request.cookies.get("session_token")
 
-    # G5 修复：重定向 URL 显式拼接 PATH_PREFIX，不依赖中间件隐式补前缀
+    # 重定向 URL 显式拼接 PATH_PREFIX
     login_url = f"{PATH_PREFIX}/login" if PATH_PREFIX else "/login"
     home_url = f"{PATH_PREFIX}/" if PATH_PREFIX else "/"
 
@@ -140,33 +164,6 @@ async def auth_middleware(request: Request, call_next):
 
     response = await call_next(request)
     return response
-
-
-@app.middleware("http")
-async def path_prefix_middleware(request: Request, call_next):
-    """路径前缀中间件（最先执行）：
-    - 请求阶段：剥离 PATH_PREFIX，使应用路由按根路径匹配
-    - 响应阶段：给 3xx 重定向的 Location 头补回前缀
-    本地直连（PATH_PREFIX 为空）时直接放行。"""
-    if PATH_PREFIX:
-        original = request.scope.get("path", "")
-        if original == PATH_PREFIX:
-            request.scope["path"] = "/"
-            request.scope["raw_path"] = b"/"
-        elif original.startswith(PATH_PREFIX + "/"):
-            new_path = original[len(PATH_PREFIX):]
-            request.scope["path"] = new_path
-            request.scope["raw_path"] = new_path.encode()
-        response = await call_next(request)
-        # 重定向 Location 补前缀
-        if response.status_code in (301, 302, 303, 307, 308):
-            location = response.headers.get("location", "")
-            if (location.startswith("/")
-                    and not location.startswith(PATH_PREFIX + "/")
-                    and location != PATH_PREFIX):
-                response.headers["location"] = PATH_PREFIX + location
-        return response
-    return await call_next(request)
 
 
 # 挂载静态文件
