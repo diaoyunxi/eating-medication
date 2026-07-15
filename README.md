@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.7.3**（2026-07-10，修复 git clone 部署 UI 样式丢失问题） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.9.6**（2026-07-15，安全清理与文档更新） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
 一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
@@ -560,11 +560,11 @@ WS_HEARTBEAT_INTERVAL=30
 
 | 模块 | SHA256 校验 | 异常处理 | 版本号 |
 |------|-------------|----------|--------|
-| elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 2.4.0 |
-| server | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.4.0 |
-| family_monitor | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.4.0 |
+| elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 2.9.6 |
+| server | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.9.6 |
+| family_monitor | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.9.6 |
 
-> 三个 `updater.py` 的 `__version__` 已与 `VERSION` 文件同步为 `2.4.0`。
+> 三个 `updater.py` 的 `__version__` 已与 `VERSION` 文件同步为 `2.9.6`。
 
 ---
 

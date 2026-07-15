@@ -96,7 +96,7 @@ PATH_PREFIX = settings.PATH_PREFIX.rstrip("/")
 # 创建 FastAPI 实例
 app = FastAPI(
     title=settings.APP_NAME,
-    version="2.9.3",
+    version="2.9.6",
     description="老人用药管理智能助手后端 API",
     debug=settings.DEBUG,
     lifespan=lifespan,
