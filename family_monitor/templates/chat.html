@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }} - 消息聊天</title>
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.9.2">
+    <style>
+        /* =============================================
+           Chat 页面独立样式（Claude Design System）
+           ============================================= */
+        @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=Poppins:wght@100..900&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #faf9f5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #3d3929;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Newsreader', 'Georgia', serif;
+        }
+
+        /* 聊天容器 */
+        .chat-container {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 24px 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            gap: 16px;
+        }
+
+        /* 头部 */
+        .chat-header {
+            background: #ffffff;
+            padding: 20px 24px;
+            border-radius: 16px;
+            border: 1px solid #dad9d4;
+            box-shadow: 0 1px 3px rgba(61, 57, 41, 0.06);
+        }
+
+        .chat-header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .chat-header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #3d3929;
+        }
+
+        .chat-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chat-status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #dad9d4;
+            flex-shrink: 0;
+        }
+
+        .chat-status-dot.connected {
+            background: #5a8a6a;
+            animation: chatPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes chatPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(90, 138, 106, 0.5); }
+            50% { box-shadow: 0 0 0 6px rgba(90, 138, 106, 0); }
+        }
+
+        .chat-status-text {
+            font-size: 0.85rem;
+            color: #6e6d68;
+            font-weight: 500;
+        }
+
+        .chat-header-divider {
+            height: 1px;
+            background: #dad9d4;
+        }
+
+        /* 聊天主体 */
+        .chat-box {
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #dad9d4;
+            box-shadow: 0 1px 3px rgba(61, 57, 41, 0.06);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 400px;
+        }
+
+        /* 消息区域 */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* 消息行 */
+        .chat-msg {
+            display: flex;
+            gap: 12px;
+            animation: chatSlideIn 0.3s ease-out;
+            max-width: 75%;
+        }
+
+        .chat-msg.sent {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .chat-msg.received {
+            align-self: flex-start;
+        }
+
+        @keyframes chatSlideIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 头像 */
+        .chat-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+            font-family: 'Newsreader', serif;
+        }
+
+        .chat-msg.received .chat-avatar {
+            background: #f0efe9;
+            color: #6e6d68;
+            border: 1px solid #dad9d4;
+        }
+
+        .chat-msg.sent .chat-avatar {
+            background: #c96442;
+            color: #ffffff;
+        }
+
+        /* 消息内容区 */
+        .chat-msg-body {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .chat-msg-name {
+            font-size: 0.75rem;
+            color: #6e6d68;
+            font-weight: 500;
+        }
+
+        .chat-msg.sent .chat-msg-name {
+            text-align: right;
+        }
+
+        /* 气泡 - Claude Chat Bubble 风格 */
+        .chat-bubble {
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            line-height: 1.5;
+            font-size: 0.9rem;
+        }
+
+        .chat-msg.received .chat-bubble {
+            background: #ffffff;
+            color: #3d3929;
+            border: 1px solid #dad9d4;
+            border-top-left-radius: 4px;
+        }
+
+        .chat-msg.sent .chat-bubble {
+            background: #c96442;
+            color: #ffffff;
+            border-top-right-radius: 4px;
+        }
+
+        .chat-msg-time {
+            font-size: 0.7rem;
+            color: #9e9a8f;
+        }
+
+        .chat-msg.sent .chat-msg-time {
+            text-align: right;
+        }
+
+        /* 输入区域 */
+        .chat-input-area {
+            padding: 16px 20px;
+            border-top: 1px solid #dad9d4;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            background: #faf9f5;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 18px;
+            border: 1px solid #dad9d4;
+            border-radius: 24px;
+            font-size: 0.9rem;
+            font-family: 'Poppins', sans-serif;
+            color: #3d3929;
+            background: #ffffff;
+            outline: none;
+            transition: border-color 0.15s ease-in-out;
+        }
+
+        .chat-input:focus {
+            border-color: #c96442;
+            box-shadow: 0 0 0 3px rgba(201, 100, 66, 0.1);
+        }
+
+        .chat-input::placeholder {
+            color: #9e9a8f;
+        }
+
+        .chat-send-btn {
+            padding: 12px 28px;
+            background: #c96442;
+            color: #ffffff;
+            border: none;
+            border-radius: 24px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+            flex-shrink: 0;
+        }
+
+        .chat-send-btn:hover {
+            background: #b8573a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(201, 100, 66, 0.3);
+        }
+
+        .chat-send-btn:active {
+            transform: translateY(0);
+        }
+
+        .chat-send-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* 空状态 */
+        .chat-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #9e9a8f;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .chat-empty-icon {
+            width: 64px;
+            height: 64px;
+            background: #f0efe9;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+        }
+
+        .chat-empty-text {
+            font-size: 0.95rem;
+        }
+
+        /* 滚动条 */
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #dad9d4;
+            border-radius: 3px;
+        }
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #9e9a8f;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .chat-container {
+                padding: 12px;
+            }
+            .chat-msg {
+                max-width: 88%;
+            }
+            .chat-header {
+                padding: 16px;
+            }
+            .chat-header h1 {
+                font-size: 1.25rem;
+            }
+            .chat-input-area {
+                padding: 12px 16px;
+            }
+            .chat-send-btn {
+                padding: 12px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="{{ prefix }}/" class="navbar-brand">
+                <div class="navbar-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                </div>
+                <span class="navbar-title">{{ app_name }}</span>
+            </a>
+            <div class="navbar-nav">
+                <a href="{{ prefix }}/" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span>首页</span>
+                </a>
+                <a href="{{ prefix }}/dashboard" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    <span>仪表板</span>
+                </a>
+                <a href="{{ prefix }}/reminders" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>提醒</span>
+                </a>
+                <a href="{{ prefix }}/records" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>记录</span>
+                </a>
+                <a href="{{ prefix }}/chat" class="nav-link active">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>消息</span>
+                </a>
+                <a href="{{ prefix }}/settings" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span>设置</span>
+                </a>
+                <div class="nav-user">
+                    <span class="nav-username">{{ request.state.user or '用户' }}</span>
+                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();fetch('{{ prefix }}/logout',{method:'POST'}).finally(function(){window.location.href='{{ prefix }}/login';});">登出</a>
+                    <button class="nav-user-avatar" type="button" aria-label="用户菜单" aria-haspopup="true" aria-expanded="false" onclick="toggleNavUserDropdown(event)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </button>
+                    <div class="nav-user-dropdown" id="navUserDropdown" role="menu">
+                        <div class="nav-user-dropdown-user">
+                            <div class="nav-user-dropdown-avatar">{{ (request.state.user or 'U')|first|upper }}</div>
+                            <span class="nav-user-dropdown-name">{{ request.state.user or '用户' }}</span>
+                        </div>
+                        <button class="nav-user-dropdown-item danger" type="button" role="menuitem" onclick="navLogout()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                            <span>登出</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <div class="chat-container">
+        <!-- 头部 -->
+        <div class="chat-header">
+            <div class="chat-header-top">
+                <h1>消息聊天</h1>
+                <div class="chat-status">
+                    <div class="chat-status-dot" id="statusDot"></div>
+                    <span class="chat-status-text" id="statusText">连接中...</span>
+                </div>
+            </div>
+            <div class="chat-header-divider"></div>
+        </div>
+
+        <!-- 聊天主体 -->
+        <div class="chat-box">
+            <div class="chat-messages" id="messages">
+                <div class="chat-empty" id="empty">
+                    <div class="chat-empty-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9e9a8f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                    <span class="chat-empty-text">暂无消息，开始聊天吧</span>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" class="chat-input" id="msgInput" placeholder="输入消息..." autocomplete="off">
+                <button class="chat-send-btn" id="sendBtn" disabled>发送</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 读取 cookie 工具函数
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return '';
+        }
+        const messagesEl = document.getElementById('messages');
+        const inputEl = document.getElementById('msgInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const emptyEl = document.getElementById('empty');
+        let ws = null;
+        let reconnectTimer = null;
+        const currentUser = {{ current_user|tojson }};
+        const currentUserId = {{ current_user_id|tojson }};
+        const elderlyId = {{ elderly_id|tojson }};
+        const elderlyUrl = {{ server_url|tojson }};
+        // 从老人端 URL 提取 host+path，并选择对应的 WebSocket 协议
+        const wsProto = elderlyUrl.startsWith('https') ? 'wss:' : 'ws:';
+        const serverUrl = elderlyUrl.replace(/^https?:\/\//, '');
+
+        function initWS() {
+            // 从 cookie 读取 session_token，附加到 WebSocket URL 以通过服务端鉴权
+            const sessionToken = getCookie('session_token');
+            const url = `${wsProto}//${serverUrl}/api/v1/chat/ws/${encodeURIComponent(currentUser)}?token=${encodeURIComponent(sessionToken)}`;
+            ws = new WebSocket(url);
+            ws.onopen = () => {
+                statusDot.classList.add('connected');
+                statusText.textContent = '已连接';
+                sendBtn.disabled = false;
+                if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+            };
+            ws.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'chat_message') {
+                        addMsg(data.sender_name, data.content, data.timestamp, false);
+                    }
+                } catch(err) { console.error(err); }
+            };
+            ws.onerror = () => { statusDot.classList.remove('connected'); statusText.textContent = '连接错误'; sendBtn.disabled = true; };
+            ws.onclose = () => {
+                statusDot.classList.remove('connected');
+                statusText.textContent = '已断开';
+                sendBtn.disabled = true;
+                if (!reconnectTimer) reconnectTimer = setTimeout(initWS, 5000);
+            };
+        }
+
+        function sendMsg() {
+            const content = inputEl.value.trim();
+            if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
+            ws.send(JSON.stringify({ type: 'chat', receiver_id: elderlyId, sender_name: currentUser, content }));
+            addMsg(currentUser, content, new Date().toISOString(), true);
+            inputEl.value = '';
+        }
+
+        function addMsg(sender, content, timestamp, isSent) {
+            if (emptyEl) emptyEl.remove();
+            // 使用 DOM 元素创建 + textContent，避免 XSS
+            const div = document.createElement('div');
+            div.className = isSent ? 'chat-msg sent' : 'chat-msg received';
+            const avatar = document.createElement('div');
+            avatar.className = 'chat-avatar';
+            avatar.textContent = sender.charAt(0);
+            const body = document.createElement('div');
+            body.className = 'chat-msg-body';
+            const nameEl = document.createElement('div');
+            nameEl.className = 'chat-msg-name';
+            nameEl.textContent = sender;
+            const bubble = document.createElement('div');
+            bubble.className = 'chat-bubble';
+            bubble.textContent = content;
+            const timeEl = document.createElement('div');
+            timeEl.className = 'chat-msg-time';
+            const time = new Date(timestamp);
+            timeEl.textContent = time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            body.appendChild(nameEl);
+            body.appendChild(bubble);
+            body.appendChild(timeEl);
+            div.appendChild(avatar);
+            div.appendChild(body);
+            messagesEl.appendChild(div);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        async function loadHistory() {
+            // S9 修复：改用子女端 BFF 代理接口 /chat/history
+            try {
+                const resp = await fetch(`{{ prefix }}/chat/history?limit=100`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const msgs = data.messages || [];
+                    if (msgs.length > 0 && emptyEl) emptyEl.remove();
+                    msgs.reverse().forEach(m => {
+                        addMsg(m.sender_name, m.content, m.created_at, m.sender_id === currentUserId);
+                    });
+                }
+            } catch(e) { console.error('加载历史消息失败:', e); }
+        }
+
+        sendBtn.addEventListener('click', sendMsg);
+        inputEl.addEventListener('keypress', e => { if (e.key === 'Enter') sendMsg(); });
+        window.addEventListener('load', () => { loadHistory(); initWS(); });
+    </script>
+
+    <!-- 导航栏用户菜单（移动端头像下拉） -->
+    <script>
+        (function () {
+            if (window.__navUserDropdownInit) return;
+            window.__navUserDropdownInit = true;
+
+            // 切换下拉菜单显隐
+            window.toggleNavUserDropdown = function (e) {
+                e.stopPropagation();
+                e.preventDefault();
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                var isOpen = dd.classList.toggle('show');
+                var btn = e.currentTarget;
+                if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            };
+
+            // 登出
+            window.navLogout = function () {
+                fetch('{{ prefix }}/logout', {
+                    method: 'POST'
+                }).finally(function () {
+                    window.location.href = '{{ prefix }}/login';
+                });
+            };
+
+            // 点击外部关闭
+            document.addEventListener('click', function (e) {
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                if (!dd.parentElement.contains(e.target)) {
+                    dd.classList.remove('show');
+                    var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            // ESC 关闭
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    var dd = document.getElementById('navUserDropdown');
+                    if (dd) {
+                        dd.classList.remove('show');
+                        var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                        if (btn) btn.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

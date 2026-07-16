@@ -1,0 +1,28 @@
+server:
+  base_url: https://your-server-domain.com/eating-medication/server
+  upload_endpoint: /api/upload
+  method: POST
+  timeout: 10
+  heartbeat_interval: 30  # 心跳上报间隔（秒），独立于用药计划轮询，建议≤服务端在线判断阈值的一半
+
+# AI 客户端配置示例（base_url 与 server.base_url 可一致，api_key/model 按需补充）
+ai:
+  base_url: "https://your-server-domain.com/eating-medication/server"
+  timeout: 30
+  max_retries: 3
+
+hotspot:
+  ssid: M10-Config
+  ip: 10.0.0.1
+  web_port: 8088
+
+reminder:
+  poll_interval: 60        # 用药计划轮询间隔（秒）
+  snooze_minutes: 5        # 按钮B暂缓提醒的分钟数
+  buzzer_loop_interval: 3  # 蜂鸣器循环提醒间隔（秒）
+
+camera:
+  connection: i2c
+  uart_tty: /dev/ttyS1
+  uart_baudrate: 115200
+  save_path: data/captures

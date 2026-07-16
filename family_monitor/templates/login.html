@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - {{ app_name }}</title>
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.9.2">
+</head>
+<body>
+    <div class="bg-gradient">
+        <div class="container" style="display: flex; align-items: center; justify-content: center; min-height: 100vh;">
+            <div class="auth-card animate-fade-in">
+                <div class="auth-header">
+                    <div class="auth-logo">子女守护中心</div>
+                    <h1 class="auth-title">{{ app_name }}</h1>
+                    <p class="auth-subtitle">登录您的账户</p>
+                </div>
+
+                {% if error %}
+                <div class="alert alert-error">
+                    <span class="alert-icon">!</span>
+                    <span>{{ error }}</span>
+                </div>
+                {% endif %}
+
+                {% if success %}
+                <div class="alert alert-success">
+                    <span class="alert-icon">&#10003;</span>
+                    <span>{{ success }}</span>
+                </div>
+                {% endif %}
+
+                <form method="POST" action="{{ prefix }}/login" class="auth-form">
+                    <div class="form-group">
+                        <label class="form-label" for="username">用户名</label>
+                        <input type="text" class="form-input" id="username" name="username"
+                               placeholder="请输入用户名" required autofocus>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="password">密码</label>
+                        <input type="password" class="form-input" id="password" name="password"
+                               placeholder="请输入密码" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg w-full">
+                        <span>登录</span>
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <p>还没有账户？<a href="{{ prefix }}/register" class="auth-link">立即注册</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

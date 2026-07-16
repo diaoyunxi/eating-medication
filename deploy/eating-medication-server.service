@@ -1,0 +1,32 @@
+# /etc/systemd/system/eating-medication-server.service
+# 服务端（FastAPI :1059）进程守护
+# 安装：sudo cp eating-medication-server.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now eating-medication-server
+[Unit]
+Description=Eating Medication Server (FastAPI)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/opt/eating-medication/server
+ExecStart=/usr/bin/python3 main.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+# 安全加固
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/eating-medication
+# 环境变量文件（前缀 - 表示不存在时不报错）
+EnvironmentFile=-/opt/eating-medication/server/.env
+# 如需在此处覆盖 .env，可加 Environment= 行，例如：
+# Environment=PATH_PREFIX=/eating-medication/server
+
+[Install]
+WantedBy=multi-user.target

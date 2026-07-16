@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用药记录 - {{ app_name }}</title>
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.9.2">
+</head>
+<body class="bg-gradient">
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="{{ prefix }}/" class="navbar-brand">
+                <div class="navbar-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                </div>
+                <span class="navbar-title">{{ app_name }}</span>
+            </a>
+            <div class="navbar-nav">
+                <a href="{{ prefix }}/" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span>首页</span>
+                </a>
+                <a href="{{ prefix }}/dashboard" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    <span>仪表板</span>
+                </a>
+                <a href="{{ prefix }}/reminders" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>提醒</span>
+                </a>
+                <a href="{{ prefix }}/records" class="nav-link active">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>记录</span>
+                </a>
+                <a href="{{ prefix }}/chat" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>消息</span>
+                </a>
+                <a href="{{ prefix }}/settings" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span>设置</span>
+                </a>
+                <div class="nav-user">
+                    <span class="nav-username">{{ request.state.user or '用户' }}</span>
+                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();fetch('{{ prefix }}/logout',{method:'POST'}).finally(function(){window.location.href='{{ prefix }}/login';});">登出</a>
+                    <button class="nav-user-avatar" type="button" aria-label="用户菜单" aria-haspopup="true" aria-expanded="false" onclick="toggleNavUserDropdown(event)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </button>
+                    <div class="nav-user-dropdown" id="navUserDropdown" role="menu">
+                        <div class="nav-user-dropdown-user">
+                            <div class="nav-user-dropdown-avatar">{{ (request.state.user or 'U')|first|upper }}</div>
+                            <span class="nav-user-dropdown-name">{{ request.state.user or '用户' }}</span>
+                        </div>
+                        <button class="nav-user-dropdown-item danger" type="button" role="menuitem" onclick="navLogout()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                            <span>登出</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 页面头部 -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <h1 class="page-title">用药记录</h1>
+            <p class="page-subtitle">查看完整的用药历史记录</p>
+        </div>
+    </div>
+
+    <!-- 状态栏 -->
+    <div class="status-bar">
+        <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
+            <div class="status-info">
+                <div class="status-icon">
+                    {% if device_info and device_info.connected %}
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    {% else %}
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    {% endif %}
+                </div>
+                <div class="status-text">
+                    <div class="status-title">
+                        {% if device_info and device_info.device_id %}
+                            {% if device_info.connected %}老人端在线{% else %}老人端离线{% endif %}
+                        {% else %}
+                            未绑定设备
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="status-badge">
+                {% if device_info and device_info.device_id %}
+                    {% if device_info.connected %}连接正常{% else %}已断开{% endif %}
+                {% else %}
+                    设备离线
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 主要内容 -->
+    <div class="container">
+        <!-- 统计卡片 -->
+        <div class="records-card">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--success-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    </div>
+                    <div class="stat-value">{{ records|length }}</div>
+                    <div class="stat-label">总记录数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--info-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+                    </div>
+                    <div class="stat-value">
+                        {% set total = records|length %}
+                        {% if total > 0 %}
+                            {% set confirmed = records|selectattr('confirmed')|list|length %}
+                            {{ (confirmed / total * 100)|round }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </div>
+                    <div class="stat-label">确认率</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--warning-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </div>
+                    <div class="stat-value">
+                        {{ records|rejectattr('confirmed')|list|length }}
+                    </div>
+                    <div class="stat-label">漏服/未确认</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    </div>
+                    <div class="stat-value">{{ records|length }}</div>
+                    <div class="stat-label">带照片记录</div>
+                </div>
+            </div>
+
+            <!-- 筛选器 -->
+            <div class="filter-area">
+                <select class="filter-select" id="filterTime">
+                    <option value="">全部时间</option>
+                    <option value="today">今天</option>
+                    <option value="week">本周</option>
+                    <option value="month">本月</option>
+                    <option value="30days">最近30天</option>
+                </select>
+                <select class="filter-select" id="filterStatus">
+                    <option value="">全部状态</option>
+                    <option value="confirmed">已确认</option>
+                    <option value="missed">漏服</option>
+                    <option value="late">迟到确认</option>
+                </select>
+                <select class="filter-select" id="filterMed">
+                    <option value="">全部药品</option>
+                    {% set meds = [] %}
+                    {% for record in records %}
+                        {% if record.medication_name not in meds %}
+                            {% set _ = meds.append(record.medication_name) %}
+                        {% endif %}
+                    {% endfor %}
+                    {% for med in meds %}
+                        <option value="{{ med }}">{{ med }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- 记录列表 -->
+        <div class="records-card">
+            <div class="card-header">
+                <div class="section-title-group">
+                    <div class="section-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    </div>
+                    <div>
+                        <div class="section-title">用药记录</div>
+                        <div class="section-subtitle">按时间倒序排列</div>
+                    </div>
+                </div>
+            </div>
+
+            {% if records %}
+            <div class="record-list" id="recordList">
+                {% for record in records %}
+                <div class="record-item {% if not record.confirmed %}missed{% elif record.status == 'late' %}late{% endif %}" data-status="{% if not record.confirmed %}missed{% elif record.status == 'late' %}late{% else %}confirmed{% endif %}" data-med="{{ record.medication_name }}">
+                    <div class="record-date {% if not record.confirmed %}missed{% elif record.status == 'late' %}late{% endif %}">
+                        <div class="record-day">{{ record.taken_at.split(' ')[0] if record.taken_at and ' ' in record.taken_at else record.taken_at }}</div>
+                        <div class="record-time-small">{{ record.taken_at.split(' ')[1] if record.taken_at and ' ' in record.taken_at else '' }}</div>
+                    </div>
+                    <div class="record-info">
+                        <div class="record-name">{{ record.medication_name }}</div>
+                        <div class="record-details">{{ record.dosage }} · {{ '已确认' if record.confirmed else '未确认' }}</div>
+                        <div class="record-meta">
+                            {% if record.confirmed %}
+                                <span class="record-badge confirmed">已确认</span>
+                            {% else %}
+                                <span class="record-badge missed">未确认</span>
+                            {% endif %}
+                            <span class="record-badge">有照片</span>
+                        </div>
+                    </div>
+                    <div class="record-status-block">
+                        <div class="status-main {% if not record.confirmed %}missed{% elif record.status == 'late' %}late{% else %}confirmed{% endif %}">
+                            {% if not record.confirmed %}
+                                未确认
+                            {% elif record.status == 'late' %}
+                                迟到确认
+                            {% else %}
+                                准时确认
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                </div>
+                <div class="empty-state-title">暂无记录</div>
+                <div class="empty-state-text">老人端暂无用药记录数据</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // 筛选器交互
+        var filterTime = document.getElementById('filterTime');
+        var filterStatus = document.getElementById('filterStatus');
+        var filterMed = document.getElementById('filterMed');
+        var recordItems = document.querySelectorAll('.record-item');
+
+        function applyFilters() {
+            var timeVal = filterTime.value;
+            var statusVal = filterStatus.value;
+            var medVal = filterMed.value;
+            var now = new Date();
+
+            recordItems.forEach(function(item) {
+                var show = true;
+                var itemStatus = item.getAttribute('data-status');
+                var itemMed = item.getAttribute('data-med');
+                var dateText = item.querySelector('.record-day').textContent;
+                var itemDate = new Date(dateText);
+
+                // 状态筛选
+                if (statusVal && itemStatus !== statusVal) {
+                    show = false;
+                }
+
+                // 药品筛选
+                if (medVal && itemMed !== medVal) {
+                    show = false;
+                }
+
+                // 时间筛选
+                if (timeVal) {
+                    var diffDays = (now - itemDate) / (1000 * 60 * 60 * 24);
+                    if (timeVal === 'today' && diffDays > 1) show = false;
+                    if (timeVal === 'week' && diffDays > 7) show = false;
+                    if (timeVal === 'month' && diffDays > 30) show = false;
+                    if (timeVal === '30days' && diffDays > 30) show = false;
+                }
+
+                item.style.display = show ? '' : 'none';
+            });
+        }
+
+        filterTime.addEventListener('change', applyFilters);
+        filterStatus.addEventListener('change', applyFilters);
+        filterMed.addEventListener('change', applyFilters);
+    </script>
+    <!-- 导航栏用户菜单（移动端头像下拉） -->
+    <script>
+        (function () {
+            if (window.__navUserDropdownInit) return;
+            window.__navUserDropdownInit = true;
+
+            window.toggleNavUserDropdown = function (e) {
+                e.stopPropagation();
+                e.preventDefault();
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                var isOpen = dd.classList.toggle('show');
+                var btn = e.currentTarget;
+                if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            };
+
+            window.navLogout = function () {
+                fetch('{{ prefix }}/logout', {
+                    method: 'POST'
+                }).finally(function () {
+                    window.location.href = '{{ prefix }}/login';
+                });
+            };
+
+            document.addEventListener('click', function (e) {
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                if (!dd.parentElement.contains(e.target)) {
+                    dd.classList.remove('show');
+                    var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    var dd = document.getElementById('navUserDropdown');
+                    if (dd) {
+                        dd.classList.remove('show');
+                        var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                        if (btn) btn.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+        })();
+    </script>
+    <!-- 设备状态轮询（每15秒），失败降级显示离线 -->
+    <script>
+    (function(){
+        function refreshDeviceStatus(){
+            fetch('{{ prefix }}/status')
+                .then(function(r){return r.json();})
+                .then(function(data){
+                    var card = document.querySelector('.status-card');
+                    if(!card) return;
+                    var badge = card.querySelector('.status-badge');
+                    var title = card.querySelector('.status-title');
+                    var online = !!(data && data.connected);
+                    var hasDevice = !!(data && data.device_id);
+                    if(online){
+                        card.classList.remove('offline'); card.classList.add('online');
+                        if(title){ title.textContent = (data.device_name || '设备在线'); }
+                        if(badge){ badge.textContent = '设备在线'; }
+                    } else {
+                        card.classList.remove('online'); card.classList.add('offline');
+                        if(!hasDevice){
+                            if(title){ title.textContent = '未绑定设备'; }
+                        } else {
+                            if(title){ title.textContent = (data.device_name || '设备离线'); }
+                        }
+                        if(badge){ badge.textContent = '设备离线'; }
+                    }
+                })
+                .catch(function(e){
+                    console.error('状态刷新失败:', e);
+                    var card = document.querySelector('.status-card');
+                    if(card){
+                        card.classList.remove('online'); card.classList.add('offline');
+                        var badge = card.querySelector('.status-badge');
+                        if(badge){ badge.textContent = '设备离线'; }
+                    }
+                });
+        }
+        setInterval(refreshDeviceStatus, 15000);
+    })();
+    </script>
+</body>
+</html>
