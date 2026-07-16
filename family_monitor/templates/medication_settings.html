@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用药设置 - {{ app_name }}</title>
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.9.2">
+</head>
+<body>
+    <div class="bg-gradient">
+        <div class="floating-shapes">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3"></div>
+        </div>
+
+        <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="{{ prefix }}/" class="navbar-brand">
+                <div class="navbar-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                </div>
+                <span class="navbar-title">{{ app_name }}</span>
+            </a>
+            <div class="navbar-nav">
+                <a href="{{ prefix }}/" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span>首页</span>
+                </a>
+                <a href="{{ prefix }}/dashboard" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    <span>仪表板</span>
+                </a>
+                <a href="{{ prefix }}/reminders" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>提醒</span>
+                </a>
+                <a href="{{ prefix }}/records" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>记录</span>
+                </a>
+                <a href="{{ prefix }}/chat" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>消息</span>
+                </a>
+                <a href="{{ prefix }}/settings" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span>设置</span>
+                </a>
+                <div class="nav-user">
+                    <span class="nav-username">{{ request.state.user or '用户' }}</span>
+                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();fetch('{{ prefix }}/logout',{method:'POST'}).finally(function(){window.location.href='{{ prefix }}/login';});">登出</a>
+                    <button class="nav-user-avatar" type="button" aria-label="用户菜单" aria-haspopup="true" aria-expanded="false" onclick="toggleNavUserDropdown(event)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </button>
+                    <div class="nav-user-dropdown" id="navUserDropdown" role="menu">
+                        <div class="nav-user-dropdown-user">
+                            <div class="nav-user-dropdown-avatar">{{ (request.state.user or 'U')|first|upper }}</div>
+                            <span class="nav-user-dropdown-name">{{ request.state.user or '用户' }}</span>
+                        </div>
+                        <button class="nav-user-dropdown-item danger" type="button" role="menuitem" onclick="navLogout()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                            <span>登出</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+        <!-- 页面头部 -->
+        <header class="page-header">
+            <div class="page-header-content">
+                <h1 class="page-title">⏰ 用药设置</h1>
+                <p class="page-subtitle">管理老人的用药计划与服药时间</p>
+            </div>
+        </header>
+
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
+                <div class="status-info">
+                    <div class="status-icon">{{ "✅" if device_info and device_info.connected else "❌" }}</div>
+                    <div class="status-text">
+                        <div class="status-title">{{ device_info.device_name if device_info else "未知设备" }}</div>
+                        <div class="status-subtitle">
+                            {% if device_info and device_info.device_id %}
+                                设备ID: {{ device_info.device_id }}
+                            {% else %}
+                                未绑定设备
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="status-badge">
+                    {% if device_info and device_info.connected %}
+                        🟢 设备在线
+                    {% else %}
+                        🔴 设备离线
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 主内容 -->
+        <main class="main-content">
+            {% if device_info and device_info.device_id %}
+            <!-- 当前用药计划 -->
+            <div class="content-card">
+                <div class="card-header">
+                    <div class="section-title-group">
+                        <div class="section-icon">📋</div>
+                        <div>
+                            <div class="section-title">当前用药计划</div>
+                            <div class="section-subtitle">共 {{ plans|length }} 个计划</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline btn-sm" onclick="refreshPlans()">
+                        <span>🔄</span>
+                        <span>刷新</span>
+                    </button>
+                </div>
+
+                <div id="planListContainer">
+                    {% if plans %}
+                    <div class="plan-list">
+                        {% for plan in plans %}
+                        <div class="plan-item" data-plan-id="{{ plan.id }}">
+                            <div class="plan-icon">💊</div>
+                            <div class="plan-info">
+                                <div class="plan-name">
+                                    {{ plan.get('drug_name', '未知药品') }}
+                                    {% if plan.get('frequency') %}
+                                    <span class="time-badge">🗓️ {{ plan.get('frequency') }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="plan-meta">
+                                    剂量：{{ plan.get('dosage', '-') }}
+                                    {% if plan.get('unit') %}（{{ plan.get('unit') }}）{% endif %}
+                                </div>
+                                <div class="plan-times">
+                                    {% if plan.get('schedule_times') %}
+                                        {% for t in plan.get('schedule_times') %}
+                                        <span class="time-badge">⏰ {{ t }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="time-badge">未设置时间</span>
+                                    {% endif %}
+                                    {% if plan.get('remaining_quantity') is not none %}
+                                    <span class="stock-badge {% if plan.get('remaining_quantity', 0) <= plan.get('low_stock_threshold', 5) %}low{% endif %}">
+                                        📦 余量 {{ plan.get('remaining_quantity', 0) }}/{{ plan.get('total_quantity', 0) }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="plan-actions">
+                                <button class="btn btn-danger btn-sm"
+                                        data-plan-id="{{ plan.id }}"
+                                        data-drug-name="{{ plan.get('drug_name', '') }}"
+                                        onclick="deletePlan(this.dataset.planId, this.dataset.drugName)">
+                                    <span>🗑️</span>
+                                    <span>删除</span>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div class="empty-state-title">暂无用药计划</div>
+                        <div class="empty-state-text">在下方表单中添加第一个用药计划</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 添加用药计划表单 -->
+            <div class="content-card">
+                <div class="card-header">
+                    <div class="section-title-group">
+                        <div class="section-icon">➕</div>
+                        <div>
+                            <div class="section-title">添加用药计划</div>
+                            <div class="section-subtitle">设置药品名称、剂量与服药时间</div>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="planForm" onsubmit="return false;">
+                    <div class="form-grid">
+                        <!-- 药品名称 -->
+                        <div class="form-field">
+                            <label for="drugName">药品名称 *</label>
+                            <input type="text" id="drugName" placeholder="如：阿司匹林" required>
+                            <span class="form-hint-inline">请输入完整的药品名称</span>
+                        </div>
+
+                        <!-- 剂量 -->
+                        <div class="form-field">
+                            <label for="dosage">剂量 *</label>
+                            <input type="text" id="dosage" placeholder="如：1片" required>
+                            <span class="form-hint-inline">每次服药的剂量</span>
+                        </div>
+
+                        <!-- 服药时间 -->
+                        <div class="form-field full">
+                            <label>服药时间 *</label>
+                            <div class="time-inputs" id="timeInputs">
+                                <div class="time-input-row">
+                                    <input type="time" class="time-input" value="08:00">
+                                    <button type="button" class="time-remove-btn" onclick="removeTime(this)" title="移除该时间">✕</button>
+                                </div>
+                            </div>
+                            <button type="button" class="time-add-btn" onclick="addTime()">
+                                <span>＋</span>
+                                <span>添加服药时间</span>
+                            </button>
+                            <span class="form-hint-inline">可添加多个时间点，例如早、中、晚各一次</span>
+                        </div>
+
+                        <!-- 频率 -->
+                        <div class="form-field">
+                            <label for="frequency">服药频率</label>
+                            <select id="frequency">
+                                <option value="daily" selected>每天</option>
+                                <option value="weekly">每周</option>
+                                <option value="monthly">每月</option>
+                                <option value="as_needed">按需</option>
+                            </select>
+                            <span class="form-hint-inline">默认为每天服药</span>
+                        </div>
+
+                        <!-- 单位 -->
+                        <div class="form-field">
+                            <label for="unit">药品单位</label>
+                            <input type="text" id="unit" value="片" placeholder="如：片、粒、ml">
+                        </div>
+
+                        <!-- 数量信息 -->
+                        <div class="form-field full">
+                            <label>药品库存</label>
+                            <div class="quantity-row">
+                                <div class="form-field">
+                                    <label for="totalQuantity">总数量</label>
+                                    <input type="number" id="totalQuantity" value="30" min="0" placeholder="0">
+                                </div>
+                                <div class="form-field">
+                                    <label for="remainingQuantity">剩余数量</label>
+                                    <input type="number" id="remainingQuantity" value="30" min="0" placeholder="0">
+                                </div>
+                                <div class="form-field">
+                                    <label for="lowStockThreshold">低库存阈值</label>
+                                    <input type="number" id="lowStockThreshold" value="5" min="0" placeholder="5">
+                                </div>
+                            </div>
+                            <span class="form-hint-inline">当剩余数量低于阈值时将触发低库存提醒</span>
+                        </div>
+                    </div>
+
+                    <div class="btn-row">
+                        <button type="button" class="btn btn-outline" onclick="resetForm()">
+                            <span>🔄</span>
+                            <span>重置</span>
+                        </button>
+                        <button type="button" class="btn btn-primary btn-lg" onclick="submitPlan()">
+                            <span>💾</span>
+                            <span>保存用药计划</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% else %}
+            <!-- 未绑定设备提示 -->
+            <div class="content-card">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📱</div>
+                    <div class="empty-state-title">尚未绑定设备</div>
+                    <div class="empty-state-text">请先在「设置」页面绑定老人端设备，再进行用药设置</div>
+                    <a href="{{ prefix }}/settings" class="btn btn-primary btn-lg">
+                        <span>⚙️</span>
+                        <span>前往设置绑定设备</span>
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </main>
+    </div>
+
+    <!-- Toast通知 -->
+    <div id="toast" class="toast">
+        <div class="toast-icon" id="toastIcon">✅</div>
+        <div class="toast-message" id="toastMessage">操作成功</div>
+    </div>
+
+    <script>
+        // Toast通知（与 settings.html 一致的样式）
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastIcon = document.getElementById('toastIcon');
+            const toastMessage = document.getElementById('toastMessage');
+
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+
+            toast.className = 'toast toast-' + type;
+            toastIcon.textContent = icons[type] || 'ℹ️';
+            toastMessage.textContent = message;
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // 动态添加服药时间输入框
+        function addTime() {
+            const container = document.getElementById('timeInputs');
+            const row = document.createElement('div');
+            row.className = 'time-input-row';
+            row.innerHTML = `
+                <input type="time" class="time-input" value="08:00">
+                <button type="button" class="time-remove-btn" onclick="removeTime(this)" title="移除该时间">✕</button>
+            `;
+            container.appendChild(row);
+        }
+
+        // 移除服药时间输入框（至少保留一个）
+        function removeTime(btn) {
+            const container = document.getElementById('timeInputs');
+            if (container.children.length <= 1) {
+                showToast('至少需要保留一个服药时间', 'warning');
+                return;
+            }
+            btn.closest('.time-input-row').remove();
+        }
+
+        // 收集所有服药时间
+        function collectTimes() {
+            const times = [];
+            document.querySelectorAll('.time-input').forEach(function(input) {
+                const v = input.value.trim();
+                if (v) times.push(v);
+            });
+            return times;
+        }
+
+        // 提交用药计划
+        async function submitPlan() {
+            const drugName = document.getElementById('drugName').value.trim();
+            const dosage = document.getElementById('dosage').value.trim();
+            const scheduleTimes = collectTimes();
+            const frequency = document.getElementById('frequency').value;
+            const unit = document.getElementById('unit').value.trim() || '片';
+            const totalQuantity = parseInt(document.getElementById('totalQuantity').value) || 0;
+            const remainingQuantity = parseInt(document.getElementById('remainingQuantity').value);
+            const lowStockThreshold = parseInt(document.getElementById('lowStockThreshold').value) || 5;
+
+            // 前端基础校验
+            if (!drugName) {
+                showToast('请填写药品名称', 'warning');
+                return;
+            }
+            if (!dosage) {
+                showToast('请填写剂量', 'warning');
+                return;
+            }
+            if (scheduleTimes.length === 0) {
+                showToast('请至少添加一个服药时间', 'warning');
+                return;
+            }
+
+            const payload = {
+                drug_name: drugName,
+                dosage: dosage,
+                schedule_times: scheduleTimes,
+                frequency: frequency,
+                unit: unit,
+                total_quantity: totalQuantity,
+                remaining_quantity: isNaN(remainingQuantity) ? totalQuantity : remainingQuantity,
+                low_stock_threshold: lowStockThreshold
+            };
+
+            showToast('正在保存用药计划...', 'info');
+
+            try {
+                const response = await fetch('{{ prefix }}/medication_settings/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showToast(data.message || '用药计划添加成功', 'success');
+                    setTimeout(function() { location.reload(); }, 1000);
+                } else {
+                    showToast(data.message || '添加失败', 'error');
+                }
+            } catch (error) {
+                showToast('添加失败：' + error.message, 'error');
+            }
+        }
+
+        // 删除用药计划
+        async function deletePlan(planId, drugName) {
+            if (!confirm('确定要删除用药计划「' + (drugName || planId) + '」吗？')) return;
+
+            showToast('正在删除用药计划...', 'info');
+
+            try {
+                const response = await fetch('{{ prefix }}/medication_settings/delete/' + planId, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showToast(data.message || '用药计划已删除', 'success');
+                    setTimeout(function() { location.reload(); }, 800);
+                } else {
+                    showToast(data.message || '删除失败', 'error');
+                }
+            } catch (error) {
+                showToast('删除失败：' + error.message, 'error');
+            }
+        }
+
+        // 刷新用药计划列表
+        function refreshPlans() {
+            showToast('正在刷新...', 'info');
+            setTimeout(function() { location.reload(); }, 400);
+        }
+
+        // 重置表单
+        function resetForm() {
+            document.getElementById('planForm').reset();
+            // 重置时间输入为单个
+            const container = document.getElementById('timeInputs');
+            container.innerHTML = `
+                <div class="time-input-row">
+                    <input type="time" class="time-input" value="08:00">
+                    <button type="button" class="time-remove-btn" onclick="removeTime(this)" title="移除该时间">✕</button>
+                </div>
+            `;
+            showToast('表单已重置', 'info');
+        }
+    </script>
+    <!-- 导航栏用户菜单（移动端头像下拉） -->
+    <script>
+        (function () {
+            if (window.__navUserDropdownInit) return;
+            window.__navUserDropdownInit = true;
+
+            window.toggleNavUserDropdown = function (e) {
+                e.stopPropagation();
+                e.preventDefault();
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                var isOpen = dd.classList.toggle('show');
+                var btn = e.currentTarget;
+                if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            };
+
+            window.navLogout = function () {
+                fetch('{{ prefix }}/logout', {
+                    method: 'POST'
+                }).finally(function () {
+                    window.location.href = '{{ prefix }}/login';
+                });
+            };
+
+            document.addEventListener('click', function (e) {
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                if (!dd.parentElement.contains(e.target)) {
+                    dd.classList.remove('show');
+                    var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    var dd = document.getElementById('navUserDropdown');
+                    if (dd) {
+                        dd.classList.remove('show');
+                        var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                        if (btn) btn.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+        })();
+    </script>
+    <!-- 设备状态轮询（每15秒），失败降级显示离线 -->
+    <script>
+    (function(){
+        function refreshDeviceStatus(){
+            fetch('{{ prefix }}/status')
+                .then(function(r){return r.json();})
+                .then(function(data){
+                    var card = document.querySelector('.status-card');
+                    if(!card) return;
+                    var badge = card.querySelector('.status-badge');
+                    var title = card.querySelector('.status-title');
+                    var online = !!(data && data.connected);
+                    var hasDevice = !!(data && data.device_id);
+                    if(online){
+                        card.classList.remove('offline'); card.classList.add('online');
+                        if(title){ title.textContent = (data.device_name || '设备在线'); }
+                        if(badge){ badge.textContent = '设备在线'; }
+                    } else {
+                        card.classList.remove('online'); card.classList.add('offline');
+                        if(!hasDevice){
+                            if(title){ title.textContent = '未绑定设备'; }
+                        } else {
+                            if(title){ title.textContent = (data.device_name || '设备离线'); }
+                        }
+                        if(badge){ badge.textContent = '设备离线'; }
+                    }
+                })
+                .catch(function(e){
+                    console.error('状态刷新失败:', e);
+                    var card = document.querySelector('.status-card');
+                    if(card){
+                        card.classList.remove('online'); card.classList.add('offline');
+                        var badge = card.querySelector('.status-badge');
+                        if(badge){ badge.textContent = '设备离线'; }
+                    }
+                });
+        }
+        setInterval(refreshDeviceStatus, 15000);
+    })();
+    </script>
+</body>
+</html>

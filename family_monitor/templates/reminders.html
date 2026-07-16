@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用药提醒 - {{ app_name }}</title>
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.9.2">
+</head>
+<body class="bg-gradient">
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="{{ prefix }}/" class="navbar-brand">
+                <div class="navbar-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                </div>
+                <span class="navbar-title">{{ app_name }}</span>
+            </a>
+            <div class="navbar-nav">
+                <a href="{{ prefix }}/" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span>首页</span>
+                </a>
+                <a href="{{ prefix }}/dashboard" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    <span>仪表板</span>
+                </a>
+                <a href="{{ prefix }}/reminders" class="nav-link active">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>提醒</span>
+                </a>
+                <a href="{{ prefix }}/records" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>记录</span>
+                </a>
+                <a href="{{ prefix }}/chat" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>消息</span>
+                </a>
+                <a href="{{ prefix }}/settings" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span>设置</span>
+                </a>
+                <div class="nav-user">
+                    <span class="nav-username">{{ request.state.user or '用户' }}</span>
+                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();fetch('{{ prefix }}/logout',{method:'POST'}).finally(function(){window.location.href='{{ prefix }}/login';});">登出</a>
+                    <button class="nav-user-avatar" type="button" aria-label="用户菜单" aria-haspopup="true" aria-expanded="false" onclick="toggleNavUserDropdown(event)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </button>
+                    <div class="nav-user-dropdown" id="navUserDropdown" role="menu">
+                        <div class="nav-user-dropdown-user">
+                            <div class="nav-user-dropdown-avatar">{{ (request.state.user or 'U')|first|upper }}</div>
+                            <span class="nav-user-dropdown-name">{{ request.state.user or '用户' }}</span>
+                        </div>
+                        <button class="nav-user-dropdown-item danger" type="button" role="menuitem" onclick="navLogout()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                            <span>登出</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 页面头部 -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <h1 class="page-title">用药提醒</h1>
+            <p class="page-subtitle">管理所有用药提醒计划</p>
+        </div>
+    </div>
+
+    <!-- 状态栏 -->
+    <div class="status-bar">
+        <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
+            <div class="status-info">
+                <div class="status-icon">
+                    {% if device_info and device_info.connected %}&#9679;{% else %}&#9675;{% endif %}
+                </div>
+                <div class="status-text">
+                    <div class="status-title">
+                        {% if device_info and device_info.device_id %}
+                            {% if device_info.connected %}老人端在线{% else %}老人端离线{% endif %}
+                        {% else %}未绑定设备{% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="status-badge">
+                {% if device_info and device_info.device_id %}
+                    {% if device_info.connected %}&#10003; 连接正常{% else %}&#9888; 已断开{% endif %}
+                {% else %}&#9888; 设备离线{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 主要内容 -->
+    <div class="reminders-content">
+        <!-- 统计卡片 -->
+        <div class="content-card">
+            <div class="stats-row">
+                <div class="stat-box">
+                    <div class="stat-box-value" id="statTotal">0</div>
+                    <div class="stat-box-label">总计划数</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-value" id="statDrugs">0</div>
+                    <div class="stat-box-label">药品种类</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-value" id="statTimes">0</div>
+                    <div class="stat-box-label">每日服药次数</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-value" id="statLowStock">0</div>
+                    <div class="stat-box-label">低库存预警</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cloudflare DNS 风格提醒表格 -->
+        <div class="dns-card">
+            <div class="dns-card-header">
+                <div class="dns-card-title">
+                    提醒列表
+                    <span class="dns-card-count" id="dnsCount">{{ reminders|length }} 条</span>
+                </div>
+                <button class="dns-add-btn" onclick="showAddRow()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    添加提醒
+                </button>
+            </div>
+
+            <div class="dns-table-wrap">
+                <table class="dns-table">
+                    <thead>
+                        <tr>
+                            <th style="width:18%">药品名称</th>
+                            <th style="width:10%">剂量</th>
+                            <th style="width:22%">服药时间</th>
+                            <th style="width:12%">频率</th>
+                            <th style="width:18%">库存</th>
+                            <th style="width:20%; text-align:right">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dnsTableBody">
+                        {% if reminders %}
+                            {% for plan in reminders %}
+                            <tr class="dns-data-row" data-plan-id="{{ plan.id }}">
+                                <td class="dns-cell-name">{{ plan.drug_name }}</td>
+                                <td>{{ plan.dosage }}</td>
+                                <td class="dns-cell-time">{{ plan.schedule_times|join('、') }}</td>
+                                <td>{{ plan.frequency }}</td>
+                                <td class="dns-cell-stock">
+                                    {% if plan.remaining_quantity <= plan.low_stock_threshold %}
+                                    <span class="dns-stock-low">{{ plan.remaining_quantity }}{{ plan.unit }} (低库存)</span>
+                                    {% else %}
+                                    <span class="dns-stock-ok">{{ plan.remaining_quantity }}/{{ plan.total_quantity }}{{ plan.unit }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="dns-actions">
+                                        <button class="dns-action-btn dns-edit" title="编辑" onclick="editPlan({{ plan.id }})">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                        </button>
+                                        <button class="dns-action-btn dns-delete" title="删除" onclick="deletePlan({{ plan.id }})">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td colspan="6">
+                                <div class="dns-empty">
+                                    <div class="dns-empty-icon">&#9873;</div>
+                                    <div class="dns-empty-text">暂无用药提醒，点击"添加提醒"创建</div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* 后端传入的提醒数据（JSON），供 JS 渲染编辑表单 */
+        var PLANS_DATA = {{ reminders | tojson }};
+
+        var PREFIX = '{{ prefix }}';
+
+        /* ===== 统计计算 ===== */
+        function updateStats() {
+            var total = PLANS_DATA.length;
+            var drugSet = {};
+            var totalTimes = 0;
+            var lowStock = 0;
+            PLANS_DATA.forEach(function(p) {
+                drugSet[p.drug_name] = true;
+                totalTimes += (p.schedule_times || []).length;
+                if (p.remaining_quantity <= p.low_stock_threshold) lowStock++;
+            });
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statDrugs').textContent = Object.keys(drugSet).length;
+            document.getElementById('statTimes').textContent = totalTimes;
+            document.getElementById('statLowStock').textContent = lowStock;
+            document.getElementById('dnsCount').textContent = total + ' 条';
+        }
+
+        /* ===== 时间标签管理 ===== */
+        function renderTimeTags(container, times) {
+            container.innerHTML = '';
+            (times || []).forEach(function(t, idx) {
+                var tag = document.createElement('span');
+                tag.className = 'dns-time-tag';
+                tag.innerHTML = t + '<button class="dns-time-tag-remove" onclick="removeTime(this,' + idx + ')">&times;</button>';
+                container.appendChild(tag);
+            });
+            var input = document.createElement('input');
+            input.type = 'time';
+            input.className = 'dns-time-add-input';
+            input.dataset.times = JSON.stringify(times);
+            input.placeholder = '添加';
+            input.onkeydown = function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (this.value) {
+                        times.push(this.value);
+                        renderTimeTags(container, times);
+                    }
+                }
+            };
+            input.onblur = function() {
+                if (this.value) {
+                    times.push(this.value);
+                    renderTimeTags(container, times);
+                }
+            };
+            container.appendChild(input);
+        }
+
+        function removeTime(btn, idx) {
+            var container = btn.closest('.dns-time-tags');
+            var input = container.querySelector('.dns-time-add-input');
+            var times = JSON.parse(input.dataset.times || '[]');
+            times.splice(idx, 1);
+            input.dataset.times = JSON.stringify(times);
+            renderTimeTags(container, times);
+        }
+
+        /* 创建编辑行表单 */
+        function createEditRow(plan) {
+            plan = plan || {};
+            var times = (plan.schedule_times || []).slice();
+            var isEdit = !!plan.id;
+
+            var tr = document.createElement('tr');
+            tr.className = 'dns-edit-row';
+            if (isEdit) tr.dataset.planId = plan.id;
+
+            tr.innerHTML =
+                '<td><input class="dns-input" type="text" name="drug_name" placeholder="药品名称" value="' + (plan.drug_name || '') + '"></td>' +
+                '<td><input class="dns-input dns-input-small" type="text" name="dosage" placeholder="1片" value="' + (plan.dosage || '') + '"></td>' +
+                '<td><div class="dns-time-tags" name="schedule_times"></div></td>' +
+                '<td><select class="dns-select" name="frequency">' +
+                    '<option value="daily"' + (plan.frequency === 'daily' ? ' selected' : '') + '>每日</option>' +
+                    '<option value="weekly"' + (plan.frequency === 'weekly' ? ' selected' : '') + '>每周</option>' +
+                    '<option value="monthly"' + (plan.frequency === 'monthly' ? ' selected' : '') + '>每月</option>' +
+                    '<option value="as_needed"' + (plan.frequency === 'as_needed' ? ' selected' : '') + '>按需</option>' +
+                '</select></td>' +
+                '<td style="display:flex; gap:4px; align-items:center;">' +
+                    '<input class="dns-input dns-input-small" type="number" name="remaining_quantity" placeholder="剩余" value="' + (plan.remaining_quantity || 0) + '" style="max-width:60px">' +
+                    '<span style="color:var(--text-muted)">/</span>' +
+                    '<input class="dns-input dns-input-small" type="number" name="total_quantity" placeholder="总量" value="' + (plan.total_quantity || 0) + '" style="max-width:60px">' +
+                    '<input class="dns-input dns-input-small" type="text" name="unit" placeholder="片" value="' + (plan.unit || '片') + '" style="max-width:50px">' +
+                '</td>' +
+                '<td style="text-align:right">' +
+                    '<div class="dns-actions">' +
+                        '<button class="dns-action-btn dns-save" title="保存" onclick="saveRow(this)">' +
+                            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+                        '</button>' +
+                        '<button class="dns-action-btn" title="取消" onclick="cancelRow(this)">' +
+                            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+                        '</button>' +
+                    '</div>' +
+                '</td>';
+
+            /* 渲染时间标签（延迟，确保 DOM 已插入） */
+            setTimeout(function() {
+                var timeContainer = tr.querySelector('[name="schedule_times"]');
+                var timeInput = tr.querySelector('.dns-time-add-input');
+                timeInput.dataset.times = JSON.stringify(times);
+                renderTimeTags(timeContainer, times);
+            }, 0);
+
+            return tr;
+        }
+
+        /* 收集编辑行数据 */
+        function collectRowData(btn) {
+            var tr = btn.closest('tr');
+            var timeInput = tr.querySelector('.dns-time-add-input');
+            var times = JSON.parse(timeInput.dataset.times || '[]');
+
+            return {
+                drug_name: tr.querySelector('[name="drug_name"]').value.trim(),
+                dosage: tr.querySelector('[name="dosage"]').value.trim(),
+                schedule_times: times,
+                frequency: tr.querySelector('[name="frequency"]').value,
+                remaining_quantity: parseInt(tr.querySelector('[name="remaining_quantity"]').value) || 0,
+                total_quantity: parseInt(tr.querySelector('[name="total_quantity"]').value) || 0,
+                unit: tr.querySelector('[name="unit"]').value.trim() || '片',
+                low_stock_threshold: 5
+            };
+        }
+
+        /* ===== 添加提醒 ===== */
+        function showAddRow() {
+            var existing = document.querySelector('.dns-edit-row[data-is-add]');
+            if (existing) return; /* 已有添加行 */
+
+            var tbody = document.getElementById('dnsTableBody');
+            var emptyRow = tbody.querySelector('.dns-empty');
+            if (emptyRow) emptyRow.closest('tr').remove();
+
+            var tr = createEditRow({});
+            tr.dataset.isAdd = '1';
+            tbody.appendChild(tr);
+        }
+
+        /* ===== 编辑提醒 ===== */
+        function editPlan(planId) {
+            /* 如果已有编辑行，先取消 */
+            var existing = document.querySelector('.dns-edit-row');
+            if (existing) cancelRow(existing.querySelector('.dns-action-btn'));
+
+            var dataRow = document.querySelector('.dns-data-row[data-plan-id="' + planId + '"]');
+            if (!dataRow) return;
+
+            var plan = PLANS_DATA.find(function(p) { return p.id === planId; });
+            if (!plan) return;
+
+            var editRow = createEditRow(plan);
+            dataRow.style.display = 'none';
+            dataRow.parentNode.insertBefore(editRow, dataRow.nextSibling);
+        }
+
+        /* ===== 保存（添加/更新） ===== */
+        function saveRow(btn) {
+            var tr = btn.closest('tr');
+            var data = collectRowData(btn);
+
+            if (!data.drug_name) { alert('请填写药品名称'); return; }
+            if (!data.dosage) { alert('请填写剂量'); return; }
+            if (!data.schedule_times.length) { alert('请至少添加一个服药时间'); return; }
+
+            var isAdd = tr.dataset.isAdd === '1';
+            var url, method;
+
+            if (isAdd) {
+                url = PREFIX + '/medication_settings/add';
+                method = 'POST';
+            } else {
+                var planId = tr.dataset.planId;
+                url = PREFIX + '/medication_settings/update/' + planId;
+                method = 'POST';
+            }
+
+            fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(result) {
+                if (result.success) {
+                    alert(result.message);
+                    window.location.reload();
+                } else {
+                    alert(result.message || '操作失败');
+                }
+            })
+            .catch(function(e) {
+                alert('网络错误: ' + e.message);
+            });
+        }
+
+        /* ===== 取消编辑 ===== */
+        function cancelRow(btn) {
+            var tr = (btn.closest ? btn.closest('tr') : btn);
+            if (tr.dataset.isAdd === '1') {
+                tr.remove();
+            } else {
+                var planId = tr.dataset.planId;
+                tr.remove();
+                var dataRow = document.querySelector('.dns-data-row[data-plan-id="' + planId + '"]');
+                if (dataRow) dataRow.style.display = '';
+            }
+        }
+
+        /* ===== 删除提醒 ===== */
+        function deletePlan(planId) {
+            if (!confirm('确定删除此用药提醒？')) return;
+
+            fetch(PREFIX + '/medication_settings/delete/' + planId, { method: 'POST' })
+                .then(function(r) { return r.json(); })
+                .then(function(result) {
+                    if (result.success) {
+                        window.location.reload();
+                    } else {
+                        alert(result.message || '删除失败');
+                    }
+                })
+                .catch(function(e) { alert('网络错误: ' + e.message); });
+        }
+
+        /* ===== 初始化 ===== */
+        updateStats();
+    </script>
+
+    <!-- 导航栏用户菜单（移动端头像下拉） -->
+    <script>
+        (function () {
+            if (window.__navUserDropdownInit) return;
+            window.__navUserDropdownInit = true;
+
+            window.toggleNavUserDropdown = function (e) {
+                e.stopPropagation();
+                e.preventDefault();
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                var isOpen = dd.classList.toggle('show');
+                var btn = e.currentTarget;
+                if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            };
+
+            window.navLogout = function () {
+                fetch('{{ prefix }}/logout', { method: 'POST' })
+                    .finally(function () { window.location.href = '{{ prefix }}/login'; });
+            };
+
+            document.addEventListener('click', function (e) {
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                if (!dd.parentElement.contains(e.target)) {
+                    dd.classList.remove('show');
+                    var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    var dd = document.getElementById('navUserDropdown');
+                    if (dd) {
+                        dd.classList.remove('show');
+                        var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                        if (btn) btn.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+        })();
+    </script>
+
+    <!-- 设备状态轮询 -->
+    <script>
+    (function(){
+        function refreshDeviceStatus(){
+            fetch('{{ prefix }}/status')
+                .then(function(r){return r.json();})
+                .then(function(data){
+                    var card = document.querySelector('.status-card');
+                    if(!card) return;
+                    var badge = card.querySelector('.status-badge');
+                    var title = card.querySelector('.status-title');
+                    var online = !!(data && data.connected);
+                    var hasDevice = !!(data && data.device_id);
+                    if(online){
+                        card.classList.remove('offline'); card.classList.add('online');
+                        if(title){ title.textContent = (data.device_name || '设备在线'); }
+                        if(badge){ badge.textContent = '设备在线'; }
+                    } else {
+                        card.classList.remove('online'); card.classList.add('offline');
+                        if(!hasDevice){ if(title){ title.textContent = '未绑定设备'; } }
+                        else { if(title){ title.textContent = (data.device_name || '设备离线'); } }
+                        if(badge){ badge.textContent = '设备离线'; }
+                    }
+                })
+                .catch(function(){});
+        }
+        setInterval(refreshDeviceStatus, 15000);
+    })();
+    </script>
+</body>
+</html>

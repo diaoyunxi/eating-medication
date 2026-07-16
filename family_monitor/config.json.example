@@ -1,0 +1,14 @@
+{
+  "ELDERLY_SERVER_URL": "https://your-elderly-server.example.com/server",
+  "SERVER_HOST": "0.0.0.0",
+  "SERVER_PORT": 4430,
+  "DEBUG": "False",
+  "APP_NAME": "子女看护中心",
+  "SECRET_KEY": "",
+  "PATH_PREFIX": "/eating-medication/family",
+  "DISPLAY_THEME": "light",
+  "DISPLAY_COLOR": "purple",
+  "DISPLAY_LANGUAGE": "zh-CN",
+  "DISPLAY_ANIMATIONS": "True",
+  "DISPLAY_COMPACT": "False"
+}

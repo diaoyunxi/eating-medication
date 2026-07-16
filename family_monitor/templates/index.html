@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }} - 子女守护中心</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=Poppins:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.9.2">
+</head>
+<body class="page-home">
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="{{ prefix }}/" class="navbar-brand">
+                <div class="navbar-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                </div>
+                <span class="navbar-title">{{ app_name }}</span>
+            </a>
+            <div class="navbar-nav">
+                <a href="{{ prefix }}/" class="nav-link active">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span>首页</span>
+                </a>
+                <a href="{{ prefix }}/dashboard" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    <span>仪表板</span>
+                </a>
+                <a href="{{ prefix }}/reminders" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>提醒</span>
+                </a>
+                <a href="{{ prefix }}/records" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>记录</span>
+                </a>
+                <a href="{{ prefix }}/chat" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>消息</span>
+                </a>
+                <a href="{{ prefix }}/settings" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span>设置</span>
+                </a>
+                <div class="nav-user">
+                    <span class="nav-username">{{ request.state.user or '用户' }}</span>
+                    <a href="{{ prefix }}/logout" class="btn btn-outline btn-sm" onclick="event.preventDefault();fetch('{{ prefix }}/logout',{method:'POST'}).finally(function(){window.location.href='{{ prefix }}/login';});">登出</a>
+                    <button class="nav-user-avatar" type="button" aria-label="用户菜单" aria-haspopup="true" aria-expanded="false" onclick="toggleNavUserDropdown(event)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </button>
+                    <div class="nav-user-dropdown" id="navUserDropdown" role="menu">
+                        <div class="nav-user-dropdown-user">
+                            <div class="nav-user-dropdown-avatar">{{ (request.state.user or 'U')|first|upper }}</div>
+                            <span class="nav-user-dropdown-name">{{ request.state.user or '用户' }}</span>
+                        </div>
+                        <button class="nav-user-dropdown-item danger" type="button" role="menuitem" onclick="navLogout()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                            <span>登出</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 页面头部 -->
+    <section class="page-hero">
+        <div class="page-hero-inner">
+            <h1 class="page-hero-title">欢迎回家</h1>
+            <p class="page-hero-subtitle">用心守护每一位老人的健康，让关爱无处不在</p>
+        </div>
+    </section>
+
+    <!-- 主内容 -->
+    <main class="main-content">
+        <div class="main-container">
+
+            <!-- 状态栏 -->
+            <div class="status-bar">
+                <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
+                    <div class="status-info">
+                        <div class="status-indicator {% if device_info and device_info.connected %}dot-online{% else %}dot-offline{% endif %}"></div>
+                        <div class="status-text">
+                            <div class="status-title">
+                                {{ device_info.device_name if device_info else "未知设备" }}
+                            </div>
+                            <div class="status-subtitle">
+                                {% if device_info and device_info.device_id %}
+                                    设备ID: {{ device_info.device_id }}
+                                {% else %}
+                                    未绑定设备
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="status-badge">
+                        {% if device_info and device_info.connected %}
+                            <span class="status-badge-dot"></span> 设备在线
+                        {% else %}
+                            <span class="status-badge-dot"></span> 设备离线
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 今日健康概览 -->
+            <section class="overview-section">
+                <h2 class="section-heading">
+                    <span class="section-heading-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </span>
+                    今日健康概览
+                </h2>
+                <div class="stats-row">
+                    <div class="stat-card-home animate-fade-in stagger-1">
+                        <div class="stat-card-icon reminder-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        </div>
+                        <div class="stat-card-value" data-target="{{ dashboard.summary.active_reminders }}">0</div>
+                        <div class="stat-card-label">今日提醒</div>
+                    </div>
+                    <div class="stat-card-home animate-fade-in stagger-2">
+                        <div class="stat-card-icon medication-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7z"/></svg>
+                        </div>
+                        <div class="stat-card-value" data-target="{{ dashboard.summary.taken_today }}">0</div>
+                        <div class="stat-card-label">已确认用药</div>
+                    </div>
+                    <div class="stat-card-home animate-fade-in stagger-3">
+                        <div class="stat-card-icon rate-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                        </div>
+                        <div class="stat-card-value" data-target="{{ dashboard.summary.adherence_rate }}" data-suffix="%">0%</div>
+                        <div class="stat-card-label">依从率</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 快捷操作 -->
+            <section class="actions-section">
+                <h2 class="section-heading">
+                    <span class="section-heading-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    </span>
+                    快捷操作
+                </h2>
+                <div class="actions-grid">
+                    <a href="{{ prefix }}/reminders" class="action-card-home animate-fade-in stagger-1">
+                        <div class="action-card-icon">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        </div>
+                        <h3 class="action-card-title">用药提醒</h3>
+                        <p class="action-card-desc">查看和管理所有用药提醒，确保老人按时服药</p>
+                        <span class="action-card-arrow">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                        </span>
+                    </a>
+                    <a href="{{ prefix }}/records" class="action-card-home animate-fade-in stagger-2">
+                        <div class="action-card-icon">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        </div>
+                        <h3 class="action-card-title">用药记录</h3>
+                        <p class="action-card-desc">查看完整的用药历史记录，追踪健康状况</p>
+                        <span class="action-card-arrow">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                        </span>
+                    </a>
+                    <a href="{{ prefix }}/dashboard" class="action-card-home animate-fade-in stagger-3">
+                        <div class="action-card-icon">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                        </div>
+                        <h3 class="action-card-title">健康仪表板</h3>
+                        <p class="action-card-desc">数据可视化展示，一目了然掌握健康趋势</p>
+                        <span class="action-card-arrow">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                        </span>
+                    </a>
+                    <a href="{{ prefix }}/settings" class="action-card-home animate-fade-in stagger-4">
+                        <div class="action-card-icon">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        </div>
+                        <h3 class="action-card-title">系统设置</h3>
+                        <p class="action-card-desc">个性化配置，让系统更符合您的使用习惯</p>
+                        <span class="action-card-arrow">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                        </span>
+                    </a>
+                </div>
+            </section>
+
+            <!-- 最近活动 -->
+            <section class="activity-section">
+                <h2 class="section-heading">
+                    <span class="section-heading-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </span>
+                    最近活动
+                </h2>
+                <div class="activity-list-card">
+                    {% if dashboard.recent_activities %}
+                        {% for activity in dashboard.recent_activities %}
+                        <div class="activity-row">
+                            <div class="activity-row-icon">
+                                <span>{{ activity.icon }}</span>
+                            </div>
+                            <div class="activity-row-content">
+                                <div class="activity-row-title">{{ activity.action }} {{ activity.name }}</div>
+                            </div>
+                            <div class="activity-row-time">{{ activity.time }}</div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="activity-empty">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            <p>暂无最近活动记录</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
+
+            <!-- 健康小贴士 -->
+            <section class="tips-section">
+                <h2 class="section-heading">
+                    <span class="section-heading-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>
+                    </span>
+                    健康小贴士
+                </h2>
+                <div class="tips-grid">
+                    <div class="tip-card-home animate-fade-in stagger-1">
+                        <div class="tip-card-home-icon tip-diet">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+                        </div>
+                        <h4 class="tip-card-home-title">饮食健康</h4>
+                        <p class="tip-card-home-text">
+                            老年人应保持清淡饮食，多吃蔬菜水果，控制盐分和油脂摄入。
+                            每天喝足够的水，保持身体水分平衡，有助于药物吸收和代谢。
+                        </p>
+                    </div>
+                    <div class="tip-card-home animate-fade-in stagger-2">
+                        <div class="tip-card-home-icon tip-exercise">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><path d="M4 17l4-8 4 4 4-6 4 6"/></svg>
+                        </div>
+                        <h4 class="tip-card-home-title">适度运动</h4>
+                        <p class="tip-card-home-text">
+                            每天进行30分钟适度运动，如散步、太极拳等，可以增强体质、
+                            促进血液循环、改善睡眠质量，同时有助于药物发挥更好效果。
+                        </p>
+                    </div>
+                    <div class="tip-card-home animate-fade-in stagger-3">
+                        <div class="tip-card-home-icon tip-sleep">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                        </div>
+                        <h4 class="tip-card-home-title">规律作息</h4>
+                        <p class="tip-card-home-text">
+                            保持规律的作息时间，充足的睡眠对健康至关重要。尽量在固定
+                            时间服药，建立良好的用药习惯，提高治疗依从性。
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p class="site-footer-brand">{{ app_name }}</p>
+            <p class="site-footer-copy">&copy; {{ current_year }} {{ app_name }} - 用心守护每一位老人的健康</p>
+        </div>
+    </footer>
+
+    <script>
+        // 数字动画效果
+        function animateNumber(element, target, duration, suffix) {
+            duration = duration || 2000;
+            suffix = suffix || '';
+            var start = 0;
+            var startTime = performance.now();
+
+            function update(currentTime) {
+                var elapsed = currentTime - startTime;
+                var progress = Math.min(elapsed / duration, 1);
+                var easeOut = 1 - Math.pow(1 - progress, 3);
+                var current = Math.round(start + (target - start) * easeOut);
+                element.textContent = current + suffix;
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                }
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        // Ripple 点击效果
+        function createRipple(event, element) {
+            var ripple = document.createElement('span');
+            var rect = element.getBoundingClientRect();
+            var size = Math.max(rect.width, rect.height);
+            var x = event.clientX - rect.left - size / 2;
+            var y = event.clientY - rect.top - size / 2;
+
+            ripple.className = 'ripple-effect';
+            ripple.style.cssText =
+                'position:absolute;width:' + size + 'px;height:' + size + 'px;' +
+                'left:' + x + 'px;top:' + y + 'px;' +
+                'background:rgba(201,100,66,0.15);border-radius:50%;' +
+                'transform:scale(0);animation:rippleAnim 0.6s ease-out;pointer-events:none;';
+
+            element.style.position = 'relative';
+            element.style.overflow = 'hidden';
+            element.appendChild(ripple);
+            setTimeout(function() { ripple.remove(); }, 600);
+        }
+
+        // 页面加载
+        document.addEventListener('DOMContentLoaded', function() {
+            // 延迟启动数字动画
+            setTimeout(function() {
+                document.querySelectorAll('.stat-card-value[data-target]').forEach(function(el) {
+                    var target = parseInt(el.dataset.target) || 0;
+                    var suffix = el.dataset.suffix || '';
+                    animateNumber(el, target, 2000, suffix);
+                });
+            }, 800);
+
+            // 添加 ripple 效果
+            document.querySelectorAll('.action-card-home, .activity-row').forEach(function(card) {
+                card.addEventListener('click', function(e) {
+                    createRipple(e, card);
+                });
+            });
+        });
+
+        // 自动刷新设备状态（每15秒），轮询失败降级显示离线
+        function refreshDeviceStatus() {
+            fetch('{{ prefix }}/status')
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    var statusCard = document.querySelector('.status-card');
+                    var statusIndicator = document.querySelector('.status-indicator');
+                    var statusTitle = document.querySelector('.status-title');
+                    var statusBadge = document.querySelector('.status-badge');
+                    if (!statusCard) return;
+
+                    if (!data.device_id) {
+                        statusCard.classList.remove('online');
+                        statusCard.classList.add('offline');
+                        if (statusIndicator) { statusIndicator.classList.remove('dot-online'); statusIndicator.classList.add('dot-offline'); }
+                        if (statusTitle) { statusTitle.textContent = '未绑定设备'; }
+                        if (statusBadge) { statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
+                    } else if (data.connected) {
+                        statusCard.classList.remove('offline');
+                        statusCard.classList.add('online');
+                        if (statusIndicator) { statusIndicator.classList.remove('dot-offline'); statusIndicator.classList.add('dot-online'); }
+                        if (statusTitle) { statusTitle.textContent = data.device_name || '设备在线'; }
+                        if (statusBadge) { statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备在线'; }
+                    } else {
+                        statusCard.classList.remove('online');
+                        statusCard.classList.add('offline');
+                        if (statusIndicator) { statusIndicator.classList.remove('dot-online'); statusIndicator.classList.add('dot-offline'); }
+                        if (statusTitle) { statusTitle.textContent = data.device_name || '设备离线'; }
+                        if (statusBadge) { statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
+                    }
+                })
+                .catch(function(error) {
+                    console.error('状态刷新失败:', error);
+                    // 轮询失败降级显示离线，避免网络抖动期间显示过期状态
+                    var statusCard = document.querySelector('.status-card');
+                    if (statusCard) {
+                        statusCard.classList.remove('online');
+                        statusCard.classList.add('offline');
+                        var statusIndicator = document.querySelector('.status-indicator');
+                        if (statusIndicator) { statusIndicator.classList.remove('dot-online'); statusIndicator.classList.add('dot-offline'); }
+                        var statusBadge = document.querySelector('.status-badge');
+                        if (statusBadge) { statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
+                    }
+                });
+        }
+        setInterval(refreshDeviceStatus, 15000);
+    </script>
+
+    <!-- 导航栏用户菜单（移动端头像下拉） -->
+    <script>
+        (function () {
+            if (window.__navUserDropdownInit) return;
+            window.__navUserDropdownInit = true;
+
+            // 切换下拉菜单显隐
+            window.toggleNavUserDropdown = function (e) {
+                e.stopPropagation();
+                e.preventDefault();
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                var isOpen = dd.classList.toggle('show');
+                var btn = e.currentTarget;
+                if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            };
+
+            // 登出
+            window.navLogout = function () {
+                fetch('{{ prefix }}/logout', {
+                    method: 'POST'
+                }).finally(function () {
+                    window.location.href = '{{ prefix }}/login';
+                });
+            };
+
+            // 点击外部关闭
+            document.addEventListener('click', function (e) {
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                if (!dd.parentElement.contains(e.target)) {
+                    dd.classList.remove('show');
+                    var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            // ESC 关闭
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    var dd = document.getElementById('navUserDropdown');
+                    if (dd) {
+                        dd.classList.remove('show');
+                        var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                        if (btn) btn.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

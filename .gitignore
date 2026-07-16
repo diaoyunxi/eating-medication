@@ -1,0 +1,64 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+build/
+dist/
+
+# ===== 虚拟环境 =====
+venv/
+env/
+ENV/
+
+# ===== 环境变量 / 敏感配置 =====
+.env
+.env.*
+
+# ===== 模块本地配置（含密钥/服务器地址，部署时各自创建）=====
+family_monitor/config.json
+elderly_assistant/config.yaml
+# 保留 .example 模板供参考
+
+# ===== SSL 证书与私钥 =====
+certs/
+*.key
+*.cer
+*.crt
+*.pem
+
+# ===== 数据库 =====
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== 运行时数据 =====
+family_monitor/data/
+elderly_assistant/data/captures/
+elderly_assistant/data/device_id.txt
+
+# ===== 日志 =====
+logs/
+*.log
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== 运行时数据与敏感文件补全 =====
+server/data/
+*.log
+*.pid
+*.sqlite*
+logs/
+pan_credentials.json
+*.secret
