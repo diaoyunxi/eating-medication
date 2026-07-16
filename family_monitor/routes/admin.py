@@ -45,6 +45,7 @@ async def admin_settings(request: Request):
         return RedirectResponse(url=_HOME_URL, status_code=302)
 
     return templates.TemplateResponse(
+        request,
         "admin_settings.html",
         {
             "request": request,

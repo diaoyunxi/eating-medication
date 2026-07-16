@@ -65,6 +65,7 @@ def _check_login_rate_limit(client_ip: str) -> bool:
 async def get_login(request: Request):
     """登录页面"""
     return templates.TemplateResponse(
+        request,
         "login.html",
         {
             "request": request,
@@ -88,6 +89,7 @@ async def post_login(
     )
     if not _check_login_rate_limit(client_ip):
         return templates.TemplateResponse(
+            request,
             "login.html",
             {"request": request, "app_name": config.APP_NAME, "error": "登录尝试过于频繁，请稍后再试"},
             status_code=429,
@@ -112,6 +114,7 @@ async def post_login(
         return response
     else:
         return templates.TemplateResponse(
+            request,
             "login.html",
             {
                 "request": request,
@@ -125,6 +128,7 @@ async def post_login(
 async def get_register(request: Request):
     """注册页面"""
     return templates.TemplateResponse(
+        request,
         "register.html",
         {
             "request": request,
@@ -146,6 +150,7 @@ async def post_register(
     success, message = user_manager.register_user(username, password, confirm_password)
     if success:
         return templates.TemplateResponse(
+            request,
             "login.html",
             {
                 "request": request,
@@ -155,6 +160,7 @@ async def post_register(
         )
     else:
         return templates.TemplateResponse(
+            request,
             "register.html",
             {
                 "request": request,
