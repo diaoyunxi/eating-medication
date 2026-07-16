@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 FastAPI 应用入口 - 最终版
 创建并配置 FastAPI 实例，注册路由、中间件、异常处理器，并启动后台定时任务。
@@ -105,7 +105,7 @@ PATH_PREFIX = settings.PATH_PREFIX.rstrip("/")
 # 创建 FastAPI 实例（禁用默认文档，使用本地静态资源）
 app = FastAPI(
     title=settings.APP_NAME,
-    version="2.9.3",
+    version="2.9.7",
     description="老人用药管理智能助手后端 API",
     debug=settings.DEBUG,
     lifespan=lifespan,

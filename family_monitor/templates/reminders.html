@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>用药提醒 - {{ app_name }}</title>
-    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.9.2">
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.9.3">
 </head>
 <body class="bg-gradient">
     <!-- 导航栏 -->
@@ -290,9 +290,9 @@
             /* 渲染时间标签（延迟，确保 DOM 已插入） */
             setTimeout(function() {
                 var timeContainer = tr.querySelector('[name="schedule_times"]');
-                var timeInput = tr.querySelector('.dns-time-add-input');
-                timeInput.dataset.times = JSON.stringify(times);
-                renderTimeTags(timeContainer, times);
+                if (timeContainer) {
+                    renderTimeTags(timeContainer, times);
+                }
             }, 0);
 
             return tr;
@@ -302,16 +302,19 @@
         function collectRowData(btn) {
             var tr = btn.closest('tr');
             var timeInput = tr.querySelector('.dns-time-add-input');
-            var times = JSON.parse(timeInput.dataset.times || '[]');
+            var times = [];
+            if (timeInput && timeInput.dataset.times) {
+                try { times = JSON.parse(timeInput.dataset.times); } catch(e) {}
+            }
 
             return {
-                drug_name: tr.querySelector('[name="drug_name"]').value.trim(),
-                dosage: tr.querySelector('[name="dosage"]').value.trim(),
+                drug_name: tr.querySelector('[name="drug_name"]') ? tr.querySelector('[name="drug_name"]').value.trim() : '',
+                dosage: tr.querySelector('[name="dosage"]') ? tr.querySelector('[name="dosage"]').value.trim() : '',
                 schedule_times: times,
-                frequency: tr.querySelector('[name="frequency"]').value,
-                remaining_quantity: parseInt(tr.querySelector('[name="remaining_quantity"]').value) || 0,
-                total_quantity: parseInt(tr.querySelector('[name="total_quantity"]').value) || 0,
-                unit: tr.querySelector('[name="unit"]').value.trim() || '片',
+                frequency: tr.querySelector('[name="frequency"]') ? tr.querySelector('[name="frequency"]').value : 'daily',
+                remaining_quantity: parseInt((tr.querySelector('[name="remaining_quantity"]') || {}).value) || 0,
+                total_quantity: parseInt((tr.querySelector('[name="total_quantity"]') || {}).value) || 0,
+                unit: tr.querySelector('[name="unit"]') ? tr.querySelector('[name="unit"]').value.trim() : '片',
                 low_stock_threshold: 5
             };
         }
@@ -350,7 +353,13 @@
         /* ===== 保存（添加/更新） ===== */
         function saveRow(btn) {
             var tr = btn.closest('tr');
-            var data = collectRowData(btn);
+            var data;
+            try {
+                data = collectRowData(btn);
+            } catch (e) {
+                alert('收集表单数据失败: ' + e.message);
+                return;
+            }
 
             if (!data.drug_name) { alert('请填写药品名称'); return; }
             if (!data.dosage) { alert('请填写剂量'); return; }
@@ -373,7 +382,13 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             })
-            .then(function(r) { return r.json(); })
+            .then(function(r) {
+                /* 防止 302 重定向到 /login 返回 HTML 导致 json() 解析失败 */
+                if (r.redirected || !r.ok) {
+                    throw new Error('会话可能已过期，请重新登录 (HTTP ' + r.status + ')');
+                }
+                return r.json();
+            })
             .then(function(result) {
                 if (result.success) {
                     alert(result.message);
@@ -383,7 +398,7 @@
                 }
             })
             .catch(function(e) {
-                alert('网络错误: ' + e.message);
+                alert('保存失败: ' + e.message);
             });
         }
 
