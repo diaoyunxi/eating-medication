@@ -1,184 +1,206 @@
 # -*- coding: utf-8 -*-
-"""
-认证路由模块
-处理用户注册、登录和登出
-包含 cookie 安全标志、登录限流
+"""认证路由
+
+子女端前端认证流程（方案C：全量改用 JWT，由 server 统一认证）：
+1. 前端 AJAX 提交用户名/密码/Turnstile 令牌到本路由
+2. 本路由转发到 server 的 /api/v1/auth/login（或 /register）进行验证
+3. server 验证 Turnstile 人机验证 + 账号密码，返回 JWT
+4. 本路由将 JWT 存入 HttpOnly cookie，返回 JSON 给前端跳转
+5. 后续请求由 auth_middleware 转发 JWT 到 server /api/v1/users/me 验证
 """
 
-import time
-import json
-import fcntl
-from pathlib import Path
-from fastapi import APIRouter, Request, Form, HTTPException
-from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
-from core import config
-from core.auth import get_user_manager
-from core.session import get_session_manager
-import logging
+import httpx
+from fastapi import APIRouter, Request, status
+from fastapi.responses import JSONResponse, RedirectResponse
 
-logger = logging.getLogger(__name__)
+from core.config import config
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
-# 注入路径前缀变量，供模板链接加前缀
-templates.env.globals["prefix"] = config.PATH_PREFIX
 
-# 登录限流：基于文件持久化（data/login_attempts.json）+ fcntl 排他锁，
-# 支持多 worker/多进程共享限流计数，避免内存 dict 在多进程下失效
-_ATTEMPTS_FILE = Path(__file__).resolve().parent.parent / "data" / "login_attempts.json"
+# server API 基础路径前缀
+_SERVER_API_BASE = "/api/v1"
 
 
-def _check_login_rate_limit(client_ip: str) -> bool:
-    """检查登录限流：每分钟每 IP 最多 5 次登录尝试（文件持久化 + fcntl 锁，支持多进程）"""
-    now = time.time()
-    _ATTEMPTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        # 'a+' 保证文件不存在时自动创建
-        with open(_ATTEMPTS_FILE, 'a+', encoding='utf-8') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                f.seek(0)
-                raw = f.read()
-                data = json.loads(raw) if raw.strip() else {}
-            except (json.JSONDecodeError, ValueError):
-                data = {}
-            # 仅保留 60 秒内的尝试记录
-            attempts = [t for t in data.get(client_ip, []) if now - t < 60]
-            if len(attempts) >= 5:
-                allowed = False
-            else:
-                attempts.append(now)
-                allowed = True
-            data[client_ip] = attempts
-            f.seek(0)
-            f.truncate()
-            json.dump(data, f, ensure_ascii=False)
-            return allowed
-    except Exception as e:
-        # 限流文件读写异常时放行，避免因限流故障阻断正常登录
-        logger.warning(f"登录限流文件读写失败，本次放行: {e}")
-        return True
+def _server_url(path: str) -> str:
+    """拼接 server API 完整 URL
+
+    :param path: API 路径（如 /auth/login）
+    :return: 完整 URL（如 https://xxx/api/v1/auth/login）
+    """
+    base = config.ELDERLY_SERVER_URL.rstrip("/")
+    return f"{base}{_SERVER_API_BASE}{path}"
 
 
-@router.get("/login")
-async def get_login(request: Request):
-    """登录页面"""
-    return templates.TemplateResponse(
-        request,
-        "login.html",
-        {
-            "request": request,
-            "app_name": config.APP_NAME,
-        }
+def _set_jwt_cookie(response: JSONResponse, access_token: str) -> JSONResponse:
+    """将 JWT 写入 HttpOnly cookie
+
+    :param response: 待附加 cookie 的响应对象
+    :param access_token: server 返回的 JWT
+    :return: 带 cookie 的响应对象
+    """
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=config.COOKIE_SECURE,
+        samesite="lax",
+        max_age=3600,  # 与 server JWT 过期时间一致（1 小时）
+        path="/",
     )
+    return response
+
+
+@router.get("/turnstile/site-key")
+async def get_turnstile_site_key():
+    """返回 Cloudflare Turnstile 站点密钥供前端渲染人机验证组件
+
+    Site Key 非敏感信息（本就暴露在前端），但按需求统一从 .env 读取，
+    避免硬编码在模板中。
+    """
+    return {"site_key": config.TURNSTILE_SITE_KEY}
 
 
 @router.post("/login")
-async def post_login(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-):
-    """处理登录请求"""
-    # 登录限流（优先读取反向代理真实 IP）
-    client_ip = (
-        request.headers.get("CF-Connecting-IP")
-        or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-        or (request.client.host if request.client else "unknown")
-    )
-    if not _check_login_rate_limit(client_ip):
-        return templates.TemplateResponse(
-            request,
-            "login.html",
-            {"request": request, "app_name": config.APP_NAME, "error": "登录尝试过于频繁，请稍后再试"},
-            status_code=429,
+async def post_login(request: Request):
+    """登录：转发到 server /auth/login 验证，成功后存 JWT cookie
+
+    :param request: 包含表单数据（username, password, cf-turnstile-response）
+    :return: JSON {"success": true, "redirect": "/"} 或 {"success": false, "error": "..."}
+    """
+    form = await request.form()
+    username = form.get("username", "").strip()
+    password = form.get("password", "")
+    turnstile_token = form.get("cf-turnstile-response", "")
+
+    # 后端兜底校验（前端已校验）
+    if not username or not password:
+        return JSONResponse(
+            {"success": False, "error": "请输入用户名和密码"},
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    user_manager = get_user_manager(config.DATA_DIR)
-    session_manager = get_session_manager(config.SECRET_KEY)
-
-    success, message = user_manager.authenticate_user(username, password)
-
-    if success:
-        response = RedirectResponse(url="/", status_code=302)
-        token = session_manager.create_session(username)
-        response.set_cookie(
-            key="session_token",
-            value=token,
-            httponly=True,
-            max_age=86400 * 7,
-            samesite="strict",
-            secure=config.COOKIE_SECURE,
-        )
-        return response
-    else:
-        return templates.TemplateResponse(
-            request,
-            "login.html",
-            {
-                "request": request,
-                "app_name": config.APP_NAME,
-                "error": message
-            }
+    # 转发到 server 进行 Turnstile 验证 + 账号密码校验
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                _server_url("/auth/login"),
+                json={
+                    "username": username,
+                    "password": password,
+                    "cf_turnstile_token": turnstile_token,
+                },
+            )
+    except httpx.RequestError:
+        return JSONResponse(
+            {"success": False, "error": "无法连接认证服务，请稍后重试"},
+            status_code=status.HTTP_502_BAD_GATEWAY,
         )
 
+    # server 返回非 200 表示登录失败
+    if resp.status_code != 200:
+        err_msg = _parse_server_error(resp, "登录失败，请检查用户名和密码")
+        return JSONResponse(
+            {"success": False, "error": err_msg},
+            status_code=resp.status_code if resp.status_code >= 400 else 500,
+        )
 
-@router.get("/register")
-async def get_register(request: Request):
-    """注册页面"""
-    return templates.TemplateResponse(
-        request,
-        "register.html",
-        {
-            "request": request,
-            "app_name": config.APP_NAME,
-        }
-    )
+    # 提取 JWT 并存入 HttpOnly cookie
+    token_data = resp.json()
+    access_token = token_data.get("access_token", "")
+    if not access_token:
+        return JSONResponse(
+            {"success": False, "error": "认证服务返回异常"},
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    response = JSONResponse({"success": True, "redirect": "/"})
+    return _set_jwt_cookie(response, access_token)
 
 
 @router.post("/register")
-async def post_register(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    confirm_password: str = Form(...),
-):
-    """处理注册请求"""
-    user_manager = get_user_manager(config.DATA_DIR)
+async def post_register(request: Request):
+    """注册：转发到 server /auth/register，成功后存 JWT cookie 并自动登录
 
-    success, message = user_manager.register_user(username, password, confirm_password)
-    if success:
-        return templates.TemplateResponse(
-            request,
-            "login.html",
-            {
-                "request": request,
-                "app_name": config.APP_NAME,
-                "success": message
-            }
+    子女端注册默认 full_name=username、role=family。
+
+    :param request: 包含表单数据（username, password, confirm_password, cf-turnstile-response）
+    :return: JSON {"success": true, "redirect": "/"} 或 {"success": false, "error": "..."}
+    """
+    form = await request.form()
+    username = form.get("username", "").strip()
+    password = form.get("password", "")
+    confirm_password = form.get("confirm_password", "")
+    turnstile_token = form.get("cf-turnstile-response", "")
+
+    # 后端兜底校验
+    if not username or not password:
+        return JSONResponse(
+            {"success": False, "error": "请输入用户名和密码"},
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
-    else:
-        return templates.TemplateResponse(
-            request,
-            "register.html",
-            {
-                "request": request,
-                "app_name": config.APP_NAME,
-                "error": message,
-                "username": username
-            }
+    if password != confirm_password:
+        return JSONResponse(
+            {"success": False, "error": "两次输入的密码不一致"},
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    # 转发到 server 进行 Turnstile 验证 + 注册
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                _server_url("/auth/register"),
+                json={
+                    "username": username,
+                    "password": password,
+                    "full_name": username,  # 子女端注册默认 full_name 为用户名
+                    "role": "family",       # 子女端注册默认角色为 family
+                    "phone": None,
+                    "cf_turnstile_token": turnstile_token,
+                },
+            )
+    except httpx.RequestError:
+        return JSONResponse(
+            {"success": False, "error": "无法连接认证服务，请稍后重试"},
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        )
 
-@router.post("/logout")
-async def logout(request: Request):
-    """处理登出请求：POST，先使会话失效，再删除 cookie"""
-    session_token = request.cookies.get("session_token")
-    if session_token:
-        session_manager = get_session_manager(config.SECRET_KEY)
-        session_manager.invalidate_session(session_token)
+    # server 返回非 201 表示注册失败
+    if resp.status_code != 201:
+        err_msg = _parse_server_error(resp, "注册失败，请稍后重试")
+        return JSONResponse(
+            {"success": False, "error": err_msg},
+            status_code=resp.status_code if resp.status_code >= 400 else 500,
+        )
 
-    response = RedirectResponse(url="/login", status_code=303)
-    response.delete_cookie(key="session_token")
+    # 注册成功，提取 JWT 并存 cookie（自动登录）
+    token_data = resp.json()
+    access_token = token_data.get("access_token", "")
+    if not access_token:
+        # 注册成功但未返回 token，跳转登录页手动登录
+        return JSONResponse({"success": True, "redirect": "/login"})
+
+    response = JSONResponse({"success": True, "redirect": "/"})
+    return _set_jwt_cookie(response, access_token)
+
+
+@router.get("/logout")
+async def logout():
+    """退出登录：清除 JWT cookie 并跳转登录页"""
+    response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    response.delete_cookie(key="access_token", path="/")
     return response
+
+
+def _parse_server_error(resp: httpx.Response, default_msg: str) -> str:
+    """解析 server 返回的错误信息
+
+    :param resp: httpx 响应对象
+    :param default_msg: 解析失败时的默认错误信息
+    :return: 错误信息字符串
+    """
+    try:
+        err_data = resp.json()
+        # FastAPI HTTPException 返回 {"detail": "..."} 格式
+        return err_data.get("detail", default_msg)
+    except Exception:
+        return default_msg

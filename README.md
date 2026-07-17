@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.9.6**（2026-07-15，安全清理与文档更新） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.9.7**（2026-07-17，Turnstile 人机验证 + JWT 认证重构 + 删除 admin 后台） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
 一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
@@ -37,7 +37,7 @@
 |------|------|----------|
 | [`elderly_assistant`](./elderly_assistant) | 老人端（行空板 M10 GUI / TUI 备用） | 按时用药提醒、摄像头识别药名、AI 语音问答、服药画面上传、库存管理、家属聊天、紧急呼叫、热点配网 |
 | [`server`](./server) | 服务端（FastAPI） | 用户认证、用药计划管理、服药日志、药品库存、AI 服务、WebSocket 实时通信、百度 OCR 药品识别、库存定时检查 |
-| [`family_monitor`](./family_monitor) | 家属看护端（FastAPI Web） | 远程查看老人服药记录、实时聊天、用药计划配置、健康仪表板、管理后台 |
+| [`family_monitor`](./family_monitor) | 家属看护端（FastAPI Web） | 远程查看老人服药记录、实时聊天、用药计划配置、健康仪表板、Cloudflare Turnstile 人机验证 |
 
 ---
 
@@ -240,19 +240,19 @@
 │   │   ├── websocket/             # manager/notifier
 │   │   └── migrations/            # Alembic 迁移（已就位，生产建议启用）
 ├── family_monitor/                # 家属看护端
-│   ├── main.py                    # FastAPI 应用 + 中间件链
+│   ├── main.py                    # FastAPI 应用 + 中间件链（JWT 转发验证 + Turnstile）
 │   ├── updater.py                 # 自动更新检查
 │   ├── install.py                 # 依赖自动安装
 │   ├── config.json.example        # 配置文件示例
 │   ├── requirements.txt
-│   ├── core/                      # 认证 / 会话 / 配置 / api_client(BFF)
+│   ├── core/                      # 配置 / BFF 客户端 / 遗留模块
 │   │   ├── api_client.py          # 调用老人端服务端的 BFF 客户端
-│   │   ├── auth.py                # bcrypt + 会话令牌
-│   │   ├── config.py              # 配置加载
-│   │   └── session.py             # itsdangerous 会话管理
-│   ├── routes/                    # 路由（home/auth/chat/admin）
+│   │   ├── config.py              # 配置加载（含 Turnstile Site Key）
+│   │   ├── auth.py                # （遗留）本地用户管理，已改用 server JWT 认证
+│   │   └── session.py             # （遗留）会话管理，已改用 JWT HttpOnly Cookie
+│   ├── routes/                    # 路由（home/auth/chat）
 │   ├── static/css/                # 样式表
-│   └── templates/                 # 10 个 Jinja2 页面模板
+│   └── templates/                 # 9 个 Jinja2 页面模板（含 Turnstile 登录/注册）
 ├── history.md                     # 项目开发历史记录（版本基准）
 ├── VERSION                        # 当前版本号（v2.4.0）
 ├── deploy/                        # 部署辅助文件（systemd 单元 + cloudflared 配置）
@@ -275,7 +275,7 @@
 | GUI / 硬件 | pinpong 1.2.0（行空板 M10）+ unihiker GUI | — | Jinja2 3.1 模板 |
 | HTTP 客户端 | requests 2.31.0 | httpx 0.27.2 | httpx 0.25.0 |
 | 数据库 | — | SQLAlchemy 2.0.36 + SQLite | users.json + 文件锁（bcrypt 4.1） |
-| 认证 | 仅通过 device_id 校验 | python-jose 3.4.0（JWT HS256）+ bcrypt | itsdangerous 会话令牌（7 天） |
+| 认证 | 仅通过 device_id 校验 | python-jose 3.4.0（JWT HS256）+ bcrypt + Cloudflare Turnstile | JWT HttpOnly Cookie（由 server 统一签发，转发验证）+ Cloudflare Turnstile |
 | AI | pyttsx3 / edge-tts | 智谱 AI `glm-4.7-flash`（zhipuai SDK） | — |
 | OCR | pytesseract 0.3.10（本地） | 百度 OCR（aip.baidubce.com） | — |
 | 调度 | schedule 1.2.1 | APScheduler 3.11.0 | — |
@@ -335,7 +335,7 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 ```
 
 - 访问：`http://localhost:4430/eating-medication/family/`（或本地直连 `http://localhost:4430/`）
-- 管理员入口：`{PATH_PREFIX}/admin/administrator/setting`
+- 登录/注册均集成 Cloudflare Turnstile 人机验证，认证由 server 统一处理
 
 > **注意**：`.env`、数据库（`*.db`）、`users.json`、`bound_device.json` 等敏感文件已通过 `.gitignore` 排除，不会上传至仓库，部署时需自行配置。生产模式（`DEBUG=False`）下，服务端与子女端若未配置 `SECRET_KEY`（或为已知弱值）将**拒绝启动**。
 
@@ -346,8 +346,8 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 | 模块 | 配置文件 | 关键配置项 |
 |------|----------|------------|
 | elderly_assistant | `config.yaml` | `server.base_url`（默认公网域名）、`ai.base_url`、摄像头、语音引擎、蜂鸣器、热点、轮询间隔 |
-| server | `.env` | `DATABASE_URL`、`SECRET_KEY`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`ZHIPUAI_API_KEY`、`OCR_*`、`JD_*`、`PATH_PREFIX`、`ALLOWED_ORIGINS` |
-| family_monitor | `.env` + `config.json` | `ELDERLY_SERVER_URL`、`SECRET_KEY`、`SERVER_PORT`、`PATH_PREFIX`、`DISPLAY_*` |
+| server | `.env` | `DATABASE_URL`、`SECRET_KEY`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`TURNSTILE_SECRET_KEY`、`ZHIPUAI_API_KEY`、`OCR_*`、`JD_*`、`PATH_PREFIX`、`ALLOWED_ORIGINS` |
+| family_monitor | `.env` + `config.json` | `ELDERLY_SERVER_URL`、`SECRET_KEY`、`TURNSTILE_SITE_KEY`、`SERVER_PORT`、`PATH_PREFIX`、`DISPLAY_*` |
 
 ### 路径前缀（PATH_PREFIX）
 
@@ -376,6 +376,7 @@ OCR_API_KEY=<百度 OCR Key>
 OCR_SECRET_KEY=<百度 OCR Secret>
 OCR_APP_ID=<百度 OCR AppID>
 ALLOWED_ORIGINS=https://your-domain.example.com
+TURNSTILE_SECRET_KEY=<Cloudflare Turnstile Secret Key，用于后端 siteverify 验证>
 WS_HEARTBEAT_INTERVAL=30
 ```
 
@@ -460,27 +461,28 @@ WS_HEARTBEAT_INTERVAL=30
 
 子女端后端作为 BFF，对外提供以下页面与接口（路径已含 `PATH_PREFIX` 前缀）：
 
-| 方法 | 路径 | 用途 | CSRF |
+| 方法 | 路径 | 用途 | 认证 |
 |------|------|------|------|
-| GET | `/` | 首页 | — |
-| GET | `/status` | 服务器状态 JSON（前端每 30 秒轮询） | — |
-| GET | `/reminders` | 提醒页 | — |
-| GET | `/records` | 记录页 | — |
-| GET | `/dashboard` | 健康仪表板 | — |
-| GET | `/settings` | 系统设置页 | — |
-| POST | `/settings/server` | 更新老人端服务器地址 | `X-CSRF-Token` |
-| POST | `/settings/display` | 更新显示设置 | `X-CSRF-Token` |
-| POST | `/settings/bind_device` | 绑定设备（先 check 后 register） | `X-CSRF-Token` |
-| POST | `/settings/unbind_device` | 解绑设备 | `X-CSRF-Token` |
-| GET | `/medication_settings` | 用药设置页 | — |
-| POST | `/medication_settings/add` | 添加用药计划 | `X-CSRF-Token` |
-| POST | `/medication_settings/delete/{plan_id}` | 删除用药计划 | `X-CSRF-Token` |
-| GET | `/login` `/register` `/logout` | 登录 / 注册 / 登出 | 表单 csrf_token |
-| GET | `/admin/administrator/setting` | 管理员设置页（仅 admin） | — |
-| POST | `/admin/administrator/setting/server` | 更新服务端配置 | 表单 csrf_token |
-| POST | `/admin/administrator/setting/advanced` | 更新高级配置（生产禁改 DEBUG） | 表单 csrf_token |
+| GET | `/` | 首页 | JWT |
+| GET | `/status` | 服务器状态 JSON（前端每 30 秒轮询） | JWT |
+| GET | `/reminders` | 提醒页 | JWT |
+| GET | `/records` | 记录页 | JWT |
+| GET | `/dashboard` | 健康仪表板 | JWT |
+| GET | `/settings` | 系统设置页 | JWT |
+| POST | `/settings/bind_device` | 绑定设备（先 check 后 register） | JWT |
+| POST | `/settings/unbind_device` | 解绑设备 | JWT |
+| GET | `/medication_settings` | 用药设置页 | JWT |
+| POST | `/medication_settings/add` | 添加用药计划 | JWT |
+| POST | `/medication_settings/update/{plan_id}` | 更新用药计划 | JWT |
+| POST | `/medication_settings/delete/{plan_id}` | 删除用药计划 | JWT |
+| GET | `/login` | 登录页面 | 公开 |
+| POST | `/login` | 登录（AJAX，转发 server 验证 + Turnstile） | 公开 |
+| GET | `/register` | 注册页面 | 公开 |
+| POST | `/register` | 注册（AJAX，转发 server 验证 + Turnstile） | 公开 |
+| GET | `/turnstile/site-key` | 返回 Turnstile Site Key（供前端渲染） | 公开 |
+| GET | `/logout` | 登出（清除 JWT cookie） | — |
 
-> 登录接口 `POST /login` 含内存级限流：每 IP 每分钟最多 5 次，超限返回 429。
+> 登录/注册限流由 server 端统一处理：登录每 IP 每分钟最多 10 次，注册每 IP 每分钟最多 5 次。
 
 ---
 
@@ -560,11 +562,11 @@ WS_HEARTBEAT_INTERVAL=30
 
 | 模块 | SHA256 校验 | 异常处理 | 版本号 |
 |------|-------------|----------|--------|
-| elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 2.9.6 |
-| server | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.9.6 |
-| family_monitor | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.9.6 |
+| elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 2.9.7 |
+| server | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.9.7 |
+| family_monitor | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.9.7 |
 
-> 三个 `updater.py` 的 `__version__` 已与 `VERSION` 文件同步为 `2.9.6`。
+> 三个 `updater.py` 的 `__version__` 已与 `VERSION` 文件同步为 `2.9.7`。
 
 ---
 

@@ -81,6 +81,10 @@ class Config:
         # 未配置时保持兼容（不发送该 header）
         self.DEVICE_SECRET = os.getenv('DEVICE_SECRET', '')
 
+        # Cloudflare Turnstile 站点密钥（前端展示人机验证组件用）
+        # 未配置时前端 Turnstile 组件无法渲染，需在 .env 中填入你的 Site Key
+        self.TURNSTILE_SITE_KEY = os.getenv('TURNSTILE_SITE_KEY', self._config_data.get('TURNSTILE_SITE_KEY', ''))
+
         # CORS 允许的来源（逗号分隔），默认仅允许本地
         allowed_origins_env = os.getenv(
             'ALLOWED_ORIGINS',
@@ -120,7 +124,9 @@ class Config:
             f"# 调试模式：本地开发设为 true，生产环境设为 false\n"
             f"DEBUG=true\n\n"
             f"# Cookie secure 标志：本地 HTTP 调试必须为 false，否则浏览器不保存 cookie\n"
-            f"COOKIE_SECURE=false\n"
+            f"COOKIE_SECURE=false\n\n"
+            f"# Cloudflare Turnstile 站点密钥（前端展示人机验证组件用，请填入你的 Site Key）\n"
+            f"TURNSTILE_SITE_KEY=\n"
         )
         try:
             env_path.write_text(env_content, encoding='utf-8')
