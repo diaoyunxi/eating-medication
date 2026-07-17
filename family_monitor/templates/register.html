@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>注册 - {{ app_name }}</title>
     <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.9.3">
+    <!-- Cloudflare Turnstile 人机验证 JS 库，使用显式渲染模式（render=explicit） -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 </head>
 <body>
     <div class="bg-gradient">
@@ -29,6 +31,12 @@
                 </div>
                 {% endif %}
 
+                <!-- AJAX 提交失败时动态显示的错误信息容器（复用原有 alert-error 样式） -->
+                <div id="jsError" class="alert alert-error" style="display:none;">
+                    <span class="alert-icon">!</span>
+                    <span id="jsErrorMsg"></span>
+                </div>
+
                 <form method="POST" action="{{ prefix }}/register" class="auth-form" id="registerForm">
                     <div class="form-group">
                         <label class="form-label" for="username">用户名</label>
@@ -50,8 +58,13 @@
                                placeholder="再次输入密码" required minlength="6">
                     </div>
 
-                    <button type="submit" class="btn btn-primary btn-lg w-full">
-                        <span>注册</span>
+                    <!-- Cloudflare Turnstile 人机验证组件容器：位于密码输入框下方、提交按钮上方 -->
+                    <div class="form-group">
+                        <div id="turnstileContainer"></div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg w-full" id="submitBtn">
+                        <span id="submitBtnText">注册</span>
                     </button>
                 </form>
 
@@ -63,16 +76,144 @@
     </div>
 
     <script>
-        // 前端密码匹配验证
-        document.getElementById('registerForm').addEventListener('submit', function(e) {
+        // 路径前缀（Jinja2 全局变量注入，可能为空字符串）
+        var prefix = "{{ prefix }}";
+        // Turnstile 组件 ID，渲染后赋值，用于后续获取 token / 重置
+        var widgetId = null;
+
+        /**
+         * 显示 AJAX 错误信息（复用原有 alert-error 结构，替代原 alert 弹窗）
+         * @param {string} msg - 错误文案
+         */
+        function showJsError(msg) {
+            var box = document.getElementById('jsError');
+            document.getElementById('jsErrorMsg').textContent = msg;
+            // .alert 默认 display 为 flex
+            box.style.display = 'flex';
+        }
+
+        /**
+         * 隐藏 AJAX 错误信息
+         */
+        function hideJsError() {
+            document.getElementById('jsError').style.display = 'none';
+        }
+
+        // 页面加载完成后：获取 site_key 并显式渲染 Turnstile
+        document.addEventListener('DOMContentLoaded', function () {
+            // Turnstile JS 以 async/defer 加载，可能尚未就绪，轮询等待 window.turnstile 可用
+            var tryCount = 0;
+
+            function tryRender() {
+                if (window.turnstile && typeof window.turnstile.render === 'function') {
+                    renderTurnstile();
+                } else if (tryCount < 50) {
+                    tryCount++;
+                    setTimeout(tryRender, 100);
+                } else {
+                    showJsError('人机验证组件加载超时，请刷新页面重试');
+                }
+            }
+
+            function renderTurnstile() {
+                // 拉取后端下发的 site_key（GET {prefix}/turnstile/site-key）
+                fetch(prefix + '/turnstile/site-key', { method: 'GET' })
+                    .then(function (resp) {
+                        if (!resp.ok) {
+                            throw new Error('获取人机验证配置失败');
+                        }
+                        return resp.json();
+                    })
+                    .then(function (data) {
+                        var siteKey = data && data.site_key;
+                        if (!siteKey) {
+                            throw new Error('人机验证 site_key 为空');
+                        }
+                        // 显式渲染，保存 widgetId 供后续取 token / 重置
+                        widgetId = window.turnstile.render(
+                            document.getElementById('turnstileContainer'),
+                            { sitekey: siteKey, theme: 'auto' }
+                        );
+                    })
+                    .catch(function (err) {
+                        showJsError('人机验证加载失败：' + err.message);
+                    });
+            }
+
+            tryRender();
+        });
+
+        // 拦截表单默认提交，改为 AJAX 提交（整合原有前端密码匹配验证）
+        document.getElementById('registerForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            hideJsError();
+
+            // 原有前端密码匹配验证：两次输入必须一致
             var password = document.getElementById('password').value;
             var confirmPassword = document.getElementById('confirm_password').value;
-
             if (password !== confirmPassword) {
-                e.preventDefault();
-                alert('两次输入的密码不一致！');
-                return false;
+                showJsError('两次输入的密码不一致！');
+                return;
             }
+
+            // 获取 Turnstile token（用户完成验证后由组件生成）
+            var token = widgetId ? window.turnstile.getResponse(widgetId) : '';
+            if (!token) {
+                showJsError('请先完成人机验证');
+                return;
+            }
+
+            var submitBtn = document.getElementById('submitBtn');
+            var submitBtnText = document.getElementById('submitBtnText');
+            // 保存原始按钮文案，请求结束后恢复
+            var originalText = submitBtnText.textContent;
+            // 请求期间禁用按钮并显示“处理中...”，防止重复提交
+            submitBtn.disabled = true;
+            submitBtnText.textContent = '处理中...';
+
+            // 构造表单数据：username / password / confirm_password / cf-turnstile-response
+            var formData = new FormData();
+            formData.append('username', document.getElementById('username').value);
+            formData.append('password', password);
+            formData.append('confirm_password', confirmPassword);
+            formData.append('cf-turnstile-response', token);
+
+            // AJAX 提交注册（POST {prefix}/register）
+            fetch(prefix + '/register', {
+                method: 'POST',
+                body: formData
+            })
+                .then(function (resp) {
+                    // 即使 HTTP 非 200 也尝试解析 JSON，复用后端返回的 error 字段
+                    return resp.json().then(function (data) {
+                        return { ok: resp.ok, data: data };
+                    });
+                })
+                .then(function (result) {
+                    var data = result.data || {};
+                    if (data.success && data.redirect) {
+                        // 注册成功，跳转到后端指定地址（通常为 /login）
+                        window.location.href = data.redirect;
+                    } else {
+                        // 注册失败：显示错误信息并重置 Turnstile，要求用户重新验证
+                        showJsError(data.error || '注册失败，请重试');
+                        if (widgetId) {
+                            window.turnstile.reset(widgetId);
+                        }
+                    }
+                })
+                .catch(function () {
+                    // 网络异常或响应非 JSON 时的兜底
+                    showJsError('网络异常，请稍后重试');
+                    if (widgetId) {
+                        window.turnstile.reset(widgetId);
+                    }
+                })
+                .finally(function () {
+                    // 无论成功失败，恢复按钮可点击状态与文案
+                    submitBtn.disabled = false;
+                    submitBtnText.textContent = originalText;
+                });
         });
     </script>
 </body>

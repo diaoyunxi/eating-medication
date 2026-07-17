@@ -12,6 +12,8 @@ class RegisterReq(BaseModel):
     full_name: str = Field(..., min_length=1, max_length=50, description="姓名")
     role: str = Field(..., description="角色: elderly 或 family")
     phone: Optional[str] = Field(None, description="手机号")
+    # Cloudflare Turnstile 人机验证令牌（前端提交，后端调 siteverify 校验）
+    cf_turnstile_token: Optional[str] = Field(None, description="Cloudflare Turnstile 令牌")
 
     @field_validator("role")
     @classmethod
@@ -49,6 +51,8 @@ class LoginReq(BaseModel):
     """用户登录请求"""
     username: str = Field(..., description="用户名")
     password: str = Field(..., description="密码")
+    # Cloudflare Turnstile 人机验证令牌（前端提交，后端调 siteverify 校验）
+    cf_turnstile_token: Optional[str] = Field(None, description="Cloudflare Turnstile 令牌")
 
 
 class TokenResp(BaseModel):

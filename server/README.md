@@ -30,3 +30,4 @@ python main.py
 - `DATABASE_URL`: 数据库连接
 - `JWT_SECRET`: JWT 签名密钥
 - `ALLOWED_ORIGINS`: CORS 允许的源
+- `TURNSTILE_SECRET_KEY`: Cloudflare Turnstile 密钥（用于后端 siteverify 人机验证校验，未配置时跳过校验仅兼容开发环境，生产环境必须配置）

@@ -4,14 +4,14 @@
 
 ## 功能特性
 
-- 🔐 用户认证系统（bcrypt不可逆加密）
+- 🔐 用户认证系统（JWT，由 server 统一认证 + Cloudflare Turnstile 人机验证）
 - 📊 老人端连接状态监控
 - ⏰ 用药提醒查看
 - 📋 用药记录查看
 - 💬 与老人端实时消息
 - 🎨 精美的UI设计
 - 📱 响应式设计
-- 🛡️ 完善的安全防护（CSRF、安全响应头、登录限流、会话撤销）
+- 🛡️ 完善的安全防护（Cloudflare Turnstile 人机验证、安全响应头、JWT HttpOnly Cookie）
 
 ## 快速开始
 
@@ -68,6 +68,8 @@ PRODUCTION=false
 COOKIE_SECURE=true
 # CORS 允许的来源（逗号分隔）
 ALLOWED_ORIGINS=http://localhost:4430,http://127.0.0.1:4430
+# Cloudflare Turnstile 站点密钥（前端人机验证组件，请填入你的 Site Key）
+TURNSTILE_SITE_KEY=
 EOF
 ```
 
@@ -91,7 +93,8 @@ python main.py
 首次使用需要注册账户：
 - 访问 `http://localhost:4430/register` 注册新账户
 - 访问 `http://localhost:4430/login` 登录
-- 管理员设置入口：`http://localhost:4430/admin/administrator/setting`
+- 登录/注册均需通过 Cloudflare Turnstile 人机验证
+- 认证由 server 统一处理，子女端注册默认角色为 family
 
 ## 项目结构
 
@@ -108,15 +111,14 @@ family_monitor/
 ├── core/                   # 核心模块
 │   ├── __init__.py
 │   ├── config.py           # 配置管理（不写回 os.environ）
-│   ├── auth.py             # 用户认证（fcntl 文件锁 + 0600 权限）
-│   ├── session.py          # 会话管理（含 CSRF token、会话撤销持久化）
+│   ├── auth.py             # （遗留）本地用户管理模块，已改用 server JWT 认证
+│   ├── session.py          # （遗留）本地会话管理模块，已改用 JWT Cookie
 │   └── api_client.py       # 老人端 API 客户端（device_id URL 编码）
 ├── routes/                 # 路由模块
 │   ├── __init__.py         # 路由模块注册
 │   ├── home.py             # 首页、仪表板、提醒、记录、设置路由
-│   ├── auth.py             # 登录、注册、登出路由（含登录限流）
-│   ├── chat.py             # 实时消息路由
-│   └── admin.py            # 管理员设置路由
+│   ├── auth.py             # 登录、注册、登出路由（JWT + Turnstile 转发验证）
+│   └── chat.py             # 实时消息路由
 ├── templates/              # HTML 模板
 │   ├── index.html          # 首页
 │   ├── dashboard.html      # 仪表板
@@ -125,7 +127,6 @@ family_monitor/
 │   ├── medication_settings.html  # 用药设置页面
 │   ├── chat.html           # 消息页面
 │   ├── settings.html       # 设置页面
-│   ├── admin_settings.html # 管理员设置页面
 │   ├── login.html          # 登录页面
 │   └── register.html       # 注册页面
 └── static/                 # 静态文件
@@ -136,19 +137,15 @@ family_monitor/
 
 ## 安全特性
 
-- **密码加密**：使用 bcrypt 算法进行不可逆加密
-- **会话管理**：使用 itsdangerous 创建带签名的会话令牌，登出时撤销并持久化到 `data/revoked_tokens.json`
-- **Cookie 安全**：`httponly=True`、`samesite=strict`、`secure`（可配置）防止 XSS 和 CSRF
-- **CSRF 防护**：双重提交 Cookie 模式（cookie + 表单隐藏字段 / `X-CSRF-Token` 请求头），所有 POST 请求均校验
+- **人机验证**：登录/注册集成 Cloudflare Turnstile，防止自动化攻击（令牌由 server 调 siteverify 校验）
+- **JWT 认证**：全量改用 JWT，由 server 统一签发，family_monitor 转发至 `/api/v1/users/me` 验证
+- **Cookie 安全**：JWT 存入 `httponly=True`、`samesite=lax`、`secure`（可配置）的 Cookie，防止 XSS 窃取
 - **CORS 收紧**：仅允许 `ALLOWED_ORIGINS` 配置的来源，关闭通配符
-- **安全响应头**：`X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy`、`Content-Security-Policy`
-- **登录限流**：每分钟每 IP 最多 5 次登录尝试，防止暴力破解
-- **会话撤销**：登出后令牌立即失效并持久化，重启后仍然有效
-- **文件权限**：用户数据文件 `users.json` 保存后自动 `chmod 0600`，并使用 `fcntl` 文件锁防并发写
+- **安全响应头**：`X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy`、`Content-Security-Policy`（含 Turnstile 域名白名单）
+- **登录限流**：server 端每分钟每 IP 最多 10 次登录尝试，防止暴力破解
 - **XSS 防护**：模板移除 `| safe`，使用 `data-*` 属性 + `textContent` 渲染动态内容
 - **路径精确匹配**：公开路径使用精确匹配，防止路径前缀绕过
-- **敏感信息隔离**：`SECRET_KEY` 仅通过 `.env` 注入，禁止通过 Web 修改
-- **生产环境保护**：`PRODUCTION=true` 时禁止通过 Web 修改 `DEBUG`
+- **敏感信息隔离**：`SECRET_KEY`、`TURNSTILE_SITE_KEY` 仅通过 `.env` 注入
 - **URL 编码**：`device_id` 等参数在拼接 URL 时进行编码，防止注入
 - **版本控制排除**：`.env`、`config.json`、`data/` 已加入 `.gitignore`
 
@@ -163,6 +160,7 @@ family_monitor/
 | `SERVER_HOST` | 服务监听地址 | `0.0.0.0` |
 | `SERVER_PORT` | 服务端口 | `4430` |
 | `ELDERLY_SERVER_URL` | 老人端服务器地址 | - |
+| `TURNSTILE_SITE_KEY` | Cloudflare Turnstile 站点密钥（前端人机验证组件，请填入你的 Site Key） | 空 |
 | `PATH_PREFIX` | 路径前缀 | `/eating-medication/family` |
 | `DEBUG` | 调试模式 | `False` |
 | `PIP_INDEX_URL` | install.py 使用的 pip 镜像源 | 清华源 |

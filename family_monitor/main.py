@@ -19,17 +19,16 @@ if str(SCRIPT_DIR) not in sys.path:
 import struct
 import uvicorn
 from contextlib import asynccontextmanager
+from typing import Optional
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse, Response
 from core import config
-from core.auth import get_user_manager
-from core.session import get_session_manager
 from routes import home_router
 from routes import chat_router
 from routes import auth_router
-from routes.admin import admin_router
 import logging
 
 # 使用 uvicorn.error logger，确保启动阶段的 info/warning 日志能随 uvicorn 输出
@@ -44,17 +43,15 @@ PATH_PREFIX = os.getenv("PATH_PREFIX", getattr(config, "PATH_PREFIX", "/eating-m
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    get_user_manager(config.DATA_DIR)
-
     # O1 修复：启动信息改用 logger
     logger.info("=" * 60)
     logger.info(f" {config.APP_NAME} 启动中...")
     logger.info(f" 服务地址: http://{config.SERVER_HOST}:{config.SERVER_PORT}")
     logger.info(f" 老人端地址: {config.ELDERLY_SERVER_URL}")
-    logger.info(f" 认证系统: 已启用 (bcrypt加密)")
+    logger.info(f" 认证系统: JWT（由 server 统一认证，转发验证）")
+    logger.info(f" 人机验证: Cloudflare Turnstile")
     logger.info(f" 路径前缀: {PATH_PREFIX or '(无，根路径)'}")
     logger.info(f" HTTPS: 由 Cloudflare 隧道边缘自动配置，本地监听 HTTP")
-    logger.info(f" 管理员入口: {PATH_PREFIX}/admin/administrator/setting")
     logger.info("=" * 60)
 
     yield
@@ -116,9 +113,11 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com data:; "
+        "frame-src https://challenges.cloudflare.com; "
+        "img-src 'self' data:; "
         "object-src 'none'; "
         "base-uri 'self'"
     )
@@ -128,9 +127,13 @@ async def security_headers_middleware(request: Request, call_next):
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     """认证中间件，保护需要登录的页面。
-    使用 request.scope["path"]（Starlette 已通过 root_path 正确剥离前缀）。"""
+
+    方案C：全量改用 JWT。从 cookie 读取 access_token (JWT)，
+    转发到 server /api/v1/users/me 验证，成功则设置 request.state.user。
+    使用 request.scope["path"]（Starlette 已通过 root_path 正确剥离前缀）。
+    """
     # 公开路径精确匹配，防止路径前缀绕过
-    public_paths = ["/login", "/register", "/favicon.ico"]
+    public_paths = ["/login", "/register", "/favicon.ico", "/turnstile/site-key"]
     path = request.scope.get("path", request.url.path)
     is_public = path in public_paths or path.startswith("/static/") or path.startswith("/.well-known/")
 
@@ -139,31 +142,45 @@ async def auth_middleware(request: Request, call_next):
     if is_public:
         return await call_next(request)
 
-    session_manager = get_session_manager(config.SECRET_KEY)
-    session_token = request.cookies.get("session_token")
+    access_token = request.cookies.get("access_token")
 
     # 重定向 URL 显式拼接 PATH_PREFIX
     login_url = f"{PATH_PREFIX}/login" if PATH_PREFIX else "/login"
-    home_url = f"{PATH_PREFIX}/" if PATH_PREFIX else "/"
 
-    if not session_token:
+    if not access_token:
         return RedirectResponse(url=login_url, status_code=302)
 
-    session_data = session_manager.verify_session(session_token)
-    if not session_data:
-        return RedirectResponse(url=login_url, status_code=302)
+    # 转发 JWT 到 server /users/me 验证
+    username = await _verify_jwt_via_server(access_token)
+    if not username:
+        # JWT 无效或过期，清除 cookie 并重定向登录页
+        response = RedirectResponse(url=login_url, status_code=302)
+        response.delete_cookie(key="access_token", path="/")
+        return response
 
-    username = session_data.get("username")
     request.state.user = username
-
-    # 检查admin路径权限
-    if path.startswith("/admin"):
-        user_manager = get_user_manager(config.DATA_DIR)
-        if not user_manager.is_admin(username):
-            return RedirectResponse(url=home_url, status_code=302)
-
     response = await call_next(request)
     return response
+
+
+async def _verify_jwt_via_server(access_token: str) -> Optional[str]:
+    """转发 JWT 到 server /api/v1/users/me 验证，返回用户名
+
+    :param access_token: server 签发的 JWT
+    :return: 验证成功返回 username，失败返回 None
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{config.ELDERLY_SERVER_URL.rstrip('/')}/api/v1/users/me",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("username")
+    except Exception:
+        pass
+    return None
 
 
 # 挂载静态文件
@@ -253,7 +270,6 @@ async def chrome_devtools_json():
 app.include_router(auth_router)
 app.include_router(home_router)
 app.include_router(chat_router)
-app.include_router(admin_router)
 
 def main():
     """主函数"""

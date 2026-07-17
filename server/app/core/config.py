@@ -45,7 +45,10 @@ def _ensure_default_env():
         f"# 会话签名密钥（已随机生成，请勿泄露）\n"
         f"SECRET_KEY={secret_key}\n\n"
         f"# 调试模式：本地开发设为 true，生产环境设为 false\n"
-        f"DEBUG=true\n"
+        f"DEBUG=true\n\n"
+        f"# Cloudflare Turnstile 密钥（用于后端 siteverify 验证，请填入你的 Secret Key）\n"
+        f"# 未配置时将跳过人机验证校验（仅开发环境兼容，生产环境必须配置）\n"
+        f"TURNSTILE_SECRET_KEY=\n"
     )
     try:
         env_path.write_text(env_content, encoding='utf-8')
@@ -75,6 +78,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     # H7：缩短为 1 小时（原为 7 天），降低 token 泄露后的风险窗口
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
+    # Cloudflare Turnstile 密钥（用于后端 siteverify 验证）
+    # 未配置时跳过 Turnstile 校验（开发环境兼容，生产环境必须配置）
+    TURNSTILE_SECRET_KEY: Optional[str] = None
 
     ZHIPUAI_API_KEY: Optional[str] = None
     ZHIPUAI_MODEL: str = "glm-4.7-flash"
