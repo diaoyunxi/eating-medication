@@ -62,3 +62,11 @@ server/data/
 logs/
 pan_credentials.json
 *.secret
+
+# ===== 打包文件（仅上传到 GitHub Release / 123云盘，不入源码仓库）=====
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
