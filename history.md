@@ -1,5 +1,14 @@
 # 项目开发历史记录
 
+## v2.9.9 (2026-07-19)
+
+### Bug 修复
+- **family_monitor**: 修复 PATH_PREFIX 模式下 auth_middleware 重定向循环（ERR_TOO_MANY_REDIRECTS）
+  - public_paths 从硬编码改为动态拼接 PATH_PREFIX
+  - 修复隧道子路径模式下 `/eating-medication/family/login` 不匹配 `/login` 导致的无限重定向
+
+---
+
 ## v2.9.8 (2026-07-19)
 
 ### Bug 修复
