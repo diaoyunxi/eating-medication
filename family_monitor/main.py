@@ -133,7 +133,14 @@ async def auth_middleware(request: Request, call_next):
     使用 request.scope["path"]（Starlette 已通过 root_path 正确剥离前缀）。
     """
     # 公开路径精确匹配，防止路径前缀绕过
-    public_paths = ["/login", "/register", "/favicon.ico", "/turnstile/site-key"]
+    # 修复：public_paths 必须动态拼接 PATH_PREFIX，否则隧道子路径模式下
+    # /eating-medication/family/login 不匹配 "/login"，导致重定向循环
+    public_paths = [
+        f"{PATH_PREFIX}/login" if PATH_PREFIX else "/login",
+        f"{PATH_PREFIX}/register" if PATH_PREFIX else "/register",
+        "/favicon.ico",
+        f"{PATH_PREFIX}/turnstile/site-key" if PATH_PREFIX else "/turnstile/site-key",
+    ]
     path = request.scope.get("path", request.url.path)
     is_public = path in public_paths or path.startswith("/static/") or path.startswith("/.well-known/")
 
