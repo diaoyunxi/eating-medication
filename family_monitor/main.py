@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=config.APP_NAME,
     description="子女看护Web端",
-    version="2.9.12",
+    version="2.9.13",
     debug=config.DEBUG,
     lifespan=lifespan,
     root_path=PATH_PREFIX,
