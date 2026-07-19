@@ -1,5 +1,28 @@
 # 项目开发历史记录
 
+## v2.9.8 (2026-07-19)
+
+### Bug 修复
+- **family_monitor**: 修复登录成功后用户名仍显示"用户"的问题
+  - 补回 Turnstile 改动时误删的 GET /login 和 GET /register 路由
+  - login/register 成功后 redirect 值显式拼接 PATH_PREFIX，修复隧道子路径模式下跳转错误
+  - logout 重定向 URL 显式拼接 PATH_PREFIX
+- **family_monitor**: auth_middleware 和 _verify_jwt_via_server 添加诊断日志，定位 JWT 验证失败根因
+
+### 改进
+- **family_monitor**: 所有需认证路由（home.py 10个 + chat.py 2个）添加 _require_login 二次校验
+- **family_monitor**: Turnstile JS 加载失败/site_key 为空时降级为直接提交（后端兜底校验）
+- **family_monitor**: _verify_jwt_via_server 异常处理从 `except: pass` 改为输出详细日志
+
+### 版本统一
+- 全模块版本号统一至 2.9.8（server、family_monitor、elderly_assistant）
+
+---
+
+## v2.9.7 (2026-07-17)
+
+---
+
 ## v2.9.6 (2026-07-15)
 
 ### 安全清理
