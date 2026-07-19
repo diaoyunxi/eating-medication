@@ -80,6 +80,9 @@
         var prefix = "{{ prefix }}";
         // Turnstile 组件 ID，渲染后赋值，用于后续获取 token / 重置
         var widgetId = null;
+        // Turnstile 是否可用（JS 加载成功 + site_key 非空 + 渲染成功）
+        // 降级标志：为 false 时跳过 token 校验，允许直接提交（后端兜底）
+        var turnstileAvailable = false;
 
         /**
          * 显示 AJAX 错误信息（复用原有 alert-error 结构，替代原 alert 弹窗）
@@ -111,7 +114,9 @@
                     tryCount++;
                     setTimeout(tryRender, 100);
                 } else {
-                    showJsError('人机验证组件加载超时，请刷新页面重试');
+                    // 降级：Turnstile JS 加载超时（网络问题/CSP 阻止等）
+                    turnstileAvailable = false;
+                    showJsError('人机验证组件加载超时，可尝试直接提交（后端将校验）');
                 }
             }
 
@@ -127,16 +132,21 @@
                     .then(function (data) {
                         var siteKey = data && data.site_key;
                         if (!siteKey) {
-                            throw new Error('人机验证 site_key 为空');
+                            // 降级：site_key 未配置（开发环境），后端通常也未配置 secret_key
+                            turnstileAvailable = false;
+                            return;
                         }
                         // 显式渲染，保存 widgetId 供后续取 token / 重置
                         widgetId = window.turnstile.render(
                             document.getElementById('turnstileContainer'),
                             { sitekey: siteKey, theme: 'auto' }
                         );
+                        turnstileAvailable = true;
                     })
                     .catch(function (err) {
-                        showJsError('人机验证加载失败：' + err.message);
+                        // 降级：获取 site_key 失败，允许直接提交
+                        turnstileAvailable = false;
+                        showJsError('人机验证加载失败：' + err.message + '，可尝试直接提交');
                     });
             }
 
@@ -157,17 +167,21 @@
             }
 
             // 获取 Turnstile token（用户完成验证后由组件生成）
-            var token = widgetId ? window.turnstile.getResponse(widgetId) : '';
-            if (!token) {
-                showJsError('请先完成人机验证');
-                return;
+            var token = '';
+            if (turnstileAvailable && widgetId) {
+                token = window.turnstile.getResponse(widgetId) || '';
+                if (!token) {
+                    showJsError('请先完成人机验证');
+                    return;
+                }
             }
+            // turnstileAvailable 为 false 时降级提交（token 为空字符串，后端兜底校验）
 
             var submitBtn = document.getElementById('submitBtn');
             var submitBtnText = document.getElementById('submitBtnText');
             // 保存原始按钮文案，请求结束后恢复
             var originalText = submitBtnText.textContent;
-            // 请求期间禁用按钮并显示“处理中...”，防止重复提交
+            // 请求期间禁用按钮并显示"处理中..."，防止重复提交
             submitBtn.disabled = true;
             submitBtnText.textContent = '处理中...';
 
@@ -197,7 +211,7 @@
                     } else {
                         // 注册失败：显示错误信息并重置 Turnstile，要求用户重新验证
                         showJsError(data.error || '注册失败，请重试');
-                        if (widgetId) {
+                        if (turnstileAvailable && widgetId) {
                             window.turnstile.reset(widgetId);
                         }
                     }
@@ -205,7 +219,7 @@
                 .catch(function () {
                     // 网络异常或响应非 JSON 时的兜底
                     showJsError('网络异常，请稍后重试');
-                    if (widgetId) {
+                    if (turnstileAvailable && widgetId) {
                         window.turnstile.reset(widgetId);
                     }
                 })

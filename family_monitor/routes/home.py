@@ -6,7 +6,7 @@
 import logging
 from datetime import datetime
 from fastapi import APIRouter, Request, Form, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from core import config, elderly_client
 
@@ -27,9 +27,23 @@ def _require_login(request: Request) -> bool:
     return bool(getattr(request.state, 'user', None))
 
 
+def _login_redirect():
+    """未登录时重定向到登录页（显式拼接 PATH_PREFIX）"""
+    prefix = config.PATH_PREFIX.rstrip("/")
+    login_url = f"{prefix}/login" if prefix else "/login"
+    return RedirectResponse(url=login_url, status_code=302)
+
+
+def _unauthorized_json():
+    """API 路由未登录时返回 401 JSON"""
+    return JSONResponse(content={"success": False, "message": "请先登录"}, status_code=401)
+
+
 @router.get("/")
 async def index(request: Request):
     """首页"""
+    if not _require_login(request):
+        return _login_redirect()
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
     # 获取仪表板数据，用于首页 Hero 统计与最近活动展示（替换原硬编码虚拟数据）
@@ -49,13 +63,15 @@ async def index(request: Request):
 
 
 @router.get("/status")
-async def get_status():
+async def get_status(request: Request):
     """获取设备真实在线状态（供前端轮询）
 
     修复：原实现返回 get_server_status()（仅服务器健康检查 GET /health），
     导致设备离线但服务器存活时前端仍显示"设备在线"。
     现改用 get_device_info() 返回真实设备在线状态（基于服务端心跳超时判断）。
     """
+    if not _require_login(request):
+        return _unauthorized_json()
     device_info = await elderly_client.get_device_info()
     return {
         'connected': device_info.get('connected', False),
@@ -70,6 +86,8 @@ async def get_status():
 @router.get("/reminders")
 async def get_reminders(request: Request):
     """提醒页面"""
+    if not _require_login(request):
+        return _login_redirect()
     reminders = await elderly_client.get_reminders()
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
@@ -90,6 +108,8 @@ async def get_reminders(request: Request):
 @router.get("/records")
 async def get_records(request: Request):
     """用药记录页面"""
+    if not _require_login(request):
+        return _login_redirect()
     records = await elderly_client.get_medication_records()
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
@@ -110,6 +130,8 @@ async def get_records(request: Request):
 @router.get("/dashboard")
 async def get_dashboard(request: Request):
     """仪表板页面"""
+    if not _require_login(request):
+        return _login_redirect()
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
     dashboard_data = await elderly_client.get_dashboard_data()
@@ -130,6 +152,8 @@ async def get_dashboard(request: Request):
 @router.get("/settings")
 async def get_settings(request: Request):
     """设置页面"""
+    if not _require_login(request):
+        return _login_redirect()
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
     bound_device = elderly_client.get_bound_device()
@@ -188,6 +212,8 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
 @router.get("/medication_settings")
 async def medication_settings(request: Request):
     """用药设置页面"""
+    if not _require_login(request):
+        return _login_redirect()
     status = await elderly_client.get_server_status()
     device_info = await elderly_client.get_device_info()
     plans = await elderly_client.get_device_plans()
@@ -207,6 +233,8 @@ async def add_medication_plan(request: Request):
 
     接收 JSON 表单数据并调用服务端设置用药计划。
     """
+    if not _require_login(request):
+        return _unauthorized_json()
     try:
         # 解析 JSON 请求体
         try:
@@ -298,6 +326,8 @@ async def add_medication_plan(request: Request):
 @router.post("/medication_settings/delete/{plan_id}")
 async def delete_medication_plan(request: Request, plan_id: int):
     """删除用药计划"""
+    if not _require_login(request):
+        return _unauthorized_json()
     try:
         result = await elderly_client.delete_medication_plan(plan_id)
         if result.get("success"):
@@ -321,6 +351,8 @@ async def update_medication_plan(request: Request, plan_id: int):
 
     接收 JSON 表单数据并调用服务端更新用药计划。
     """
+    if not _require_login(request):
+        return _unauthorized_json()
     try:
         try:
             payload = await request.json()
@@ -399,6 +431,8 @@ async def update_medication_plan(request: Request, plan_id: int):
 @router.post("/settings/unbind_device")
 async def unbind_device(request: Request):
     """解绑设备"""
+    if not _require_login(request):
+        return _unauthorized_json()
     try:
         elderly_client.clear_bound_device()
         return JSONResponse(content={
