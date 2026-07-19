@@ -1,5 +1,15 @@
 # 项目开发历史记录
 
+## v2.9.12 (2026-07-19)
+
+### UI 统一
+- **family_monitor**: 统一主页字体和样式与其他页面（仪表盘、提醒、记录等）
+  - 移除 `index.html` 的 Google Fonts 引入（Newsreader, Poppins, Lora）
+  - body class 从 `page-home` 改为 `bg-gradient`，与其他页面保持一致
+  - 修复主页导航栏字体和图标显示与其他页面不一致的问题
+
+---
+
 ## v2.9.11 (2026-07-19)
 
 ### Bug 修复
