@@ -9,16 +9,27 @@
 5. 后续请求由 auth_middleware 转发 JWT 到 server /api/v1/users/me 验证
 """
 
+import os
 import httpx
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 
 from core.config import config
 
 router = APIRouter()
 
+# 模板对象（用于渲染 login.html / register.html）
+templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
+templates.env.cache = {}
+# 注入路径前缀变量，供模板链接加前缀
+templates.env.globals["prefix"] = config.PATH_PREFIX
+
 # server API 基础路径前缀
 _SERVER_API_BASE = "/api/v1"
+
+# 路径前缀（用于 logout 重定向 URL 拼接）
+_PATH_PREFIX = config.PATH_PREFIX.rstrip("/")
 
 
 def _server_url(path: str) -> str:
@@ -58,6 +69,33 @@ async def get_turnstile_site_key():
     避免硬编码在模板中。
     """
     return {"site_key": config.TURNSTILE_SITE_KEY}
+
+
+@router.get("/login")
+async def login_page(request: Request):
+    """登录页面：渲染 login.html 模板
+
+    Turnstile 改动修复：补回被误删的 GET /login 路由。
+    前端 JS 检测到 Turnstile 不可用时降级为传统表单提交（后端兜底校验）。
+    """
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {"app_name": config.APP_NAME},
+    )
+
+
+@router.get("/register")
+async def register_page(request: Request):
+    """注册页面：渲染 register.html 模板
+
+    Turnstile 改动修复：补回被误删的 GET /register 路由。
+    """
+    return templates.TemplateResponse(
+        request,
+        "register.html",
+        {"app_name": config.APP_NAME},
+    )
 
 
 @router.post("/login")
@@ -113,7 +151,9 @@ async def post_login(request: Request):
             status_code=status.HTTP_502_BAD_GATEWAY,
         )
 
-    response = JSONResponse({"success": True, "redirect": "/"})
+    # redirect 显式拼接 PATH_PREFIX，避免隧道子路径模式下跳转到根路径
+    redirect_url = f"{_PATH_PREFIX}/" if _PATH_PREFIX else "/"
+    response = JSONResponse({"success": True, "redirect": redirect_url})
     return _set_jwt_cookie(response, access_token)
 
 
@@ -175,18 +215,24 @@ async def post_register(request: Request):
     # 注册成功，提取 JWT 并存 cookie（自动登录）
     token_data = resp.json()
     access_token = token_data.get("access_token", "")
+    login_redirect = f"{_PATH_PREFIX}/login" if _PATH_PREFIX else "/login"
+    home_redirect = f"{_PATH_PREFIX}/" if _PATH_PREFIX else "/"
     if not access_token:
         # 注册成功但未返回 token，跳转登录页手动登录
-        return JSONResponse({"success": True, "redirect": "/login"})
+        return JSONResponse({"success": True, "redirect": login_redirect})
 
-    response = JSONResponse({"success": True, "redirect": "/"})
+    response = JSONResponse({"success": True, "redirect": home_redirect})
     return _set_jwt_cookie(response, access_token)
 
 
 @router.get("/logout")
 async def logout():
-    """退出登录：清除 JWT cookie 并跳转登录页"""
-    response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    """退出登录：清除 JWT cookie 并跳转登录页
+
+    显式拼接 PATH_PREFIX，避免隧道子路径模式下重定向到错误地址。
+    """
+    login_url = f"{_PATH_PREFIX}/login" if _PATH_PREFIX else "/login"
+    response = RedirectResponse(url=login_url, status_code=status.HTTP_302_FOUND)
     response.delete_cookie(key="access_token", path="/")
     return response
 

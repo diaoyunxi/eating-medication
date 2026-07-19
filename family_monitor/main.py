@@ -148,17 +148,20 @@ async def auth_middleware(request: Request, call_next):
     login_url = f"{PATH_PREFIX}/login" if PATH_PREFIX else "/login"
 
     if not access_token:
+        logger.info(f"未登录访问 {path}，重定向到登录页（无 access_token cookie）")
         return RedirectResponse(url=login_url, status_code=302)
 
     # 转发 JWT 到 server /users/me 验证
     username = await _verify_jwt_via_server(access_token)
     if not username:
         # JWT 无效或过期，清除 cookie 并重定向登录页
+        logger.warning(f"JWT 无效或过期，清除 cookie 并重定向登录页: path={path}")
         response = RedirectResponse(url=login_url, status_code=302)
         response.delete_cookie(key="access_token", path="/")
         return response
 
     request.state.user = username
+    logger.info(f"认证通过: path={path}, user={username}")
     response = await call_next(request)
     return response
 
@@ -169,17 +172,25 @@ async def _verify_jwt_via_server(access_token: str) -> Optional[str]:
     :param access_token: server 签发的 JWT
     :return: 验证成功返回 username，失败返回 None
     """
+    verify_url = f"{config.ELDERLY_SERVER_URL.rstrip('/')}/api/v1/users/me"
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
-                f"{config.ELDERLY_SERVER_URL.rstrip('/')}/api/v1/users/me",
+                verify_url,
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             if resp.status_code == 200:
                 data = resp.json()
-                return data.get("username")
-    except Exception:
-        pass
+                username = data.get("username")
+                logger.info(f"JWT 验证成功: username={username}, url={verify_url}")
+                return username
+            else:
+                logger.warning(
+                    f"JWT 验证失败: HTTP {resp.status_code}, url={verify_url}, "
+                    f"body={resp.text[:200]}"
+                )
+    except Exception as e:
+        logger.error(f"JWT 验证异常: {type(e).__name__}: {e}, url={verify_url}")
     return None
 
 
