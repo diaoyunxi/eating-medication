@@ -41,9 +41,12 @@
                     <div class="form-group">
                         <label class="form-label" for="username">用户名</label>
                         <input type="text" class="form-input" id="username" name="username"
-                               placeholder="至少3个字符" required
+                               placeholder="3-20位字母数字下划线" required
                                value="{{ username if username else '' }}"
-                               minlength="3">
+                               minlength="3" maxlength="20"
+                               pattern="[a-zA-Z0-9_]{3,20}"
+                               title="用户名只能包含字母、数字和下划线，长度3-20位">
+                        <div class="form-hint">用户名只能包含字母、数字和下划线，长度3-20位（不支持邮箱）</div>
                     </div>
 
                     <div class="form-group">
