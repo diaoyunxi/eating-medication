@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=config.APP_NAME,
     description="子女看护Web端",
-    version="2.9.9",
+    version="2.9.10",
     debug=config.DEBUG,
     lifespan=lifespan,
     root_path=PATH_PREFIX,
@@ -142,7 +142,16 @@ async def auth_middleware(request: Request, call_next):
         f"{PATH_PREFIX}/turnstile/site-key" if PATH_PREFIX else "/turnstile/site-key",
     ]
     path = request.scope.get("path", request.url.path)
-    is_public = path in public_paths or path.startswith("/static/") or path.startswith("/.well-known/")
+    # 修复：静态文件和 .well-known 路径也要考虑 PATH_PREFIX
+    static_prefix = f"{PATH_PREFIX}/static" if PATH_PREFIX else "/static"
+    wellknown_prefix = f"{PATH_PREFIX}/.well-known" if PATH_PREFIX else "/.well-known"
+    is_public = (
+        path in public_paths
+        or path.startswith(static_prefix)
+        or path.startswith(wellknown_prefix)
+        or path.startswith("/static/")
+        or path.startswith("/.well-known/")
+    )
 
     request.state.user = None
 
