@@ -240,13 +240,35 @@ async def logout():
 def _parse_server_error(resp: httpx.Response, default_msg: str) -> str:
     """解析 server 返回的错误信息
 
+    处理两种格式：
+    1. FastAPI HTTPException: {"detail": "错误消息"}
+    2. FastAPI 422 验证错误: {"detail": [{"loc": [...], "msg": "...", "type": "..."}]}
+
     :param resp: httpx 响应对象
     :param default_msg: 解析失败时的默认错误信息
     :return: 错误信息字符串
     """
     try:
         err_data = resp.json()
-        # FastAPI HTTPException 返回 {"detail": "..."} 格式
-        return err_data.get("detail", default_msg)
+        detail = err_data.get("detail", default_msg)
+        # 处理 FastAPI 422 验证错误（detail 是列表）
+        if isinstance(detail, list):
+            # 提取所有错误消息，用分号连接
+            messages = []
+            for item in detail:
+                if isinstance(item, dict):
+                    msg = item.get("msg", "")
+                    loc = item.get("loc", [])
+                    # 提取字段名（跳过 "body" 前缀）
+                    field = ".".join(str(x) for x in loc if x != "body")
+                    if field and msg:
+                        messages.append(f"{field}: {msg}")
+                    elif msg:
+                        messages.append(msg)
+            return "; ".join(messages) if messages else default_msg
+        # 处理普通 HTTPException（detail 是字符串）
+        if isinstance(detail, str):
+            return detail
+        return default_msg
     except Exception:
         return default_msg
