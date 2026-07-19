@@ -1,5 +1,14 @@
 # 项目开发历史记录
 
+## v2.9.10 (2026-07-19)
+
+### Bug 修复
+- **family_monitor**: 修复静态文件在 PATH_PREFIX 模式下被重定向到登录页的问题
+  - `is_public` 检查中的 `/static/` 和 `/.well-known/` 前缀改为动态拼接 PATH_PREFIX
+  - 修复 `/eating-medication/family/static/css/style.css` 不匹配 `/static/` 导致的 302 重定向
+
+---
+
 ## v2.9.9 (2026-07-19)
 
 ### Bug 修复
