@@ -560,13 +560,14 @@ WS_HEARTBEAT_INTERVAL=30
 
 三模块的 `updater.py` 已统一为同一份实现（均含完整 C9 加固）：
 
-| 模块 | SHA256 校验 | 异常处理 | 版本号 |
-|------|-------------|----------|--------|
-| elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 2.9.8 |
-| server | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.9.8 |
-| family_monitor | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 2.9.8 |
+| 模块 | SHA256 校验 | 异常处理 | 版本号来源 |
+|------|-------------|----------|------------|
+| elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 从 VERSION 文件读取 |
+| server | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 从 VERSION 文件读取 |
+| family_monitor | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 从 VERSION 文件读取 |
 
-> 三个 `updater.py` 的 `__version__` 已与 `VERSION` 文件同步为 `2.9.8`。
+> 三个 `updater.py` 的 `__version__` 通过 `_load_version()` 从 VERSION 文件动态读取，不再写死在代码中。
+> 查找顺序：本模块目录的 VERSION → 项目根目录的 VERSION → 写死默认值（兜底）。
 
 ---
 

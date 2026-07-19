@@ -36,7 +36,31 @@ import logging
 import fnmatch
 from pathlib import Path
 
-__version__ = "2.9.8"
+def _load_version():
+    """从 VERSION 文件读取版本号，避免版本号写死在代码中。
+
+    查找顺序：
+    1. 本模块目录下的 VERSION 文件
+    2. 上一级目录（项目根目录）的 VERSION 文件
+    3. 均不存在时回退到写死的默认版本号
+
+    :return: 版本号字符串（如 "2.9.8"）
+    """
+    _DEFAULT_VERSION = "2.9.8"
+    _module_dir = Path(__file__).resolve().parent
+    # 候选路径：本模块目录、项目根目录
+    for candidate in [_module_dir / "VERSION", _module_dir.parent / "VERSION"]:
+        try:
+            if candidate.is_file():
+                ver = candidate.read_text(encoding="utf-8").strip()
+                if ver:
+                    return ver
+        except Exception:
+            continue
+    return _DEFAULT_VERSION
+
+
+__version__ = _load_version()
 GITHUB_REPO = "diaoyunxi/eating-medication"
 
 logger = logging.getLogger(__name__)
