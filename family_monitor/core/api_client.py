@@ -97,11 +97,16 @@ class ElderlyAPIClient:
         return None
 
     def clear_bound_device(self):
-        """解绑设备"""
+        """解绑设备
+
+        Bug3 修复：原代码仅清除 _device_id，未清除 _device_token，
+        导致解绑后设备令牌仍残留内存中，后续请求仍携带旧 token。
+        """
         device_file = config.DATA_DIR / "bound_device.json"
         if device_file.exists():
             device_file.unlink()
         self._device_id = None
+        self._device_token = None
 
     def _headers(self) -> Dict[str, str]:
         """返回携带设备ID和设备令牌的请求头"""

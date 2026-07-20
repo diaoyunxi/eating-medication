@@ -35,6 +35,7 @@ async def chat(request: Request):
     if not _require_login(request):
         return _login_redirect()
     user = getattr(request.state, 'user', None) or ''
+    user_id = getattr(request.state, 'user_id', None)
     elderly_id = ''
     # 从已绑定的设备获取 elderly_id
     if user:
@@ -42,9 +43,10 @@ async def chat(request: Request):
         if bound:
             elderly_id = bound.get('device_id', '')
 
-    # 注入当前登录用户的数字 ID（family_monitor 用户系统基于 username，
-    # 暂无数字 ID，此处为 None；前端用于与服务端 sender_id 比较以判定消息方向）
-    current_user_id = None
+    # Bug2 修复：从认证中间件获取当前登录用户的数字 ID，
+    # 前端用于与服务端 sender_id 比较以判定消息方向。
+    # 原代码硬编码 current_user_id = None，导致所有消息方向显示错误。
+    current_user_id = user_id
 
     return templates.TemplateResponse(
         request,

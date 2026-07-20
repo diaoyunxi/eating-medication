@@ -1,5 +1,53 @@
 # 项目开发历史记录
 
+## v2.9.15 (2026-07-20) — 代码审查 Bug 修复版本
+
+### 概述
+
+本版本修复了通过 `/cr` 代码审查发现并经 localhost 完整复现的 8 个 Bug（含 2 个致命、4 个严重、1 个一般、1 个新发现致命）。所有 Bug 均在本地环境（server:8000 + family_monitor:4430）100% 复现后修复并验证。
+
+### 🔴 致命 Bug 修复
+
+- **【Bug5】WebSocket sender None AttributeError**：聊天 WebSocket 处理器中，当发送者用户被删除后通过 WebSocket 发送消息时，`sender.group_id` 抛出 `AttributeError: 'NoneType' object has no attribute 'group_id'`，导致连接异常中断。增加 `sender is None` 检查，返回友好错误消息。
+  - 文件：`server/app/api/v1/endpoints/chat.py`
+  - 复现：用户被删除后通过 WebSocket 发送消息 → AttributeError → 连接中断
+- **【Bug8】WebSocket 认证查询字段错误（新发现）**：JWT `sub` 字段存储的是 `user.id`（数字字符串），但 WebSocket 认证代码用 `User.username == sub` 查询，导致所有 WebSocket 聊天连接认证失败返回 403。修正为 `User.id == int(sub)`。
+  - 文件：`server/app/api/v1/endpoints/chat.py`
+  - 复现：任何用户连接 WebSocket → HTTP 403（认证始终失败）
+
+### 🟡 严重 Bug 修复
+
+- **【Bug1】POST /logout 返回 405**：前端登出按钮使用 POST 表单提交，但服务端仅注册 `GET /logout`，导致 `405 Method Not Allowed`。抽取公共逻辑 `_do_logout()`，新增 `POST /logout` 处理器。
+  - 文件：`family_monitor/routes/auth.py`
+  - 复现：`POST /logout` → 405 Method Not Allowed
+- **【Bug2】聊天消息方向错误（currentUserId=null）**：family_monitor 认证中间件仅向模板传递 `username`，未传递数字 `user_id`，导致前端 `currentUserId = null`，所有聊天消息方向判断失效。修改 `_verify_jwt_via_server` 返回 `(username, user_id)` 元组，中间件存储 `request.state.user_id`。
+  - 文件：`family_monitor/main.py`、`family_monitor/routes/chat.py`
+  - 复现：浏览器中 `currentUserId = null`，消息方向全部显示错误
+- **【Bug3】解绑设备未清除 device_token**：`clear_bound_device()` 仅清除 `_device_id`，未清除 `_device_token`，导致解绑后设备令牌仍残留内存，后续请求仍携带旧 token。增加 `self._device_token = None`。
+  - 文件：`family_monitor/core/api_client.py`
+  - 复现：解绑后 `_device_token` 仍为旧值
+- **【Bug6】upload_image KeyError 崩溃**：`self.config['upload_endpoint']` 使用 `[]` 直接索引访问，配置缺少该键时抛出 `KeyError`，且该行在 try/except 块外导致程序崩溃。改用 `self.config.get('upload_endpoint', '/api/upload')` 安全访问。
+  - 文件：`elderly_assistant/services/http_client.py`
+  - 复现：配置缺少 `upload_endpoint` → `KeyError: 'upload_endpoint'`
+- **【Bug7】多提醒只触发第一个**：`check_medication_trigger` 函数的 for 循环中使用 `break`，导致同一时间多个用药提醒只触发第一个。改为收集所有匹配的提醒，合并为一条复合提醒后触发（如 "阿司匹林 1片、降压药 2片"）。
+  - 文件：`elderly_assistant/main.py`
+  - 复现：3 个同一时间的提醒，实际只触发 1 个
+
+### 🟢 一般 Bug 修复
+
+- **【Bug4】rate_limit _bucket 内存泄漏**：`_bucket[key] = recent` 在 recent 为空时仍保留空列表条目，随着不同 IP/key 的积累，`_bucket` 字典无限增长。增加空列表清理逻辑：`recent` 为空时从 `_bucket` 中删除该 key。
+  - 文件：`server/app/utils/rate_limit.py`
+  - 复现：100 个过期 key 调用后，`_bucket` 保留 100 个空列表条目
+
+### 验证方式
+
+所有 8 个 Bug 均在 localhost 环境（server:8000 + family_monitor:4430）完整复现并验证修复：
+- 复现脚本：`reproduce_bug5.py`（Bug5+Bug8）、`reproduce_bug67.py`（Bug6+Bug7）
+- 验证脚本：`verify_all_fixes.py`
+- 验证结果：8/8 通过
+
+---
+
 ## v2.9.14 (2026-07-20) — 安全加固版本
 
 ### 🔴 高危漏洞修复（渗透测试复现）
