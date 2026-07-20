@@ -38,6 +38,7 @@ certs/
 family_monitor/data/
 elderly_assistant/data/captures/
 elderly_assistant/data/device_id.txt
+elderly_assistant/data/device_token.txt
 
 # ===== 日志 =====
 logs/

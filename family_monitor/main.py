@@ -17,6 +17,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import struct
+import time
 import uvicorn
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -63,7 +64,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=config.APP_NAME,
     description="子女看护Web端",
-    version="2.9.13",
+    version="3.0.0",
     debug=config.DEBUG,
     lifespan=lifespan,
     root_path=PATH_PREFIX,
@@ -185,29 +186,45 @@ async def auth_middleware(request: Request, call_next):
 async def _verify_jwt_via_server(access_token: str) -> Optional[str]:
     """转发 JWT 到 server /api/v1/users/me 验证，返回用户名
 
+    代码审查修复（2.1）：使用全局 httpx 客户端 + JWT 短期缓存（30s），
+    避免每个请求都新建客户端和发送 HTTP 验证请求。
+
     :param access_token: server 签发的 JWT
     :return: 验证成功返回 username，失败返回 None
     """
+    # JWT 缓存：token -> (username, expire_time)，30 秒过期
+    now = time.time()
+    cached = _jwt_cache.get(access_token)
+    if cached and cached[1] > now:
+        return cached[0]
+
     verify_url = f"{config.ELDERLY_SERVER_URL.rstrip('/')}/api/v1/users/me"
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                verify_url,
-                headers={"Authorization": f"Bearer {access_token}"},
+        # 代码审查修复（2.1）：使用全局 httpx 客户端复用连接
+        resp = await _http_client.get(
+            verify_url,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            username = data.get("username")
+            # 缓存 30 秒
+            _jwt_cache[access_token] = (username, now + 30)
+            return username
+        else:
+            logger.warning(
+                f"JWT 验证失败: HTTP {resp.status_code}, url={verify_url}, "
+                f"body={resp.text[:200]}"
             )
-            if resp.status_code == 200:
-                data = resp.json()
-                username = data.get("username")
-                logger.info(f"JWT 验证成功: username={username}, url={verify_url}")
-                return username
-            else:
-                logger.warning(
-                    f"JWT 验证失败: HTTP {resp.status_code}, url={verify_url}, "
-                    f"body={resp.text[:200]}"
-                )
     except Exception as e:
         logger.error(f"JWT 验证异常: {type(e).__name__}: {e}, url={verify_url}")
     return None
+
+
+# 全局 httpx 客户端（复用 keep-alive 连接）
+_http_client: httpx.AsyncClient = httpx.AsyncClient(timeout=10.0)
+# JWT 验证缓存：access_token -> (username, expire_timestamp)
+_jwt_cache: dict = {}
 
 
 # 挂载静态文件

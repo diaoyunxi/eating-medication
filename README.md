@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.9.13**（2026-07-19，删除 CSS 中 page-home 样式 + 更新 CSS 缓存版本） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v3.0.0**（2026-07-20，安全加固版本：渗透测试修复 + 代码审查修复） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
 一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
@@ -275,7 +275,7 @@
 | GUI / 硬件 | pinpong 1.2.0（行空板 M10）+ unihiker GUI | — | Jinja2 3.1 模板 |
 | HTTP 客户端 | requests 2.31.0 | httpx 0.27.2 | httpx 0.25.0 |
 | 数据库 | — | SQLAlchemy 2.0.36 + SQLite | users.json + 文件锁（bcrypt 4.1） |
-| 认证 | 仅通过 device_id 校验 | python-jose 3.4.0（JWT HS256）+ bcrypt + Cloudflare Turnstile | JWT HttpOnly Cookie（由 server 统一签发，转发验证）+ Cloudflare Turnstile |
+| 认证 | device_id + device_token（X-Device-Token 头） | python-jose 3.4.0（JWT HS256）+ bcrypt + Cloudflare Turnstile | JWT HttpOnly Cookie（由 server 统一签发，转发验证 + 30s 缓存）+ Cloudflare Turnstile |
 | AI | pyttsx3 / edge-tts | 智谱 AI `glm-4.7-flash`（zhipuai SDK） | — |
 | OCR | pytesseract 0.3.10（本地） | 百度 OCR（aip.baidubce.com） | — |
 | 调度 | schedule 1.2.1 | APScheduler 3.11.0 | — |
@@ -337,7 +337,26 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 - 访问：`http://localhost:4430/eating-medication/family/`（或本地直连 `http://localhost:4430/`）
 - 登录/注册均集成 Cloudflare Turnstile 人机验证，认证由 server 统一处理
 
-> **注意**：`.env`、数据库（`*.db`）、`users.json`、`bound_device.json` 等敏感文件已通过 `.gitignore` 排除，不会上传至仓库，部署时需自行配置。生产模式（`DEBUG=False`）下，服务端与子女端若未配置 `SECRET_KEY`（或为已知弱值）将**拒绝启动**。
+> **注意**：`.env`、数据库（`*.db`）、`users.json`、`bound_device.json`、`device_token.txt` 等敏感文件已通过 `.gitignore` 排除，不会上传至仓库，部署时需自行配置。生产模式（`DEBUG=False`）下：
+> - 服务端与子女端若未配置 `SECRET_KEY`（或为已知弱值）将**拒绝启动**
+> - 服务端若未配置 `TURNSTILE_SECRET_KEY` 将**拒绝所有认证请求**（登录/注册）
+> - `/openapi.json`、`/docs`、`/redoc` 在生产环境**返回 404**，仅开发环境可用
+
+### v3.0.0 安全加固
+
+| 类别 | 修复内容 | 涉及文件 |
+|------|---------|----------|
+| 高危 | `/device/register` 已注册设备不再返回 device_token | `public.py` |
+| 高危 | 设备端点强制要求 X-Device-Token（移除旧数据放行） | `public.py` |
+| 中危 | 聊天消息发送校验同家庭组关系（防 IDOR） | `chat.py` |
+| 中危 | 生产环境强制 Turnstile，未配置拒绝认证 | `auth.py` |
+| 中危 | 限流改用真实客户端 IP（CF-Connecting-IP / X-Forwarded-For） | `request_utils.py` |
+| 中危 | 生产环境禁用 API 文档（/openapi.json, /docs, /redoc） | `main.py` |
+| 低危 | 移除无效 X-Device-Secret，改用 X-Device-Token | `api_client.py` |
+| 低危 | 修复 WebSocket cookie 名和 user_id 认证 | `chat.html`, `chat.py` |
+| 代码审查 | 老人端发送 X-Device-Token + 持久化 device_token | `http_client.py` |
+| 代码审查 | 重新绑定设备不覆盖已有 token | `api_client.py`, `home.py` |
+| 性能 | JWT 验证改用全局 httpx 客户端 + 30s 缓存 | `main.py` |
 
 ---
 

@@ -22,6 +22,7 @@ from app.services.ai_service import AIService
 from app.schemas.medication import MedicationPlanCreate
 # C5.6/M21：AI 端点限流
 from app.utils.rate_limit import check_rate_limit
+from app.utils.request_utils import get_client_ip
 import secrets
 import logging
 from datetime import datetime, timezone
@@ -63,8 +64,9 @@ def _get_device_user_authed(db: Session, device_id: str, device_token: Optional[
     F-01 修复：设备端点除 device_id 外，还需校验 X-Device-Token 头，
     防止仅凭 device_id 即可访问设备数据。
 
-    兼容策略：若用户尚未设置 device_token（旧数据），则放行，允许其通过
-    register_device 补领令牌后再生效。
+    安全修复（高危2）：移除旧数据兼容放行逻辑，强制要求所有设备必须有
+    device_token。无 token 的旧设备由 register_device 自动生成后，
+    需家属通过认证接口重新获取。
 
     :param db: 数据库会话
     :param device_id: 设备 ID
@@ -73,10 +75,14 @@ def _get_device_user_authed(db: Session, device_id: str, device_token: Optional[
     :raises HTTPException: 设备未注册(404)或令牌不匹配(403)
     """
     user = _get_device_user(db, device_id)
-    # 若用户已设置 device_token，则必须校验请求头中的 token 是否匹配
-    if user.device_token:
-        if not device_token or not secrets.compare_digest(user.device_token, device_token):
-            raise HTTPException(status_code=403, detail="设备令牌无效或缺失")
+    # 安全修复：无 token 的设备拒绝访问，不再放行
+    if not user.device_token:
+        raise HTTPException(
+            status_code=403,
+            detail="设备未初始化令牌，请联系家属重新绑定设备"
+        )
+    if not device_token or not secrets.compare_digest(user.device_token, device_token):
+        raise HTTPException(status_code=403, detail="设备令牌无效或缺失")
     return user
 
 
@@ -166,14 +172,16 @@ async def register_device(
 
     # 已注册设备 - 心跳上报
     user.last_heartbeat_at = datetime.now(timezone.utc)
-    # F-01：若旧用户尚无 device_token，补生成一个并返回（兼容旧数据）
-    device_token = user.device_token
-    if not device_token:
-        device_token = secrets.token_urlsafe(32)
-        user.device_token = device_token
+    # 安全修复（高危1）：已注册设备不再返回 device_token，防止攻击者通过
+    # /device/register 枚举 device_id 获取已有设备的访问令牌。
+    # 若旧用户尚无 device_token，自动生成但不返回（需家属重新绑定）。
+    if not user.device_token:
+        user.device_token = secrets.token_urlsafe(32)
+        logger.warning(f"旧设备无 token，已自动生成（需家属重新绑定）: {_masked}")
     db.commit()
     logger.info(f"设备心跳更新: {_masked}")
-    return {"status": "ok", "user_id": user.id, "device_token": device_token}
+    # 仅返回 user_id，不返回 device_token
+    return {"status": "ok", "user_id": user.id}
 
 
 @router.post("/device/offline")
@@ -288,8 +296,8 @@ async def ai_ask(
 
     F-01：若提供 device_id，需校验 X-Device-Token。
     """
-    # C5.6/M21：限流
-    client_ip = request.client.host if request.client else "unknown"
+    # C5.6/M21：限流（安全修复中危5：使用真实客户端 IP）
+    client_ip = get_client_ip(request)
     if not check_rate_limit(f"ai_ask:{client_ip}", _AI_RATE_LIMIT):
         raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
 

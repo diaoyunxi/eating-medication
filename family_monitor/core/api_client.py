@@ -27,6 +27,7 @@ class ElderlyAPIClient:
         self.base_url = config.ELDERLY_SERVER_URL
         self.timeout = 10.0
         self._device_id = self._load_bound_device_id()
+        self._device_token = self._load_device_token()
         self._ssl_context = self._create_ssl_context()
 
     def _create_ssl_context(self) -> Optional[ssl.SSLContext]:
@@ -51,18 +52,38 @@ class ElderlyAPIClient:
                 pass
         return None
 
-    def save_bound_device(self, device_id: str, device_name: str = ""):
-        """保存绑定的设备ID"""
+    def _load_device_token(self) -> Optional[str]:
+        """加载已绑定的设备令牌（安全修复低危10）"""
         device_file = config.DATA_DIR / "bound_device.json"
+        if device_file.exists():
+            try:
+                with open(device_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    return data.get('device_token')
+            except Exception:
+                pass
+        return None
+
+    def save_bound_device(self, device_id: str, device_name: str = "", device_token: str = ""):
+        """保存绑定的设备ID和令牌
+
+        代码审查修复（1.3）：当 device_token 为空时保留已有 token，防止重新绑定覆盖。
+        """
+        device_file = config.DATA_DIR / "bound_device.json"
+        # 若未传入新 token，保留已有的 token（防止重新绑定时覆盖丢失）
+        if not device_token:
+            device_token = self._device_token or ""
         data = {
             'device_id': device_id,
             'device_name': device_name,
+            'device_token': device_token,
             'bound_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         with open(device_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         os.chmod(device_file, 0o600)
         self._device_id = device_id
+        self._device_token = device_token if device_token else None
 
     def get_bound_device(self) -> Optional[Dict[str, str]]:
         """获取已绑定的设备信息"""
@@ -83,13 +104,14 @@ class ElderlyAPIClient:
         self._device_id = None
 
     def _headers(self) -> Dict[str, str]:
-        """返回携带设备ID的请求头"""
+        """返回携带设备ID和设备令牌的请求头"""
         headers = {}
         if self._device_id:
             headers["X-Device-ID"] = self._device_id
-        # 注入共享设备密钥用于服务端鉴权（未配置则保持兼容，不发送）
-        if config.DEVICE_SECRET:
-            headers["X-Device-Secret"] = config.DEVICE_SECRET
+        # 安全修复（低危10）：移除无效的 X-Device-Secret（server 端从未校验此头）
+        # 改为发送 X-Device-Token（server 端实际校验的设备令牌）
+        if self._device_token:
+            headers["X-Device-Token"] = self._device_token
         return headers
 
     async def register_device(self, device_id: str, device_name: str = "") -> Dict[str, Any]:
@@ -106,7 +128,9 @@ class ElderlyAPIClient:
                 )
                 if response.status_code == 200:
                     resp_data = response.json()
-                    self.save_bound_device(device_id, device_name)
+                    # 代码审查修复（1.2）：透传 device_token（仅新设备返回）
+                    token = resp_data.get("device_token", "")
+                    self.save_bound_device(device_id, device_name, token)
                     return {"success": True, "data": resp_data}
                 else:
                     return {"success": False, "error": f"状态码: {response.status_code}"}
