@@ -1,5 +1,50 @@
 # 项目开发历史记录
 
+## v3.0.0 (2026-07-20) — 安全加固版本
+
+### 🔴 高危漏洞修复（渗透测试复现）
+
+- **【高危1】device_token 任意获取/覆盖**：`/device/register` 对已注册设备不再返回 `device_token`，仅新设备首次注册时返回一次。攻击者无法再通过枚举 `device_id` 获取已有设备的访问令牌。
+  - 文件：`server/app/api/v1/endpoints/public.py`
+  - PoC：`POST /api/v1/public/device/register {"device_id":"TARGET_ID"}` → 旧版返回 token，新版仅返回 `user_id`
+- **【高危2】旧设备无 token 校验放行**：`_get_device_user_authed` 移除旧数据兼容放行逻辑，强制要求所有设备必须有 `device_token`。无 token 的旧设备由 `register_device` 自动生成后，需家属重新绑定。
+  - 文件：`server/app/api/v1/endpoints/public.py`
+
+### 🟡 中危漏洞修复
+
+- **【中危3】跨家庭组消息发送（IDOR）**：`/chat/send` 和 WebSocket 聊天增加同组关系校验，`sender.group_id == receiver.group_id` 不满足时拒绝发送。
+  - 文件：`server/app/api/v1/endpoints/chat.py`
+- **【中危4】Turnstile 未配置绕过**：生产环境（`DEBUG=False`）未配置 `TURNSTILE_SECRET_KEY` 时拒绝认证请求，不再跳过校验。
+  - 文件：`server/app/api/v1/endpoints/auth.py`
+- **【中危5】限流基于代理 IP 失效**：新增 `get_client_ip()` 工具函数，优先读取 `CF-Connecting-IP` 和 `X-Forwarded-For` 头获取真实客户端 IP。
+  - 文件：`server/app/utils/request_utils.py`（新增）、`auth.py`、`public.py`
+- **【中危7】API 文档生产环境暴露**：`/openapi.json`、`/docs`、`/redoc` 在生产环境返回 404，仅开发环境可用。
+  - 文件：`server/app/main.py`
+
+### 🟢 低危漏洞修复
+
+- **【低危10】X-Device-Secret 伪安全**：移除 family_monitor 中无效的 `X-Device-Secret` 头，改为发送 `X-Device-Token`（server 实际校验的令牌）。
+  - 文件：`family_monitor/core/api_client.py`
+- **【低危12】WebSocket cookie 名 + user_id bug**：chat.html cookie 名从 `session_token` 改为 `access_token`；WebSocket 认证从 `int(sub)` 改为通过 username 查库获取数字 ID。
+  - 文件：`family_monitor/templates/chat.html`、`server/app/api/v1/endpoints/chat.py`
+
+### 代码审查修复（/cr）
+
+- **【致命1.1】老人端不发送 X-Device-Token**：`elderly_assistant/services/http_client.py` 新增 `device_token` 加载、持久化和发送逻辑。新设备注册时自动保存返回的 token，后续请求携带 `X-Device-Token` 头。
+  - 文件：`elderly_assistant/services/http_client.py`
+- **【严重1.3】重新绑定覆盖 token**：`save_bound_device` 在未传入新 token 时保留已有 token，防止重新绑定导致 token 丢失。
+  - 文件：`family_monitor/core/api_client.py`、`family_monitor/routes/home.py`
+- **【一般1.2】register_device 未透传 token**：`api_client.register_device` 内部调用 `save_bound_device` 时透传 `device_token`。
+  - 文件：`family_monitor/core/api_client.py`
+- **【严重2.1】JWT 验证性能优化**：auth_middleware 改用全局 `httpx.AsyncClient` 复用连接 + JWT 30 秒短期缓存，避免每个请求都新建客户端和发送 HTTP 验证请求。
+  - 文件：`family_monitor/main.py`
+
+### 新增文件
+
+- `server/app/utils/request_utils.py`：共享的 `get_client_ip()` 工具函数
+
+---
+
 ## v2.9.13 (2026-07-19)
 
 ### UI 统一

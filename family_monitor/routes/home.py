@@ -195,6 +195,16 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
         # 2. 校验通过后再向服务端注册/绑定
         result = await elderly_client.register_device(device_id, device_name)
         if result.get("success"):
+            # 安全修复（低危10+严重1.3）：保存 device_token（仅新设备注册时返回）
+            device_data = result.get("data") or {}
+            device_token = device_data.get("device_token", "")
+            if device_token:
+                # 新设备：保存 device_id + device_token
+                elderly_client.save_bound_device(device_id, device_name, device_token)
+            else:
+                # 已注册设备：服务端不返回 token，保留本地已有的 token（不覆盖）
+                existing_token = getattr(elderly_client, '_device_token', None) or ''
+                elderly_client.save_bound_device(device_id, device_name, existing_token or '')
             return JSONResponse(content={
                 "success": True,
                 "message": f"设备 {device_name or device_id} 绑定成功"

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ app_name }} - 消息聊天</title>
-    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.9.12">
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=3.0.0">
     <style>
         /* =============================================
            Chat 页面独立样式（Claude Design System）
@@ -451,9 +451,9 @@
         const serverUrl = elderlyUrl.replace(/^https?:\/\//, '');
 
         function initWS() {
-            // 从 cookie 读取 session_token，附加到 WebSocket URL 以通过服务端鉴权
-            const sessionToken = getCookie('session_token');
-            const url = `${wsProto}//${serverUrl}/api/v1/chat/ws/${encodeURIComponent(currentUser)}?token=${encodeURIComponent(sessionToken)}`;
+            // 安全修复（低危12）：cookie 名从 session_token 改为 access_token
+            const accessToken = getCookie('access_token');
+            const url = `${wsProto}//${serverUrl}/api/v1/chat/ws/${encodeURIComponent(currentUserId || 0)}?token=${encodeURIComponent(accessToken)}`;
             ws = new WebSocket(url);
             ws.onopen = () => {
                 statusDot.classList.add('connected');

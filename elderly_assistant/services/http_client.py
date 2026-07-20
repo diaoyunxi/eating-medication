@@ -2,14 +2,43 @@
 """
 HTTP 客户端模块
 负责与服务器通信：设备注册、用药计划轮询、服药确认等
-仅通过 device_id 标识设备
+通过 device_id + device_token 标识和认证设备
 """
 import logging
+import os
 import requests
 from datetime import datetime
 from services.device_id import get_device_id
 
 logger = logging.getLogger("ElderlyAssistant")
+
+# device_token 持久化文件路径
+_TOKEN_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "device_token.txt")
+
+
+def _load_device_token():
+    """从本地文件加载设备令牌"""
+    try:
+        if os.path.exists(_TOKEN_FILE):
+            with open(_TOKEN_FILE, 'r') as f:
+                token = f.read().strip()
+                if token:
+                    return token
+    except Exception as e:
+        logger.warning(f"加载 device_token 失败: {e}")
+    return None
+
+
+def _save_device_token(token):
+    """持久化设备令牌到本地文件"""
+    try:
+        os.makedirs(os.path.dirname(_TOKEN_FILE), exist_ok=True)
+        with open(_TOKEN_FILE, 'w') as f:
+            f.write(token)
+        os.chmod(_TOKEN_FILE, 0o600)
+        logger.info("device_token 已保存到本地")
+    except Exception as e:
+        logger.warning(f"保存 device_token 失败: {e}")
 
 
 class HTTPClient:
@@ -22,10 +51,15 @@ class HTTPClient:
             raise ValueError("配置缺少 server.base_url，请检查config.yaml")
         self.timeout = server_cfg.get('timeout', 10)
         self.device_id = get_device_id()
+        # 安全修复（致命1.1）：加载持久化的 device_token
+        self.device_token = _load_device_token()
 
     def _headers(self):
-        """返回携带设备标识的请求头"""
-        return {"X-Device-ID": self.device_id}
+        """返回携带设备标识和令牌的请求头"""
+        headers = {"X-Device-ID": self.device_id}
+        if self.device_token:
+            headers["X-Device-Token"] = self.device_token
+        return headers
 
     def check_connection(self):
         """检查服务器连接状态"""
@@ -37,7 +71,11 @@ class HTTPClient:
             return False
 
     def register_device(self, device_name=""):
-        """向服务端注册本设备"""
+        """向服务端注册本设备
+
+        安全修复（致命1.1）：新设备注册时服务端返回 device_token，
+        需持久化保存并在后续请求中携带。
+        """
         url = f"{self.base_url}/api/v1/public/device/register"
         try:
             resp = requests.post(
@@ -47,7 +85,15 @@ class HTTPClient:
                 headers=self._headers()
             )
             if resp.status_code == 200:
-                logger.info("设备注册/心跳上报成功")
+                data = resp.json()
+                # 新设备注册时服务端返回 device_token，需保存
+                token = data.get("device_token")
+                if token:
+                    self.device_token = token
+                    _save_device_token(token)
+                    logger.info("设备注册成功，device_token 已保存")
+                else:
+                    logger.info("设备心跳上报成功")
                 return True
             else:
                 logger.warning(f"设备注册失败，状态码: {resp.status_code}")

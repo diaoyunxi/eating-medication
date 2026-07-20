@@ -24,9 +24,21 @@ async def send_message(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),  # C4：加认证
 ):
-    """发送聊天消息"""
+    """发送聊天消息
+
+    安全修复（中危3）：校验 receiver_id 与 sender 属于同一家庭组，防止 IDOR。
+    """
     # C4：sender_id 从 token 提取，覆盖任何客户端传入值
     # S-01 修复：sender_name 从服务端 current_user.full_name 获取，防止客户端伪造
+    # 安全修复（中危3）：校验接收者是否与发送者同组
+    if msg.receiver_id:
+        receiver = db.query(User).filter(User.id == msg.receiver_id).first()
+        if not receiver:
+            raise HTTPException(status_code=404, detail="接收者不存在")
+        # 校验同组关系（双方都必须有 group_id 且一致）
+        if not current_user.group_id or current_user.group_id != receiver.group_id:
+            raise HTTPException(status_code=403, detail="只能向同一家庭组成员发送消息")
+
     db_msg = ChatMessage(
         sender_id=current_user.id,
         receiver_id=msg.receiver_id,
@@ -80,7 +92,11 @@ async def get_history(
 
 @router.websocket("/ws/{user_id}")
 async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Query(None)):
-    """WebSocket聊天连接（C4：从 query 参数读取 token 校验，使用 token 中的 user_id）"""
+    """WebSocket聊天连接（C4：从 query 参数读取 token 校验，使用 token 中的 user_id）
+
+    安全修复（低危12）：JWT sub 字段是 username（字符串），不能直接 int() 转换。
+    改为通过 username 查库获取数字 user_id。
+    """
     # C4：token 校验，无效则关闭连接（code=1008）
     authenticated_user_id = None
     if token:
@@ -88,8 +104,11 @@ async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Que
             payload = decode_token(token)
             sub = payload.get("sub")
             if sub is not None:
-                # H7：sub 为字符串，转为 int
-                authenticated_user_id = int(sub)
+                # sub 是 username（字符串），需查库获取数字 ID
+                with SessionLocal() as db:
+                    user = db.query(User).filter(User.username == sub).first()
+                    if user:
+                        authenticated_user_id = user.id
         except Exception:
             authenticated_user_id = None
     if authenticated_user_id is None:
@@ -110,6 +129,14 @@ async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Que
                         # S-01 修复：sender_name 从服务端查库获取，防止客户端伪造
                         sender = db.query(User).filter(User.id == user_id).first()
                         sender_name = sender.full_name if sender else "未知"
+                        # 安全修复（中危3）：校验接收者是否与发送者同组
+                        receiver = db.query(User).filter(User.id == receiver_id).first()
+                        if not receiver:
+                            await websocket.send_json({"type": "error", "message": "接收者不存在"})
+                            continue
+                        if not sender.group_id or sender.group_id != receiver.group_id:
+                            await websocket.send_json({"type": "error", "message": "只能向同一家庭组成员发送消息"})
+                            continue
                         db_msg = ChatMessage(
                             sender_id=user_id,
                             receiver_id=receiver_id,

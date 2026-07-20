@@ -8,7 +8,7 @@ import logging
 import sys
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import (
@@ -103,16 +103,19 @@ async def lifespan(app: FastAPI):
 PATH_PREFIX = settings.PATH_PREFIX.rstrip("/")
 
 # 创建 FastAPI 实例（禁用默认文档，使用本地静态资源）
+# 安全修复（中危7）：生产环境完全禁用 API 文档，防止信息泄露
+_is_debug = settings.DEBUG
 app = FastAPI(
     title=settings.APP_NAME,
-    version="2.9.13",
+    version="3.0.0",
     description="老人用药管理智能助手后端 API",
-    debug=settings.DEBUG,
+    debug=_is_debug,
     lifespan=lifespan,
     root_path=PATH_PREFIX,
     docs_url=None,
     redoc_url=None,
-    openapi_url="/openapi.json",
+    # 生产环境不暴露 openapi.json，开发环境暴露
+    openapi_url="/openapi.json" if _is_debug else None,
 )
 
 # ==================== 中间件配置 ====================
@@ -146,12 +149,16 @@ app.include_router(chat.router, prefix=api_prefix)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # ==================== 自定义文档路由（使用本地静态资源） ====================
+# 安全修复（中危7）：生产环境不注册文档路由，防止 API 结构泄露
 docs_static_url = f"{PATH_PREFIX}/static/docs" if PATH_PREFIX else "/static/docs"
 openapi_full_url = f"{PATH_PREFIX}/openapi.json" if PATH_PREFIX else "/openapi.json"
 
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
+    """Swagger UI - 仅开发环境可用"""
+    if not _is_debug:
+        raise HTTPException(status_code=404, detail="Not Found")
     return get_swagger_ui_html(
         openapi_url=openapi_full_url,
         title=app.title + " - Swagger UI",
@@ -164,11 +171,16 @@ async def custom_swagger_ui_html():
 
 @app.get("/docs/oauth2-redirect", include_in_schema=False)
 async def swagger_ui_oauth2_redirect():
+    if not _is_debug:
+        raise HTTPException(status_code=404, detail="Not Found")
     return get_swagger_ui_oauth2_redirect_html()
 
 
 @app.get("/redoc", include_in_schema=False)
 async def redoc_html():
+    """ReDoc - 仅开发环境可用"""
+    if not _is_debug:
+        raise HTTPException(status_code=404, detail="Not Found")
     return get_redoc_html(
         openapi_url=openapi_full_url,
         title=app.title + " - ReDoc",
