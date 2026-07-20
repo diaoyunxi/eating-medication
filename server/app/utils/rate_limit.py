@@ -25,6 +25,14 @@ def check_rate_limit(key: str, max_calls: int, window_seconds: int = 60) -> bool
     cutoff = now - window_seconds
     # 清理过期记录
     recent = [t for t in _bucket[key] if t > cutoff]
+    # Bug4 修复：当 recent 为空时从 _bucket 中删除该 key，
+    # 避免 _bucket 无限增长（每个新 IP 或 key 都会留下空列表条目永不清理）。
+    if not recent:
+        _bucket.pop(key, None)
+        recent = [now]
+        # 空列表直接放行，但需记录本次调用
+        _bucket[key] = recent
+        return True
     _bucket[key] = recent
     if len(recent) >= max_calls:
         return False

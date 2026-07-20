@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.9.14**（2026-07-20，安全加固：渗透测试修复 + 代码审查修复） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.9.15**（2026-07-20，代码审查 Bug 修复：8 个 Bug 全部 localhost 复现并修复） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
 一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
@@ -341,6 +341,19 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 > - 服务端与子女端若未配置 `SECRET_KEY`（或为已知弱值）将**拒绝启动**
 > - 服务端若未配置 `TURNSTILE_SECRET_KEY` 将**拒绝所有认证请求**（登录/注册）
 > - `/openapi.json`、`/docs`、`/redoc` 在生产环境**返回 404**，仅开发环境可用
+
+### v2.9.15 代码审查 Bug 修复
+
+| Bug | 严重等级 | 修复内容 | 涉及文件 |
+|-----|---------|---------|----------|
+| Bug5 | 致命 | WebSocket sender 为 None 时不再抛出 AttributeError | `server/chat.py` |
+| Bug8 | 致命 | WebSocket 认证查询从 username 改为 id（修复 403） | `server/chat.py` |
+| Bug1 | 严重 | 新增 POST /logout 处理器（修复 405） | `family_monitor/auth.py` |
+| Bug2 | 严重 | 聊天页面传递 current_user_id（修复消息方向错误） | `family_monitor/main.py`, `chat.py` |
+| Bug3 | 严重 | 解绑设备同时清除 device_token | `family_monitor/api_client.py` |
+| Bug6 | 严重 | upload_image 使用 .get() 避免 KeyError 崩溃 | `elderly_assistant/http_client.py` |
+| Bug7 | 严重 | 多提醒合并触发（移除 break，收集所有匹配项） | `elderly_assistant/main.py` |
+| Bug4 | 一般 | rate_limit 清理空列表条目（修复内存泄漏） | `server/rate_limit.py` |
 
 ### v2.9.14 安全加固
 

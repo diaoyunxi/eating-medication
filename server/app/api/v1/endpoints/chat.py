@@ -104,11 +104,16 @@ async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Que
             payload = decode_token(token)
             sub = payload.get("sub")
             if sub is not None:
-                # sub 是 username（字符串），需查库获取数字 ID
+                # Bug8 修复：JWT sub 字段存储的是 user.id（数字字符串），
+                # 原代码用 User.username == sub 查询，导致所有 WebSocket 连接
+                # 认证失败返回 403。改为用 User.id == int(sub) 查询。
                 with SessionLocal() as db:
-                    user = db.query(User).filter(User.username == sub).first()
+                    user = db.query(User).filter(User.id == int(sub)).first()
                     if user:
                         authenticated_user_id = user.id
+        except (ValueError, TypeError):
+            # sub 不是有效的数字 ID
+            authenticated_user_id = None
         except Exception:
             authenticated_user_id = None
     if authenticated_user_id is None:
@@ -129,6 +134,12 @@ async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Que
                         # S-01 修复：sender_name 从服务端查库获取，防止客户端伪造
                         sender = db.query(User).filter(User.id == user_id).first()
                         sender_name = sender.full_name if sender else "未知"
+                        # Bug5 修复：sender 可能为 None（用户被删除），
+                        # 原代码直接访问 sender.group_id 会抛出 AttributeError，
+                        # 导致 WebSocket 连接异常中断。增加 None 检查。
+                        if not sender:
+                            await websocket.send_json({"type": "error", "message": "发送者账号不存在"})
+                            continue
                         # 安全修复（中危3）：校验接收者是否与发送者同组
                         receiver = db.query(User).filter(User.id == receiver_id).first()
                         if not receiver:

@@ -521,6 +521,9 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooz
             reminder_state.fired_keys.clear()
             reminder_state._fired_day = today
 
+        # Bug7 修复：原代码在 for 循环内使用 break，导致同一时间多个用药提醒
+        # 只触发第一个。改为收集所有匹配的提醒，合并为一条复合提醒后触发。
+        matched_reminders = []
         for s in poller.schedules:
             t = _normalize_hhmm(s.get('time'))
             if not t or t != now_hm:
@@ -531,12 +534,24 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooz
             # 同一分钟内同一药品只触发一次
             if key in reminder_state.fired_keys:
                 continue
+            matched_reminders.append((drug_name, dosage, key))
+
+        if matched_reminders:
+            # 合并所有同一时间的提醒为一条复合消息
+            if len(matched_reminders) == 1:
+                drug_name, dosage, key = matched_reminders[0]
+            else:
+                # 多个药品合并显示，例如 "阿司匹林 1片、降压药 2片"
+                parts = [f"{d[0]} {d[1]}" for d in matched_reminders]
+                drug_name = "、".join(parts)
+                dosage = ""
+                # 使用合并后的 key，包含所有药品名
+                key = f"{today}|{now_hm}|" + "|".join(d[0] for d in matched_reminders)
             # 触发提醒
             reminder_state.trigger(drug_name, dosage, key)
             buzzer.play_reminder()
             display.show_reminder(drug_name, dosage)
-            logger.info(f"触发用药提醒: {drug_name} {dosage} @ {t}")
-            break
+            logger.info(f"触发用药提醒: {drug_name} {dosage} @ {now_hm} (共 {len(matched_reminders)} 个)")
     except Exception as e:
         logger.error(f"检查触发异常: {e}")
 

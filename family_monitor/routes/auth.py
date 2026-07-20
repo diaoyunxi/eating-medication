@@ -225,16 +225,33 @@ async def post_register(request: Request):
     return _set_jwt_cookie(response, access_token)
 
 
-@router.get("/logout")
-async def logout():
-    """退出登录：清除 JWT cookie 并跳转登录页
+async def _do_logout():
+    """退出登录核心逻辑：清除 JWT cookie 并返回重定向响应
 
     显式拼接 PATH_PREFIX，避免隧道子路径模式下重定向到错误地址。
+    Bug1 修复：原代码仅注册 GET /logout，但前端使用 POST 表单提交，
+    导致 405 Method Not Allowed。现抽取公共逻辑，GET/POST 均可触发。
     """
     login_url = f"{_PATH_PREFIX}/login" if _PATH_PREFIX else "/login"
     response = RedirectResponse(url=login_url, status_code=status.HTTP_302_FOUND)
     response.delete_cookie(key="access_token", path="/")
     return response
+
+
+@router.get("/logout")
+async def logout():
+    """退出登录（GET 方式，兼容直接链接跳转）"""
+    return await _do_logout()
+
+
+@router.post("/logout")
+async def logout_post():
+    """退出登录（POST 方式，前端表单提交）
+
+    Bug1 修复：前端登出按钮使用 POST 表单提交，但原代码仅注册 GET /logout，
+    导致返回 405 Method Not Allowed。新增 POST 处理器修复此问题。
+    """
+    return await _do_logout()
 
 
 def _parse_server_error(resp: httpx.Response, default_msg: str) -> str:

@@ -155,6 +155,7 @@ async def auth_middleware(request: Request, call_next):
     )
 
     request.state.user = None
+    request.state.user_id = None
 
     if is_public:
         return await call_next(request)
@@ -169,34 +170,40 @@ async def auth_middleware(request: Request, call_next):
         return RedirectResponse(url=login_url, status_code=302)
 
     # 转发 JWT 到 server /users/me 验证
-    username = await _verify_jwt_via_server(access_token)
-    if not username:
+    # Bug2 修复：_verify_jwt_via_server 现返回 (username, user_id) 元组
+    result = await _verify_jwt_via_server(access_token)
+    if not result:
         # JWT 无效或过期，清除 cookie 并重定向登录页
         logger.warning(f"JWT 无效或过期，清除 cookie 并重定向登录页: path={path}")
         response = RedirectResponse(url=login_url, status_code=302)
         response.delete_cookie(key="access_token", path="/")
         return response
 
+    username, user_id = result
     request.state.user = username
-    logger.info(f"认证通过: path={path}, user={username}")
+    request.state.user_id = user_id
+    logger.info(f"认证通过: path={path}, user={username}, user_id={user_id}")
     response = await call_next(request)
     return response
 
 
-async def _verify_jwt_via_server(access_token: str) -> Optional[str]:
-    """转发 JWT 到 server /api/v1/users/me 验证，返回用户名
+async def _verify_jwt_via_server(access_token: str) -> Optional[tuple]:
+    """转发 JWT 到 server /api/v1/users/me 验证，返回用户名和数字 ID
 
     代码审查修复（2.1）：使用全局 httpx 客户端 + JWT 短期缓存（30s），
     避免每个请求都新建客户端和发送 HTTP 验证请求。
 
+    Bug2 修复：原代码仅返回 username，导致前端聊天页面 currentUserId=null，
+    无法正确判断消息方向。现同时返回 (username, user_id) 元组。
+
     :param access_token: server 签发的 JWT
-    :return: 验证成功返回 username，失败返回 None
+    :return: 验证成功返回 (username, user_id) 元组，失败返回 None
     """
-    # JWT 缓存：token -> (username, expire_time)，30 秒过期
+    # JWT 缓存：token -> (username, user_id, expire_time)，30 秒过期
     now = time.time()
     cached = _jwt_cache.get(access_token)
-    if cached and cached[1] > now:
-        return cached[0]
+    if cached and cached[2] > now:
+        return (cached[0], cached[1])
 
     verify_url = f"{config.ELDERLY_SERVER_URL.rstrip('/')}/api/v1/users/me"
     try:
@@ -208,9 +215,10 @@ async def _verify_jwt_via_server(access_token: str) -> Optional[str]:
         if resp.status_code == 200:
             data = resp.json()
             username = data.get("username")
+            user_id = data.get("id")
             # 缓存 30 秒
-            _jwt_cache[access_token] = (username, now + 30)
-            return username
+            _jwt_cache[access_token] = (username, user_id, now + 30)
+            return (username, user_id)
         else:
             logger.warning(
                 f"JWT 验证失败: HTTP {resp.status_code}, url={verify_url}, "
@@ -223,7 +231,7 @@ async def _verify_jwt_via_server(access_token: str) -> Optional[str]:
 
 # 全局 httpx 客户端（复用 keep-alive 连接）
 _http_client: httpx.AsyncClient = httpx.AsyncClient(timeout=10.0)
-# JWT 验证缓存：access_token -> (username, expire_timestamp)
+# JWT 验证缓存：access_token -> (username, user_id, expire_timestamp)
 _jwt_cache: dict = {}
 
 

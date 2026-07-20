@@ -185,8 +185,11 @@ class HTTPClient:
             return False
 
     def upload_image(self, image_path, endpoint=None):
+        # Bug6 修复：原代码使用 self.config['upload_endpoint'] 直接索引访问，
+        # 若配置缺少该键则抛出 KeyError，且该行在 try/except 块外导致程序崩溃。
+        # 改用 .get() 安全访问，并提供默认值。
         if endpoint is None:
-            endpoint = self.config['upload_endpoint']
+            endpoint = self.config.get('upload_endpoint', '/api/upload')
         url = f"{self.base_url}{endpoint}"
         try:
             with open(image_path, 'rb') as f:
