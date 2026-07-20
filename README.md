@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v3.0.0**（2026-07-20，安全加固版本：渗透测试修复 + 代码审查修复） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.9.14**（2026-07-20，安全加固：渗透测试修复 + 代码审查修复） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
 一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
@@ -342,7 +342,7 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 > - 服务端若未配置 `TURNSTILE_SECRET_KEY` 将**拒绝所有认证请求**（登录/注册）
 > - `/openapi.json`、`/docs`、`/redoc` 在生产环境**返回 404**，仅开发环境可用
 
-### v3.0.0 安全加固
+### v2.9.14 安全加固
 
 | 类别 | 修复内容 | 涉及文件 |
 |------|---------|----------|

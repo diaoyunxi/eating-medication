@@ -71,3 +71,5 @@ pan_credentials.json
 *.tgz
 *.7z
 *.rar
+SHA256SUMS.txt
+*.SHA256SUMS.txt

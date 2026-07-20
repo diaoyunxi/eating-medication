@@ -1,2 +1,0 @@
-9805170e2bfd355acbfc1e61cb66be1a0dfeaaa35033688e643e7a2fef78390f  eating-medication_v3.0.0.zip
-9805170e2bfd355acbfc1e61cb66be1a0dfeaaa35033688e643e7a2fef78390f  eating-medication_v3.0.0+releases.zip
