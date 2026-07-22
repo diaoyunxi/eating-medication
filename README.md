@@ -342,37 +342,6 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 > - 服务端若未配置 `TURNSTILE_SECRET_KEY` 将**拒绝所有认证请求**（登录/注册）
 > - `/openapi.json`、`/docs`、`/redoc` 在生产环境**返回 404**，仅开发环境可用
 
-### v2.9.15 代码审查 Bug 修复
-
-| Bug | 严重等级 | 修复内容 | 涉及文件 |
-|-----|---------|---------|----------|
-| Bug5 | 致命 | WebSocket sender 为 None 时不再抛出 AttributeError | `server/chat.py` |
-| Bug8 | 致命 | WebSocket 认证查询从 username 改为 id（修复 403） | `server/chat.py` |
-| Bug1 | 严重 | 新增 POST /logout 处理器（修复 405） | `family_monitor/auth.py` |
-| Bug2 | 严重 | 聊天页面传递 current_user_id（修复消息方向错误） | `family_monitor/main.py`, `chat.py` |
-| Bug3 | 严重 | 解绑设备同时清除 device_token | `family_monitor/api_client.py` |
-| Bug6 | 严重 | upload_image 使用 .get() 避免 KeyError 崩溃 | `elderly_assistant/http_client.py` |
-| Bug7 | 严重 | 多提醒合并触发（移除 break，收集所有匹配项） | `elderly_assistant/main.py` |
-| Bug4 | 一般 | rate_limit 清理空列表条目（修复内存泄漏） | `server/rate_limit.py` |
-
-### v2.9.14 安全加固
-
-| 类别 | 修复内容 | 涉及文件 |
-|------|---------|----------|
-| 高危 | `/device/register` 已注册设备不再返回 device_token | `public.py` |
-| 高危 | 设备端点强制要求 X-Device-Token（移除旧数据放行） | `public.py` |
-| 中危 | 聊天消息发送校验同家庭组关系（防 IDOR） | `chat.py` |
-| 中危 | 生产环境强制 Turnstile，未配置拒绝认证 | `auth.py` |
-| 中危 | 限流改用真实客户端 IP（CF-Connecting-IP / X-Forwarded-For） | `request_utils.py` |
-| 中危 | 生产环境禁用 API 文档（/openapi.json, /docs, /redoc） | `main.py` |
-| 低危 | 移除无效 X-Device-Secret，改用 X-Device-Token | `api_client.py` |
-| 低危 | 修复 WebSocket cookie 名和 user_id 认证 | `chat.html`, `chat.py` |
-| 代码审查 | 老人端发送 X-Device-Token + 持久化 device_token | `http_client.py` |
-| 代码审查 | 重新绑定设备不覆盖已有 token | `api_client.py`, `home.py` |
-| 性能 | JWT 验证改用全局 httpx 客户端 + 30s 缓存 | `main.py` |
-
----
-
 ## 配置说明
 
 | 模块 | 配置文件 | 关键配置项 |
