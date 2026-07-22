@@ -1,5 +1,22 @@
 # 项目开发历史记录
 
+## v2.10.3 (2026-07-22) — 修正 README 配置说明以贴合代码实际
+
+### 概述
+
+核对代码后，README 的配置说明存在与实现不符之处，本次按代码实际修正（仅文档变更，无代码改动）。
+
+### 主要变更（README.md）
+
+- **配置表（server）**：删除代码中不存在的 `JD_*`（京东比价相关环境变量实际未被读取）；补全实际字段 `APP_NAME`、`DEBUG`、`API_V1_PREFIX`、`ZHIPUAI_MODEL`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`GITHUB_OAUTH_CALLBACK_URL`/`FAMILY_WEB_URL`。
+- **配置表（family_monitor）**：区分 `.env` 字段（`SECRET_KEY`/`DEBUG`/`COOKIE_SECURE`/`TURNSTILE_SITE_KEY`/`DEVICE_SECRET`/`ALLOWED_ORIGINS`/`PRODUCTION`/`SERVER_HOST`）与 `config.json` 字段（`ELDERLY_SERVER_URL`/`SERVER_PORT`/`PATH_PREFIX`/`APP_NAME`/`DISPLAY_*`），与 `core/config.py` 一致。
+- **服务端 `.env` 示例**：删除代码中未读取的 `OCR_APP_ID` 与 `WS_HEARTBEAT_INTERVAL` 两行；补上实际的 GitHub OAuth 字段块（与上方「GitHub OAuth 登录配置」一致）。
+- 版本号 2.10.2 → 2.10.3（补丁号递增，文档修正）。
+
+### 说明
+
+- 经全文核查：`JD_*`、`OCR_APP_ID`、`WS_HEARTBEAT_INTERVAL` 在代码中均未被读取（vision_service 用 `OCR_API_KEY` 当 client_id），属历史文档滞后，已从 README 移除。
+
 ## v2.10.2 (2026-07-22) — 首次运行自动生成的 .env 模板补全全部可配置字段
 
 ### 概述
