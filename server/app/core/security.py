@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 import bcrypt
 from jose import jwt
+from jose.exceptions import JWTError
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import secrets
 from app.core.config import settings
 
@@ -55,3 +56,64 @@ def create_access_token(data: Dict[str, Any], expires_delta: timedelta = None) -
 def decode_token(token: str) -> Dict[str, Any]:
     """解码 JWT token"""
     return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+
+
+# ==================== GitHub OAuth 相关令牌 ====================
+
+def create_oauth_state_token(state: str) -> str:
+    """签发短时 OAuth state 令牌（防 CSRF）
+
+    state 由服务端随机生成，写入 HttpOnly 签名 cookie；回调时比对 GitHub 返回的 state。
+    使用 HS256 签名，10 分钟内有效。
+    """
+    return create_access_token(
+        data={"type": "oauth_state", "state": state},
+        expires_delta=timedelta(minutes=10),
+    )
+
+
+def verify_oauth_state_token(token: str) -> Optional[str]:
+    """校验 OAuth state 令牌并返回内部 state 值；无效或类型不符返回 None"""
+    try:
+        payload = decode_token(token)
+    except JWTError:
+        return None
+    if payload.get("type") != "oauth_state":
+        return None
+    return payload.get("state")
+
+
+def create_oauth_pending_token(
+    github_id: int,
+    github_login: str,
+    github_name: Optional[str],
+    github_avatar: Optional[str],
+) -> str:
+    """签发短期 OAuth 待补全身份令牌
+
+    首次 GitHub 登录（github_id 尚未绑定本地账号）时，server 回调将此令牌写入
+    HttpOnly cookie，并 302 跳转 family_monitor 注册页补全信息；注册接口凭此绑定 github_id。
+    15 分钟内有效。
+    """
+    return create_access_token(
+        data={
+            "type": "oauth_pending",
+            "github_id": github_id,
+            "github_login": github_login,
+            "github_name": github_name,
+            "github_avatar": github_avatar,
+        },
+        expires_delta=timedelta(minutes=15),
+    )
+
+
+def verify_oauth_pending_token(token: str) -> Optional[Dict[str, Any]]:
+    """校验 OAuth 待补全身份令牌；无效或类型不符返回 None"""
+    try:
+        payload = decode_token(token)
+    except JWTError:
+        return None
+    if payload.get("type") != "oauth_pending":
+        return None
+    return payload
+

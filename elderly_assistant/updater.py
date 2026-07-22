@@ -46,7 +46,7 @@ def _load_version():
 
     :return: 版本号字符串（如 "2.9.8"）
     """
-    _DEFAULT_VERSION = "2.9.14"
+    _DEFAULT_VERSION = "2.10.0"
     _module_dir = Path(__file__).resolve().parent
     # 候选路径：本模块目录、项目根目录
     for candidate in [_module_dir / "VERSION", _module_dir.parent / "VERSION"]:

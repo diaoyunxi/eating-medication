@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.dependencies import get_db
+from app.core.security import verify_oauth_pending_token
 from app.schemas.auth import RegisterReq, LoginReq, TokenResp
 from app.services.auth_service import AuthService
 # L8：注册端点限流
@@ -57,17 +58,26 @@ def register(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """用户注册（老人或家属，L8：基于 IP 限流 + Turnstile 人机验证）"""
-    # Turnstile 人机验证
-    if not verify_turnstile(req.cf_turnstile_token):
-        raise HTTPException(status_code=400, detail="人机验证失败，请重试")
+    """用户注册（老人或家属，L8：基于 IP 限流 + Turnstile 人机验证）
+
+    GitHub OAuth 补全注册：携带有效 oauth_token 时跳过 Turnstile 人机验证（第三方身份已背书）。
+    """
+    # OAuth 补全注册：携带有效 oauth_token 时跳过 Turnstile 人机验证
+    oauth_pending = None
+    if req.oauth_token:
+        oauth_pending = verify_oauth_pending_token(req.oauth_token)
+        if not oauth_pending:
+            raise HTTPException(status_code=400, detail="OAuth 身份令牌无效或已过期，请重新发起 GitHub 登录")
+    else:
+        if not verify_turnstile(req.cf_turnstile_token):
+            raise HTTPException(status_code=400, detail="人机验证失败，请重试")
     # L8：限流（安全修复中危5：使用真实客户端 IP）
     client_ip = get_client_ip(request)
     if not check_rate_limit(f"register:{client_ip}", _REGISTER_RATE_LIMIT):
         raise HTTPException(status_code=429, detail="注册请求过于频繁，请稍后再试")
 
     try:
-        token = AuthService.register(db, req)
+        token = AuthService.register(db, req, oauth_pending=oauth_pending)
         return TokenResp(access_token=token, token_type="bearer")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -24,7 +24,7 @@ from app.middleware.exception_handler import add_exception_handlers
 # C7：改用统一的 setup_cors 配置 CORS
 from app.middleware.cors import setup_cors
 from app.api.v1.endpoints import (
-    auth, users, medication, ai, vision, public, chat
+    auth, users, medication, ai, vision, public, chat, oauth
 )
 from app.tasks.stock_checker import start_scheduler, shutdown_scheduler
 
@@ -107,7 +107,7 @@ PATH_PREFIX = settings.PATH_PREFIX.rstrip("/")
 _is_debug = settings.DEBUG
 app = FastAPI(
     title=settings.APP_NAME,
-    version="2.9.14",
+    version="2.10.0",
     description="老人用药管理智能助手后端 API",
     debug=_is_debug,
     lifespan=lifespan,
@@ -141,6 +141,7 @@ app.include_router(ai.router, prefix=api_prefix)
 app.include_router(vision.router, prefix=api_prefix)
 app.include_router(public.router, prefix=api_prefix)
 app.include_router(chat.router, prefix=api_prefix)
+app.include_router(oauth.router, prefix=api_prefix)
 
 # S8 修复：移除冲突的 ws_router（/ws 与 chat.py 的 /chat/ws/{user_id} 重叠）
 # WebSocket 聊天功能统一由 chat.py 的 ws_chat 提供

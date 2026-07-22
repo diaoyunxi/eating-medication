@@ -1,5 +1,28 @@
 # 项目开发历史记录
 
+## v2.10.0 (2026-07-22) — 新增 GitHub OAuth 登录
+
+### 概述
+
+服务端新增 GitHub OAuth 登录端点，家属端登录页增加「使用 GitHub 登录」按钮（参照 dash.cloudflare.com 风格）。支持 GitHub 账号一键登录与首次登录补全注册。
+
+### 主要变更
+
+- **新增端点**（`server/app/api/v1/endpoints/oauth.py`）：
+  - `GET /api/v1/auth/oauth/github/authorize`：签发 state 签名 cookie 并重定向到 GitHub。
+  - `GET /api/v1/auth/oauth/github/callback`：校验 state → 换 token → 查用户 → 已绑定写登录态并跳转，未绑定签发短期身份令牌跳注册页补全信息。
+  - `GET /api/v1/auth/oauth/github/config`：前端判断按钮是否显示。
+- **用户表**（`server/app/models/user.py`）：新增 `github_id`（唯一索引）、`oauth_provider` 字段；`hashed_password` 改为可空。新增 Alembic 迁移 `20260722_001_add_github_oauth_fields.py`。
+- **注册改造**：`/api/v1/auth/register` 支持可选 `oauth_token`，OAuth 注册跳过 Turnstile 人机验证；用户名冲突自动加数字后缀。
+- **配置**：`server/.env` 新增 `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_OAUTH_CALLBACK_URL` / `FAMILY_WEB_URL`。
+- **前端**：`family_monitor` 登录页新增 GitHub 按钮（后端配置后显示），注册页支持 OAuth 预填与隐藏 Turnstile。
+- 版本号 2.9.15 → 2.10.0（中间号递增，补丁号归零）。
+
+### 注意事项
+
+- 一个 GitHub OAuth App 仅允许配置**一个**固定回调 URL；本地开发需另建 OAuth App。
+- 生产环境 server 与 family_monitor 经 Cloudflare 隧道同域（my-website.ccwu.cc），登录态 cookie 可共享。
+
 ## v2.9.15 (2026-07-20) — 代码审查 Bug 修复版本
 
 ### 概述
