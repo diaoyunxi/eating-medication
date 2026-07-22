@@ -60,6 +60,23 @@ async def lifespan(app: FastAPI):
     logger.info(f" ZhipuAI 配置: {'已配置' if settings.ZHIPUAI_API_KEY else '未配置'}")
     if settings.ZHIPUAI_API_KEY:
         logger.info(f"   - 模型: {settings.ZHIPUAI_MODEL}")
+
+    # FIX (2.10.1)：Turnstile 配置检查——缺失 Secret Key 会导致生产环境登录/注册全部被拒
+    # Turnstile 需两把密钥：站点密钥(Site Key) 在 family_monitor/.env 渲染前端，
+    # 密钥(Secret Key) 在 server/.env 用于后端 siteverify 校验。两者必须分别配置。
+    if settings.TURNSTILE_SECRET_KEY:
+        logger.info(" Turnstile 配置: 已启用（后端 siteverify 校验）")
+    elif settings.DEBUG:
+        logger.warning(
+            "⚠ Turnstile 未配置 TURNSTILE_SECRET_KEY：开发环境将跳过人机验证；"
+            "生产环境（DEBUG=False）必须配置，否则所有登录/注册将被拒绝。"
+        )
+    else:
+        logger.error(
+            "⚠ 生产环境未配置 TURNSTILE_SECRET_KEY！所有登录/注册将被拒绝。"
+            "请在 server/.env 的 TURNSTILE_SECRET_KEY 填入 Cloudflare Turnstile 的 Secret Key 后重启服务。"
+        )
+
     logger.info("="*60)
 
     # 创建数据库表（如果不存在）
@@ -107,7 +124,7 @@ PATH_PREFIX = settings.PATH_PREFIX.rstrip("/")
 _is_debug = settings.DEBUG
 app = FastAPI(
     title=settings.APP_NAME,
-    version="2.10.0",
+    version="2.10.1",
     description="老人用药管理智能助手后端 API",
     debug=_is_debug,
     lifespan=lifespan,

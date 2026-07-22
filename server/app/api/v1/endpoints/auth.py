@@ -33,11 +33,16 @@ def verify_turnstile(token: str) -> bool:
     if not secret_key:
         if not settings.DEBUG:
             # 生产环境未配置 Turnstile，拒绝请求
-            logger.error("生产环境未配置 TURNSTILE_SECRET_KEY，拒绝认证请求")
+            logger.error(
+                "生产环境未配置 TURNSTILE_SECRET_KEY，拒绝本次认证请求。"
+                "请在 server/.env 的 TURNSTILE_SECRET_KEY 填入 Cloudflare Turnstile 的 Secret Key 并重启服务。"
+            )
             return False
         # 开发环境跳过校验
+        logger.warning("开发环境跳过 Turnstile 校验（TURNSTILE_SECRET_KEY 未配置）")
         return True
     if not token:
+        logger.warning("Turnstile 校验失败：前端未提交 cf-turnstile-response 令牌（请确认前端小组件已加载且用户已完成验证）")
         return False
     try:
         resp = httpx.post(
@@ -46,9 +51,14 @@ def verify_turnstile(token: str) -> bool:
             timeout=10.0,
         )
         result = resp.json()
-        return bool(result.get("success", False))
+        success = bool(result.get("success", False))
+        if not success:
+            # 记录 Cloudflare 返回的错误码，便于排查（如站点密钥与密钥不匹配、令牌过期、域名不符等）
+            logger.warning(f"Turnstile 校验未通过: error-codes={result.get('error-codes')}")
+        return success
     except Exception:
         # 网络异常等情况下拒绝请求，避免绕过验证
+        logger.error("Turnstile 校验异常（无法连接 Cloudflare siteverify），拒绝本次认证请求")
         return False
 
 
