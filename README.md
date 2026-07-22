@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.10.2**（2026-07-22，首次运行自动生成的 .env 模板补全全部可配置字段） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.10.3**（2026-07-22，修正 README 配置说明以贴合代码实际） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
 ## GitHub OAuth 登录配置
@@ -369,8 +369,8 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 | 模块 | 配置文件 | 关键配置项 |
 |------|----------|------------|
 | elderly_assistant | `config.yaml` | `server.base_url`（默认公网域名）、`ai.base_url`、摄像头、语音引擎、蜂鸣器、热点、轮询间隔 |
-| server | `.env` | `DATABASE_URL`、`SECRET_KEY`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`TURNSTILE_SECRET_KEY`、`ZHIPUAI_API_KEY`、`OCR_*`、`JD_*`、`PATH_PREFIX`、`ALLOWED_ORIGINS` |
-| family_monitor | `.env` + `config.json` | `ELDERLY_SERVER_URL`、`SECRET_KEY`、`TURNSTILE_SITE_KEY`、`SERVER_PORT`、`PATH_PREFIX`、`DISPLAY_*` |
+| server | `.env` | `APP_NAME`、`DEBUG`、`PATH_PREFIX`/`API_V1_PREFIX`、`DATABASE_URL`、`SECRET_KEY`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`TURNSTILE_SECRET_KEY`、`ZHIPUAI_API_KEY`/`ZHIPUAI_MODEL`、`OCR_PROVIDER`/`OCR_API_KEY`/`OCR_SECRET_KEY`、`ALLOWED_ORIGINS`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`GITHUB_OAUTH_CALLBACK_URL`/`FAMILY_WEB_URL` |
+| family_monitor | `.env` + `config.json` | `.env`：`SECRET_KEY`、`DEBUG`、`COOKIE_SECURE`、`TURNSTILE_SITE_KEY`、`DEVICE_SECRET`、`ALLOWED_ORIGINS`、`PRODUCTION`、`SERVER_HOST`；`config.json`：`ELDERLY_SERVER_URL`、`SERVER_PORT`、`PATH_PREFIX`、`APP_NAME`、`DISPLAY_*` |
 
 ### 路径前缀（PATH_PREFIX）
 
@@ -397,10 +397,13 @@ ZHIPUAI_MODEL=glm-4.7-flash
 OCR_PROVIDER=baidu
 OCR_API_KEY=<百度 OCR Key>
 OCR_SECRET_KEY=<百度 OCR Secret>
-OCR_APP_ID=<百度 OCR AppID>
 ALLOWED_ORIGINS=https://your-domain.example.com
 TURNSTILE_SECRET_KEY=<Cloudflare Turnstile Secret Key，用于后端 siteverify 验证，必填；与 family_monitor 的 Site Key 须为同一站点，缺失将导致登录/注册被拒>
-WS_HEARTBEAT_INTERVAL=30
+# ===== GitHub OAuth 登录（详见上方「GitHub OAuth 登录配置」）=====
+GITHUB_CLIENT_ID=<GitHub OAuth App Client ID，留空则隐藏登录按钮>
+GITHUB_CLIENT_SECRET=<GitHub OAuth App Client Secret>
+GITHUB_OAUTH_CALLBACK_URL=https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback
+FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 ```
 
 首次启动 `server/main.py` 会自动生成 `.env` 模板（v2.3.0 已修复弱密钥问题，但生产环境仍需手动填入真实密钥；**v2.10.2 起模板已包含全部可配置字段**，无需再对照本文手动补）。
@@ -670,12 +673,10 @@ cd server && pip install -r requirements-dev.txt
 
 - **[Cloudflare](https://www.cloudflare.com/)** — 提供 Cloudflare Tunnel（cloudflared）边缘隧道，承担 HTTPS 终止与子路径转发，使本地服务无需自备证书即可对外提供安全访问。
 - **[dnshe](https://www.dnshe.com/)** — 提供免费域名，用于 Cloudflare 隧道对外接入。
-- **[gh.llkk.cc](https://gh.llkk.cc/)** — 提供 GitHub 加速代理，用于在受限网络环境下克隆仓库与下载 Release 资产（`git clone https://gh.llkk.cc/https://github.com/...`）。
 - **[GitHub](https://github.com/)** — 代码托管与 Release 分发，自动更新检查通过 GitHub API 获取最新版本。
 
 ### AI 与识别服务
 
-- **[智谱 AI](https://open.bigmodel.cn/)** — 提供 GLM-4 系列大模型（默认 `glm-4.7-flash`），支撑老人端 / 子女端的健康问答与用药咨询。
 - **[Tesseract OCR](https://github.com/tesseract-ocr/tesseract)** — 开源本地 OCR 引擎，供老人端离线识别药名。
 - **[pyttsx3](https://github.com/nateshmbhat/pyttsx3)** — 离线中文 TTS 引擎，供老人端语音播报用药提醒。
 
