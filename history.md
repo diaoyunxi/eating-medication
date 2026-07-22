@@ -1,5 +1,25 @@
 # 项目开发历史记录
 
+## v2.10.1 (2026-07-22) — 修复 Turnstile 服务端密钥缺失导致登录/注册被拒
+
+### 概述
+
+Cloudflare Turnstile 需要**两把**密钥：站点密钥（Site Key，前端渲染）与密钥（Secret Key，后端校验）。此前仅 `family_monitor/.env` 配了站点密钥，`server/.env` 未配密钥，导致生产模式（`DEBUG=False`）下 `verify_turnstile` 拒绝全部登录/注册，表现疑似「人机验证失败」。本版本强化配置诊断与文档，使该误配一目了然。
+
+### 主要变更
+
+- **启动诊断**（`server/app/main.py`）：lifespan 启动阶段新增 Turnstile 配置检查，密钥缺失时在日志中明确告警（生产为 ERROR、开发为 WARNING），并打印配置状态。
+- **校验日志**（`server/app/api/v1/endpoints/auth.py` 的 `verify_turnstile`）：
+  - 缺失 Secret Key 时给出可操作提示（请填 `server/.env` 的 `TURNSTILE_SECRET_KEY` 并重启）。
+  - 前端未提交令牌、Cloudflare 返回 `error-codes`、网络异常等场景均记录明确日志，便于排障。
+- **文档**（`README.md`）：新增「Turnstile 两把密钥（易错点）」说明与排障步骤，`.env` 示例中标注 `TURNSTILE_SECRET_KEY` 为必填且与 Site Key 须同站点。
+- 版本号 2.10.0 → 2.10.1（补丁号递增）。
+
+### 注意事项
+
+- 实际修复动作：在部署机的 `server/.env` 填入 `TURNSTILE_SECRET_KEY`（Cloudflare Turnstile 的 Secret Key，须与 `family_monitor/.env` 的 Site Key 同站点），并重启 server。
+- 该密钥属敏感凭证，仅存于部署机 `server/.env`（已被 `.gitignore` 排除），不会进入仓库或 Release 资产。
+
 ## v2.10.0 (2026-07-22) — 新增 GitHub OAuth 登录
 
 ### 概述

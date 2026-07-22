@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.10.0**（2026-07-22，新增 GitHub OAuth 登录） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.10.1**（2026-07-22，修复 Turnstile 服务端密钥缺失导致登录/注册被拒） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
 ## GitHub OAuth 登录配置
@@ -355,6 +355,15 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 > - 服务端若未配置 `TURNSTILE_SECRET_KEY` 将**拒绝所有认证请求**（登录/注册）
 > - `/openapi.json`、`/docs`、`/redoc` 在生产环境**返回 404**，仅开发环境可用
 
+> **Turnstile 两把密钥（易错点）**：Cloudflare Turnstile 需要**两把**密钥，分别放在不同服务：
+> - **站点密钥（Site Key）** → 前端渲染验证小组件，配置在 `family_monitor/.env` 的 `TURNSTILE_SITE_KEY`（已配则小组件正常显示）。
+> - **密钥（Secret Key）** → 后端调用 Cloudflare `siteverify` 校验令牌，配置在 `server/.env` 的 `TURNSTILE_SECRET_KEY`（**必填**，缺失则生产环境拒绝所有登录/注册）。
+>
+> 若登录/注册报「人机验证失败，请重试」，且 `server` 日志出现 `生产环境未配置 TURNSTILE_SECRET_KEY` 或 `Turnstile 校验未通过`，请按以下顺序排查：
+> 1. 确认 `server/.env` 的 `TURNSTILE_SECRET_KEY` 已填入真实 Secret Key 并**重启 server**（server 启动日志会打印 Turnstile 配置状态）；
+> 2. 确认该 Secret Key 与 `family_monitor/.env` 的 Site Key 来自**同一个** Cloudflare Turnstile 站点（密钥与站点密钥不匹配会校验失败）；
+> 3. 确认 Turnstile 站点「允许的主机名」包含当前访问域名。
+
 ## 配置说明
 
 | 模块 | 配置文件 | 关键配置项 |
@@ -390,7 +399,7 @@ OCR_API_KEY=<百度 OCR Key>
 OCR_SECRET_KEY=<百度 OCR Secret>
 OCR_APP_ID=<百度 OCR AppID>
 ALLOWED_ORIGINS=https://your-domain.example.com
-TURNSTILE_SECRET_KEY=<Cloudflare Turnstile Secret Key，用于后端 siteverify 验证>
+TURNSTILE_SECRET_KEY=<Cloudflare Turnstile Secret Key，用于后端 siteverify 验证，必填；与 family_monitor 的 Site Key 须为同一站点，缺失将导致登录/注册被拒>
 WS_HEARTBEAT_INTERVAL=30
 ```
 
