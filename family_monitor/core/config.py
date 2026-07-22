@@ -116,17 +116,43 @@ class Config:
         生产部署时请手动修改 DEBUG=false 并按需调整 SECRET_KEY。
         """
         secret_key = _generate_secret_key()
+        # 生成「完整」.env 模板：包含全部可被读取的环境变量（v2.10.2 起）。
+        # 说明：SERVER_PORT / ELDERLY_SERVER_URL / PATH_PREFIX / APP_NAME / DISPLAY_*
+        # 由 config.json 管理（Web 设置页可改），为避免 .env 覆盖导致设置页失效，
+        # 这里以注释形式列出，如需用 .env 强制覆盖可取消注释填写。
         env_content = (
-            f"# 自动生成的环境配置文件（首次运行）\n"
+            f"# 自动生成的环境配置文件（首次运行，v2.10.2 起已包含全部可配置字段）\n"
             f"# 生产部署时请将 DEBUG 改为 false，COOKIE_SECURE 改为 true\n\n"
+            f"# ===== 安全 =====\n"
             f"# 会话签名密钥（已随机生成，请勿泄露）\n"
-            f"SECRET_KEY={secret_key}\n\n"
+            f"SECRET_KEY={secret_key}\n"
             f"# 调试模式：本地开发设为 true，生产环境设为 false\n"
-            f"DEBUG=true\n\n"
+            f"DEBUG=true\n"
             f"# Cookie secure 标志：本地 HTTP 调试必须为 false，否则浏览器不保存 cookie\n"
-            f"COOKIE_SECURE=false\n\n"
-            f"# Cloudflare Turnstile 站点密钥（前端展示人机验证组件用，请填入你的 Site Key）\n"
-            f"TURNSTILE_SITE_KEY=\n"
+            f"COOKIE_SECURE=false\n"
+            f"# 是否为生产环境（生产环境禁止通过 Web 修改 DEBUG）\n"
+            f"PRODUCTION=false\n\n"
+            f"# ===== Cloudflare Turnstile 站点密钥 =====\n"
+            f"# 前端展示人机验证组件用，必填；留空则前端验证组件无法渲染\n"
+            f"TURNSTILE_SITE_KEY=\n\n"
+            f"# ===== 设备共享密钥 =====\n"
+            f"# 调用后端 API 时的服务端鉴权（X-Device-Secret），留空则兼容旧版不发送\n"
+            f"DEVICE_SECRET=\n\n"
+            f"# ===== CORS 跨域白名单 =====\n"
+            f"# 留空则默认仅允许本机；生产环境建议填前端可访问的来源，逗号分隔\n"
+            f"ALLOWED_ORIGINS=http://localhost:4430,http://127.0.0.1:4430\n\n"
+            f"# ===== 服务监听 =====\n"
+            f"SERVER_HOST=0.0.0.0\n\n"
+            f"# 以下字段由 config.json 管理（Web 设置页可改），如需用 .env 覆盖可取消注释填写：\n"
+            f"# SERVER_PORT=4430\n"
+            f"# ELDERLY_SERVER_URL=https://my-website.ccwu.cc/eating-medication/server\n"
+            f"# PATH_PREFIX=\n"
+            f"# APP_NAME=子女守护中心\n"
+            f"# DISPLAY_THEME=light\n"
+            f"# DISPLAY_COLOR=purple\n"
+            f"# DISPLAY_LANGUAGE=zh-CN\n"
+            f"# DISPLAY_ANIMATIONS=True\n"
+            f"# DISPLAY_COMPACT=False\n"
         )
         try:
             env_path.write_text(env_content, encoding='utf-8')

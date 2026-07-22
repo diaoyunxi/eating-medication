@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.10.1**（2026-07-22，修复 Turnstile 服务端密钥缺失导致登录/注册被拒） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.10.2**（2026-07-22，首次运行自动生成的 .env 模板补全全部可配置字段） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
 ## GitHub OAuth 登录配置
@@ -403,7 +403,7 @@ TURNSTILE_SECRET_KEY=<Cloudflare Turnstile Secret Key，用于后端 siteverify 
 WS_HEARTBEAT_INTERVAL=30
 ```
 
-首次启动 `server/main.py` 会自动生成 `.env` 模板（v2.3.0 已修复弱密钥问题，但生产环境仍需手动填入真实密钥）。
+首次启动 `server/main.py` 会自动生成 `.env` 模板（v2.3.0 已修复弱密钥问题，但生产环境仍需手动填入真实密钥；**v2.10.2 起模板已包含全部可配置字段**，无需再对照本文手动补）。
 
 ---
 
