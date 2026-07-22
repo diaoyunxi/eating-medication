@@ -22,13 +22,6 @@ family_monitor/config.json
 elderly_assistant/config.yaml
 # 保留 .example 模板供参考
 
-# ===== SSL 证书与私钥 =====
-certs/
-*.key
-*.cer
-*.crt
-*.pem
-
 # ===== 数据库 =====
 *.db
 *.sqlite
