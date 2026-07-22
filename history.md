@@ -1,5 +1,22 @@
 # 项目开发历史记录
 
+## v2.10.2 (2026-07-22) — 首次运行自动生成的 .env 模板补全全部可配置字段
+
+### 概述
+
+此前 `server` 与 `family_monitor` 首次启动时自动生成的 `.env` 模板只含部分字段（`SECRET_KEY`/`DEBUG`/`TURNSTILE_*`/`GITHUB_*` 等），`ALLOWED_ORIGINS`、`ZHIPUAI_*`、`OCR_*` 等生产需要的字段缺失，用户只能对照 README 手动补，易漏配（如 CORS、`ALLOWED_ORIGINS` 为空导致跨域被拒）。本版本让自动生成的 `.env` 模板带全所有可被读取的环境变量。
+
+### 主要变更
+
+- **`server/app/core/config.py`** 的 `_ensure_default_env`：模板新增 `APP_NAME`、`API_V1_PREFIX`、`PATH_PREFIX`、`DATABASE_URL`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`ZHIPUAI_API_KEY`、`ZHIPUAI_MODEL`、`OCR_PROVIDER`、`OCR_API_KEY`、`OCR_SECRET_KEY`、`ALLOWED_ORIGINS`，并对必填项（`TURNSTILE_SECRET_KEY`、`ALLOWED_ORIGINS`）及可选功能字段加注释说明。
+- **`family_monitor/core/config.py`** 的 `_generate_default_env`：模板新增 `PRODUCTION`、`DEVICE_SECRET`、`ALLOWED_ORIGINS`、`SERVER_HOST`；`SERVER_PORT`/`ELDERLY_SERVER_URL`/`PATH_PREFIX`/`APP_NAME`/`DISPLAY_*` 因由 `config.json` 管理（Web 设置页可改），以注释形式列出，避免 `.env` 覆盖导致设置页失效。
+- 版本号 2.10.1 → 2.10.2（补丁号递增，向下兼容）。
+
+### 注意事项
+
+- README 中列出的 `OCR_APP_ID`、`WS_HEARTBEAT_INTERVAL` 在代码中未被读取（vision_service 用 `OCR_API_KEY` 作 client_id），属文档滞后，本次生成模板未包含这两个无效字段；后续若接好代码可再补。
+- cloudflared 隧道 token 不在 `.env`，仍配置于 `deploy/cloudflared.service` 的 `<TUNNEL_TOKEN>`。
+
 ## v2.10.1 (2026-07-22) — 修复 Turnstile 服务端密钥缺失导致登录/注册被拒
 
 ### 概述
