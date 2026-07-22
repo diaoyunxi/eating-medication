@@ -4,9 +4,49 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>登录 - {{ app_name }}</title>
-    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.9.14">
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.10.0">
     <!-- Cloudflare Turnstile 人机验证 JS 库，使用显式渲染模式（render=explicit） -->
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+    <style>
+        /* GitHub OAuth 登录按钮（参照 dash.cloudflare.com 风格） */
+        .oauth-github-btn {
+            display: flex;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            height: 40px;
+            background: #ffffff;
+            color: #0A0A0A;
+            border: 1px solid #d4d4d8 !important;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .oauth-github-btn:hover {
+            background: #f4f4f5;
+        }
+        .auth-divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 18px 0 14px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        .auth-divider::before,
+        .auth-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--border-color);
+        }
+        .auth-divider-text {
+            padding: 0 12px;
+        }
+    </style>
 </head>
 <body>
     <div class="bg-gradient">
@@ -60,6 +100,26 @@
                         <span id="submitBtnText">登录</span>
                     </button>
                 </form>
+
+                <!-- GitHub OAuth 登录分隔线与按钮（默认隐藏，后端配置后由 JS 显示） -->
+                <div id="githubDivider" class="auth-divider" style="display:none;">
+                    <span class="auth-divider-text">或</span>
+                </div>
+                <div id="githubLoginBox" style="display:none;">
+                    <div class="flex-1">
+                        <button data-kumo-component="Button" type="button" id="githubLoginBtn"
+                                aria-label="使用 GitHub 登录"
+                                class="group shrink-0 font-medium select-none border-0 shadow-xs focus:outline-none cursor-pointer h-10 gap-2 rounded-lg px-4 text-base w-full flex items-center justify-center oauth-github-btn">
+                            <svg width="15" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M15.9971 0C7.16448 0 0.000411782 7.2028 0.000411782 16.0894C-0.0237699 19.4347 1.01764 22.7039 2.97925 25.4405C4.94085 28.1772 7.72472 30.2447 10.9422 31.3543C11.742 31.5016 12.0336 31.0049 12.0336 30.5788C12.0336 30.1968 12.0201 29.1854 12.0121 27.8426C7.56255 28.8148 6.62367 25.6857 6.62367 25.6857C5.89643 23.8275 4.84742 23.332 4.84742 23.332C3.39479 22.3338 4.95755 22.3537 4.95755 22.3537C5.46809 22.4277 5.95449 22.6158 6.37926 22.9033C6.80402 23.1908 7.15581 23.5702 7.40751 24.0121C8.83429 26.4702 11.1514 25.7623 12.0632 25.3489C12.1338 24.5372 12.4934 23.7757 13.079 23.198C9.52646 22.7925 5.78999 21.4123 5.78999 15.2469C5.76383 13.6557 6.35196 12.1137 7.43643 10.93C6.94808 9.54089 7.004 8.02324 7.59332 6.67232C7.59332 6.67232 8.93642 6.23961 11.9918 8.32169C14.611 7.59909 17.3826 7.59909 20.0018 8.32169C23.0554 6.23961 24.396 6.67232 24.396 6.67232C24.9865 8.02285 25.0434 9.54066 24.5554 10.93C25.64 12.1134 26.2276 13.6558 26.2 15.2469C26.2 21.4273 22.4598 22.7907 18.8962 23.1859C19.2798 23.5803 19.5746 24.0493 19.7617 24.5626C19.9488 25.0759 20.0239 25.6219 19.9822 26.1654C19.9822 28.3163 19.9625 30.0514 19.9625 30.5788C19.9625 31.0091 20.2504 31.5094 21.0626 31.3525C24.2777 30.2411 27.0591 28.1731 29.0189 25.437C30.9787 22.7009 32.0191 19.4331 31.9951 16.0894C31.9951 7.2028 24.8322 0 15.9971 0Z" fill="#0A0A0A"></path>
+                                <path d="M3.69812 13.962C3.69812 14.0157 3.70181 14.0688 3.70242 14.1232C3.70242 14.0598 3.69812 13.9964 3.69873 13.9337L3.69812 13.962Z" fill="#0A0A0A"></path>
+                                <path d="M32 13.962C32 13.9186 31.9969 13.8769 31.9969 13.8341C31.9969 13.9433 31.9969 14.0519 31.9969 14.1612C31.9957 14.0942 32 14.0308 32 13.962Z" fill="#0A0A0A"></path>
+                                <path d="M32 13.7484C32 13.7001 31.9951 13.6518 31.9938 13.6035C31.9938 13.6802 31.9994 13.7568 32 13.8341C31.9963 13.8051 32 13.7773 32 13.7484Z" fill="#0A0A0A"></path>
+                            </svg>
+                            <span class="contents"><span>使用 GitHub 登录</span></span>
+                        </button>
+                    </div>
+                </div>
 
                 <div class="auth-footer">
                     <p>还没有账户？<a href="{{ prefix }}/register" class="auth-link">立即注册</a></p>
@@ -143,6 +203,26 @@
                         turnstileAvailable = false;
                         showJsError('人机验证加载失败：' + err.message + '，可尝试直接提交');
                     });
+            }
+
+            // GitHub OAuth 登录按钮：后端配置后显示并绑定跳转
+            fetch(prefix + '/oauth/github/enabled')
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d && d.enabled) {
+                        var box = document.getElementById('githubLoginBox');
+                        var div = document.getElementById('githubDivider');
+                        if (box) { box.style.display = 'block'; }
+                        if (div) { div.style.display = 'flex'; }
+                    }
+                })
+                .catch(function () { /* 忽略，按钮保持隐藏 */ });
+
+            var ghBtn = document.getElementById('githubLoginBtn');
+            if (ghBtn) {
+                ghBtn.addEventListener('click', function () {
+                    window.location.href = prefix + '/oauth/github/authorize';
+                });
             }
 
             tryRender();

@@ -11,21 +11,42 @@ class AuthService:
     """认证服务"""
 
     @staticmethod
-    def register(db: Session, req: RegisterReq) -> str:
-        """用户注册，返回 access_token"""
-        # 检查用户名是否已存在
-        existing = db.query(User).filter(User.username == req.username).first()
-        if existing:
-            raise ValueError("用户名已存在")
+    def register(db: Session, req: RegisterReq, oauth_pending: dict = None) -> str:
+        """用户注册，返回 access_token
+
+        :param oauth_pending: GitHub OAuth 待补全身份令牌载荷（dict），非空表示 OAuth 注册，
+                              将绑定 github_id 并写入 oauth_provider="github"。
+        """
+        # ===== GitHub OAuth 注册：绑定 github_id =====
+        github_id = None
+        oauth_provider = None
+        if oauth_pending:
+            github_id = oauth_pending.get("github_id")
+            oauth_provider = "github"
+            # 双保险：确认该 GitHub 账号尚未绑定其他本地账号
+            if github_id:
+                bound = db.query(User).filter(User.github_id == github_id).first()
+                if bound:
+                    raise ValueError("该 GitHub 账号已绑定其他用户")
+
+        # 用户名冲突自动加数字后缀（如 octocat -> octocat2），保证唯一
+        base_username = req.username
+        username = base_username
+        suffix = 1
+        while db.query(User).filter(User.username == username).first():
+            suffix += 1
+            username = f"{base_username}{suffix}"[:20]
 
         # 创建新用户
         user = User(
-            username=req.username,
+            username=username,
             hashed_password=hash_password(req.password),
             full_name=req.full_name,
             role=req.role,
             phone=req.phone,
             group_id=None,
+            github_id=github_id,
+            oauth_provider=oauth_provider,
         )
         db.add(user)
         db.commit()
@@ -33,6 +54,13 @@ class AuthService:
 
         # H7：sub 统一为字符串（在 create_access_token 内部转换）
         return create_access_token(data={"sub": user.id})
+
+    @staticmethod
+    def get_by_github_id(db: Session, github_id: int) -> Optional["User"]:
+        """按 GitHub 用户 ID 查询已绑定的本地账号；无则返回 None"""
+        if not github_id:
+            return None
+        return db.query(User).filter(User.github_id == github_id).first()
 
     @staticmethod
     def login(db: Session, username: str, password: str) -> Optional[str]:

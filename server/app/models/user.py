@@ -15,7 +15,8 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(20), unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
+    # OAuth 用户（如 GitHub 登录）可不设密码，故允许为空
+    hashed_password = Column(String, nullable=True)
     full_name = Column(String, nullable=False)
     role = Column(String, nullable=False)  # "elderly" 或 "family"
     phone = Column(String, nullable=True)
@@ -33,6 +34,11 @@ class User(Base):
     device_id = Column(String, nullable=True, unique=True, index=True)
     # F-01 修复：设备访问令牌，register_device 时生成，设备端点需通过 X-Device-Token 校验
     device_token = Column(String(64), nullable=True, index=True)
+    # ===== GitHub OAuth 关联字段 =====
+    # GitHub 用户唯一 ID（首次 OAuth 登录绑定，唯一索引），非 GitHub 用户为 NULL
+    github_id = Column(Integer, nullable=True, unique=True, index=True)
+    # OAuth 提供方标识，如 "github"；本地注册用户为 NULL
+    oauth_provider = Column(String(20), nullable=True)
 
     # 关联关系
     medication_plans = relationship("MedicationPlan", back_populates="user", cascade="all, delete-orphan")

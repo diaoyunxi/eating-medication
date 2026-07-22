@@ -14,6 +14,8 @@ class RegisterReq(BaseModel):
     phone: Optional[str] = Field(None, description="手机号")
     # Cloudflare Turnstile 人机验证令牌（前端提交，后端调 siteverify 校验）
     cf_turnstile_token: Optional[str] = Field(None, description="Cloudflare Turnstile 令牌")
+    # GitHub OAuth 补全注册时携带的短期身份令牌（由 server 回调签发）；为空表示普通注册
+    oauth_token: Optional[str] = Field(None, description="GitHub OAuth 身份令牌")
 
     @field_validator("role")
     @classmethod

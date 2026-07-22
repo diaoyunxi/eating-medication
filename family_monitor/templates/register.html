@@ -4,9 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>注册 - {{ app_name }}</title>
-    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.9.14">
+    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.10.0">
     <!-- Cloudflare Turnstile 人机验证 JS 库，使用显式渲染模式（render=explicit） -->
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+    <style>
+        .oauth-banner {
+            background: #eef2ff;
+            color: #3730a3;
+            border: 1px solid #c7d2fe;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
     <div class="bg-gradient">
@@ -23,6 +34,12 @@
                     <h1 class="auth-title">{{ app_name }}</h1>
                     <p class="auth-subtitle">创建新账户</p>
                 </div>
+
+                {% if oauth_mode %}
+                <div class="oauth-banner">
+                    GitHub 账号已验证，请补全用户名与密码以完成注册
+                </div>
+                {% endif %}
 
                 {% if error %}
                 <div class="alert alert-error">
@@ -42,12 +59,20 @@
                         <label class="form-label" for="username">用户名</label>
                         <input type="text" class="form-input" id="username" name="username"
                                placeholder="3-20位字母数字下划线" required
-                               value="{{ username if username else '' }}"
+                               value="{{ prefill_username if prefill_username else (username if username else '') }}"
                                minlength="3" maxlength="20"
                                pattern="[a-zA-Z0-9_]{3,20}"
                                title="用户名只能包含字母、数字和下划线，长度3-20位">
                         <div class="form-hint">用户名只能包含字母、数字和下划线，长度3-20位（不支持邮箱）</div>
                     </div>
+
+                    {% if oauth_mode %}
+                    <div class="form-group">
+                        <label class="form-label" for="full_name">昵称</label>
+                        <input type="text" class="form-input" id="full_name" name="full_name"
+                               placeholder="显示名称" value="{{ prefill_name if prefill_name else '' }}">
+                    </div>
+                    {% endif %}
 
                     <div class="form-group">
                         <label class="form-label" for="password">密码</label>
@@ -62,9 +87,12 @@
                     </div>
 
                     <!-- Cloudflare Turnstile 人机验证组件容器：位于密码输入框下方、提交按钮上方 -->
+                    <!-- OAuth 补全注册由第三方身份背书，跳过人机验证 -->
+                    {% if not oauth_mode %}
                     <div class="form-group">
                         <div id="turnstileContainer"></div>
                     </div>
+                    {% endif %}
 
                     <button type="submit" class="btn btn-primary btn-lg w-full" id="submitBtn">
                         <span id="submitBtnText">注册</span>

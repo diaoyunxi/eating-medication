@@ -48,7 +48,14 @@ def _ensure_default_env():
         f"DEBUG=true\n\n"
         f"# Cloudflare Turnstile 密钥（用于后端 siteverify 验证，请填入你的 Secret Key）\n"
         f"# 未配置时将跳过人机验证校验（仅开发环境兼容，生产环境必须配置）\n"
-        f"TURNSTILE_SECRET_KEY=\n"
+        f"TURNSTILE_SECRET_KEY=\n\n"
+        f"# ===== GitHub OAuth 登录 =====\n"
+        f"# 不配置 GITHUB_CLIENT_ID 时前端隐藏 GitHub 登录按钮\n"
+        f"GITHUB_CLIENT_ID=\n"
+        f"GITHUB_CLIENT_SECRET=\n"
+        f"GITHUB_OAUTH_CALLBACK_URL=https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback\n"
+        f"# family_monitor 前端地址（OAuth 回调后 302 跳转用）\n"
+        f"FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family\n"
     )
     try:
         env_path.write_text(env_content, encoding='utf-8')
@@ -92,6 +99,16 @@ class Settings(BaseSettings):
 
     # CORS 允许的来源（逗号分隔），未配置则不启用 CORS
     ALLOWED_ORIGINS: str = ""
+
+    # ===== GitHub OAuth 登录配置 =====
+    # 未配置 GITHUB_CLIENT_ID 时，前端隐藏 GitHub 登录按钮
+    GITHUB_CLIENT_ID: Optional[str] = None
+    GITHUB_CLIENT_SECRET: Optional[str] = None
+    # GitHub OAuth 回调 URL（须与 GitHub 后台 "Authorization callback URL" 完全一致；
+    # 一个 GitHub OAuth App 仅允许配置一个固定回调地址）
+    GITHUB_OAUTH_CALLBACK_URL: str = "https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback"
+    # family_monitor 前端地址（OAuth 回调验证成功后 302 跳转用，与 Cloudflare 隧道子路径一致）
+    FAMILY_WEB_URL: str = "https://my-website.ccwu.cc/eating-medication/family"
 
     class Config:
         env_file = ".env"

@@ -1,7 +1,20 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.9.15**（2026-07-20，代码审查 Bug 修复：8 个 Bug 全部 localhost 复现并修复） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.10.0**（2026-07-22，新增 GitHub OAuth 登录） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
+
+## GitHub OAuth 登录配置
+
+服务端 `server/.env` 配置以下项后，家属端登录页自动显示「使用 GitHub 登录」按钮（未配置则隐藏）：
+
+| 配置项 | 说明 |
+| --- | --- |
+| `GITHUB_CLIENT_ID` | GitHub OAuth App 的 Client ID（必填，否则按钮隐藏） |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth App 的 Client Secret（必填） |
+| `GITHUB_OAUTH_CALLBACK_URL` | 回调地址，须与 GitHub 后台 `Authorization callback URL` **完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback` |
+| `FAMILY_WEB_URL` | 家属端前端地址，OAuth 回调成功后 302 跳转用，默认 `https://my-website.ccwu.cc/eating-medication/family` |
+
+> 重要：一个 GitHub OAuth App 仅允许配置**一个**固定回调 URL。本地开发请另行在 GitHub 创建 OAuth App（回调填 `http://localhost:1059/eating-medication/server/api/v1/auth/oauth/github/callback`）。首次 GitHub 登录需补全用户名与密码；已绑定账号再次登录直接写入登录态。
 
 一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
 

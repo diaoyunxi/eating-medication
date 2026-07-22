@@ -90,12 +90,67 @@ async def register_page(request: Request):
     """注册页面：渲染 register.html 模板
 
     Turnstile 改动修复：补回被误删的 GET /register 路由。
+    GitHub OAuth 首次登录：若携带 oauth_pending cookie 与 gh_login 参数，则进入 OAuth
+    补全注册模式，预填用户名（GitHub login 规范化）与昵称，并隐藏 Turnstile。
     """
+    gh_login = request.query_params.get("gh_login", "")
+    gh_name = request.query_params.get("gh_name", "")
+    oauth_pending = request.cookies.get("oauth_pending", "")
+    oauth_mode = bool(oauth_pending) and bool(gh_login)
+
+    # 规范化 GitHub login 为本地用户名规则（3-20 位字母数字下划线）
+    prefill_username = _sanitize_github_login(gh_login) if gh_login else ""
+    prefill_name = (gh_name or gh_login).strip()
+
     return templates.TemplateResponse(
         request,
         "register.html",
-        {"app_name": config.APP_NAME},
+        {
+            "app_name": config.APP_NAME,
+            "oauth_mode": oauth_mode,
+            "prefill_username": prefill_username,
+            "prefill_name": prefill_name,
+        },
     )
+
+
+@router.get("/oauth/github/authorize")
+async def oauth_github_authorize():
+    """GitHub OAuth 授权入口
+
+    302 跳转到 server 的 authorize 端点；由 server 签发 state 签名 cookie 并继续跳转 GitHub。
+    """
+    server_authorize = _server_url("/auth/oauth/github/authorize")
+    return RedirectResponse(url=server_authorize, status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/oauth/github/enabled")
+async def oauth_github_enabled():
+    """前端用于判断 GitHub 登录按钮是否显示（代理 server 的 OAuth 配置）"""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(_server_url("/auth/oauth/github/config"))
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+    return {"enabled": False}
+
+
+def _sanitize_github_login(login: str) -> str:
+    """将 GitHub login 规范化为本地用户名规则（3-20 位字母数字下划线）
+
+    GitHub login 可能含连字符、点等非法字符，统一替换为下划线并截断；
+    长度不足 3 时补 "user" 后缀以满足校验。
+    """
+    import re
+    sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", login or "").strip("_")
+    sanitized = sanitized[:20]
+    if len(sanitized) < 3:
+        sanitized = (sanitized + "user")[:20]
+    if not sanitized:
+        sanitized = "github_user"
+    return sanitized
 
 
 @router.post("/login")
@@ -171,6 +226,7 @@ async def post_register(request: Request):
     password = form.get("password", "")
     confirm_password = form.get("confirm_password", "")
     turnstile_token = form.get("cf-turnstile-response", "")
+    full_name = form.get("full_name", "").strip() or username
 
     # 后端兜底校验
     if not username or not password:
@@ -184,19 +240,25 @@ async def post_register(request: Request):
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    # GitHub OAuth 补全注册：携带 oauth_pending cookie 时转发 oauth_token（server 侧跳过 Turnstile）
+    oauth_token = request.cookies.get("oauth_pending", "")
+
     # 转发到 server 进行 Turnstile 验证 + 注册
     try:
+        json_body = {
+            "username": username,
+            "password": password,
+            "full_name": full_name,
+            "role": "family",       # 子女端注册默认角色为 family
+            "phone": None,
+            "cf_turnstile_token": turnstile_token,
+        }
+        if oauth_token:
+            json_body["oauth_token"] = oauth_token
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(
                 _server_url("/auth/register"),
-                json={
-                    "username": username,
-                    "password": password,
-                    "full_name": username,  # 子女端注册默认 full_name 为用户名
-                    "role": "family",       # 子女端注册默认角色为 family
-                    "phone": None,
-                    "cf_turnstile_token": turnstile_token,
-                },
+                json=json_body,
             )
     except httpx.RequestError:
         return JSONResponse(
@@ -222,7 +284,11 @@ async def post_register(request: Request):
         return JSONResponse({"success": True, "redirect": login_redirect})
 
     response = JSONResponse({"success": True, "redirect": home_redirect})
-    return _set_jwt_cookie(response, access_token)
+    response = _set_jwt_cookie(response, access_token)
+    # OAuth 补全注册成功后清除一次性身份 cookie，避免重复利用
+    if oauth_token:
+        response.delete_cookie(key="oauth_pending", path="/")
+    return response
 
 
 async def _do_logout():
