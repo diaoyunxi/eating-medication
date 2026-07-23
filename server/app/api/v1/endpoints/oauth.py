@@ -80,7 +80,10 @@ def _build_oauth_clients() -> dict:
             "scope": ["read:user", "user:email"],
             "allow_signup": True,                       # GitHub 授权页允许新用户注册
             "auth_header": "Bearer",                     # 拉 /emails 时的 Authorization 前缀
-            "emails_api": None,                          # GitHub 的 user 接口已含 public email，由客户端内部处理
+            # GitHub 的 /user 接口在用户将邮箱设为「私有」时返回 null，
+            # 故显式指向 /user/emails（需 user:email scope，已在上方申请），
+            # 由 _fetch_email 回退拉取（含私有且已验证的邮箱），与 Gitee 行为一致。
+            "emails_api": "https://api.github.com/user/emails",
         }
 
     if settings.GITEE_CLIENT_ID and settings.GITEE_CLIENT_SECRET:
@@ -129,7 +132,12 @@ def _clear_and_redirect(cookie_name: str, target: str) -> RedirectResponse:
 
 async def _fetch_email(emails_api: str, access_token: str, auth_header: str) -> Optional[str]:
     """拉取第三方邮箱（Gitee 主邮箱为空时补充调用 /emails）"""
-    headers = {"Accept": "application/json", "Authorization": f"{auth_header} {access_token}"}
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"{auth_header} {access_token}",
+        # GitHub API 要求请求必须携带 User-Agent，否则返回 403
+        "User-Agent": "eating-medication",
+    }
     try:
         resp = httpx.get(emails_api, headers=headers, timeout=10)
         emails = resp.json()

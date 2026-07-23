@@ -1,5 +1,14 @@
 # 项目开发历史记录
 
+## v2.13.1 (2026-07-23) — GitHub OAuth 获取邮箱 + 邮箱冲突合并
+
+### 概述
+GitHub OAuth 登录现可正确获取用户邮箱（含私有邮箱）；并新增邮箱冲突处理，避免同一邮箱产生重复账号。
+
+### 主要变更
+- **`server/app/api/v1/endpoints/oauth.py`**：GitHub 的 `emails_api` 由 `None` 改为 `https://api.github.com/user/emails`（scope 已含 `user:email`），在 `/user` 返回邮箱为 null（私有）时回退拉取；`_fetch_email` 增加 `User-Agent` 头以满足 GitHub API 强制要求。
+- **`server/app/services/auth_service.py`**：`register` 增加邮箱冲突处理——OAuth 返回的邮箱若已属于某本地账号，则合并绑定到该账号并直接登录；若邮箱已被另一个第三方绑定则明确报错拒绝。新增 `_bind_provider()` 辅助函数。VERSION 升至 2.13.1。
+
 ## v2.12.0 (2026-07-23) — 配置健壮性：可选服务降级 + 基础必填启动校验
 
 ### 概述
