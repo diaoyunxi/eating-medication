@@ -1,6 +1,7 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.11.0**（2026-07-23，新增 Gitee OAuth 登录，与 GitHub 共用通用 provider 框架） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.11.0**
+> 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
 ## 第三方 OAuth 登录配置
@@ -15,7 +16,7 @@
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth App 的 Client Secret（必填） |
 | `GITHUB_OAUTH_CALLBACK_URL` | 回调地址，须与 GitHub 后台 `Authorization callback URL` **完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback` |
 
-> 注意：一个 GitHub OAuth App 仅允许配置**一个**固定回调 URL。本地开发请另行在 GitHub 创建 OAuth App（回调填 `http://localhost:1059/eating-medication/server/api/v1/auth/oauth/github/callback`）。GitHub 仅申请 `read:user` scope（公开邮箱若用户设置则可取）。
+> 注意：一个 GitHub OAuth App 仅允许配置**一个**固定回调 URL。本地开发请另行在 GitHub 创建 OAuth App（回调填 `http://localhost:1059/api/v1/auth/oauth/github/callback`）。GitHub 仅申请 `read:user` scope（公开邮箱若用户设置则可取）。
 
 ### Gitee OAuth
 
