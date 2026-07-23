@@ -98,6 +98,12 @@
                     <span id="jsErrorMsg"></span>
                 </div>
 
+                <!-- AJAX 提交成功时动态显示的提示容器（如验证码已发送） -->
+                <div id="jsSuccess" class="alert alert-success" style="display:none;">
+                    <span class="alert-icon">&#10003;</span>
+                    <span id="jsSuccessMsg"></span>
+                </div>
+
                 <form method="POST" action="{{ prefix }}/login" class="auth-form" id="loginForm">
                     <div class="form-group">
                         <label class="form-label" for="username">用户名</label>
@@ -155,6 +161,32 @@
                     </div>
                 </div>
 
+                <!-- 邮箱验证码登录（分隔线 + 区块） -->
+                <div id="emailDivider" class="auth-divider">
+                    <span class="auth-divider-text">或使用邮箱验证码</span>
+                </div>
+                <div id="emailLoginBox">
+                    <div class="form-group">
+                        <label class="form-label" for="email">邮箱</label>
+                        <input type="email" class="form-input" id="email" name="email"
+                               placeholder="请输入邮箱" autocomplete="email">
+                    </div>
+                    <div class="form-group" style="display:flex; gap:8px;">
+                        <input type="text" class="form-input" id="emailCode" name="emailCode"
+                               placeholder="6 位验证码" maxlength="8" style="flex:1;"
+                               autocomplete="one-time-code" inputmode="numeric">
+                        <button type="button" class="btn btn-secondary" id="sendCodeBtn"
+                                style="white-space:nowrap;">获取验证码</button>
+                    </div>
+                    <!-- 邮箱验证码登录专用 Turnstile 组件容器 -->
+                    <div class="form-group">
+                        <div id="emailTurnstileContainer"></div>
+                    </div>
+                    <button type="button" class="btn btn-primary btn-lg w-full" id="emailLoginBtn">
+                        <span id="emailLoginBtnText">邮箱验证码登录</span>
+                    </button>
+                </div>
+
                 <div class="auth-footer">
                     <p>还没有账户？<a href="{{ prefix }}/register" class="auth-link">立即注册</a></p>
                 </div>
@@ -167,15 +199,20 @@
         var prefix = "{{ prefix }}";
         // Turnstile 组件 ID，渲染后赋值，用于后续获取 token / 重置
         var widgetId = null;
+        // 邮箱验证码登录专用 Turnstile 组件 ID
+        var emailWidgetId = null;
         // Turnstile 是否可用（JS 加载成功 + site_key 非空 + 渲染成功）
         // 降级标志：为 false 时跳过 token 校验，允许直接提交（后端兜底）
         var turnstileAvailable = false;
+        // 邮箱专用 Turnstile 是否可用
+        var emailTurnstileAvailable = false;
 
         /**
          * 显示 AJAX 错误信息（复用原有 alert-error 结构）
          * @param {string} msg - 错误文案
          */
         function showJsError(msg) {
+            hideJsSuccess();
             var box = document.getElementById('jsError');
             document.getElementById('jsErrorMsg').textContent = msg;
             // .alert 默认 display 为 flex
@@ -187,6 +224,24 @@
          */
         function hideJsError() {
             document.getElementById('jsError').style.display = 'none';
+        }
+
+        /**
+         * 显示 AJAX 成功信息（如验证码已发送）
+         * @param {string} msg - 成功文案
+         */
+        function showJsSuccess(msg) {
+            hideJsError();
+            var box = document.getElementById('jsSuccess');
+            document.getElementById('jsSuccessMsg').textContent = msg;
+            box.style.display = 'flex';
+        }
+
+        /**
+         * 隐藏 AJAX 成功信息
+         */
+        function hideJsSuccess() {
+            document.getElementById('jsSuccess').style.display = 'none';
         }
 
         // 页面加载完成后：获取 site_key 并显式渲染 Turnstile
@@ -231,6 +286,14 @@
                             { sitekey: siteKey, theme: 'auto' }
                         );
                         turnstileAvailable = true;
+                        // 邮箱验证码登录专用 Turnstile 组件
+                        var emailContainer = document.getElementById('emailTurnstileContainer');
+                        if (emailContainer) {
+                            emailWidgetId = window.turnstile.render(emailContainer, {
+                                sitekey: siteKey, theme: 'auto'
+                            });
+                            emailTurnstileAvailable = true;
+                        }
                     })
                     .catch(function (err) {
                         // 降级：获取 site_key 失败，允许直接提交
@@ -283,6 +346,141 @@
             if (gtBtn) {
                 gtBtn.addEventListener('click', function () {
                     window.location.href = prefix + '/oauth/gitee/authorize';
+                });
+            }
+
+            // ===== 邮箱验证码登录 =====
+            /**
+             * 获取邮箱专用 Turnstile token；组件不可用时返回空串（后端降级校验）
+             * @return {string}
+             */
+            function getEmailToken() {
+                if (emailTurnstileAvailable && emailWidgetId) {
+                    var t = window.turnstile.getResponse(emailWidgetId) || '';
+                    if (!t) {
+                        showJsError('请先完成人机验证');
+                        return null;
+                    }
+                    return t;
+                }
+                return '';
+            }
+
+            // 获取验证码按钮：点击后 60 秒倒计时禁用
+            var sendCodeBtn = document.getElementById('sendCodeBtn');
+            var emailCountdownTimer = null;
+            if (sendCodeBtn) {
+                sendCodeBtn.addEventListener('click', function () {
+                    hideJsError();
+                    var emailVal = document.getElementById('email').value.trim();
+                    if (!emailVal) {
+                        showJsError('请输入邮箱');
+                        return;
+                    }
+                    var token = getEmailToken();
+                    if (token === null) {
+                        return;  // 未完成人机验证
+                    }
+
+                    sendCodeBtn.disabled = true;
+                    sendCodeBtn.textContent = '发送中...';
+                    fetch(prefix + '/email/send-code', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: emailVal, cf_turnstile_token: token })
+                    })
+                        .then(function (resp) {
+                            return resp.json().then(function (data) {
+                                return { ok: resp.ok, data: data };
+                            });
+                        })
+                        .then(function (result) {
+                            var data = result.data || {};
+                            if (result.ok && data.success) {
+                                showJsSuccess(data.message || '验证码已发送，请查收邮箱');
+                                // 启动 60 秒倒计时
+                                var left = 60;
+                                sendCodeBtn.textContent = left + ' 秒后可重发';
+                                emailCountdownTimer = setInterval(function () {
+                                    left--;
+                                    if (left <= 0) {
+                                        clearInterval(emailCountdownTimer);
+                                        sendCodeBtn.disabled = false;
+                                        sendCodeBtn.textContent = '获取验证码';
+                                    } else {
+                                        sendCodeBtn.textContent = left + ' 秒后可重发';
+                                    }
+                                }, 1000);
+                            } else {
+                                showJsError(data.detail || data.error || '验证码发送失败，请稍后重试');
+                                sendCodeBtn.disabled = false;
+                                sendCodeBtn.textContent = '获取验证码';
+                            }
+                        })
+                        .catch(function () {
+                            showJsError('网络异常，请稍后重试');
+                            sendCodeBtn.disabled = false;
+                            sendCodeBtn.textContent = '获取验证码';
+                        });
+                });
+            }
+
+            // 邮箱验证码登录按钮
+            var emailLoginBtn = document.getElementById('emailLoginBtn');
+            if (emailLoginBtn) {
+                emailLoginBtn.addEventListener('click', function () {
+                    hideJsError();
+                    var emailVal = document.getElementById('email').value.trim();
+                    var codeVal = (document.getElementById('emailCode').value || '').trim();
+                    if (!emailVal) {
+                        showJsError('请输入邮箱');
+                        return;
+                    }
+                    if (!codeVal) {
+                        showJsError('请输入验证码');
+                        return;
+                    }
+                    var token = getEmailToken();
+                    if (token === null) {
+                        return;
+                    }
+
+                    var emailLoginBtnText = document.getElementById('emailLoginBtnText');
+                    var originalText = emailLoginBtnText.textContent;
+                    emailLoginBtn.disabled = true;
+                    emailLoginBtnText.textContent = '处理中...';
+
+                    fetch(prefix + '/email/code-login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: emailVal, code: codeVal, cf_turnstile_token: token })
+                    })
+                        .then(function (resp) {
+                            return resp.json().then(function (data) {
+                                return { ok: resp.ok, data: data };
+                            });
+                        })
+                        .then(function (result) {
+                            var data = result.data || {};
+                            if (data.success && data.redirect) {
+                                window.location.href = data.redirect;
+                            } else {
+                                showJsError(data.error || data.detail || '登录失败，请重试');
+                                if (emailTurnstileAvailable && emailWidgetId) {
+                                    window.turnstile.reset(emailWidgetId);
+                                }
+                            }
+                        })
+                        .catch(function () {
+                            showJsError('网络异常，请稍后重试');
+                            if (emailTurnstileAvailable && emailWidgetId) {
+                                window.turnstile.reset(emailWidgetId);
+                            }
+                        })
+                        .finally(function () {
+                            emailLoginBtn.disabled = false;
+                            emailLoginBtnText.textContent = originalText;
+                        });
                 });
             }
 

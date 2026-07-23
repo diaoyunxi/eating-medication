@@ -2,7 +2,7 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 # register schema 中调用 validators 进行格式校验
-from app.utils.validators import is_valid_phone, is_valid_username, is_valid_password
+from app.utils.validators import is_valid_phone, is_valid_username, is_valid_password, is_valid_email
 
 
 class RegisterReq(BaseModel):
@@ -61,3 +61,30 @@ class TokenResp(BaseModel):
     """Token 响应"""
     access_token: str
     token_type: str = "bearer"
+
+
+class EmailSendCodeReq(BaseModel):
+    """邮箱验证码 - 发送验证码请求"""
+    email: str = Field(..., description="收件邮箱")
+    cf_turnstile_token: Optional[str] = Field(None, description="Cloudflare Turnstile 令牌")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        if not is_valid_email(v):
+            raise ValueError("邮箱格式不正确")
+        return v
+
+
+class EmailCodeLoginReq(BaseModel):
+    """邮箱验证码 - 登录/注册请求"""
+    email: str = Field(..., description="邮箱")
+    code: str = Field(..., min_length=4, max_length=8, description="6 位数字验证码")
+    cf_turnstile_token: Optional[str] = Field(None, description="Cloudflare Turnstile 令牌")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        if not is_valid_email(v):
+            raise ValueError("邮箱格式不正确")
+        return v
