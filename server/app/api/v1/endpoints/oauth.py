@@ -30,7 +30,7 @@ from fastapi_oauth20 import (
 )
 from fastapi_oauth20.errors import GetUserInfoError
 
-from app.core.database import get_db
+from app.core.dependencies import get_db
 from app.core.config import settings
 from app.core.security import (
     create_oauth_state_token,
