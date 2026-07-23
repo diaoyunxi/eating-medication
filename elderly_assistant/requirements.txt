@@ -2,7 +2,7 @@
 pyyaml==6.0.1
 pyttsx3==2.90
 requests==2.32.3
-pinpong==1.2.0
+pinpong
 # HuskyLens 摄像头依赖：dfrobot_huskylensv2
 # 若 PyPI 无此包，需手动从官方仓库安装
 dfrobot_huskylensv2
