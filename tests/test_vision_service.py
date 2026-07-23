@@ -24,15 +24,35 @@ except Exception:  # pragma: no cover
 
 @unittest.skipUnless(_HAVE, "需要 pydantic-settings / httpx（当前环境未安装）")
 class TestExtractDrugName(unittest.TestCase):
-    def test_from_json(self):
+    def _call(self, text):
+        return asyncio.run(VisionService._extract_drug_name(text))
+
+    def test_single_line_json_with_keyword_returns_whole_line(self):
+        # OCR 单行 JSON 含药名关键词'阿司匹林' -> 返回整行（非提取字段）
         text = '{"识别结果": {"药名": "阿司匹林", "数量": "1"}}'
-        self.assertEqual(asyncio.run(VisionService._extract_drug_name(text)), "阿司匹林")
+        self.assertEqual(self._call(text), text)
 
-    def test_from_plain_chinese_colon(self):
-        self.assertEqual(asyncio.run(VisionService._extract_drug_name("药名：布洛芬")), "布洛芬")
+    def test_single_line_plain_with_keyword_returns_whole_line(self):
+        # 单行含关键词'布洛芬' -> 返回整行
+        self.assertEqual(self._call("药名：布洛芬"), "药名：布洛芬")
 
-    def test_none_when_no_drug(self):
-        self.assertIsNone(asyncio.run(VisionService._extract_drug_name("这是一段无关文字")))
+    def test_returns_line_containing_drug_keyword_among_lines(self):
+        # 多行 OCR 文本：应返回含药名关键词的那一行（前导行不含任何关键词，避免提前命中）
+        text = "姓名：张三\n检查日期：2024-01-01\n布洛芬胶囊 0.3g\n用法：饭后"
+        self.assertEqual(self._call(text), "布洛芬胶囊 0.3g")
+
+    def test_no_keyword_returns_first_line(self):
+        # 无关键词且非空 -> 返回第一行（并非 None）
+        self.assertEqual(self._call("这是一段无关文字"), "这是一段无关文字")
+
+    def test_empty_text_returns_empty(self):
+        # 空文本 split 后 lines[0] 为 ''；源码 '识别失败' 分支因 split 永非空列表而不可达
+        self.assertEqual(self._call(""), "")
+
+    def test_short_lines_skipped_but_keyword_line_selected(self):
+        # 长度 < 3 的短行被跳过，命中含关键词的长行
+        text = "ab\ncd\n维生素C片\nxy"
+        self.assertEqual(self._call(text), "维生素C片")
 
 
 if __name__ == "__main__":
