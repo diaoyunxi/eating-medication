@@ -45,6 +45,8 @@ logs/
 *~
 .codebuddy/
 *
+# 放行根目录统一自动更新器（必须纳入版本管理，各模块 main.py 依赖它）
+!updater.py
 
 # ===== OS =====
 .DS_Store

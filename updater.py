@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-自动更新检查与安全更新模块
+项目级自动更新检查与安全更新模块（统一位于仓库根目录）
 
 启动时检查 GitHub 仓库是否有新版本，发现新版本时：
 - 默认仅提示，手动更新
-- auto_pull=True 时，自动下载 release zip 并安全覆盖
+- auto_pull=True 时，自动下载 release 完整发布包并安全覆盖
+
+【与旧版（各模块内 updater.py）的区别】
+1. 仅从 GitHub Release 拉取「完整发布包」 eating-medication-vX.Y.Z.zip 及其 SHA256
+   校验文件；不再单独处理各模块分包（如 server_v*.zip / family_monitor_v*.zip）。
+2. 读取仓库根目录 config.json 的 github_proxy 字段，通过该代理/镜像下载
+   （兼容 gh-proxy.com 镜像前缀形式，亦兼容 http(s)://host:port 正向代理）。
 
 【安全更新机制】
-1. 下载 release zip 到临时目录
+1. 下载 release 完整 zip 到临时目录
 2. 解压到临时子目录
-3. 仅复制非保护文件到项目目录（保护文件列表见 PROTECTED_PATTERNS）
+3. 仅复制非保护文件到项目根目录（保护文件列表见 PROTECTED_PATTERNS）
 4. 保护文件：.env、config.json、data/、logs/、*.db、*.sqlite* 等运行时数据
-5. 重启服务进程（由 systemd / supervisor / 外部脚本管理）
+5. 更新失败时自动回滚到备份
+6. 更新后尝试重启相关 systemd 服务
 
 【保护文件清单】
-- .env
-- config.json
+- .env（含 server/.env、family_monitor/.env 等嵌套路径）
+- config.json、config.yaml
 - data/ 整个目录（含数据库、用户数据、会话、缓存）
 - logs/ 整个目录
 - *.db / *.sqlite / *.sqlite3
@@ -25,37 +32,35 @@
 import os
 import sys
 import json
+import time
 import shutil
 import zipfile
 import tempfile
 import hashlib
 import subprocess
-import urllib.request
-import urllib.error
 import logging
 import fnmatch
 from pathlib import Path
+from urllib.parse import urlparse
+import urllib.request
+import urllib.error
 
+# ============================================================
+# 版本与仓库常量
+# ============================================================
 def _load_version():
-    """从 VERSION 文件读取版本号，避免版本号写死在代码中。
+    """从仓库根目录 VERSION 文件读取版本号（避免版本号写死在代码中）。
 
-    查找顺序：
-    1. 本模块目录下的 VERSION 文件
-    2. 上一级目录（项目根目录）的 VERSION 文件
-    3. VERSION 文件缺失（仅本地未部署 VERSION 的开发场景）时回退到 "0.0.0"
-
-    :return: 版本号字符串
+    :return: 版本号字符串；缺失时回退 "0.0.0"
     """
-    _module_dir = Path(__file__).resolve().parent
-    # 候选路径：本模块目录、项目根目录
-    for candidate in [_module_dir / "VERSION", _module_dir.parent / "VERSION"]:
-        try:
-            if candidate.is_file():
-                ver = candidate.read_text(encoding="utf-8").strip()
-                if ver:
-                    return ver
-        except Exception:
-            continue
+    version_file = Path(__file__).resolve().parent / "VERSION"
+    try:
+        if version_file.is_file():
+            ver = version_file.read_text(encoding="utf-8").strip()
+            if ver:
+                return ver
+    except Exception:
+        pass
     return "0.0.0"
 
 
@@ -66,9 +71,80 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
+# GitHub 请求头（注入可选 PAT 提升速率限制）
+# ============================================================
+def _gh_headers():
+    """构建 GitHub API 请求头，优先注入 PAT 提升速率限制并认证"""
+    headers = {"User-Agent": "eating-medication-updater"}
+    gh_token = os.environ.get("GITHUB_TOKEN")
+    if gh_token:
+        headers["Authorization"] = f"token {gh_token}"
+    return headers
+
+
+# ============================================================
+# 代理配置：读取仓库根目录 config.json 的 github_proxy 字段
+# ============================================================
+def _load_github_proxy():
+    """读取仓库根目录 config.json 的 github_proxy 字段。
+
+    支持两种形式：
+    1. 镜像前缀（如 https://gh-proxy.com）：下载 URL 改写为 {proxy}/{原始URL}
+    2. 正向代理（如 http://127.0.0.1:7890）：通过 urllib ProxyHandler 透明转发
+    未配置或文件不存在时返回 None，走直连。
+    """
+    config_path = Path(__file__).resolve().parent / "config.json"
+    try:
+        if config_path.is_file():
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            proxy = data.get("github_proxy")
+            if isinstance(proxy, str) and proxy.strip():
+                return proxy.strip()
+    except Exception as e:
+        logger.warning(f"[更新检查] 读取 config.json 的 github_proxy 失败: {e}")
+    return None
+
+
+_GITHUB_PROXY = _load_github_proxy()
+
+
+def _configure_opener():
+    """根据 github_proxy 构建 urllib opener，返回 (opener, is_mirror, mirror_base)。"""
+    proxy = _GITHUB_PROXY
+    if not proxy:
+        return urllib.request.build_opener(), False, None
+    parsed = urlparse(proxy)
+    # 正向代理：仅 scheme + netloc，无路径（如 http://127.0.0.1:7890）
+    if parsed.scheme in ("http", "https") and parsed.netloc and parsed.path in ("", "/"):
+        handler = urllib.request.ProxyHandler({parsed.scheme: proxy})
+        return urllib.request.build_opener(handler), False, None
+    # 镜像前缀形式（如 https://gh-proxy.com）
+    base = proxy.rstrip("/")
+    return urllib.request.build_opener(), True, base
+
+
+_OPENER, _IS_MIRROR, _MIRROR_BASE = _configure_opener()
+
+
+def _build_url(url):
+    """若配置了镜像前缀形式的 github_proxy，将目标 URL 改写为通过镜像访问。"""
+    if _IS_MIRROR and _MIRROR_BASE:
+        return f"{_MIRROR_BASE}/{url}"
+    return url
+
+
+def _open_url(url, timeout, headers=None):
+    """发起 HTTP 请求，自动套用 github_proxy（镜像前缀或正向代理）。"""
+    target = _build_url(url)
+    req = urllib.request.Request(target, headers=headers or _gh_headers())
+    return _OPENER.open(req, timeout=timeout)
+
+
+# ============================================================
 # 保护文件配置：自动更新时这些文件/目录不会被覆盖
 # ============================================================
-# 文件名或目录名（精确匹配）
+# 文件名或目录名（精确匹配，任意一级路径段命中即保护）
 PROTECTED_NAMES = {
     ".env",
     "config.json",
@@ -89,7 +165,7 @@ PROTECTED_NAMES = {
     "elderly_care.db",
 }
 
-# 文件名模式（通配符匹配）
+# 文件名模式（通配符匹配，仅对文件名本身）
 PROTECTED_PATTERNS = [
     "*.db",
     "*.sqlite",
@@ -128,54 +204,41 @@ PROTECTED_SUBDIRS = {
 
 
 def _is_protected_path(rel_path: str) -> bool:
-    """
-    判断相对路径是否属于受保护范围
-    :param rel_path: 相对于项目根目录的路径（如 'data/users.json' 或 '.env'）
-    :return: True 表示应保留，不被覆盖
+    """判断相对路径是否属于受保护范围。
+
+    完整发布包解压后路径形如 server/.env、family_monitor/config.json、
+    server/data/db.sqlite，因此需对任意一级路径段做受保护判定，
+    避免嵌套的 .env / config.json / data/ 等被覆盖。
     """
     parts = rel_path.replace("\\", "/").split("/")
     if not parts:
         return False
-
-    # 顶层文件名/目录名匹配
-    top = parts[0]
-    if top in PROTECTED_NAMES:
-        return True
-
-    # 文件名模式匹配
     filename = parts[-1]
+    # 任意一级路径段为受保护文件名/目录名
+    for part in parts:
+        if part in PROTECTED_NAMES:
+            return True
+    # 文件名模式匹配
     for pattern in PROTECTED_PATTERNS:
         if fnmatch.fnmatch(filename.lower(), pattern.lower()):
             return True
-
     # 子目录保护：data/、logs/ 等下的所有文件均保护
-    if len(parts) >= 2 and parts[0] in PROTECTED_SUBDIRS:
-        return True
-
+    for sub in PROTECTED_SUBDIRS:
+        if sub in parts:
+            return True
     # .git 目录及子文件保护
     if ".git" in parts:
         return True
-
     return False
 
 
 # ============================================================
 # GitHub API 与版本比较
 # ============================================================
-def _gh_headers():
-    """构建 GitHub API 请求头，优先注入 PAT 提升速率限制并认证"""
-    headers = {"User-Agent": "eating-medication-updater"}
-    gh_token = os.environ.get("GITHUB_TOKEN")
-    if gh_token:
-        headers["Authorization"] = f"token {gh_token}"
-    return headers
-
-
 def _fetch_latest_release():
     """从 GitHub 获取最新 Release 信息（含资产列表）"""
     url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-    req = urllib.request.Request(url, headers=_gh_headers())
-    with urllib.request.urlopen(req, timeout=10) as resp:
+    with _open_url(url, 10) as resp:
         return json.loads(resp.read().decode())
 
 
@@ -188,8 +251,7 @@ def _fetch_latest_version():
         logger.warning(f"获取 Release 失败: {e}")
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/tags"
-        req = urllib.request.Request(url, headers=_gh_headers())
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with _open_url(url, 10) as resp:
             data = json.loads(resp.read().decode())
             if data:
                 tag = data[0].get("name")
@@ -200,66 +262,38 @@ def _fetch_latest_version():
 
 
 def _find_release_zip(release_data):
-    """在 Release 资产中查找 zip 文件（自动更新用）
+    """在 Release 资产中查找「完整发布包」zip 文件。
 
-    匹配优先级：
-    1. 本模块专属包：{模块名}_v*.zip（如 {模块名}_vX.Y.Z.zip）
-       —— 避免误下其他模块的包导致目录错乱
-    2. 总包：eating-medication-v*.zip（包含所有模块的总发布包）
-    3. 回退：任意 zip（仅当上述均未找到时）
+    仅匹配 eating-medication-*.zip（如 eating-medication-v2.12.4.zip），
+    不再匹配各模块分包（如 server_v*.zip），确保统一拉取整体发布包。
     """
     if not release_data:
         return None
     assets = release_data.get("assets", []) or []
-    # 通过 updater.py 所在目录名识别当前模块
-    module_name = Path(__file__).resolve().parent.name
-    # 优先匹配本模块专属包 "{module_name}_v*.zip"
-    for asset in assets:
-        name = asset.get("name", "")
-        if name.startswith(f"{module_name}_v") and name.endswith(".zip"):
-            return asset
-    # 次选：总包 "eating-medication-v*.zip"
     for asset in assets:
         name = asset.get("name", "")
         if name.startswith("eating-medication-") and name.endswith(".zip"):
-            return asset
-    # 回退：任意 zip
-    for asset in assets:
-        name = asset.get("name", "")
-        if name.endswith(".zip"):
             return asset
     return None
 
 
 def _find_sha256_assets(release_data):
-    """在 Release 资产中查找所有 SHA256 校验文件
-
-    多模块发布时会有多个 .sha256 文件（如 {模块名}_vX.Y.Z.zip.sha256 等），
-    全部返回以便合并解析。
-    """
+    """在 Release 资产中查找完整发布包的 SHA256 校验文件（*.sha256）。"""
     if not release_data:
         return []
     assets = release_data.get("assets", []) or []
-    result = []
-    for asset in assets:
-        name = (asset.get("name") or "").lower()
-        if "sha256" in name or name.endswith(".sha256") or "sha256sum" in name:
-            result.append(asset)
-    return result
+    return [a for a in assets if (a.get("name") or "").lower().endswith(".sha256")]
 
 
 def _download_text(url):
     """下载文本内容"""
-    req = urllib.request.Request(url, headers=_gh_headers())
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with _open_url(url, 15) as resp:
         return resp.read().decode("utf-8", errors="replace")
 
 
 def _verify_release_signature(release_data):
     """下载并解析所有 SHA256 校验文件，合并返回 {文件名: 哈希} 映射。
 
-    多模块发布时 Release 会包含多个 .sha256 文件，需全部下载合并，
-    这样无论当前模块要校验哪个 zip，都能在映射中找到对应哈希。
     返回 None 表示未找到任何校验文件或全部下载失败。
     """
     sha_assets = _find_sha256_assets(release_data)
@@ -286,8 +320,7 @@ def _download_file_with_hash(url, target_path, expected_hash=None):
     """下载文件到 target_path，可选校验 SHA256"""
     h = hashlib.sha256()
     try:
-        req = urllib.request.Request(url, headers=_gh_headers())
-        with urllib.request.urlopen(req, timeout=300) as resp:
+        with _open_url(url, 300) as resp:
             with open(target_path, "wb") as f:
                 while True:
                     chunk = resp.read(65536)
@@ -336,13 +369,10 @@ def _compare_versions(v1, v2):
 # 安全更新：解压 zip 并跳过保护文件
 # ============================================================
 def _safe_extract_zip(zip_path, extract_to):
-    """
-    安全解压 zip，处理 zip slip 漏洞
-    """
+    """安全解压 zip，处理 zip slip 漏洞"""
     extract_to = Path(extract_to).resolve()
     with zipfile.ZipFile(zip_path, 'r') as zf:
         for member in zf.namelist():
-            # 安全检查：防止 zip slip
             member_path = (extract_to / member).resolve()
             if not str(member_path).startswith(str(extract_to)):
                 raise ValueError(f"非法 zip 成员路径: {member}")
@@ -361,10 +391,10 @@ def _copy_file_safe(src: Path, dst: Path):
 
 
 def _perform_update(zip_path, project_dir):
-    """
-    执行安全更新：解压 zip 到临时目录，跳过保护文件，复制到项目目录
-    :param zip_path: 下载的 release zip 文件路径
-    :param project_dir: 项目根目录路径
+    """执行安全更新：解压完整发布包到临时目录，跳过保护文件，复制到项目根目录。
+
+    :param zip_path: 下载的 release 完整 zip 文件路径
+    :param project_dir: 项目根目录路径（即本 updater.py 所在目录）
     :return: (success: bool, updated_count: int, skipped_count: int)
     """
     project_dir = Path(project_dir).resolve()
@@ -377,50 +407,39 @@ def _perform_update(zip_path, project_dir):
     # 创建临时解压目录
     tmp_dir = Path(tempfile.mkdtemp(prefix="update_"))
     # 更新前备份整个项目目录，便于失败时回滚
-    import time
     backup_dir = f"{project_dir}.bak.{int(time.time())}"
     shutil.copytree(project_dir, backup_dir)
     try:
         logger.info(f"[更新检查] 解压到临时目录: {tmp_dir}")
         _safe_extract_zip(str(zip_path), str(tmp_dir))
 
-        # 查找 zip 内的根目录（GitHub 自动打包时会有一个顶层目录）
+        # 完整发布包顶层即为各模块目录（server/、family_monitor/、elderly_assistant/）
+        # 及 VERSION、README.md、deploy/ 等仓库文件，直接以解压目录为源根
         extracted_items = list(tmp_dir.iterdir())
         if len(extracted_items) == 1 and extracted_items[0].is_dir():
             source_root = extracted_items[0]
         else:
             source_root = tmp_dir
 
-        # release zip 包含整个仓库结构（含 family_monitor/、server/ 等子目录）
-        # 当前 updater 在某模块目录内运行（如 server/），project_dir 也是该模块目录
-        # 若直接用 source_root，复制时路径会变成 server/server/...，文件放错位置
-        # 因此检测 source_root 下是否存在与当前模块同名的子目录，存在则进入该子目录
-        current_module_name = Path(__file__).resolve().parent.name
-        module_subdir = source_root / current_module_name
-        if module_subdir.is_dir():
-            source_root = module_subdir
-            logger.info(f"[更新检查] 检测到模块子目录 {current_module_name}/，使用: {source_root}")
-
         logger.info(f"[更新检查] 源根目录: {source_root}")
 
-        # 备份关键保护文件路径（用于回滚，尽管概率低）
         updated_count = 0
         skipped_count = 0
 
         # 遍历源目录的所有文件
-        for src_file in source_root.rglob("*"):
+        for src_file in Path(source_root).rglob("*"):
             if not src_file.is_file():
                 continue
 
             # 计算相对路径
             try:
-                rel_path = src_file.relative_to(source_root)
+                rel_path = src_file.relative_to(Path(source_root))
             except ValueError:
                 continue
 
             rel_str = str(rel_path).replace("\\", "/")
 
-            # 检查是否保护
+            # 检查是否保护（源路径视角）
             if _is_protected_path(rel_str):
                 logger.debug(f"[更新检查] 跳过保护文件: {rel_str}")
                 skipped_count += 1
@@ -447,8 +466,8 @@ def _perform_update(zip_path, project_dir):
                 skipped_count += 1
 
         # 校验关键文件存在，确认更新完整性
-        if not (Path(project_dir) / "main.py").exists():
-            raise RuntimeError("更新后main.py缺失")
+        if not (project_dir / "updater.py").exists():
+            raise RuntimeError("更新后 updater.py 缺失")
 
         logger.info(f"[更新检查] 更新完成: 复制 {updated_count} 个文件，跳过 {skipped_count} 个保护文件")
         # 更新成功，清理备份
@@ -471,31 +490,38 @@ def _perform_update(zip_path, project_dir):
 
 
 def _restart_service():
-    """尝试重启服务（通过 systemd 或 supervisor）"""
-    service_name = None
-    # 探测可能的服务名
-    for name in ["eating-medication-server", "eating-medication-family", "eating-medication"]:
-        result = subprocess.run(
-            ["systemctl", "is-active", name],
-            capture_output=True, text=True, timeout=5
-        )
-        if result.returncode == 0:
-            service_name = name
-            break
+    """尝试重启所有处于 active 状态的相关 systemd 服务。
 
-    if service_name:
-        logger.info(f"[更新检查] 检测到 systemd 服务: {service_name}，尝试重启")
-        result = subprocess.run(
-            ["systemctl", "restart", service_name],
-            capture_output=True, text=True, timeout=30
-        )
+    完整发布包会同时更新多个模块，因此重启所有被检测到的服务。
+    """
+    service_names = [
+        "eating-medication-server",
+        "eating-medication-family",
+        "eating-medication",
+    ]
+    restarted = []
+    for name in service_names:
+        try:
+            result = subprocess.run(
+                ["systemctl", "is-active", name],
+                capture_output=True, text=True, timeout=5
+            )
+        except Exception:
+            continue
         if result.returncode == 0:
-            logger.info(f"[更新检查] 服务 {service_name} 已重启")
-            return True
-        else:
-            logger.warning(f"[更新检查] 重启服务失败: {result.stderr.strip()}")
-    else:
-        logger.info("[更新检查] 未检测到 systemd 服务，请手动重启应用")
+            logger.info(f"[更新检查] 检测到 systemd 服务: {name}，尝试重启")
+            r = subprocess.run(
+                ["systemctl", "restart", name],
+                capture_output=True, text=True, timeout=30
+            )
+            if r.returncode == 0:
+                restarted.append(name)
+                logger.info(f"[更新检查] 服务 {name} 已重启")
+            else:
+                logger.warning(f"[更新检查] 重启服务 {name} 失败: {r.stderr.strip()}")
+    if restarted:
+        return True
+    logger.info("[更新检查] 未检测到 systemd 服务，请手动重启应用")
     return False
 
 
@@ -506,13 +532,13 @@ def check_for_update(auto_pull=False):
     """
     启动时检查 GitHub 是否有新版本。
     - auto_pull 默认 False：仅打印提示
-    - auto_pull=True：下载 release zip 并安全覆盖（跳过保护文件）
+    - auto_pull=True：下载 release 完整发布包并安全覆盖（跳过保护文件）
 
     【安全机制】
     1. 不使用 git checkout，避免误删未被跟踪的配置文件
     2. 下载 zip 到临时目录，解压后逐文件判断
     3. 保护文件（.env、config.json、data/、logs/、*.db 等）不会被覆盖
-    4. 可选 SHA256 校验确保资产完整性
+    4. SHA256 校验确保资产完整性（缺少校验文件时拒绝自动更新）
     """
     try:
         latest, release_url, release_data = _fetch_latest_version()
@@ -550,10 +576,12 @@ def check_for_update(auto_pull=False):
 
         logger.warning("⚠️ 自动更新：将下载并安装新版本")
         logger.info("[更新检查] 保护文件将保留：.env、config.json、data/、logs/、*.db 等")
+        if _GITHUB_PROXY:
+            logger.info(f"[更新检查] 通过代理下载: {_GITHUB_PROXY}")
 
         zip_asset = _find_release_zip(release_data)
         if not zip_asset:
-            logger.error("[更新检查] 未在 Release 资产中找到 zip 文件，无法自动更新")
+            logger.error("[更新检查] 未在 Release 资产中找到完整发布包 zip，无法自动更新")
             logger.info(f"[更新检查] 请手动访问 {release_url} 下载")
             return
 
@@ -576,7 +604,7 @@ def check_for_update(auto_pull=False):
                 logger.error("[更新检查] 下载失败")
                 return
 
-            # 执行安全更新
+            # 执行安全更新（项目根目录即本 updater.py 所在目录）
             project_dir = Path(__file__).resolve().parent
             success, updated, skipped = _perform_update(str(tmp_zip_path), str(project_dir))
 
