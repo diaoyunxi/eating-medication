@@ -5,4 +5,4 @@ requests==2.32.3
 pinpong
 # HuskyLens 摄像头依赖：dfrobot_huskylensv2
 # 若 PyPI 无此包，需手动从官方仓库安装
-dfrobot_huskylensv2
+# dfrobot_huskylensv2
