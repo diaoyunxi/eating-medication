@@ -61,7 +61,7 @@ def capture_image(config):
         hl.takePhoto()
         logger.info("HuskyLens 拍照指令已发送")
 
-        # P2 修复：拍照后检查文件是否真正生成，避免返回不存在的路径导致后续 open 失败
+        # 拍照后检查文件是否真正生成，避免返回不存在的路径导致后续 open 失败
         if not os.path.exists(path):
             logger.error(f"拍照后文件不存在: {path}，HuskyLens可能未回传图片")
             return None

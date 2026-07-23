@@ -21,15 +21,15 @@ async def recognize_drug(
         raise HTTPException(status_code=400, detail="文件必须是图片")
     try:
         contents = await file.read()
-        # H15：文件大小限制 5MB
+        # 文件大小限制 5MB
         if len(contents) > 5 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="文件过大，最大 5MB")
         result = await VisionService.recognize(contents)
         return ImageRecognitionResp(drug_name=result["name"], confidence=result["confidence"])
     except HTTPException:
-        # H15：大小限制等 HTTP 异常直接向上抛出
+        # 大小限制等 HTTP 异常直接向上抛出
         raise
     except Exception:
-        # H10：异常细节不返回客户端，仅记录详细日志
+        # 异常细节不返回客户端，仅记录详细日志
         logger.exception("识别失败")
         raise HTTPException(status_code=500, detail="识别失败，请稍后重试")

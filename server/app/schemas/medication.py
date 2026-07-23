@@ -2,7 +2,7 @@
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import List, Optional
 from datetime import datetime
-# M13：导入时间格式校验
+# 导入时间格式校验
 from app.utils.validators import is_valid_time_format
 
 
@@ -17,7 +17,7 @@ class MedicationPlanCreate(BaseModel):
     unit: str = Field(default="片")
     low_stock_threshold: int = Field(default=5, ge=1, description="低库存阈值（剩余数量）")
 
-    # P0-5 修复：剩余数量不能超过总数量，防止数据不一致
+    # 剩余数量不能超过总数量，防止数据不一致
     @field_validator("remaining_quantity")
     @classmethod
     def validate_remaining_not_exceed_total(cls, v, info):
@@ -26,7 +26,7 @@ class MedicationPlanCreate(BaseModel):
             raise ValueError("剩余数量不能超过总数量")
         return v
 
-    # M13：校验每项时间格式
+    # 校验每项时间格式
     @field_validator("schedule_times")
     @classmethod
     def validate_schedule_times(cls, v):
@@ -58,7 +58,7 @@ class TakeMedicationRequest(BaseModel):
     """记录服药请求"""
     plan_id: int
     scheduled_time: datetime   # 计划时间点
-    # H9：允许为 None 表示未确认服药（用于判定漏服）
+    # 允许为 None 表示未确认服药（用于判定漏服）
     taken_time: Optional[datetime] = None
 
 

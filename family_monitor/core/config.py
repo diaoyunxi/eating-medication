@@ -116,12 +116,12 @@ class Config:
         生产部署时请手动修改 DEBUG=false 并按需调整 SECRET_KEY。
         """
         secret_key = _generate_secret_key()
-        # 生成「完整」.env 模板：包含全部可被读取的环境变量（v2.10.2 起）。
+        # 生成「完整」.env 模板：包含全部可被读取的环境变量。
         # 说明：SERVER_PORT / ELDERLY_SERVER_URL / PATH_PREFIX / APP_NAME / DISPLAY_*
         # 由 config.json 管理（Web 设置页可改），为避免 .env 覆盖导致设置页失效，
         # 这里以注释形式列出，如需用 .env 强制覆盖可取消注释填写。
         env_content = (
-            f"# 自动生成的环境配置文件（首次运行，v2.10.2 起已包含全部可配置字段）\n"
+            f"# 自动生成的环境配置文件（首次运行，已包含全部可配置字段）\n"
             f"# 生产部署时请将 DEBUG 改为 false，COOKIE_SECURE 改为 true\n\n"
             f"# ===== 安全 =====\n"
             f"# 会话签名密钥（已随机生成，请勿泄露）\n"

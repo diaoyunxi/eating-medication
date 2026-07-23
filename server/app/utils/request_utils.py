@@ -4,7 +4,7 @@ from fastapi import Request
 
 
 def get_client_ip(request: Request) -> str:
-    """获取真实客户端 IP（安全修复中危5）
+    """获取真实客户端 IP
 
     反向代理（Cloudflare 隧道）部署时，request.client.host 是代理 IP，
     需从 X-Forwarded-For 或 CF-Connecting-IP 头获取真实客户端 IP。

@@ -10,7 +10,7 @@ class ConnectionManager:
     WebSocket 连接管理器
     维护 user_id -> WebSocket 连接列表的映射
 
-    注意（M15）：本实现仅适用于单进程部署。多进程部署时需使用 Redis Pub/Sub
+    注意：本实现仅适用于单进程部署。多进程部署时需使用 Redis Pub/Sub
     或其他消息中间件在进程间同步连接与消息，否则消息只能送达本进程内的连接。
     """
 
@@ -38,7 +38,7 @@ class ConnectionManager:
     async def send_to_user(self, user_id: int, message: dict):
         """向指定用户的所有连接发送消息"""
         if user_id in self.active_connections:
-            # S-04 修复：遍历副本，避免遍历过程中 disconnect 修改原列表导致 RuntimeError
+            # 遍历副本，避免遍历过程中 disconnect 修改原列表导致 RuntimeError
             for connection in list(self.active_connections[user_id]):
                 try:
                     await connection.send_json(message)

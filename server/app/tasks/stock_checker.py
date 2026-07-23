@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 定时任务：每天扫描低库存药品并推送通知
-H11：使用 AsyncIOScheduler，任务函数为 async，可直接 await 异步通知。
-S-05 修复：使用 join 查询消除 N+1；基于 last_notified_at 去重，每条计划每天最多通知一次。
+使用 AsyncIOScheduler，任务函数为 async，可直接 await 异步通知。
+使用 join 查询消除 N+1；基于 last_notified_at 去重，每条计划每天最多通知一次。
 """
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -16,10 +16,10 @@ from app.websocket.notifier import notifier
 
 logger = logging.getLogger(__name__)
 
-# H11：全局调度器实例改用 AsyncIOScheduler
+# 全局调度器实例改用 AsyncIOScheduler
 scheduler = AsyncIOScheduler()
 
-# S-05：低库存重复通知间隔（1 天）
+# 低库存重复通知间隔（1 天）
 _NOTIFY_INTERVAL = timedelta(days=1)
 
 
@@ -28,14 +28,14 @@ async def check_low_stock_job():
     定时任务：检查所有老人的低库存药品并发送通知
     建议每天凌晨 2:00 执行
 
-    S-05 修复：
+    S-05 处理流程：
     (a) 使用 MedicationPlan JOIN User 单次查询，消除 N+1；
     (b) 基于 plan.last_notified_at 去重，仅在未通知或超过 1 天时通知，通知后更新该时间。
     """
     logger.info("开始执行低库存检查任务...")
     db = SessionLocal()
     try:
-        # S-05(a)：join 查询所有老人低库存计划，消除 N+1
+        # join 查询所有老人低库存计划，消除 N+1
         low_stock_rows = (
             db.query(MedicationPlan, User)
             .join(User, MedicationPlan.user_id == User.id)
@@ -49,7 +49,7 @@ async def check_low_stock_job():
         now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
         notified_count = 0
         for plan, elderly in low_stock_rows:
-            # S-05(b)：去重，仅在未通知或距上次通知超过 1 天时发送
+            # 去重，仅在未通知或距上次通知超过 1 天时发送
             last = plan.last_notified_at
             if last is not None:
                 # SQLite 取出可能为 naive，统一按 naive 比较
@@ -57,7 +57,7 @@ async def check_low_stock_job():
                 if now_naive - last_naive < _NOTIFY_INTERVAL:
                     continue
 
-            # H11：在异步调度器中直接 await，无需 asyncio.create_task
+            # 在异步调度器中直接 await，无需 asyncio.create_task
             await notifier.notify_low_stock(
                 db,
                 elderly.id,
@@ -65,7 +65,7 @@ async def check_low_stock_job():
                 plan.remaining_quantity,
                 plan.low_stock_threshold
             )
-            # S-05(b)：更新通知时间并提交
+            # 更新通知时间并提交
             plan.last_notified_at = datetime.now(timezone.utc)
             db.commit()
             notified_count += 1

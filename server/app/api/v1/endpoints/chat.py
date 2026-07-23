@@ -3,9 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 from typing import List, Optional
-# M17：get_db 统一从 dependencies 导入
 from app.core.dependencies import get_db, get_current_user
-# M16：WebSocket 内使用 with 语法管理会话
 from app.core.database import SessionLocal
 from app.core.security import decode_token
 from app.models.user import User
@@ -22,15 +20,15 @@ router = APIRouter(prefix="/chat", tags=["聊天"])
 async def send_message(
     msg: ChatMessageCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # C4：加认证
+    current_user: User = Depends(get_current_user),  # 加认证
 ):
     """发送聊天消息
 
-    安全修复（中危3）：校验 receiver_id 与 sender 属于同一家庭组，防止 IDOR。
+    校验 receiver_id 与 sender 属于同一家庭组，防止 IDOR。
     """
-    # C4：sender_id 从 token 提取，覆盖任何客户端传入值
-    # S-01 修复：sender_name 从服务端 current_user.full_name 获取，防止客户端伪造
-    # 安全修复（中危3）：校验接收者是否与发送者同组
+    # sender_id 从 token 提取，覆盖任何客户端传入值
+    # sender_name 从服务端 current_user.full_name 获取，防止客户端伪造
+    # 校验接收者是否与发送者同组
     if msg.receiver_id:
         receiver = db.query(User).filter(User.id == msg.receiver_id).first()
         if not receiver:
@@ -65,12 +63,12 @@ async def send_message(
 @router.get("/history/{user_id}", response_model=List[ChatMessageOut])
 async def get_history(
     user_id: int,
-    limit: int = Query(50, ge=1, le=200),  # L12：限制 limit 范围 1~200
+    limit: int = Query(50, ge=1, le=200),  # 限制 limit 范围 1~200
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # C4：加认证
+    current_user: User = Depends(get_current_user),  # 加认证
 ):
     """获取用户聊天历史"""
-    # C4：校验当前用户必须是消息参与者
+    # 校验当前用户必须是消息参与者
     if user_id == current_user.id:
         # 查询自己的全部历史
         messages = db.query(ChatMessage).filter(
@@ -92,9 +90,9 @@ async def get_history(
 
 @router.websocket("/ws/{user_id}")
 async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Query(None)):
-    """WebSocket聊天连接（C4：从 query 参数读取 token 校验，使用 token 中的 user_id）
+    """WebSocket聊天连接（从 query 参数读取 token 校验，使用 token 中的 user_id）
 
-    安全修复（低危12）：JWT sub 字段是 username（字符串），不能直接 int() 转换。
+    JWT sub 字段是 username（字符串），不能直接 int() 转换，
     改为通过 username 查库获取数字 user_id。
     """
     # C4：token 校验，无效则关闭连接（code=1008）
@@ -104,7 +102,7 @@ async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Que
             payload = decode_token(token)
             sub = payload.get("sub")
             if sub is not None:
-                # Bug8 修复：JWT sub 字段存储的是 user.id（数字字符串），
+                # JWT sub 字段存储的是 user.id（数字字符串），
                 # 原代码用 User.username == sub 查询，导致所有 WebSocket 连接
                 # 认证失败返回 403。改为用 User.id == int(sub) 查询。
                 with SessionLocal() as db:
@@ -129,18 +127,17 @@ async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Que
                 content = data.get("content", "")
                 receiver_id = data.get("receiver_id")
                 if content and receiver_id:
-                    # M16：改用 with 语法管理数据库会话
                     with SessionLocal() as db:
-                        # S-01 修复：sender_name 从服务端查库获取，防止客户端伪造
+                        # sender_name 从服务端查库获取，防止客户端伪造
                         sender = db.query(User).filter(User.id == user_id).first()
                         sender_name = sender.full_name if sender else "未知"
-                        # Bug5 修复：sender 可能为 None（用户被删除），
+                        # sender 可能为 None（用户被删除），
                         # 原代码直接访问 sender.group_id 会抛出 AttributeError，
                         # 导致 WebSocket 连接异常中断。增加 None 检查。
                         if not sender:
                             await websocket.send_json({"type": "error", "message": "发送者账号不存在"})
                             continue
-                        # 安全修复（中危3）：校验接收者是否与发送者同组
+                        # 校验接收者是否与发送者同组
                         receiver = db.query(User).filter(User.id == receiver_id).first()
                         if not receiver:
                             await websocket.send_json({"type": "error", "message": "接收者不存在"})

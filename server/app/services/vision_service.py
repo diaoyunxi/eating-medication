@@ -112,7 +112,7 @@ class VisionService:
         
         if ocr_result and ocr_result.get('text'):
             drug_name = await VisionService._extract_drug_name(ocr_result['text'])
-            # M20：从 OCR 结果提取置信度，无法获取时返回 None
+            # 从 OCR 结果提取置信度，无法获取时返回 None
             confidence = ocr_result.get('confidence')
             return {
                 'name': drug_name,

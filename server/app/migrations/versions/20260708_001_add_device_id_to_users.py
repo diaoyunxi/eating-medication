@@ -1,7 +1,6 @@
 """add device_id column to users table
 
-修复"设备即用户"设计缺陷：在 users 表新增 device_id 字段，
-用于关联真实老人用户与设备 ID。
+新增 device_id 字段，关联真实老人用户与设备 ID（原"设备即用户"设计未区分账户与设备）。
 
 Revision ID: 20260708_001
 Revises:

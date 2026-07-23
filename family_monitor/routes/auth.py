@@ -75,7 +75,7 @@ async def get_turnstile_site_key():
 async def login_page(request: Request):
     """登录页面：渲染 login.html 模板
 
-    Turnstile 改动修复：补回被误删的 GET /login 路由。
+    补回被误删的 GET /login 路由。
     前端 JS 检测到 Turnstile 不可用时降级为传统表单提交（后端兜底校验）。
     """
     return templates.TemplateResponse(
@@ -89,7 +89,7 @@ async def login_page(request: Request):
 async def register_page(request: Request):
     """注册页面：渲染 register.html 模板
 
-    Turnstile 改动修复：补回被误删的 GET /register 路由。
+    补回被误删的 GET /register 路由。
     GitHub OAuth 首次登录：若携带 oauth_pending cookie 与 gh_login 参数，则进入 OAuth
     补全注册模式，预填用户名（GitHub login 规范化）与昵称，并隐藏 Turnstile。
     """
@@ -295,7 +295,7 @@ async def _do_logout():
     """退出登录核心逻辑：清除 JWT cookie 并返回重定向响应
 
     显式拼接 PATH_PREFIX，避免隧道子路径模式下重定向到错误地址。
-    Bug1 修复：原代码仅注册 GET /logout，但前端使用 POST 表单提交，
+    原代码仅注册 GET /logout，但前端使用 POST 表单提交，
     导致 405 Method Not Allowed。现抽取公共逻辑，GET/POST 均可触发。
     """
     login_url = f"{_PATH_PREFIX}/login" if _PATH_PREFIX else "/login"
@@ -314,7 +314,7 @@ async def logout():
 async def logout_post():
     """退出登录（POST 方式，前端表单提交）
 
-    Bug1 修复：前端登出按钮使用 POST 表单提交，但原代码仅注册 GET /logout，
+    前端登出按钮使用 POST 表单提交，但原代码仅注册 GET /logout，
     导致返回 405 Method Not Allowed。新增 POST 处理器修复此问题。
     """
     return await _do_logout()

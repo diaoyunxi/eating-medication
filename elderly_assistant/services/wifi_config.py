@@ -196,7 +196,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(self._get_html_page().encode('utf-8'))
         elif parsed_path.path == '/api/scan':
-            # P6 修复：/api/scan 同样校验 config_token，防止未授权扫描
+            # /api/scan 同样校验 config_token，防止未授权扫描
             if not self._verify_config_token():
                 self._send_json({"status": "error", "message": "未授权"}, 403)
                 return
@@ -208,7 +208,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
                 "message": self.wifi_manager.status_message
             })
         elif parsed_path.path == '/api/config':
-            # H-4 修复：/api/config 返回服务器地址属于敏感信息，需校验 config_token
+            # /api/config 返回服务器地址属于敏感信息，需校验 config_token
             if not self._verify_config_token():
                 self._send_json({"status": "error", "message": "未授权"}, 403)
                 return
@@ -284,16 +284,16 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
 
         服务启动时生成随机 token，所有 POST 请求需在 Header 中携带
         X-Config-Token，校验不通过返回 403。
-        P0-1 修复：token 未设置时拒绝所有 POST 请求（fail-closed），防止认证绕过。
+        token 未设置时拒绝所有 POST 请求（fail-closed），防止认证绕过。
         """
         token = self.config_token
         if not token:
-            # P0-1 修复：token 未设置时拒绝（fail-closed），不放过任何未授权请求
+            # token 未设置时拒绝（fail-closed），不放过任何未授权请求
             logger.error("配网 token 未初始化，拒绝 POST 请求")
             return False
         # 优先从 Header 读取 X-Config-Token
         req_token = self.headers.get('X-Config-Token', '')
-        # H-1 修复：使用常量时间比较防止时序攻击
+        # 使用常量时间比较防止时序攻击
         return secrets.compare_digest(req_token, token)
 
     def _send_json(self, data, status_code=200):
@@ -310,7 +310,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
         server_url = self.wifi_manager.load_server_url()
         # 对 server_url 进行 HTML 转义后再插入 HTML，防止 XSS
         safe_server_url = html.escape(server_url or '', quote=True)
-        # P6 修复：config_token 嵌入前端供 fetch 携带。
+        # config_token 嵌入前端供 fetch 携带。
         # 安全性依赖网络隔离：配网服务已绑定热点接口 10.0.0.1，仅连接热点的设备可访问。
         # 彻底修复应改为前端不持有 token、使用 session cookie，此处为最小改动保留实现。
         safe_config_token = html.escape(self.config_token or '', quote=True)
@@ -502,7 +502,7 @@ class WiFiConfigServer:
             logger.info(f"配网服务 Token: {self.config_token}")
             print(f"[配网] X-Config-Token: {self.config_token}")
 
-            # P5 修复：绑定热点接口 IP 10.0.0.1，避免暴露到所有网卡（0.0.0.0）
+            # 绑定热点接口 IP 10.0.0.1，避免暴露到所有网卡（0.0.0.0）
             server_address = ('10.0.0.1', self.port)
             self.server = HTTPServer(server_address, WiFiConfigHandler)
             self.running = True

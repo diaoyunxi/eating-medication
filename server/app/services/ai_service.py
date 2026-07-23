@@ -11,11 +11,11 @@ class AIService:
     """AI 健康助手服务（调用智谱AI ZhipuAI API）"""
 
     _client: Optional[object] = None
-    _lock = threading.Lock()  # G13 修复：保护单例客户端初始化的线程安全
+    _lock = threading.Lock()  # 保护单例客户端初始化的线程安全
 
     @classmethod
     def _get_client(cls):
-        """获取 ZhipuAI 客户端（单例，G13：加锁防止并发重复初始化）"""
+        """获取 ZhipuAI 客户端（单例，加锁防止并发重复初始化）"""
         # 双重检查锁定，避免已初始化时的锁开销
         if cls._client is None and settings.ZHIPUAI_API_KEY:
             with cls._lock:
@@ -46,7 +46,7 @@ class AIService:
         logger.info(f"🤔 AI 请求 - 问题: {question}")
         
         try:
-            # S-06 修复：同步 SDK 调用放入线程池，避免阻塞事件循环
+            # 同步 SDK 调用放入线程池，避免阻塞事件循环
             response = await asyncio.to_thread(
                 client.chat.completions.create,
                 model=settings.ZHIPUAI_MODEL,
@@ -66,6 +66,6 @@ class AIService:
             return answer
             
         except Exception:
-            # H10：异常细节不返回客户端，仅记录详细日志
+            # 异常细节不返回客户端，仅记录详细日志
             logger.exception("AI 服务调用失败")
             return "AI 服务暂时不可用，请稍后再试"

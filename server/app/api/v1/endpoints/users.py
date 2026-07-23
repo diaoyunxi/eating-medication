@@ -35,10 +35,10 @@ def bind_family(
 ):
     """家属绑定老人（组成家庭组，并把 device_id 关联到真实老人）
 
-    修复"设备即用户"设计缺陷后的绑定逻辑：
+    绑定逻辑：
     1. 家属身份校验
     2. 校验目标用户是真实老人
-    3. H13 弱保护：校验 device_id 对应的虚拟用户存在（即设备已通过 device/register 注册）
+    3. 校验 device_id 对应的虚拟用户存在（即设备已通过 device/register 注册）
        - 若虚拟用户不存在，说明设备未注册或 device_id 错误
        - 若虚拟用户存在，绑定后会被迁移数据并删除，device_id 关联到真实老人
     4. 调用 UserService.bind_family 完成数据迁移 + device_id 关联 + 家庭组绑定
@@ -55,8 +55,8 @@ def bind_family(
     if not elderly:
         raise HTTPException(status_code=400, detail="绑定失败，请检查用户ID或角色")
 
-    # H13 弱保护：校验 device_id 对应的设备已注册
-    # 修复后逻辑：
+    # 校验 device_id 对应的设备已注册
+    # 查找逻辑：
     # - 优先查 device_id 字段（已被其他老人绑定的情况）
     # - 回退查 username == device_id（虚拟用户，待迁移）
     existing_device_user = db.query(User).filter(User.device_id == req.device_id).first()

@@ -42,11 +42,10 @@ def _load_version():
     查找顺序：
     1. 本模块目录下的 VERSION 文件
     2. 上一级目录（项目根目录）的 VERSION 文件
-    3. 均不存在时回退到写死的默认版本号
+    3. VERSION 文件缺失（仅本地未部署 VERSION 的开发场景）时回退到 "0.0.0"
 
-    :return: 版本号字符串（如 "2.9.8"）
+    :return: 版本号字符串
     """
-    _DEFAULT_VERSION = "2.10.3"
     _module_dir = Path(__file__).resolve().parent
     # 候选路径：本模块目录、项目根目录
     for candidate in [_module_dir / "VERSION", _module_dir.parent / "VERSION"]:
@@ -57,7 +56,7 @@ def _load_version():
                     return ver
         except Exception:
             continue
-    return _DEFAULT_VERSION
+    return "0.0.0"
 
 
 __version__ = _load_version()
@@ -204,7 +203,7 @@ def _find_release_zip(release_data):
     """在 Release 资产中查找 zip 文件（自动更新用）
 
     匹配优先级：
-    1. 本模块专属包：{模块名}_v*.zip（如 family_monitor_v2.9.zip）
+    1. 本模块专属包：{模块名}_v*.zip（如 {模块名}_vX.Y.Z.zip）
        —— 避免误下其他模块的包导致目录错乱
     2. 总包：eating-medication-v*.zip（包含所有模块的总发布包）
     3. 回退：任意 zip（仅当上述均未找到时）
@@ -235,8 +234,8 @@ def _find_release_zip(release_data):
 def _find_sha256_assets(release_data):
     """在 Release 资产中查找所有 SHA256 校验文件
 
-    多模块发布时会有多个 .sha256 文件（如 family_monitor_v2.9.1.zip.sha256、
-    server_v2.9.1.zip.sha256 等），全部返回以便合并解析。
+    多模块发布时会有多个 .sha256 文件（如 {模块名}_vX.Y.Z.zip.sha256 等），
+    全部返回以便合并解析。
     """
     if not release_data:
         return []
@@ -392,7 +391,7 @@ def _perform_update(zip_path, project_dir):
         else:
             source_root = tmp_dir
 
-        # 修复：release zip 包含整个仓库结构（含 family_monitor/、server/ 等子目录）
+        # release zip 包含整个仓库结构（含 family_monitor/、server/ 等子目录）
         # 当前 updater 在某模块目录内运行（如 family_monitor/），project_dir 也是该模块目录
         # 若直接用 source_root，复制时路径会变成 family_monitor/family_monitor/...，文件放错位置
         # 因此检测 source_root 下是否存在与当前模块同名的子目录，存在则进入该子目录

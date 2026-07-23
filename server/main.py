@@ -97,7 +97,7 @@ def create_app_dirs():
 
     # 确保 .env 存在且包含全部必填字段：
     # - 首次运行写入完整模板（含 Turnstile / GitHub OAuth / AI / OCR / CORS 等）
-    # - 已存在但缺失关键字段时自动补齐（修复旧版精简 .env）
+    # - 已存在但缺失关键字段时自动补齐（兼容旧版字段不全的存量 .env）
     try:
         from app.core.config import _ensure_default_env
         _ensure_default_env()
@@ -117,7 +117,7 @@ def start_server():
         sys.exit(1)
 
     path_prefix = settings.PATH_PREFIX
-    # O2/O3 修复：host/port 从环境变量读取，默认 0.0.0.0:1059
+    # host/port 优先从环境变量读取，便于部署时覆盖，默认 0.0.0.0:1059
     host = os.getenv("SERVER_HOST", "0.0.0.0")
     port = int(os.getenv("SERVER_PORT", "1059"))
 

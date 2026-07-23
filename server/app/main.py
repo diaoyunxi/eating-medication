@@ -19,9 +19,10 @@ from fastapi.openapi.docs import (
 
 from app.core.config import settings
 from app.core.database import engine, Base
+from updater import __version__ as __server_version__
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.exception_handler import add_exception_handlers
-# C7：改用统一的 setup_cors 配置 CORS
+# 改用统一的 setup_cors 配置 CORS
 from app.middleware.cors import setup_cors
 from app.api.v1.endpoints import (
     auth, users, medication, ai, vision, public, chat, oauth
@@ -61,7 +62,7 @@ async def lifespan(app: FastAPI):
     if settings.ZHIPUAI_API_KEY:
         logger.info(f"   - 模型: {settings.ZHIPUAI_MODEL}")
 
-    # FIX (2.10.1)：Turnstile 配置检查——缺失 Secret Key 会导致生产环境登录/注册全部被拒
+    # Turnstile 配置检查——缺失 Secret Key 会导致生产环境登录/注册全部被拒
     # Turnstile 需两把密钥：站点密钥(Site Key) 在 family_monitor/.env 渲染前端，
     # 密钥(Secret Key) 在 server/.env 用于后端 siteverify 校验。两者必须分别配置。
     if settings.TURNSTILE_SECRET_KEY:
@@ -80,7 +81,7 @@ async def lifespan(app: FastAPI):
     logger.info("="*60)
 
     # 创建数据库表（如果不存在）
-    # S3 修复：优先使用 Alembic 迁移管理表结构，失败则回退 create_all（兼容现有部署）
+    # 优先使用 Alembic 迁移管理表结构，失败则回退 create_all（兼容现有部署）
     try:
         from alembic.config import Config
         from alembic import command
@@ -120,11 +121,11 @@ async def lifespan(app: FastAPI):
 PATH_PREFIX = settings.PATH_PREFIX.rstrip("/")
 
 # 创建 FastAPI 实例（禁用默认文档，使用本地静态资源）
-# 安全修复（中危7）：生产环境完全禁用 API 文档，防止信息泄露
+# 生产环境完全禁用 API 文档，防止信息泄露
 _is_debug = settings.DEBUG
 app = FastAPI(
     title=settings.APP_NAME,
-    version="2.10.3",
+    version=__server_version__,
     description="老人用药管理智能助手后端 API",
     debug=_is_debug,
     lifespan=lifespan,
@@ -137,13 +138,13 @@ app = FastAPI(
 
 # ==================== 中间件配置 ====================
 
-# C7：使用统一的 setup_cors 配置 CORS（从环境变量 ALLOWED_ORIGINS 读取白名单）
+# 使用统一的 setup_cors 配置 CORS（从环境变量 ALLOWED_ORIGINS 读取白名单）
 setup_cors(app)
 
 # 请求日志中间件
 app.add_middleware(LoggingMiddleware)
 
-# S13 修复：移除手动 path_prefix 中间件，前缀剥离统一由 root_path 处理，避免双重处理
+# 移除手动 path_prefix 中间件，前缀剥离统一由 root_path 处理，避免双重处理
 
 # 全局异常处理器
 add_exception_handlers(app)
@@ -160,14 +161,14 @@ app.include_router(public.router, prefix=api_prefix)
 app.include_router(chat.router, prefix=api_prefix)
 app.include_router(oauth.router, prefix=api_prefix)
 
-# S8 修复：移除冲突的 ws_router（/ws 与 chat.py 的 /chat/ws/{user_id} 重叠）
-# WebSocket 聊天功能统一由 chat.py 的 ws_chat 提供
+    # 移除冲突的 ws_router（/ws 与 chat.py 的 /chat/ws/{user_id} 重叠）
+    # WebSocket 聊天功能统一由 chat.py 的 ws_chat 提供
 
 # ==================== 静态文件服务 ====================
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # ==================== 自定义文档路由（使用本地静态资源） ====================
-# 安全修复（中危7）：生产环境不注册文档路由，防止 API 结构泄露
+# 生产环境不注册文档路由，防止 API 结构泄露
 docs_static_url = f"{PATH_PREFIX}/static/docs" if PATH_PREFIX else "/static/docs"
 openapi_full_url = f"{PATH_PREFIX}/openapi.json" if PATH_PREFIX else "/openapi.json"
 
@@ -213,7 +214,7 @@ async def redoc_html():
 @app.get("/health")
 async def health_check():
     """健康检查接口，用于容器编排或监控"""
-    # O7 修复：健康检查高频调用，降为 debug 级别避免日志刷屏
+    # 健康检查高频调用，降为 debug 级别避免日志刷屏
     logger.debug("健康检查被调用")
     return JSONResponse(
         content={"status": "ok", "service": settings.APP_NAME},

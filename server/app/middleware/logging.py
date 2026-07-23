@@ -9,15 +9,15 @@ from app.core.config import settings
 # 使用独立的 logger 而不是 uvicorn.access
 logger = logging.getLogger("app.access")
 
-# C8：敏感路径——这些路径不记录请求体
+# 敏感路径——这些路径不记录请求体
 SENSITIVE_PATHS = {"/auth/login", "/auth/register", "/device/register"}
 
-# C8：请求体中需要脱敏的字段名（子串匹配，不区分大小写）
+# 请求体中需要脱敏的字段名（子串匹配，不区分大小写）
 SENSITIVE_FIELDS = ("password", "token", "secret_key", "api_key", "authorization")
 
 
 def _redact_body(body: str) -> str:
-    """C8：对请求体中的敏感字段值脱敏"""
+    """对请求体中的敏感字段值脱敏"""
     try:
         parsed = json.loads(body)
     except Exception:
@@ -34,7 +34,7 @@ def _redact_body(body: str) -> str:
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):
-    """详细记录每个请求的信息（C8：敏感信息脱敏，仅 DEBUG 模式记录请求体）"""
+    """详细记录每个请求的信息（敏感信息脱敏，仅 DEBUG 模式记录请求体）"""
 
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
@@ -49,7 +49,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             f"来自: {client_ip} - UA: {user_agent}"
         )
 
-        # C8：仅在 DEBUG 模式下记录请求体，且敏感路径不记录
+        # 仅在 DEBUG 模式下记录请求体，且敏感路径不记录
         if settings.DEBUG and request.method in ["POST", "PUT", "PATCH"]:
             content_type = request.headers.get("content-type", "")
             # 剥离 API 前缀以匹配敏感路径

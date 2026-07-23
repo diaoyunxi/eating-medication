@@ -6,7 +6,7 @@ from app.core.database import Base
 
 
 def _utcnow():
-    """M14：返回带时区的当前 UTC 时间"""
+    """返回带时区的当前 UTC 时间"""
     return datetime.now(timezone.utc)
 
 
@@ -17,7 +17,7 @@ class AIQueryLog(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)
-    # L14：默认模型与实际使用的智谱模型保持一致
+    # 默认模型与实际使用的智谱模型保持一致
     model = Column(String, default="glm-4.7-flash")
     created_at = Column(DateTime, default=_utcnow)
 

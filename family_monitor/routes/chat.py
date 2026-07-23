@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 消息路由
-S9 修复：增加 /chat/history BFF 代理接口，从服务端获取聊天历史
+增加 /chat/history BFF 代理接口，从服务端获取聊天历史
 """
 
 from fastapi import APIRouter, Request
@@ -43,7 +43,7 @@ async def chat(request: Request):
         if bound:
             elderly_id = bound.get('device_id', '')
 
-    # Bug2 修复：从认证中间件获取当前登录用户的数字 ID，
+    # 从认证中间件获取当前登录用户的数字 ID，
     # 前端用于与服务端 sender_id 比较以判定消息方向。
     # 原代码硬编码 current_user_id = None，导致所有消息方向显示错误。
     current_user_id = user_id
@@ -65,7 +65,7 @@ async def chat(request: Request):
 
 @router.get("/chat/history")
 async def chat_history(request: Request, limit: int = 50):
-    """S9 修复：BFF 代理聊天历史接口"""
+    """BFF 代理聊天历史接口"""
     if not _require_login(request):
         return JSONResponse(content={"success": False, "message": "请先登录"}, status_code=401)
     # 边界校验：限制 1~200，防止过大查询拖慢服务

@@ -55,7 +55,7 @@ class HotspotManager:
 
             if result.returncode == 0:
                 self.is_running = True
-                # P4 修复：密码脱敏，日志不记录明文密码，仅终端 print 便于用户连接
+                # 密码脱敏，日志不记录明文密码，仅终端 print 便于用户连接
                 logger.info(f"热点已创建: {self.ssid} (WPA2加密)")
                 print(f"[热点] SSID: {self.ssid}  密码: {self.password}")
                 logger.info(

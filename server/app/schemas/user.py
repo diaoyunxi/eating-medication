@@ -25,5 +25,5 @@ class UserUpdate(BaseModel):
 class BindFamilyReq(BaseModel):
     """家属绑定老人请求"""
     elderly_user_id: int = Field(..., description="老人用户ID")
-    # H13：弱保护——家属必须知道老人的设备ID（老人用户名即设备注册时的 device_id）
+    # 弱保护：家属必须知道老人的设备ID（老人用户名即设备注册时的 device_id）
     device_id: str = Field(..., description="老人设备ID（弱保护：需知道设备ID才能绑定）")

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
-# M12：在 register schema 中调用 validators 进行格式校验
+# register schema 中调用 validators 进行格式校验
 from app.utils.validators import is_valid_phone, is_valid_username, is_valid_password
 
 
@@ -24,7 +24,7 @@ class RegisterReq(BaseModel):
             raise ValueError("role 必须是 elderly 或 family")
         return v
 
-    # M12：使用 validators 校验手机号格式
+    # 使用 validators 校验手机号格式
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v):
@@ -32,7 +32,7 @@ class RegisterReq(BaseModel):
             raise ValueError("手机号格式不正确")
         return v
 
-    # M12：使用 validators 校验用户名格式
+    # 使用 validators 校验用户名格式
     @field_validator("username")
     @classmethod
     def validate_username(cls, v):
@@ -40,7 +40,7 @@ class RegisterReq(BaseModel):
             raise ValueError("用户名格式不正确（3-20位字母数字下划线）")
         return v
 
-    # M12：使用 validators 校验密码强度
+    # 使用 validators 校验密码强度
     @field_validator("password")
     @classmethod
     def validate_password(cls, v):
