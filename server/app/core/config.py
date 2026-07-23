@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import re
 import secrets
 import logging
 from pathlib import Path
@@ -27,20 +28,11 @@ def _generate_secret_key():
     return secrets.token_urlsafe(32)
 
 
-def _ensure_default_env():
-    """首次运行无 .env 时自动生成（含随机 SECRET_KEY + DEBUG=true），开箱即用
+def _write_full_env(env_path: Path, secret_key: str):
+    """写入「完整」.env 模板：包含全部可被读取的环境变量（v2.10.2 起）。
 
-    在 Settings 实例化前调用，确保 pydantic_settings 能加载到 .env。
-    .env 已在 .gitignore 中忽略，不会上传到仓库。
-    生产部署时请手动修改 DEBUG=false。
+    必填项留空并加注释说明；有默认值的给出默认值，降低上手成本。
     """
-    # .env 位于 server/ 目录（与 server/app/main.py 同级，即 BASE_DIR）
-    env_path = Path(__file__).resolve().parent.parent.parent / '.env'
-    if env_path.exists():
-        return
-    secret_key = _generate_secret_key()
-    # 生成「完整」.env 模板：包含全部可被读取的环境变量（v2.10.2 起）。
-    # 必填项留空并加注释说明；有默认值的给出默认值，降低上手成本。
     env_content = (
         f"# 自动生成的环境配置文件（首次运行，v2.10.2 起已包含全部可配置字段）\n"
         f"# 生产部署时请将 DEBUG 改为 false，并填入以下必填项（留空的行需补充）\n\n"
@@ -63,9 +55,10 @@ def _ensure_default_env():
         f"# ===== Cloudflare Turnstile 人机验证 =====\n"
         f"# 后端 siteverify 校验用的密钥（Secret Key），必填；生产环境缺失将拒绝全部登录/注册\n"
         f"# 须与 family_monitor/.env 的 TURNSTILE_SITE_KEY 来自同一 Turnstile 站点\n"
+        f"# 获取地址：https://dash.cloudflare.com/  -> Turnstile -> 你的站点 -> Keys\n"
         f"TURNSTILE_SECRET_KEY=\n\n"
         f"# ===== 智谱 AI 对话 =====\n"
-        f"# 留空则 AI 对话功能不可用\n"
+        f"# 留空则 AI 对话功能不可用；申请地址：https://open.bigmodel.cn/\n"
         f"ZHIPUAI_API_KEY=\n"
         f"ZHIPUAI_MODEL=glm-4.7-flash\n\n"
         f"# ===== 图片 OCR 识别 =====\n"
@@ -77,23 +70,112 @@ def _ensure_default_env():
         f"# 生产环境必填，填前端（family_monitor）访问域名，逗号分隔；留空则跨域请求被拒绝\n"
         f"ALLOWED_ORIGINS=\n\n"
         f"# ===== GitHub OAuth 登录 =====\n"
-        f"# 不配置 GITHUB_CLIENT_ID 时前端隐藏 GitHub 登录按钮\n"
+        f"# 不配置 GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET 时前端隐藏 GitHub 登录按钮\n"
+        f"# 申请地址：https://github.com/settings/developers -> New OAuth App\n"
+        f"# 回调地址须与 GITHUB_OAUTH_CALLBACK_URL 完全一致\n"
         f"GITHUB_CLIENT_ID=\n"
         f"GITHUB_CLIENT_SECRET=\n"
         f"GITHUB_OAUTH_CALLBACK_URL=https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback\n"
         f"# family_monitor 前端地址（OAuth 回调后 302 跳转用）\n"
         f"FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family\n"
     )
+    env_path.write_text(env_content, encoding='utf-8')
+    os.chmod(env_path, 0o600)
+
+
+# 已存在 .env 但需要补齐的「必填 / 重要」字段：键 -> (注释行列表, 默认值)
+# 这些字段在旧版「精简 .env」中缺失（如 Cloudflare Turnstile、GitHub OAuth 等）。
+_BACKFILL_FIELDS = [
+    ("TURNSTILE_SECRET_KEY", [
+        "# ===== Cloudflare Turnstile 人机验证 =====",
+        "# 后端 siteverify 校验用的密钥（Secret Key），必填；生产环境缺失将拒绝全部登录/注册",
+        "# 须与 family_monitor/.env 的 TURNSTILE_SITE_KEY 来自同一 Turnstile 站点",
+        "# 获取地址：https://dash.cloudflare.com/  -> Turnstile -> 你的站点 -> Keys",
+    ], ""),
+    ("ZHIPUAI_API_KEY", [
+        "# ===== 智谱 AI 对话 =====",
+        "# 留空则 AI 对话功能不可用；申请地址：https://open.bigmodel.cn/",
+    ], ""),
+    ("ZHIPUAI_MODEL", ["# 智谱 AI 模型"], "glm-4.7-flash"),
+    ("OCR_PROVIDER", [
+        "# ===== 图片 OCR 识别 =====",
+        "# OCR_PROVIDER 留空则图片识别功能不可用；可选 baidu / tencent / aliyun",
+    ], ""),
+    ("OCR_API_KEY", [], ""),
+    ("OCR_SECRET_KEY", [], ""),
+    ("GITHUB_CLIENT_ID", [
+        "# ===== GitHub OAuth 登录 =====",
+        "# 不配置 GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET 时前端隐藏 GitHub 登录按钮",
+        "# 申请地址：https://github.com/settings/developers -> New OAuth App",
+    ], ""),
+    ("GITHUB_CLIENT_SECRET", [], ""),
+    ("GITHUB_OAUTH_CALLBACK_URL", [],
+     "https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback"),
+    ("FAMILY_WEB_URL", ["# family_monitor 前端地址（OAuth 回调后 302 跳转用）"],
+     "https://my-website.ccwu.cc/eating-medication/family"),
+]
+
+
+def _backfill_env_fields(env_path: Path):
+    """为已存在的 .env 补齐缺失的必填字段，避免旧版精简模板缺少关键字段。
+
+    仅追加缺失的字段行（保留已有配置），不会覆盖用户已填写的值。
+    """
     try:
-        env_path.write_text(env_content, encoding='utf-8')
-        os.chmod(env_path, 0o600)
-        logger.info(f"首次运行：已自动生成 {env_path}（含随机 SECRET_KEY，DEBUG=true）")
-        logger.warning("生产部署时请将 .env 中 DEBUG 改为 false")
+        content = env_path.read_text(encoding='utf-8')
     except Exception as e:
-        logger.warning(f"自动生成 .env 失败: {e}")
+        logger.warning(f"读取已有 .env 失败，跳过补齐: {e}")
+        return
+
+    missing = [
+        (key, comments, default)
+        for key, comments, default in _BACKFILL_FIELDS
+        if not re.search(rf'^\s*{re.escape(key)}\s*=', content, re.MULTILINE)
+    ]
+    if not missing:
+        return
+
+    lines = ["\n# ===== 自动补齐的必填字段（原 .env 缺失，已追加；按需填写后重启生效） ====="]
+    for key, comments, default in missing:
+        lines.extend(comments)
+        lines.append(f"{key}={default}")
+
+    try:
+        with env_path.open('a', encoding='utf-8') as f:
+            f.write("\n" + "\n".join(lines) + "\n")
+        logger.warning(
+            f"已为 {env_path} 补齐缺失字段：{', '.join(k for k, _, _ in missing)}"
+        )
+    except Exception as e:
+        logger.warning(f"补齐 .env 字段失败: {e}")
 
 
-# 模块加载时确保 .env 存在
+def _ensure_default_env():
+    """确保 .env 存在且包含全部必填字段。
+
+    - 首次运行无 .env：写入完整模板（含随机 SECRET_KEY + DEBUG=true），开箱即用。
+    - 已存在但缺失关键字段（如 Cloudflare Turnstile、GitHub OAuth）：自动补齐，
+      修复旧版「精简 .env」导致必填字段缺失的问题。
+
+    .env 已在 .gitignore 中忽略，不会上传到仓库。生产部署时请手动修改 DEBUG=false。
+    """
+    # .env 位于 server/ 目录（与 server/app/main.py 同级，即 BASE_DIR）
+    env_path = Path(__file__).resolve().parent.parent.parent / '.env'
+    if not env_path.exists():
+        # 首次运行：写入完整模板
+        secret_key = _generate_secret_key()
+        try:
+            _write_full_env(env_path, secret_key)
+            logger.info(f"首次运行：已自动生成 {env_path}（含随机 SECRET_KEY，DEBUG=true）")
+            logger.warning("生产部署时请将 .env 中 DEBUG 改为 false")
+        except Exception as e:
+            logger.warning(f"自动生成 .env 失败: {e}")
+    else:
+        # 已存在：补齐缺失的必填字段
+        _backfill_env_fields(env_path)
+
+
+# 模块加载时确保 .env 存在且字段完整
 _ensure_default_env()
 
 

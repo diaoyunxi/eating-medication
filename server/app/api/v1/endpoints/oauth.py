@@ -58,10 +58,25 @@ def _cookie_kwargs(max_age: int) -> dict:
     }
 
 
+def _github_oauth_status() -> dict:
+    """返回 GitHub OAuth 是否启用（client_id 与 client_secret 均配置才启用）"""
+    return {"enabled": bool(settings.GITHUB_CLIENT_ID and settings.GITHUB_CLIENT_SECRET)}
+
+
 @router.get("/oauth/github/config")
 def github_oauth_config():
-    """前端用于判断 GitHub 登录按钮是否显示"""
-    return {"enabled": bool(settings.GITHUB_CLIENT_ID and settings.GITHUB_CLIENT_SECRET)}
+    """前端用于判断 GitHub 登录按钮是否显示（family_monitor 代理调用此端点）"""
+    return _github_oauth_status()
+
+
+@router.get("/oauth/github/enabled")
+def github_oauth_enabled():
+    """GitHub 登录启用状态探测的兼容别名（与 /config 返回一致）
+
+    部分前端/部署拓扑可能直接请求 /enabled（而非经 family_monitor 代理的 /config），
+    此处保证 server 端同样提供该端点，避免 404 导致 GitHub 登录按钮无法显示。
+    """
+    return _github_oauth_status()
 
 
 @router.get("/oauth/github/authorize")

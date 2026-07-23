@@ -7,7 +7,6 @@
 
 import sys
 import os
-import secrets
 import subprocess
 import importlib
 import json
@@ -83,7 +82,11 @@ def check_and_install_dependencies():
 
 
 def create_app_dirs():
-    """创建服务端所需的目录和默认配置文件"""
+    """创建服务端所需的目录和默认配置文件
+
+    .env 的完整生成与缺失字段补齐统一由 app.core.config._ensure_default_env() 负责，
+    避免此处再维护一份「精简版」模板，从而遗漏 Cloudflare Turnstile / GitHub OAuth 等必填字段。
+    """
     data_dir = Path("data")
     data_dir.mkdir(exist_ok=True)
     print(f"已创建数据目录: {data_dir}")
@@ -92,34 +95,15 @@ def create_app_dirs():
     logs_dir.mkdir(exist_ok=True)
     print(f"已创建日志目录: {logs_dir}")
 
-    env_file = Path(".env")
-    if not env_file.exists():
-        # C2：生产默认 DEBUG=False，SECRET_KEY 用 secrets.token_urlsafe(32) 动态生成
-        random_secret = secrets.token_urlsafe(32)
-        default_env = (
-            "# 服务端配置\n"
-            "APP_NAME=老人用药管理系统\n"
-            "DEBUG=False\n"
-            "API_V1_PREFIX=/api/v1\n"
-            "\n"
-            "# 数据库\n"
-            "DATABASE_URL=sqlite:///./data/elderly_care.db\n"
-            "\n"
-            "# JWT 密钥（已自动随机生成，请妥善保存）\n"
-            f"SECRET_KEY={random_secret}\n"
-            "ALGORITHM=HS256\n"
-            "ACCESS_TOKEN_EXPIRE_MINUTES=60\n"
-            "\n"
-            "# CORS 允许的来源（逗号分隔，生产环境必须修改为实际域名）\n"
-            "ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000\n"
-            "\n"
-            "# 路径前缀（Cloudflare 隧道子路径，本地直连设为空）\n"
-            "PATH_PREFIX=/eating-medication/server\n"
-        )
-        env_file.write_text(default_env, encoding='utf-8')
-        print("已创建默认 .env 配置文件，已自动生成随机 SECRET_KEY。")
-    else:
-        print("已找到 .env 配置文件")
+    # 确保 .env 存在且包含全部必填字段：
+    # - 首次运行写入完整模板（含 Turnstile / GitHub OAuth / AI / OCR / CORS 等）
+    # - 已存在但缺失关键字段时自动补齐（修复旧版精简 .env）
+    try:
+        from app.core.config import _ensure_default_env
+        _ensure_default_env()
+        print("已确保 .env 配置文件（含全部必填字段）")
+    except Exception as e:
+        print(f"确保 .env 配置文件失败: {e}")
 
 
 def start_server():

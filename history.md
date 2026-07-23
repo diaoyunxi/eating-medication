@@ -1,5 +1,23 @@
 # 项目开发历史记录
 
+## v2.10.4 (2026-07-23) — 修复自动生成的 .env 仍缺失必填字段（Turnstile / GitHub OAuth 等）
+
+### 概述
+v2.10.2 已让 `server/app/core/config.py` 的 `_ensure_default_env` 生成含全部字段的 .env 模板，但 `server/main.py` 的 `create_app_dirs()` 在 `start_server()` **之前**会先写入一份「精简版」.env（仅 `APP_NAME`/`DEBUG`/`SECRET_KEY`/`ALLOWED_ORIGINS` 等），导致后续 config.py 检测到 .env 已存在而直接 `return`，完整模板从未落盘。最终磁盘上的 .env 仍是精简版，缺少 `TURNSTILE_SECRET_KEY`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` 等必填字段，表现为"依旧不携带必须字段"。
+
+### 主要变更
+- **`server/main.py`** 的 `create_app_dirs`：移除自带的精简版 .env 写入，改为统一调用 `app.core.config._ensure_default_env()`，由 config.py 全权负责 .env 生成，消除两处模板竞争导致的字段缺失；并移除不再使用的 `import secrets`。
+- **`server/app/core/config.py`** 的 `_ensure_default_env`：拆分为"首次写完整模板"与"已存在则补齐缺失字段"：
+  - 新增 `_backfill_env_fields()`：对已有 .env 缺失的必填/重要字段（`TURNSTILE_SECRET_KEY`、`ZHIPUAI_API_KEY`/`ZHIPUAI_MODEL`、`OCR_PROVIDER`/`OCR_API_KEY`/`OCR_SECRET_KEY`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`GITHUB_OAUTH_CALLBACK_URL`、`FAMILY_WEB_URL`）自动追加并附注释，保留用户原有配置，修复已部署的旧精简 .env。
+  - 字段注释补充获取地址（Cloudflare Turnstile、智谱 AI、GitHub OAuth），便于上线填写。
+- **`server/app/api/v1/endpoints/oauth.py`**：新增 `GET /api/v1/auth/oauth/github/enabled` 别名（与 `/config` 返回一致的 `{"enabled": ...}`）。
+  - 说明：前端登录页探测 GitHub 登录走的是 `family_monitor` 代理 `/oauth/github/enabled` → server `/auth/oauth/github/config`，该链路本身已一致；新增 server 端 `/enabled` 仅为安全网，确保任何拓扑下该端点都不会 404，GitHub 登录按钮可正常显示（前提是在 .env 中填好 `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`）。
+- 版本号 2.10.3 → 2.10.4（补丁号递增，向下兼容）。
+
+### 注意事项
+- 已部署的旧实例**重启服务端即可自动补齐**缺失字段，无需手动改 .env。
+- 自动补齐仅追加缺失字段行，不会覆盖已填写的值；若需将精简 .env 升级为完整注释模板，可删除 .env 后重启（会重新生成完整模板，但 `SECRET_KEY` 会重置，需重新配置）。
+
 ## v2.10.3 (2026-07-22) — 修正 README 配置说明以贴合代码实际
 
 ### 概述
