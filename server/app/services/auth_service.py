@@ -14,20 +14,21 @@ class AuthService:
     def register(db: Session, req: RegisterReq, oauth_pending: dict = None) -> str:
         """用户注册，返回 access_token
 
-        :param oauth_pending: GitHub OAuth 待补全身份令牌载荷（dict），非空表示 OAuth 注册，
-                              将绑定 github_id 并写入 oauth_provider="github"。
+        :param oauth_pending: OAuth 待补全身份令牌载荷（dict），非空表示第三方 OAuth 注册，
+                              将绑定对应平台的账号（github_id / gitee_id）、写入 oauth_provider
+                              与 email（如 Gitee 已授权 emails 权限）。provider 取值 "github"/"gitee"。
         """
-        # ===== GitHub OAuth 注册：绑定 github_id =====
-        github_id = None
-        oauth_provider = None
+        # ===== OAuth 注册：绑定第三方账号 =====
+        provider = None
+        provider_id = None
+        email = None
         if oauth_pending:
-            github_id = oauth_pending.get("github_id")
-            oauth_provider = "github"
-            # 双保险：确认该 GitHub 账号尚未绑定其他本地账号
-            if github_id:
-                bound = db.query(User).filter(User.github_id == github_id).first()
-                if bound:
-                    raise ValueError("该 GitHub 账号已绑定其他用户")
+            provider = oauth_pending.get("provider")
+            provider_id = oauth_pending.get("provider_id")
+            email = oauth_pending.get("email")
+            # 双保险：确认该第三方账号尚未绑定其他本地账号
+            if provider and provider_id and AuthService.get_by_provider(db, provider, provider_id):
+                raise ValueError(f"该 {provider} 账号已绑定其他用户")
 
         # 用户名冲突自动加数字后缀（如 octocat -> octocat2），保证唯一
         base_username = req.username
@@ -45,9 +46,13 @@ class AuthService:
             role=req.role,
             phone=req.phone,
             group_id=None,
-            github_id=github_id,
-            oauth_provider=oauth_provider,
+            email=email,
+            oauth_provider=provider,
         )
+        if provider == "github":
+            user.github_id = provider_id
+        elif provider == "gitee":
+            user.gitee_id = provider_id
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -56,11 +61,22 @@ class AuthService:
         return create_access_token(data={"sub": user.id})
 
     @staticmethod
-    def get_by_github_id(db: Session, github_id: int) -> Optional["User"]:
-        """按 GitHub 用户 ID 查询已绑定的本地账号；无则返回 None"""
-        if not github_id:
+    def get_by_provider(db: Session, provider: str, provider_id) -> Optional["User"]:
+        """按第三方平台用户 ID 查询已绑定的本地账号；无则返回 None
+
+        :param provider: "github" 或 "gitee"
+        """
+        if not provider_id:
             return None
-        return db.query(User).filter(User.github_id == github_id).first()
+        if provider == "gitee":
+            return db.query(User).filter(User.gitee_id == provider_id).first()
+        # 默认按 github 处理（兼容旧逻辑）
+        return db.query(User).filter(User.github_id == provider_id).first()
+
+    @staticmethod
+    def get_by_github_id(db: Session, github_id: int) -> Optional["User"]:
+        """按 GitHub 用户 ID 查询已绑定的本地账号（兼容别名，内部转调 get_by_provider）"""
+        return AuthService.get_by_provider(db, "github", github_id)
 
     @staticmethod
     def login(db: Session, username: str, password: str) -> Optional[str]:

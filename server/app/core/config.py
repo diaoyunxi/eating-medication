@@ -77,7 +77,14 @@ def _write_full_env(env_path: Path, secret_key: str):
         f"GITHUB_CLIENT_SECRET=\n"
         f"GITHUB_OAUTH_CALLBACK_URL=https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback\n"
         f"# family_monitor 前端地址（OAuth 回调后 302 跳转用）\n"
-        f"FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family\n"
+        f"FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family\n\n"
+        f"# ===== Gitee OAuth 登录 =====\n"
+        f"# 不配置 GITEE_CLIENT_ID / GITEE_CLIENT_SECRET 时前端隐藏 Gitee 登录按钮\n"
+        f"# 申请地址：https://gitee.com/oauth/applications -> 创建应用（勾选 user_info、emails 权限）\n"
+        f"# 回调地址须与 GITEE_OAUTH_CALLBACK_URL 完全一致\n"
+        f"GITEE_CLIENT_ID=\n"
+        f"GITEE_CLIENT_SECRET=\n"
+        f"GITEE_OAUTH_CALLBACK_URL=https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback\n"
     )
     env_path.write_text(env_content, encoding='utf-8')
     os.chmod(env_path, 0o600)
@@ -113,6 +120,14 @@ _BACKFILL_FIELDS = [
      "https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback"),
     ("FAMILY_WEB_URL", ["# family_monitor 前端地址（OAuth 回调后 302 跳转用）"],
      "https://my-website.ccwu.cc/eating-medication/family"),
+    ("GITEE_CLIENT_ID", [
+        "# ===== Gitee OAuth 登录 =====",
+        "# 不配置 GITEE_CLIENT_ID / GITEE_CLIENT_SECRET 时前端隐藏 Gitee 登录按钮",
+        "# 申请地址：https://gitee.com/oauth/applications -> 创建应用（勾选 user_info、emails 权限）",
+    ], ""),
+    ("GITEE_CLIENT_SECRET", [], ""),
+    ("GITEE_OAUTH_CALLBACK_URL", [],
+     "https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback"),
 ]
 
 
@@ -218,6 +233,12 @@ class Settings(BaseSettings):
     GITHUB_OAUTH_CALLBACK_URL: str = "https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback"
     # family_monitor 前端地址（OAuth 回调验证成功后 302 跳转用，与 Cloudflare 隧道子路径一致）
     FAMILY_WEB_URL: str = "https://my-website.ccwu.cc/eating-medication/family"
+
+    # ===== Gitee OAuth 登录配置 =====
+    GITEE_CLIENT_ID: Optional[str] = None
+    GITEE_CLIENT_SECRET: Optional[str] = None
+    # Gitee OAuth 回调 URL（须与 Gitee 后台 "应用回调地址" 完全一致）
+    GITEE_OAUTH_CALLBACK_URL: str = "https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback"
 
     class Config:
         env_file = ".env"

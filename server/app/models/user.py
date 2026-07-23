@@ -37,8 +37,13 @@ class User(Base):
     # ===== GitHub OAuth 关联字段 =====
     # GitHub 用户唯一 ID（首次 OAuth 登录绑定，唯一索引），非 GitHub 用户为 NULL
     github_id = Column(Integer, nullable=True, unique=True, index=True)
-    # OAuth 提供方标识，如 "github"；本地注册用户为 NULL
+    # OAuth 提供方标识，如 "github" / "gitee"；本地注册用户为 NULL
     oauth_provider = Column(String(20), nullable=True)
+    # Gitee OAuth 关联字段（与 github 对称）
+    # Gitee 用户唯一 ID（首次 OAuth 登录绑定，唯一索引），非 Gitee 用户为 NULL
+    gitee_id = Column(Integer, nullable=True, unique=True, index=True)
+    # 第三方 OAuth 返回的邮箱（如 Gitee 已授权 emails 权限），本地注册用户为 NULL
+    email = Column(String(255), nullable=True)
 
     # 关联关系
     medication_plans = relationship("MedicationPlan", back_populates="user", cascade="all, delete-orphan")
