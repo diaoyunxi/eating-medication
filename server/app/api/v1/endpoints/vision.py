@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, JSONResponse
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
+from fastapi.responses import JSONResponse
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.vision import ImageRecognitionResp
