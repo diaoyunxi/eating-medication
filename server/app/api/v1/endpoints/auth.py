@@ -5,10 +5,11 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.dependencies import get_db
 from app.core.security import verify_oauth_pending_token
-from app.schemas.auth import RegisterReq, LoginReq, TokenResp
+from app.schemas.auth import RegisterReq, LoginReq, TokenResp, EmailSendCodeReq, EmailCodeLoginReq
 from app.services.auth_service import AuthService
 from app.utils.rate_limit import check_rate_limit
 from app.utils.request_utils import get_client_ip
+from app.utils import email_code as email_code_store
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,10 @@ router = APIRouter(prefix="/auth", tags=["认证"])
 _REGISTER_RATE_LIMIT = 5
 # 登录限流——每分钟每 IP 最多 10 次登录
 _LOGIN_RATE_LIMIT = 10
+# 邮箱验证码发送限流——每分钟每 IP 最多 5 次
+_EMAIL_SEND_RATE_LIMIT = 5
+# 邮箱验证码登录限流——每分钟每 IP 最多 10 次
+_EMAIL_LOGIN_RATE_LIMIT = 10
 
 
 def verify_turnstile(token: str) -> bool:
@@ -100,3 +105,50 @@ def login(req: LoginReq, request: Request, db: Session = Depends(get_db)):
     if token is None:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     return TokenResp(access_token=token, token_type="bearer")
+
+
+@router.post("/email/send-code")
+def email_send_code(req: EmailSendCodeReq, request: Request, db: Session = Depends(get_db)):
+    """邮箱验证码 - 发送验证码（Turnstile 人机验证 + 限流 + 安全策略）
+
+    无论邮箱是否已注册都发送验证码（不泄露账号存在性）；具体登录/注册在 /email/code-login 处理。
+    """
+    # Turnstile 人机验证
+    if not verify_turnstile(req.cf_turnstile_token):
+        raise HTTPException(status_code=400, detail="人机验证失败，请重试")
+    # 限流（使用真实客户端 IP）
+    client_ip = get_client_ip(request)
+    if not check_rate_limit(f"email_send:{client_ip}", _EMAIL_SEND_RATE_LIMIT):
+        raise HTTPException(status_code=429, detail="验证码请求过于频繁，请稍后再试")
+
+    ok, msg = email_code_store.send_code(req.email)
+    if not ok:
+        # 邮件服务未配置 / 发送失败 / 频率限制等，统一以 400 返回提示
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg}
+
+
+@router.post("/email/code-login", response_model=TokenResp)
+def email_code_login(req: EmailCodeLoginReq, request: Request, db: Session = Depends(get_db)):
+    """邮箱验证码 - 登录 / 自动注册（Turnstile 人机验证 + 限流）
+
+    - 验证码校验通过但邮箱未注册：自动创建账号并登录。
+    - 验证码错误或过期：返回 400（不区分是否已注册，避免泄露账号存在性）。
+    """
+    # Turnstile 人机验证
+    if not verify_turnstile(req.cf_turnstile_token):
+        raise HTTPException(status_code=400, detail="人机验证失败，请重试")
+    # 限流（使用真实客户端 IP）
+    client_ip = get_client_ip(request)
+    if not check_rate_limit(f"email_login:{client_ip}", _EMAIL_LOGIN_RATE_LIMIT):
+        raise HTTPException(status_code=429, detail="登录请求过于频繁，请稍后再试")
+
+    # 先校验验证码（不泄露账号存在性）；验证码无效不进入账号逻辑
+    if not email_code_store.verify_code(req.email, req.code):
+        raise HTTPException(status_code=400, detail="验证码错误或已过期，请重新获取")
+
+    try:
+        token = AuthService.login_or_register_by_email(db, req.email)
+        return TokenResp(access_token=token, token_type="bearer")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

@@ -85,7 +85,21 @@ def _write_full_env(env_path: Path, secret_key: str):
         f"# 回调地址须与 GITEE_OAUTH_CALLBACK_URL 完全一致\n"
         f"GITEE_CLIENT_ID=\n"
         f"GITEE_CLIENT_SECRET=\n"
-        f"GITEE_OAUTH_CALLBACK_URL=https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback\n"
+        f"GITEE_OAUTH_CALLBACK_URL=https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback\n\n"
+        f"# ===== 邮件发送（邮箱验证码登录 / 找回密码） =====\n"
+        f"# MAIL_PROVIDER: smtp=标准SMTP；api=Resend兼容HTTP API；留空则邮件功能禁用\n"
+        f"MAIL_PROVIDER=\n"
+        f"# --- SMTP 后端 ---\n"
+        f"MAIL_HOST=\n"
+        f"MAIL_PORT=\n"
+        f"MAIL_USERNAME=\n"
+        f"MAIL_PASSWORD=\n"
+        f"MAIL_FROM=\n"
+        f"MAIL_USE_TLS=true\n"
+        f"MAIL_USE_SSL=false\n"
+        f"# --- HTTP API 后端（Resend 兼容：POST MAIL_API_URL，Bearer MAIL_API_KEY） ---\n"
+        f"MAIL_API_URL=https://api.resend.com/emails\n"
+        f"MAIL_API_KEY=\n"
     )
     env_path.write_text(env_content, encoding='utf-8')
     os.chmod(env_path, 0o600)
@@ -129,6 +143,21 @@ _BACKFILL_FIELDS = [
     ("GITEE_CLIENT_SECRET", [], ""),
     ("GITEE_OAUTH_CALLBACK_URL", [],
      "https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback"),
+    ("MAIL_PROVIDER", [
+        "# ===== 邮件发送（邮箱验证码登录 / 找回密码） =====",
+        "# MAIL_PROVIDER: smtp=标准SMTP；api=Resend兼容HTTP API；留空则邮件功能禁用",
+    ], ""),
+    ("MAIL_HOST", ["# --- SMTP 后端 ---"], ""),
+    ("MAIL_PORT", [], ""),
+    ("MAIL_USERNAME", [], ""),
+    ("MAIL_PASSWORD", [], ""),
+    ("MAIL_FROM", [], ""),
+    ("MAIL_USE_TLS", [], "true"),
+    ("MAIL_USE_SSL", [], "false"),
+    ("MAIL_API_URL", [
+        "# --- HTTP API 后端（Resend 兼容：POST MAIL_API_URL，Bearer MAIL_API_KEY） ---",
+    ], "https://api.resend.com/emails"),
+    ("MAIL_API_KEY", [], ""),
 ]
 
 
@@ -240,6 +269,21 @@ class Settings(BaseSettings):
     GITEE_CLIENT_SECRET: Optional[str] = None
     # Gitee OAuth 回调 URL（须与 Gitee 后台 "应用回调地址" 完全一致）
     GITEE_OAUTH_CALLBACK_URL: str = "https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback"
+
+    # ===== 邮件发送配置（SMTP / HTTP API 双后端，可切换） =====
+    # MAIL_PROVIDER: "smtp" 标准 SMTP；"api" Resend 兼容 HTTP API；留空则邮件功能禁用
+    MAIL_PROVIDER: Optional[str] = None
+    # SMTP 后端
+    MAIL_HOST: Optional[str] = None
+    MAIL_PORT: Optional[int] = None
+    MAIL_USERNAME: Optional[str] = None
+    MAIL_PASSWORD: Optional[str] = None
+    MAIL_FROM: Optional[str] = None
+    MAIL_USE_TLS: bool = True
+    MAIL_USE_SSL: bool = False
+    # HTTP API 后端（Resend 兼容：POST MAIL_API_URL，Bearer MAIL_API_KEY）
+    MAIL_API_URL: Optional[str] = None
+    MAIL_API_KEY: Optional[str] = None
 
     class Config:
         env_file = ".env"
