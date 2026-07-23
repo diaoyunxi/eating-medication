@@ -48,6 +48,12 @@ logs/
 # 放行根目录统一自动更新器（必须纳入版本管理，各模块 main.py 依赖它）
 !updater.py
 
+# 放行测试套件与 pytest 配置（CI 通过 `pytest` 运行，必须纳入版本管理）
+!tests/
+!tests/**
+!conftest.py
+!pytest.ini
+
 # ===== OS =====
 .DS_Store
 Thumbs.db
