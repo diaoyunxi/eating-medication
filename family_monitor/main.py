@@ -326,6 +326,10 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
 
+    # 启动期集中校验「最基本必填」配置；缺失或非法则打印提示并结束进程
+    from core.config import validate_mandatory_config
+    validate_mandatory_config()
+
     # 启动时检查更新
     # 默认仅提示有新版本，不自动拉取（避免供应链风险）
     # 需通过环境变量 AUTO_UPDATE=true 才启用自动拉取

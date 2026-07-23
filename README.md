@@ -1,8 +1,23 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.11.0**
+> 当前版本：**v2.12.0**
 > 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
+
+## 配置健壮性与降级策略
+
+系统对配置缺失采取分层处理，确保「任意可选 key 缺失仍可运行，基础必填缺失则明确报错退出」：
+
+- **可选外部服务（缺失自动降级，不崩溃）**：
+  - **Cloudflare Turnstile 人机验证**：`TURNSTILE_SECRET_KEY` 未配置时，登录/注册自动跳过验证（记录 warning），功能仍可用。
+  - **GitHub / Gitee OAuth**：凭据缺失时前端隐藏对应登录按钮、探测接口返回 `enabled:false`，不影响账号密码登录。
+  - **OCR 药名识别**：`OCR_PROVIDER` / `OCR_API_KEY` 未配置时，`/vision/recognize` 返回友好提示（HTTP 200 + `configured:false`）而非 500 错误。
+- **基础必填配置（缺失或非法则启动即打印提示并结束进程）**：
+  - `SECRET_KEY`：生产环境（`DEBUG=false`）必须显式配置，禁止运行时随机密钥（安全考虑）。
+  - `APP_NAME` / `DATABASE_URL`：应用名称与数据库地址，禁止为空。
+  - `API_V1_PREFIX`：API 路由前缀，必须非空且以 `/` 开头。
+  - `PATH_PREFIX`：路径前缀，允许为空（本地直连）；若非空须以 `/` 开头。
+  - 三端（server / family_monitor）均在启动期统一校验，校验失败会输出缺失项清单并 `sys.exit(1)`，避免以错误配置静默运行。
 
 ## 第三方 OAuth 登录配置
 

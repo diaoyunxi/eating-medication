@@ -12,9 +12,15 @@ class VisionService:
 
     @staticmethod
     async def _recognize_baidu(image_data: bytes) -> Dict[str, Any]:
-        """调用百度OCR识别"""
+        """调用百度OCR识别
+
+        :return: {"configured": True, "text": "..."} 或配置缺失时 {"configured": False, "reason": "..."}
+        """
         if not settings.OCR_API_KEY or not settings.OCR_SECRET_KEY:
-            raise Exception("百度OCR配置不完整，请配置 OCR_API_KEY 和 OCR_SECRET_KEY")
+            return {
+                "configured": False,
+                "reason": "百度OCR配置不完整，请配置 OCR_API_KEY 和 OCR_SECRET_KEY",
+            }
 
         try:
             token_url = "https://aip.baidubce.com/oauth/2.0/token"
@@ -46,6 +52,7 @@ class VisionService:
                     if result.get('words_result'):
                         text = '\n'.join([word['words'] for word in result['words_result']])
                         return {
+                            'configured': True,
                             'text': text,
                             'words': [word['words'] for word in result['words_result']]
                         }
@@ -59,12 +66,12 @@ class VisionService:
     @staticmethod
     async def _recognize_tencent(image_data: bytes) -> Dict[str, Any]:
         """调用腾讯OCR识别"""
-        raise Exception("腾讯OCR功能尚未实现")
+        return {"configured": False, "reason": "腾讯云 OCR 功能尚未实现"}
 
     @staticmethod
     async def _recognize_aliyun(image_data: bytes) -> Dict[str, Any]:
         """调用阿里云OCR识别"""
-        raise Exception("阿里云OCR功能尚未实现")
+        return {"configured": False, "reason": "阿里云 OCR 功能尚未实现"}
 
     @staticmethod
     async def _extract_drug_name(text: str) -> str:
@@ -92,15 +99,24 @@ class VisionService:
 
     @staticmethod
     async def recognize(image_data: bytes) -> Dict[str, Any]:
-        """识别药品图片，返回药名和置信度"""
+        """识别药品图片，返回药名和置信度
+
+        OCR 未配置或不可用时返回 {"configured": False, "reason": "..."}（降级，不抛异常），
+        由调用方返回友好提示，避免返回 500。
+        """
+        # OCR 未配置：优雅降级
         if not settings.OCR_PROVIDER:
-            raise Exception("OCR服务未配置，请设置 OCR_PROVIDER 为 'baidu', 'tencent' 或 'aliyun'")
-        
+            return {
+                "configured": False,
+                "reason": "OCR 服务未配置，请设置 OCR_PROVIDER 为 'baidu'/'tencent'/'aliyun'",
+            }
         if not settings.OCR_API_KEY:
-            raise Exception("OCR服务API密钥未配置，请设置 OCR_API_KEY")
-        
+            return {
+                "configured": False,
+                "reason": "OCR 服务 API 密钥未配置，请设置 OCR_API_KEY",
+            }
+
         ocr_result = None
-        
         if settings.OCR_PROVIDER == 'baidu':
             ocr_result = await VisionService._recognize_baidu(image_data)
         elif settings.OCR_PROVIDER == 'tencent':
@@ -108,16 +124,26 @@ class VisionService:
         elif settings.OCR_PROVIDER == 'aliyun':
             ocr_result = await VisionService._recognize_aliyun(image_data)
         else:
-            raise Exception(f"不支持的OCR提供商: {settings.OCR_PROVIDER}")
-        
+            return {
+                "configured": False,
+                "reason": f"不支持的 OCR 服务商: {settings.OCR_PROVIDER}",
+            }
+
+        # 子服务未配置/未实现：直接返回降级提示
+        if ocr_result and ocr_result.get("configured") is False:
+            return ocr_result
+
         if ocr_result and ocr_result.get('text'):
             drug_name = await VisionService._extract_drug_name(ocr_result['text'])
-            # 从 OCR 结果提取置信度，无法获取时返回 None
             confidence = ocr_result.get('confidence')
             return {
+                "configured": True,
                 'name': drug_name,
-                'confidence': confidence,  # 可能为 None（OCR 未返回置信度）
+                'confidence': confidence,
                 'raw_text': ocr_result['text']
             }
-        
-        raise Exception("OCR识别未返回有效结果")
+
+        return {
+            "configured": False,
+            "reason": "OCR 识别未返回有效结果",
+        }
