@@ -43,8 +43,7 @@ logs/
 *.swp
 *.swo
 *~
-.codebuddy/
-*
+/*
 # 放行根目录统一自动更新器（必须纳入版本管理，各模块 main.py 依赖它）
 !updater.py
 
@@ -76,3 +75,8 @@ pan_credentials.json
 *.rar
 SHA256SUMS.txt
 *.SHA256SUMS.txt
+
+# ==== 其他文件 ====
+!/src/
+!package.json
+!/.github
