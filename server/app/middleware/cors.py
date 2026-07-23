@@ -4,11 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 def setup_cors(app):
     """
-    配置 CORS 允许特定来源（C7）。
+    配置 CORS 允许特定来源。
     生产环境必须通过 ALLOWED_ORIGINS 环境变量配置白名单。
     未配置时不启用 CORS（拒绝跨域），避免使用不安全的通配符 "*"。
 
-    S-09 修复：直接从 settings.ALLOWED_ORIGINS 读取，移除模块级重复读取环境变量。
+    直接从 settings.ALLOWED_ORIGINS 读取，移除模块级重复读取环境变量。
     """
     from app.core.config import settings
     # 直接使用 settings 中已加载的 ALLOWED_ORIGINS（逗号分隔）

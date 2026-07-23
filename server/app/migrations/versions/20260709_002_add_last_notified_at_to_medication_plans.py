@@ -1,6 +1,6 @@
 """add last_notified_at column to medication_plans table
 
-S-05 修复：在 medication_plans 表新增 last_notified_at 字段，
+在 medication_plans 表新增 last_notified_at 字段，
 用于低库存通知去重，每条计划每天最多通知一次，避免重复打扰。
 
 Revision ID: 20260709_002

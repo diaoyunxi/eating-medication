@@ -8,12 +8,12 @@ from app.core.exceptions import BusinessError
 
 logger = logging.getLogger(__name__)
 
-# M18：需要脱敏的请求体字段（子串匹配，不区分大小写）
+# 需要脱敏的请求体字段（子串匹配，不区分大小写）
 _SENSITIVE_FIELDS = ("password", "token", "authorization")
 
 
 def _redact_request_body(body_bytes: bytes) -> str:
-    """M18：脱敏请求体中的敏感字段后返回可读文本"""
+    """脱敏请求体中的敏感字段后返回可读文本"""
     if not body_bytes:
         return ""
     body_text = body_bytes.decode("utf-8", errors="replace")
@@ -52,7 +52,7 @@ def add_exception_handlers(app: FastAPI):
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
         """处理所有未捕获的异常"""
-        # M18：脱敏请求体中的敏感字段后再记录
+        # 脱敏请求体中的敏感字段后再记录
         try:
             body_bytes = await request.body()
         except Exception:

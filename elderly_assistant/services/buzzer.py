@@ -85,7 +85,7 @@ class Buzzer:
         """停止蜂鸣器（停止持续提醒）"""
         with self._lock:
             self._reminding = False
-        # P15 修复：先 join 提醒线程再停止蜂鸣器，避免线程竞态
+        # 先 join 提醒线程再停止蜂鸣器，避免线程竞态
         if self._reminder_thread and self._reminder_thread.is_alive():
             self._reminder_thread.join(timeout=2)
         if self.buzzer:

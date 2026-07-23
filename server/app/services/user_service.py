@@ -115,7 +115,7 @@ class UserService:
         if not elderly or not family:
             return None
 
-        # 设备关联逻辑（修复"设备即用户"缺陷）
+        # 设备关联逻辑
         if device_id:
             # 校验 device_id 未被其他老人占用
             existing = db.query(User).filter(User.device_id == device_id).first()
@@ -140,7 +140,7 @@ class UserService:
                 UserService._migrate_virtual_user_data(db, virtual_user, elderly)
                 # 删除虚拟用户（不会触发级联删除，因为数据已迁移）
                 db.delete(virtual_user)
-                # S-03 修复：移除中间 commit，统一在方法末尾提交，保证单一事务
+                # 移除中间 commit，统一在方法末尾提交，保证单一事务
 
             # 把 device_id 关联到真实老人
             elderly.device_id = device_id
@@ -150,10 +150,10 @@ class UserService:
         # 家庭组绑定（原有逻辑）
         if elderly.group_id is None:
             elderly.group_id = elderly.id
-            # S-03 修复：移除中间 commit，统一在方法末尾提交
+            # 移除中间 commit，统一在方法末尾提交
 
         family.group_id = elderly.group_id
-        # S-03 修复：单一事务，仅在方法末尾 commit 一次，异常时回滚
+        # 单一事务，仅在方法末尾 commit 一次，异常时回滚
         try:
             db.commit()
         except Exception:

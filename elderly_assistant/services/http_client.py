@@ -43,7 +43,7 @@ def _save_device_token(token):
 
 class HTTPClient:
     def __init__(self, config):
-        # P7 修复：安全取值，避免 config 缺少 server 键时构造崩溃
+        # 安全取值，避免 config 缺少 server 键时构造崩溃
         server_cfg = config.get('server') or {}
         self.config = server_cfg
         self.base_url = server_cfg.get('base_url', '')
@@ -51,7 +51,7 @@ class HTTPClient:
             raise ValueError("配置缺少 server.base_url，请检查config.yaml")
         self.timeout = server_cfg.get('timeout', 10)
         self.device_id = get_device_id()
-        # 安全修复（致命1.1）：加载持久化的 device_token
+        # 加载持久化的 device_token
         self.device_token = _load_device_token()
 
     def _headers(self):
@@ -73,7 +73,7 @@ class HTTPClient:
     def register_device(self, device_name=""):
         """向服务端注册本设备
 
-        安全修复（致命1.1）：新设备注册时服务端返回 device_token，
+        新设备注册时服务端返回 device_token，
         需持久化保存并在后续请求中携带。
         """
         url = f"{self.base_url}/api/v1/public/device/register"
@@ -142,7 +142,7 @@ class HTTPClient:
             resp = requests.get(url, timeout=self.timeout, headers=self._headers())
             if resp.status_code == 200:
                 data = resp.json()
-                # P8 修复：校验响应类型，避免非 dict 响应调用 .get 崩溃
+                # 校验响应类型，避免非 dict 响应调用 .get 崩溃
                 if isinstance(data, dict):
                     return data.get('schedules', []) or []
                 elif isinstance(data, list):
@@ -185,7 +185,7 @@ class HTTPClient:
             return False
 
     def upload_image(self, image_path, endpoint=None):
-        # Bug6 修复：原代码使用 self.config['upload_endpoint'] 直接索引访问，
+        # 原代码使用 self.config['upload_endpoint'] 直接索引访问，
         # 若配置缺少该键则抛出 KeyError，且该行在 try/except 块外导致程序崩溃。
         # 改用 .get() 安全访问，并提供默认值。
         if endpoint is None:

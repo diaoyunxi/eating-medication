@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 简单的内存限流工具（基于调用方标识，每分钟固定次数）。
-用于 AI 公开端点（C5.6/M21）与注册端点（L8）等场景。
+用于 AI 公开端点与注册端点等场景。
 注意：仅适用于单进程部署，多进程需改用 Redis 等共享存储。
 """
 import time
@@ -25,7 +25,7 @@ def check_rate_limit(key: str, max_calls: int, window_seconds: int = 60) -> bool
     cutoff = now - window_seconds
     # 清理过期记录
     recent = [t for t in _bucket[key] if t > cutoff]
-    # Bug4 修复：当 recent 为空时从 _bucket 中删除该 key，
+    # 当 recent 为空时从 _bucket 中删除该 key，
     # 避免 _bucket 无限增长（每个新 IP 或 key 都会留下空列表条目永不清理）。
     if not recent:
         _bucket.pop(key, None)

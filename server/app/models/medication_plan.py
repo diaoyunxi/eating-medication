@@ -6,7 +6,7 @@ from app.core.database import Base
 
 
 def _utcnow():
-    """M14：返回带时区的当前 UTC 时间"""
+    """返回带时区的当前 UTC 时间"""
     return datetime.now(timezone.utc)
 
 
@@ -22,11 +22,11 @@ class MedicationPlan(Base):
     total_quantity = Column(Float, nullable=False)    # 总数量（盒/瓶）
     remaining_quantity = Column(Float, nullable=False) # 剩余数量
     unit = Column(String, default="片")
-    # M19：统一为 Float，与 remaining_quantity 类型一致
+    # 统一为 Float，与 remaining_quantity 类型一致
     low_stock_threshold = Column(Float, default=5.0)   # 低于此数量提醒（单位：片/粒）
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
-    # S-05 修复：记录上次低库存通知时间，避免重复通知（每天最多通知一次）
+    # 记录上次低库存通知时间，避免重复通知（每天最多通知一次）
     last_notified_at = Column(DateTime, nullable=True)
 
     # 关联关系

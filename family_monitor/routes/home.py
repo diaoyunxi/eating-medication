@@ -23,7 +23,7 @@ templates.env.globals["current_year"] = datetime.now().year
 
 
 def _require_login(request: Request) -> bool:
-    """G11 修复：显式校验登录状态，防御中间件逻辑变更导致的越权"""
+    """显式校验登录状态，防御中间件逻辑变更导致的越权"""
     return bool(getattr(request.state, 'user', None))
 
 
@@ -66,7 +66,7 @@ async def index(request: Request):
 async def get_status(request: Request):
     """获取设备真实在线状态（供前端轮询）
 
-    修复：原实现返回 get_server_status()（仅服务器健康检查 GET /health），
+    原实现返回 get_server_status()（仅服务器健康检查 GET /health），
     导致设备离线但服务器存活时前端仍显示"设备在线"。
     现改用 get_device_info() 返回真实设备在线状态（基于服务端心跳超时判断）。
     """
@@ -195,7 +195,7 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
         # 2. 校验通过后再向服务端注册/绑定
         result = await elderly_client.register_device(device_id, device_name)
         if result.get("success"):
-            # 安全修复（低危10+严重1.3）：保存 device_token（仅新设备注册时返回）
+            # 保存 device_token（仅新设备注册时返回）
             device_data = result.get("data") or {}
             device_token = device_data.get("device_token", "")
             if device_token:

@@ -46,7 +46,7 @@ async def take_medication(
 ):
     """记录服药（仅老人）
 
-    F-02 修复：端点改为 async def，await 异步的 take_medication。
+    端点为 async def，内部 await 异步的 take_medication。
     """
     if current_user.role != "elderly":
         raise HTTPException(status_code=403, detail="只有老人可以记录服药")

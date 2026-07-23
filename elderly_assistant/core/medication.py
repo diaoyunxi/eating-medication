@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from utils.logger import setup_logger
 
-# P12 修复：中文数字映射，用于解析中文剂量（如"两片"、"半片"）
+# 中文数字映射，用于解析中文剂量（如"两片"、"半片"）
 CN_NUM = {'半': 0.5, '一': 1, '两': 2, '二': 2, '三': 3, '四': 4,
           '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}
 
@@ -39,13 +39,13 @@ class MedicationManager:
                         if isinstance(data, list):
                             return data
                         else:
-                            # P11 修复：数据格式异常时先备份原文件，避免直接覆盖丢失数据
+                            # 数据格式异常时先备份原文件，避免直接覆盖丢失数据
                             self.logger.error(f"药品数据格式错误，期望列表但得到 {type(data)}，备份原文件")
                             import shutil
                             shutil.copy2(self.data_path, self.data_path + '.bak')
         except json.JSONDecodeError as e:
             self.logger.error(f"药品数据 JSON 解析失败: {e}")
-            # P11 修复：JSON 解析失败也备份原文件
+            # JSON 解析失败也备份原文件
             if os.path.exists(self.data_path):
                 import shutil
                 shutil.copy2(self.data_path, self.data_path + '.bak')
@@ -95,7 +95,7 @@ class MedicationManager:
     def consume(self, med_name, dosage_str):
         """消耗药品（从提醒确认调用）"""
         try:
-            # P12 修复：使用 _parse_dosage 支持中文数字（如"两片"、"半片"）
+            # 使用 _parse_dosage 支持中文数字（如"两片"、"半片"）
             dose = float(_parse_dosage(dosage_str))
             if dose <= 0:
                 return False

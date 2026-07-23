@@ -31,6 +31,7 @@ from routes import home_router
 from routes import chat_router
 from routes import auth_router
 import logging
+from updater import __version__ as __app_version__
 
 # 使用 uvicorn.error logger，确保启动阶段的 info/warning 日志能随 uvicorn 输出
 # 否则默认 Python logging 只显示 WARNING+，应用层的 info 诊断日志将不可见
@@ -44,7 +45,6 @@ PATH_PREFIX = os.getenv("PATH_PREFIX", getattr(config, "PATH_PREFIX", "/eating-m
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    # O1 修复：启动信息改用 logger
     logger.info("=" * 60)
     logger.info(f" {config.APP_NAME} 启动中...")
     logger.info(f" 服务地址: http://{config.SERVER_HOST}:{config.SERVER_PORT}")
@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=config.APP_NAME,
     description="子女看护Web端",
-    version="2.10.3",
+    version=__app_version__,
     debug=config.DEBUG,
     lifespan=lifespan,
     root_path=PATH_PREFIX,
@@ -88,7 +88,7 @@ async def path_prefix_middleware(request: Request, call_next):
     - 响应阶段：给 3xx 重定向的 Location 头补回前缀
     本地直连（PATH_PREFIX 为空）时直接放行。
     
-    关键修复：不再直接修改 scope["path"]，而是通过 root_path 告诉 Starlette 有前缀。
+    通过 root_path 告知 Starlette 存在路径前缀，由框架统一处理前缀剥离（而非手动修改 scope["path"]），确保 Mount 路由与 StaticFiles 拿到干净路径。
     Starlette 在 Mount 路由匹配时会正确处理前缀剥离，StaticFiles 拿到的路径就是干净的。
     """
     if PATH_PREFIX:
@@ -134,7 +134,7 @@ async def auth_middleware(request: Request, call_next):
     使用 request.scope["path"]（Starlette 已通过 root_path 正确剥离前缀）。
     """
     # 公开路径精确匹配，防止路径前缀绕过
-    # 修复：public_paths 必须动态拼接 PATH_PREFIX，否则隧道子路径模式下
+    # public_paths 必须动态拼接 PATH_PREFIX，否则隧道子路径模式下
     # /eating-medication/family/login 不匹配 "/login"，导致重定向循环
     public_paths = [
         f"{PATH_PREFIX}/login" if PATH_PREFIX else "/login",
@@ -143,7 +143,7 @@ async def auth_middleware(request: Request, call_next):
         f"{PATH_PREFIX}/turnstile/site-key" if PATH_PREFIX else "/turnstile/site-key",
     ]
     path = request.scope.get("path", request.url.path)
-    # 修复：静态文件和 .well-known 路径也要考虑 PATH_PREFIX
+    # 静态文件与 .well-known 路径同样需拼接 PATH_PREFIX，否则子路径模式下被误判为非公开路径而触发重定向
     static_prefix = f"{PATH_PREFIX}/static" if PATH_PREFIX else "/static"
     wellknown_prefix = f"{PATH_PREFIX}/.well-known" if PATH_PREFIX else "/.well-known"
     is_public = (
@@ -170,7 +170,7 @@ async def auth_middleware(request: Request, call_next):
         return RedirectResponse(url=login_url, status_code=302)
 
     # 转发 JWT 到 server /users/me 验证
-    # Bug2 修复：_verify_jwt_via_server 现返回 (username, user_id) 元组
+    # 返回 (username, user_id) 元组：前端聊天页面需要 user_id 判断消息归属方向
     result = await _verify_jwt_via_server(access_token)
     if not result:
         # JWT 无效或过期，清除 cookie 并重定向登录页
@@ -188,13 +188,11 @@ async def auth_middleware(request: Request, call_next):
 
 
 async def _verify_jwt_via_server(access_token: str) -> Optional[tuple]:
-    """转发 JWT 到 server /api/v1/users/me 验证，返回用户名和数字 ID
+    """转发 JWT 到 server /api/v1/users/me 验证，返回 (username, user_id)
 
-    代码审查修复（2.1）：使用全局 httpx 客户端 + JWT 短期缓存（30s），
-    避免每个请求都新建客户端和发送 HTTP 验证请求。
-
-    Bug2 修复：原代码仅返回 username，导致前端聊天页面 currentUserId=null，
-    无法正确判断消息方向。现同时返回 (username, user_id) 元组。
+    复用全局 httpx 客户端并对验证结果做 30 秒短期缓存，避免每个请求都新建连接、
+    并发发送验证请求导致连接耗尽，同时降低对 server 的验证压力。
+    返回 user_id 是因为前端聊天页面需要它判断消息方向（自己/对方）。
 
     :param access_token: server 签发的 JWT
     :return: 验证成功返回 (username, user_id) 元组，失败返回 None
@@ -207,7 +205,7 @@ async def _verify_jwt_via_server(access_token: str) -> Optional[tuple]:
 
     verify_url = f"{config.ELDERLY_SERVER_URL.rstrip('/')}/api/v1/users/me"
     try:
-        # 代码审查修复（2.1）：使用全局 httpx 客户端复用连接
+        # 复用全局 httpx 客户端，避免每个请求新建连接
         resp = await _http_client.get(
             verify_url,
             headers={"Authorization": f"Bearer {access_token}"},

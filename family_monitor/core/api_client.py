@@ -53,7 +53,7 @@ class ElderlyAPIClient:
         return None
 
     def _load_device_token(self) -> Optional[str]:
-        """加载已绑定的设备令牌（安全修复低危10）"""
+        """加载已绑定的设备令牌"""
         device_file = config.DATA_DIR / "bound_device.json"
         if device_file.exists():
             try:
@@ -67,7 +67,7 @@ class ElderlyAPIClient:
     def save_bound_device(self, device_id: str, device_name: str = "", device_token: str = ""):
         """保存绑定的设备ID和令牌
 
-        代码审查修复（1.3）：当 device_token 为空时保留已有 token，防止重新绑定覆盖。
+        当 device_token 为空时保留已有 token，防止重新绑定覆盖。
         """
         device_file = config.DATA_DIR / "bound_device.json"
         # 若未传入新 token，保留已有的 token（防止重新绑定时覆盖丢失）
@@ -99,7 +99,7 @@ class ElderlyAPIClient:
     def clear_bound_device(self):
         """解绑设备
 
-        Bug3 修复：原代码仅清除 _device_id，未清除 _device_token，
+        原代码仅清除 _device_id，未清除 _device_token，
         导致解绑后设备令牌仍残留内存中，后续请求仍携带旧 token。
         """
         device_file = config.DATA_DIR / "bound_device.json"
@@ -113,7 +113,7 @@ class ElderlyAPIClient:
         headers = {}
         if self._device_id:
             headers["X-Device-ID"] = self._device_id
-        # 安全修复（低危10）：移除无效的 X-Device-Secret（server 端从未校验此头）
+        # 移除无效的 X-Device-Secret（server 端从未校验此头）
         # 改为发送 X-Device-Token（server 端实际校验的设备令牌）
         if self._device_token:
             headers["X-Device-Token"] = self._device_token
@@ -133,7 +133,7 @@ class ElderlyAPIClient:
                 )
                 if response.status_code == 200:
                     resp_data = response.json()
-                    # 代码审查修复（1.2）：透传 device_token（仅新设备返回）
+                    # 透传 device_token（仅新设备返回）
                     token = resp_data.get("device_token", "")
                     self.save_bound_device(device_id, device_name, token)
                     return {"success": True, "data": resp_data}

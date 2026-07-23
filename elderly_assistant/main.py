@@ -33,7 +33,7 @@ DEBUG_MODE = False
 
 
 def _normalize_hhmm(t):
-    """P17 修复：归一化 HH:MM 时间格式，非法返回 None"""
+    """归一化 HH:MM 时间格式，非法输入返回 None，确保后续时间比较使用统一格式"""
     if not t:
         return None
     try:
@@ -122,7 +122,7 @@ class MedicationPoller:
     """
     用药计划轮询线程
     每隔 poll_interval 秒向服务器请求用药计划，缓存到 self.schedules
-    G14 修复：使用 threading.Lock 保护 schedules 的读写，防止跨线程迭代时被替换
+    使用 threading.Lock 保护 schedules 的读写，防止跨线程迭代时被替换
     注意：心跳上报已拆分到独立的 HeartbeatThread，避免业务请求失败导致心跳丢失
     """
 
@@ -137,7 +137,7 @@ class MedicationPoller:
 
     @property
     def schedules(self):
-        """G14 修复：读取时返回快照，避免主线程遍历时被轮询线程替换"""
+        """读取时返回列表快照，避免主线程遍历时被轮询线程替换"""
         with self._lock:
             return list(self._schedules)
 
@@ -172,7 +172,7 @@ class MedicationPoller:
         返回今天尚未到来的下一个提醒（dict 或 None）
         :param now: datetime，默认当前时间
         """
-        # G14：通过 property 获取快照，避免迭代中被修改
+        # 通过 property 获取快照，避免迭代中被修改
         schedules = self.schedules
         if not schedules:
             return None
@@ -384,7 +384,7 @@ def main():
     last_button_check = 0
     last_time_update = 0
     server_connected = False
-    button_block_until = 0  # G10：非阻塞防抖屏蔽截止时间戳
+    button_block_until = 0  # 非阻塞防抖屏蔽截止时间戳
 
     # 10. 主循环
     logger.info("进入主循环")
@@ -422,7 +422,7 @@ def main():
             )
 
             # ---- 检查按钮（约每 200ms 一次）----
-            # G10 修复：非阻塞防抖，防抖屏蔽期内跳过按钮检测
+            # 非阻塞防抖：防抖屏蔽期内跳过按钮检测，避免 sleep 阻塞主循环
             if (now.timestamp() - last_button_check) >= 0.2 and now.timestamp() >= button_block_until:
                 last_button_check = now.timestamp()
                 # 按钮 A：确认服药
@@ -449,7 +449,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        # 清理资源（S7 修复：更完整地释放资源并等待线程退出）
+        # 清理资源：依次停止并等待各后台线程退出，释放硬件句柄
         logger.info("正在清理资源...")
         # 优先停止心跳线程，避免下线通知被后续心跳覆盖导致设备重新变为在线
         try:
@@ -515,14 +515,14 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooz
             return
 
         # 检查 schedules 是否有匹配当前时间的提醒
-        # S6 修复：key 含日期，并在跨日时清理昨日 fired_keys，防止内存无限增长
+        # fired_keys 以日期为前缀，跨日时清空昨日记录，避免集合无限增长
         today = now.strftime("%Y-%m-%d")
         if getattr(reminder_state, "_fired_day", None) != today:
             reminder_state.fired_keys.clear()
             reminder_state._fired_day = today
 
-        # Bug7 修复：原代码在 for 循环内使用 break，导致同一时间多个用药提醒
-        # 只触发第一个。改为收集所有匹配的提醒，合并为一条复合提醒后触发。
+        # 同一时间可能存在多个用药提醒，需收集全部匹配项并合并为一条复合提醒，
+        # 而非命中第一个就退出，否则会遗漏其余提醒。
         matched_reminders = []
         for s in poller.schedules:
             t = _normalize_hhmm(s.get('time'))

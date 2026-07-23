@@ -6,7 +6,7 @@ from app.core.database import Base
 
 
 def _utcnow():
-    """M14：返回带时区的当前 UTC 时间"""
+    """返回带时区的当前 UTC 时间"""
     return datetime.now(timezone.utc)
 
 
@@ -22,7 +22,7 @@ class User(Base):
     phone = Column(String, nullable=True)
     group_id = Column(Integer, nullable=True)  # 家庭组ID，老人和家属同组
     created_at = Column(DateTime, default=_utcnow)
-    # L9：账号启用状态与最后登录时间
+    # 账号启用状态与最后登录时间
     is_active = Column(Boolean, default=True)
     last_login_at = Column(DateTime, nullable=True)
     last_heartbeat_at = Column(DateTime, nullable=True)
@@ -32,7 +32,7 @@ class User(Base):
     # 新逻辑：device_id 关联到真实老人后，所有 device_id 查询都能反查到真实老人。
     # 兼容旧数据：未绑定的虚拟用户 device_id 字段为 None，仍走 username == device_id 回退。
     device_id = Column(String, nullable=True, unique=True, index=True)
-    # F-01 修复：设备访问令牌，register_device 时生成，设备端点需通过 X-Device-Token 校验
+    # 设备访问令牌：register_device 时生成，设备端点需通过 X-Device-Token 校验
     device_token = Column(String(64), nullable=True, index=True)
     # ===== GitHub OAuth 关联字段 =====
     # GitHub 用户唯一 ID（首次 OAuth 登录绑定，唯一索引），非 GitHub 用户为 NULL
