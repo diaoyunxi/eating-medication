@@ -182,6 +182,106 @@ async def oauth_gitee_enabled():
     return {"enabled": False}
 
 
+@router.post("/email/send-code")
+async def email_send_code(request: Request):
+    """邮箱验证码 - 发送：转发到 server /auth/email/send-code
+
+    前端以 JSON 提交 {email, cf_turnstile_token}；返回 {success, message} 或 {success, error}。
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse(
+            {"success": False, "error": "请求格式错误"},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    email = (payload.get("email") or "").strip()
+    turnstile_token = payload.get("cf_turnstile_token", "")
+
+    if not email:
+        return JSONResponse(
+            {"success": False, "error": "请输入邮箱"},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                _server_url("/auth/email/send-code"),
+                json={"email": email, "cf_turnstile_token": turnstile_token},
+            )
+    except httpx.RequestError:
+        return JSONResponse(
+            {"success": False, "error": "无法连接认证服务，请稍后重试"},
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    if resp.status_code == 200:
+        data = resp.json()
+        return JSONResponse({"success": True, "message": data.get("message", "验证码已发送")})
+    err_msg = _parse_server_error(resp, "验证码发送失败，请稍后重试")
+    return JSONResponse(
+        {"success": False, "error": err_msg},
+        status_code=resp.status_code if resp.status_code >= 400 else 500,
+    )
+
+
+@router.post("/email/code-login")
+async def email_code_login(request: Request):
+    """邮箱验证码 - 登录/自动注册：转发到 server /auth/email/code-login
+
+    前端以 JSON 提交 {email, code, cf_turnstile_token}；
+    成功时存 JWT cookie 并返回 {"success": true, "redirect": "/"}。
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse(
+            {"success": False, "error": "请求格式错误"},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    email = (payload.get("email") or "").strip()
+    code = (payload.get("code") or "").strip()
+    turnstile_token = payload.get("cf_turnstile_token", "")
+
+    if not email or not code:
+        return JSONResponse(
+            {"success": False, "error": "请输入邮箱和验证码"},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                _server_url("/auth/email/code-login"),
+                json={"email": email, "code": code, "cf_turnstile_token": turnstile_token},
+            )
+    except httpx.RequestError:
+        return JSONResponse(
+            {"success": False, "error": "无法连接认证服务，请稍后重试"},
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    if resp.status_code != 200:
+        err_msg = _parse_server_error(resp, "登录失败，请检查验证码")
+        return JSONResponse(
+            {"success": False, "error": err_msg},
+            status_code=resp.status_code if resp.status_code >= 400 else 500,
+        )
+
+    token_data = resp.json()
+    access_token = token_data.get("access_token", "")
+    if not access_token:
+        return JSONResponse(
+            {"success": False, "error": "认证服务返回异常"},
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    redirect_url = f"{_PATH_PREFIX}/" if _PATH_PREFIX else "/"
+    response = JSONResponse({"success": True, "redirect": redirect_url})
+    return _set_jwt_cookie(response, access_token)
+
+
 def _sanitize_oauth_login(login: str) -> str:
     """将第三方平台 login 规范化为本地用户名规则（3-20 位字母数字下划线）
 

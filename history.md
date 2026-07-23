@@ -1,5 +1,21 @@
 # 项目开发历史记录
 
+## v2.14.0 (2026-07-24) — 邮箱验证码登录（自动注册）
+
+### 概述
+新增「邮箱验证码登录」入口：用户仅凭邮箱 + 6 位验证码即可登录；若邮箱尚未注册则自动创建账号并登录。发信支持 SMTP（标准）与 Resend 兼容 HTTP API 双后端，由 `MAIL_PROVIDER` 切换；未配置时整体降级，不影响既有登录方式。
+
+### 主要变更
+- **`server/app/core/config.py`**：新增 `MAIL_*` 配置（MAIL_PROVIDER / MAIL_HOST / MAIL_PORT / MAIL_USERNAME / MAIL_PASSWORD / MAIL_FROM / MAIL_USE_TLS / MAIL_USE_SSL / MAIL_API_URL / MAIL_API_KEY），写入 `.env` 模板与自动补齐逻辑。
+- **`server/app/utils/mail.py`（新）**：`send_email()` 双后端发信；`MAIL_PROVIDER` 未配置时降级返回 False 并记录 warning，不抛异常，确保未配置邮件也能正常启动。
+- **`server/app/utils/email_code.py`（新）**：进程内验证码存储（与 `rate_limit.py` 风格一致，不引入 Redis）；6 位码、5 分钟过期、同邮箱 60 秒重发间隔、每日发送上限 10 封；校验成功后失效防重放，常量时间比较。
+- **`server/app/utils/validators.py`**：新增 `is_valid_email()` 邮箱格式校验。
+- **`server/app/schemas/auth.py`**：新增 `EmailSendCodeReq` / `EmailCodeLoginReq`。
+- **`server/app/services/auth_service.py`**：新增 `login_or_register_by_email()`——验证码已通过时，邮箱已注册则直接登录，未注册则自动建号（随机强密码占位，仅以验证码登录，默认 role=family），用户名取自邮箱前缀，冲突自动加后缀。
+- **`server/app/api/v1/endpoints/auth.py`**：新增 `POST /auth/email/send-code` 与 `POST /auth/email/code-login`，均含 Turnstile 人机验证 + 按 IP 限流；发送接口不泄露账号存在性，登录接口先校验验证码再进入账号逻辑（避免泄露）。
+- **`family_monitor/routes/auth.py`**：新增 `/email/send-code`、`/email/code-login` 代理路由（转发 server 并写 JWT HttpOnly cookie）。
+- **`family_monitor/templates/login.html`**：登录页新增「邮箱验证码」区块（邮箱输入、获取验证码按钮带 60 秒倒计时、验证码输入、专用 Turnstile 组件、登录按钮），含成功/错误提示。VERSION 升至 2.14.0。
+
 ## v2.13.1 (2026-07-23) — GitHub OAuth 获取邮箱 + 邮箱冲突合并
 
 ### 概述
