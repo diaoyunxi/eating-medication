@@ -24,21 +24,16 @@ def verify_turnstile(token: str) -> bool:
     """调用 Cloudflare Turnstile siteverify API 验证人机验证令牌
 
     :param token: 前端提交的 cf-turnstile-response 令牌
-    :return: 验证通过返回 True；未配置 Secret Key 时跳过校验返回 True（开发兼容）
-    :raises: 不抛异常，网络异常时返回 False 拒绝请求，避免绕过验证
+    :return: 验证通过返回 True；未配置 Secret Key 时自动降级返回 True（跳过验证）；
+             网络/服务异常时返回 False 以拒绝请求，避免绕过验证
     """
     secret_key = settings.TURNSTILE_SECRET_KEY
-    # 生产环境必须配置 Turnstile，否则拒绝请求
+    # 未配置 Turnstile：自动降级，跳过人机验证（不影响登录/注册可用性）
     if not secret_key:
-        if not settings.DEBUG:
-            # 生产环境未配置 Turnstile，拒绝请求
-            logger.error(
-                "生产环境未配置 TURNSTILE_SECRET_KEY，拒绝本次认证请求。"
-                "请在 server/.env 的 TURNSTILE_SECRET_KEY 填入 Cloudflare Turnstile 的 Secret Key 并重启服务。"
-            )
-            return False
-        # 开发环境跳过校验
-        logger.warning("开发环境跳过 Turnstile 校验（TURNSTILE_SECRET_KEY 未配置）")
+        logger.warning(
+            "未配置 TURNSTILE_SECRET_KEY，已降级跳过人机验证（登录/注册仍可正常使用）。"
+            "如需启用防机器人验证，请在 server/.env 配置 TURNSTILE_SECRET_KEY 后重启。"
+        )
         return True
     if not token:
         logger.warning("Turnstile 校验失败：前端未提交 cf-turnstile-response 令牌（请确认前端小组件已加载且用户已完成验证）")

@@ -1,5 +1,19 @@
 # 项目开发历史记录
 
+## v2.12.0 (2026-07-23) — 配置健壮性：可选服务降级 + 基础必填启动校验
+
+### 概述
+全面增强配置缺失的健壮性。可选外部服务（Cloudflare Turnstile、GitHub/Gitee OAuth、OCR 药名识别）缺失时自动降级运行，不再硬失败；核心基础配置（SECRET_KEY 生产环境、APP_NAME、DATABASE_URL、API_V1_PREFIX、PATH_PREFIX）缺失或非法时，启动期统一打印清晰提示并结束进程（`sys.exit(1)`）。三端（server / family_monitor）行为一致。
+
+### 主要变更
+- **`server/app/core/config.py`**：新增 `validate_mandatory_config()`，启动期集中校验基础必填；`model_post_init` 不再对生产环境 `SECRET_KEY` 缺失直接 `raise`，改由校验函数统一提示退出；`.env` 模板注释同步（基础必填标注、Turnstile 改为「可选/降级」）。
+- **`server/app/api/v1/endpoints/auth.py`**：`verify_turnstile` 未配置 `TURNSTILE_SECRET_KEY` 时统一降级跳过验证（不再区分环境硬拒绝登录/注册）。
+- **`server/app/services/vision_service.py`**：`recognize` 及子服务（baidu/tencent/aliyun）未配置或厂商未实现时返回 `{"configured": false, "reason": ...}` 降级标志，不再抛出导致 500。
+- **`server/app/api/v1/endpoints/vision.py`**：`/vision/recognize` 在 `configured=false` 时返回 HTTP 200 + 友好提示，而非 500。
+- **`family_monitor/core/config.py`**：新增 `validate_mandatory_config()`，并移除 `Config.__init__` 中对 `SECRET_KEY` 缺失的 `raise`，改由校验函数统一提示退出；`SECRET_KEY` 是否为随机生成以 `_secret_key_is_random` 标记。
+- **`family_monitor/main.py`**：`main()` 启动期调用 `validate_mandatory_config()`。
+- **文档**：README 新增「配置健壮性与降级策略」节，VERSION 升至 2.12.0。
+
 ## v2.11.0 (2026-07-23) — 新增 Gitee OAuth 登录（通用 provider 框架）
 
 ### 概述

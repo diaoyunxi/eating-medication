@@ -2,6 +2,7 @@
 """配置管理模块 - 完善版"""
 
 import os
+import sys
 import secrets
 import json
 import logging
@@ -60,21 +61,24 @@ class Config:
 
         # SECRET_KEY：优先从环境变量读取，其次从配置文件
         # 注意：SECRET_KEY 仅通过 .env 配置，不应写入 config.json
+        # 标记是否为运行时随机生成的临时密钥，供 validate_mandatory_config 判断是否拒绝启动
+        is_production = os.getenv('PRODUCTION', 'false').lower() == 'true'
         secret_key = os.getenv('SECRET_KEY') or self._config_data.get('SECRET_KEY', '')
         if not secret_key:
-            # 生产环境（PRODUCTION=true）或非调试模式（DEBUG=false）必须显式配置 SECRET_KEY，拒绝启动
-            is_production = os.getenv('PRODUCTION', 'false').lower() == 'true'
-            if is_production or not self.DEBUG:
-                raise RuntimeError(
-                    "SECRET_KEY 未配置：生产/非调试环境拒绝以降级密钥启动，"
-                    "请通过 .env 设置 SECRET_KEY。"
-                )
-            # 仅 DEBUG=true 的开发环境允许降级，使用 logger.warning 而非 print
+            self._secret_key_is_random = True
+            # 开发环境允许降级生成临时密钥；生产环境缺失交由校验统一报错退出
             secret_key = _generate_secret_key()
-            logger.warning(
-                "SECRET_KEY 未配置，已生成临时密钥，重启后会话将失效。"
-                "请通过 .env 配置 SECRET_KEY。"
-            )
+            if self.DEBUG and not is_production:
+                logger.warning(
+                    "SECRET_KEY 未配置，已生成临时密钥（开发环境），重启后会话将失效。"
+                    "请通过 .env 配置 SECRET_KEY。"
+                )
+            else:
+                logger.warning(
+                    "SECRET_KEY 未配置（生产/非调试环境），将在启动校验时拒绝启动，请先配置 SECRET_KEY。"
+                )
+        else:
+            self._secret_key_is_random = False
         self.SECRET_KEY = secret_key
 
         # 设备共享密钥：用于后端 API 调用时注入 X-Device-Secret header 做服务端鉴权
@@ -216,6 +220,45 @@ class Config:
         except Exception as e:
             print(f"保存配置文件失败: {e}")
             return False
+
+
+def validate_mandatory_config():
+    """集中校验 family_monitor『最基本必填』配置；缺失或非法则打印清晰提示并结束进程。
+
+    可选外部服务（Cloudflare Turnstile 站点密钥、GitHub/Gitee OAuth、后端探测等）
+    缺失由各自逻辑降级（隐藏按钮/跳过验证），不在此强制校验。
+
+    校验范围：
+      - SECRET_KEY：生产环境（PRODUCTION=true 或 DEBUG=false）必须显式配置，禁止随机生成密钥
+      - APP_NAME：应用名称禁止为空
+      - PATH_PREFIX：路径前缀，允许为空（本地直连）；若非空须以 '/' 开头
+    """
+    errors = []
+    is_production = os.getenv('PRODUCTION', 'false').lower() == 'true'
+    if is_production or not config.DEBUG:
+        if getattr(config, '_secret_key_is_random', False):
+            errors.append(
+                "SECRET_KEY 未配置：生产/非调试环境拒绝以未配置密钥启动。"
+                "请在 family_monitor/.env 设置 SECRET_KEY 后重启。"
+            )
+    if not config.APP_NAME or not config.APP_NAME.strip():
+        errors.append(
+            "APP_NAME 未配置：请在 family_monitor/.env 或 config.json 设置应用名称"
+            "（如 APP_NAME=子女守护中心）。"
+        )
+    path_prefix = (config.PATH_PREFIX or "").strip()
+    if path_prefix and not path_prefix.startswith("/"):
+        errors.append(
+            f"PATH_PREFIX 配置非法：'{path_prefix}' 若非空必须以 '/' 开头，"
+            "请在 family_monitor/.env 或 config.json 修正。"
+        )
+    if errors:
+        print("=" * 64)
+        print("【family_monitor 配置校验失败】以下必填配置缺失或非法，服务无法启动：")
+        for _err in errors:
+            print(f"  - {_err}")
+        print("=" * 64)
+        sys.exit(1)
 
 
 # 全局配置实例

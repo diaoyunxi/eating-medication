@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import sys
 import re
 import secrets
 import logging
@@ -40,11 +41,11 @@ def _write_full_env(env_path: Path, secret_key: str):
         f"APP_NAME=老年人用药管理系统\n"
         f"# 调试模式：本地开发设为 true，生产环境设为 false\n"
         f"DEBUG=true\n"
-        f"# API 路由前缀（一般无需修改）\n"
+        f"# API 路由前缀（基础必填，须以 / 开头，一般无需修改）\n"
         f"API_V1_PREFIX=/api/v1\n"
-        f"# 路径前缀（Cloudflare 隧道子路径）；本地直连设为空，隧道部署须与隧道路由一致\n"
+        f"# 路径前缀（基础必填，允许为空=本地直连；隧道部署须与隧道路由一致并以 / 开头）\n"
         f"PATH_PREFIX=/eating-medication/server\n"
-        f"# 数据库地址（SQLite 默认即可，可改为 mysql:// 等）\n"
+        f"# 数据库地址（基础必填，SQLite 默认即可，可改为 mysql:// 等）\n"
         f"DATABASE_URL=sqlite:///./data/elderly_care.db\n\n"
         f"# ===== 安全 =====\n"
         f"# 会话签名密钥（已随机生成，请勿泄露；生产环境建议使用固定值并妥善保管）\n"
@@ -53,7 +54,7 @@ def _write_full_env(env_path: Path, secret_key: str):
         f"# 访问令牌有效期（分钟）\n"
         f"ACCESS_TOKEN_EXPIRE_MINUTES=60\n\n"
         f"# ===== Cloudflare Turnstile 人机验证 =====\n"
-        f"# 后端 siteverify 校验用的密钥（Secret Key），必填；生产环境缺失将拒绝全部登录/注册\n"
+        f"# 后端 siteverify 校验用的密钥（Secret Key），可选；留空则自动降级跳过人机验证\n"
         f"# 须与 family_monitor/.env 的 TURNSTILE_SITE_KEY 来自同一 Turnstile 站点\n"
         f"# 获取地址：https://dash.cloudflare.com/  -> Turnstile -> 你的站点 -> Keys\n"
         f"TURNSTILE_SECRET_KEY=\n\n"
@@ -95,7 +96,7 @@ def _write_full_env(env_path: Path, secret_key: str):
 _BACKFILL_FIELDS = [
     ("TURNSTILE_SECRET_KEY", [
         "# ===== Cloudflare Turnstile 人机验证 =====",
-        "# 后端 siteverify 校验用的密钥（Secret Key），必填；生产环境缺失将拒绝全部登录/注册",
+        "# 后端 siteverify 校验用的密钥（Secret Key），可选；留空则自动降级（跳过人机验证）",
         "# 须与 family_monitor/.env 的 TURNSTILE_SITE_KEY 来自同一 Turnstile 站点",
         "# 获取地址：https://dash.cloudflare.com/  -> Turnstile -> 你的站点 -> Keys",
     ], ""),
@@ -245,33 +246,89 @@ class Settings(BaseSettings):
         case_sensitive = True
 
     def model_post_init(self, __context):
-        """初始化后校验配置
+        """初始化后处理 SECRET_KEY
 
         - 若 SECRET_KEY 仍为占位符，说明未通过环境变量/.env 配置：
-          DEBUG 模式下生成随机密钥以支持开发；生产模式拒绝启动。
-        - 生产模式（DEBUG=False）禁止使用弱 SECRET_KEY 或随机生成的密钥。
+          标记 _SECRET_KEY_IS_RANDOM 并生成随机密钥（开发环境兼容）。
+        - 生产环境缺失/弱密钥的强校验交由模块级 validate_mandatory_config() 统一处理，
+          以便输出清晰提示并结束进程（而非抛出未捕获异常）。
         """
         global _SECRET_KEY_IS_RANDOM
         # 检测是否未配置 SECRET_KEY（仍为占位符）
         if self.SECRET_KEY == _SECRET_KEY_SENTINEL:
             _SECRET_KEY_IS_RANDOM = True
-            # DEBUG 模式下生成随机密钥以支持本地开发
+            # 生成随机密钥以支持本地开发（生产环境的合法性由 validate_mandatory_config 校验）
             self.SECRET_KEY = _generate_secret_key()
         else:
             _SECRET_KEY_IS_RANDOM = False
 
-        if not self.DEBUG:
-            if _SECRET_KEY_IS_RANDOM:
-                raise RuntimeError(
-                    "生产环境（DEBUG=False）禁止使用运行时随机生成的 SECRET_KEY，"
-                    "请在 .env 中配置固定的随机 SECRET_KEY"
-                )
-            if self.SECRET_KEY in _WEAK_SECRET_KEYS:
-                raise RuntimeError(
-                    "生产环境（DEBUG=False）禁止使用弱 SECRET_KEY，"
-                    "请在 .env 中配置随机生成的 SECRET_KEY"
-                )
-        # DEBUG=True 时允许使用随机生成的密钥
+
+def validate_mandatory_config():
+    """集中校验『最基本必填』配置；缺失或非法则打印清晰提示并结束进程。
+
+    可选外部服务（Cloudflare Turnstile / GitHub·Gitee OAuth / OCR / 智谱 AI 等）
+    缺失由各自模块自动降级，不在此强制校验。
+
+    校验范围（用户定义的必填核心项）：
+      - SECRET_KEY：生产环境（DEBUG=False）必须显式配置，禁止随机生成/弱密钥
+      - APP_NAME / DATABASE_URL：应用与数据库基础配置，禁止为空
+      - API_V1_PREFIX：API 路由前缀，必须非空且以 '/' 开头
+      - PATH_PREFIX：路径前缀，允许为空（本地直连）；若非空须以 '/' 开头
+    """
+    errors = []
+    # SECRET_KEY：生产环境必须显式配置，禁止随机生成或弱密钥
+    if not settings.DEBUG:
+        if _SECRET_KEY_IS_RANDOM:
+            errors.append(
+                "SECRET_KEY 未配置：生产环境（DEBUG=false）禁止使用运行时随机生成的密钥。"
+                "请在 server/.env 中设置固定的 SECRET_KEY 后重启。"
+            )
+        if settings.SECRET_KEY in _WEAK_SECRET_KEYS:
+            errors.append(
+                "SECRET_KEY 为弱密钥：生产环境（DEBUG=false）禁止使用弱密钥。"
+                "请在 server/.env 中设置随机生成的 SECRET_KEY 后重启。"
+            )
+    # APP_NAME：应用名称禁止为空
+    if not settings.APP_NAME or not settings.APP_NAME.strip():
+        errors.append(
+            "APP_NAME 未配置：请在 server/.env 中设置应用名称"
+            "（如 APP_NAME=老年人用药管理系统）。"
+        )
+    # DATABASE_URL：数据库连接地址禁止为空
+    if not settings.DATABASE_URL or not settings.DATABASE_URL.strip():
+        errors.append(
+            "DATABASE_URL 未配置：请在 server/.env 中设置数据库连接地址"
+            "（默认 sqlite:///./data/elderly_care.db）。"
+        )
+    # API_V1_PREFIX：API 路由前缀，必须非空且以 '/' 开头
+    api_prefix = (settings.API_V1_PREFIX or "").strip()
+    if not api_prefix:
+        errors.append(
+            "API_V1_PREFIX 未配置：请在 server/.env 中设置 API 路由前缀"
+            "（如 API_V1_PREFIX=/api/v1）。"
+        )
+    elif not api_prefix.startswith("/"):
+        errors.append(
+            f"API_V1_PREFIX 配置非法：'{api_prefix}' 必须以 '/' 开头，"
+            "请在 server/.env 中修正。"
+        )
+    # PATH_PREFIX：路径前缀，允许为空（本地直连）；若非空须以 '/' 开头
+    path_prefix = (settings.PATH_PREFIX or "").strip()
+    if path_prefix and not path_prefix.startswith("/"):
+        errors.append(
+            f"PATH_PREFIX 配置非法：'{path_prefix}' 若非空必须以 '/' 开头，"
+            "请在 server/.env 中修正。"
+        )
+
+    if errors:
+        print("=" * 64)
+        print("【配置校验失败】以下必填配置缺失或非法，服务无法启动：")
+        for _err in errors:
+            print(f"  - {_err}")
+        print("=" * 64)
+        sys.exit(1)
 
 
 settings = Settings()
+# 启动期集中校验「最基本必填」配置；缺失或非法则打印提示并结束进程
+validate_mandatory_config()

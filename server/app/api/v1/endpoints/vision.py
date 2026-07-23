@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, JSONResponse
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.vision import ImageRecognitionResp
@@ -25,6 +25,15 @@ async def recognize_drug(
         if len(contents) > 5 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="文件过大，最大 5MB")
         result = await VisionService.recognize(contents)
+        # OCR 未配置或不可用：优雅降级返回明确提示，而非 500 错误
+        if not result.get("configured"):
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "configured": False,
+                    "message": result.get("reason", "OCR 服务未配置，药名识别功能暂不可用"),
+                },
+            )
         return ImageRecognitionResp(drug_name=result["name"], confidence=result["confidence"])
     except HTTPException:
         # 大小限制等 HTTP 异常直接向上抛出
