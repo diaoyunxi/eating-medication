@@ -141,6 +141,11 @@ async def auth_middleware(request: Request, call_next):
         f"{PATH_PREFIX}/register" if PATH_PREFIX else "/register",
         "/favicon.ico",
         f"{PATH_PREFIX}/turnstile/site-key" if PATH_PREFIX else "/turnstile/site-key",
+        # OAuth 登录/注册按钮探测与授权跳转：登录页未登录状态下即会调用，必须公开
+        f"{PATH_PREFIX}/oauth/gitee/enabled" if PATH_PREFIX else "/oauth/gitee/enabled",
+        f"{PATH_PREFIX}/oauth/github/enabled" if PATH_PREFIX else "/oauth/github/enabled",
+        f"{PATH_PREFIX}/oauth/gitee/authorize" if PATH_PREFIX else "/oauth/gitee/authorize",
+        f"{PATH_PREFIX}/oauth/github/authorize" if PATH_PREFIX else "/oauth/github/authorize",
     ]
     path = request.scope.get("path", request.url.path)
     # 静态文件与 .well-known 路径同样需拼接 PATH_PREFIX，否则子路径模式下被误判为非公开路径而触发重定向
