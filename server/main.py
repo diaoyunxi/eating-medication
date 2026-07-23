@@ -149,6 +149,10 @@ def main():
 
     # 启动时检查更新（启用自动拉取）
     try:
+        # 统一 updater.py 已迁移至仓库根目录，确保根目录在 sys.path 中
+        _root = str(Path(__file__).resolve().parent.parent)
+        if _root not in sys.path:
+            sys.path.insert(0, _root)
         from updater import check_for_update
         check_for_update(auto_pull=True)
     except Exception as e:

@@ -29,6 +29,11 @@ if os.getcwd() != BASE_DIR:
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+# 仓库根目录（含统一迁移的 updater.py）
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 DEBUG_MODE = False
 
 
