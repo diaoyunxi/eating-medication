@@ -1,5 +1,21 @@
 # 项目开发历史记录
 
+## v2.11.0 (2026-07-23) — 新增 Gitee OAuth 登录（通用 provider 框架）
+
+### 概述
+在既有 GitHub OAuth 基础上，新增 **Gitee OAuth 登录**。将原先 GitHub 专属的 OAuth 逻辑重构为通用 provider 框架（provider 配置表 + 通用 authorize/callback 流程），GitHub 行为完全不变，Gitee 平行接入，消除约 180 行重复代码（DRY）。Gitee 应用需勾选「访问用户的个人信息、最新动态」(`user_info`) 与「查看用户的个人邮箱信息」(`emails`) 权限。
+
+### 主要变更
+- **`server/app/api/v1/endpoints/oauth.py`**：重构为 `_OAUTH_PROVIDERS` 配置表 + `_authorize()` / `_callback()` / `_fetch_provider_user()` 通用流程；成对声明 GitHub / Gitee 路由（`/config`、`/enabled`、`/authorize`、`/callback`）。
+- **`server/app/core/security.py`**：`create_oauth_pending_token` 改为 provider 无关（载荷含 `provider` / `provider_id` / `provider_login` / `provider_name` / `provider_avatar` / `email`）。
+- **`server/app/core/config.py`**：新增 `GITEE_CLIENT_ID` / `GITEE_CLIENT_SECRET` / `GITEE_OAUTH_CALLBACK_URL`，纳入 `.env` 自愈与字段补齐。
+- **`server/app/models/user.py`**：`users` 表新增 `gitee_id`（唯一索引）与 `email` 字段。
+- **`server/app/services/auth_service.py`**：`register` 改为通用 provider 绑定（github/gitee）；新增 `get_by_provider()`，`get_by_github_id()` 转调之。
+- **`server/app/migrations/versions/20260723_001_add_gitee_oauth_and_email.py`**：新增迁移（gitee_id + email）。
+- **`family_monitor/routes/auth.py`**：新增 `/oauth/gitee/authorize`、`/oauth/gitee/enabled` 代理；`register_page` 与 `post_register` 同时支持 Gitee 待补全 cookie（`oauth_pending_gitee`）。
+- **`family_monitor/templates/login.html` / `register.html`**：新增 Gitee 登录按钮（探测 `/oauth/gitee/enabled`）与按平台显示的补全横幅。
+- **文档**：README 新增 Gitee OAuth 章节与配置项，VERSION 升至 2.11.0。
+
 ## v2.10.4 (2026-07-23) — 修复自动生成的 .env 仍缺失必填字段（Turnstile / GitHub OAuth 等）
 
 ### 概述

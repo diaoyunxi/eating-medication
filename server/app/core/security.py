@@ -84,24 +84,30 @@ def verify_oauth_state_token(token: str) -> Optional[str]:
 
 
 def create_oauth_pending_token(
-    github_id: int,
-    github_login: str,
-    github_name: Optional[str],
-    github_avatar: Optional[str],
+    *,
+    provider: str,
+    provider_id: int,
+    provider_login: str,
+    provider_name: Optional[str] = None,
+    provider_avatar: Optional[str] = None,
+    email: Optional[str] = None,
 ) -> str:
-    """签发短期 OAuth 待补全身份令牌
+    """签发短期 OAuth 待补全身份令牌（provider 无关）
 
-    首次 GitHub 登录（github_id 尚未绑定本地账号）时，server 回调将此令牌写入
-    HttpOnly cookie，并 302 跳转 family_monitor 注册页补全信息；注册接口凭此绑定 github_id。
-    15 分钟内有效。
+    首次第三方登录（provider_id 尚未绑定本地账号）时，server 回调将此令牌写入
+    HttpOnly cookie，并 302 跳转 family_monitor 注册页补全信息；注册接口凭此绑定对应
+    平台的账号（github_id / gitee_id）并写入 email。15 分钟内有效。
+    provider 取值："github" / "gitee"。
     """
     return create_access_token(
         data={
             "type": "oauth_pending",
-            "github_id": github_id,
-            "github_login": github_login,
-            "github_name": github_name,
-            "github_avatar": github_avatar,
+            "provider": provider,
+            "provider_id": provider_id,
+            "provider_login": provider_login,
+            "provider_name": provider_name,
+            "provider_avatar": provider_avatar,
+            "email": email,
         },
         expires_delta=timedelta(minutes=15),
     )

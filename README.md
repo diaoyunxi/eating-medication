@@ -1,20 +1,39 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.10.3**（2026-07-22，修正 README 配置说明以贴合代码实际） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 当前版本：**v2.11.0**（2026-07-23，新增 Gitee OAuth 登录，与 GitHub 共用通用 provider 框架） | 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
-## GitHub OAuth 登录配置
+## 第三方 OAuth 登录配置
 
-服务端 `server/.env` 配置以下项后，家属端登录页自动显示「使用 GitHub 登录」按钮（未配置则隐藏）：
+服务端 `server/.env` 配置对应平台凭据后，家属端登录页自动显示相应登录按钮（未配置则隐藏）。GitHub 与 Gitee 共用同一套 provider 框架，流程一致：发起授权（state 防 CSRF）→ 回调换 token → 拉用户信息 → 已绑定直接登录，未绑定签名短期身份令牌跳注册页补全（邮箱权限授权后写入 `users.email`）。
+
+### GitHub OAuth
 
 | 配置项 | 说明 |
 | --- | --- |
 | `GITHUB_CLIENT_ID` | GitHub OAuth App 的 Client ID（必填，否则按钮隐藏） |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth App 的 Client Secret（必填） |
 | `GITHUB_OAUTH_CALLBACK_URL` | 回调地址，须与 GitHub 后台 `Authorization callback URL` **完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback` |
-| `FAMILY_WEB_URL` | 家属端前端地址，OAuth 回调成功后 302 跳转用，默认 `https://my-website.ccwu.cc/eating-medication/family` |
 
-> 重要：一个 GitHub OAuth App 仅允许配置**一个**固定回调 URL。本地开发请另行在 GitHub 创建 OAuth App（回调填 `http://localhost:1059/eating-medication/server/api/v1/auth/oauth/github/callback`）。首次 GitHub 登录需补全用户名与密码；已绑定账号再次登录直接写入登录态。
+> 注意：一个 GitHub OAuth App 仅允许配置**一个**固定回调 URL。本地开发请另行在 GitHub 创建 OAuth App（回调填 `http://localhost:1059/eating-medication/server/api/v1/auth/oauth/github/callback`）。GitHub 仅申请 `read:user` scope（公开邮箱若用户设置则可取）。
+
+### Gitee OAuth
+
+在 Gitee 创建应用（<https://gitee.com/oauth/applications>），勾选「访问用户的个人信息、最新动态」(`user_info`) 与「查看用户的个人邮箱信息」(`emails`) 权限。
+
+| 配置项 | 说明 |
+| --- | --- |
+| `GITEE_CLIENT_ID` | Gitee OAuth 应用的 Client ID（必填，否则按钮隐藏） |
+| `GITEE_CLIENT_SECRET` | Gitee OAuth 应用的 Client Secret（必填） |
+| `GITEE_OAUTH_CALLBACK_URL` | 回调地址，须与 Gitee 后台「应用回调地址」**完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback` |
+
+> 注意：Gitee 回调 URL 同样唯一。授权后服务端会调用 `/api/v5/emails` 取得主邮箱并写入 `users.email`（仅在已授权 `emails` 权限时）。首次 Gitee 登录需补全用户名与密码；已绑定账号再次登录直接写入登录态。
+
+### 公共配置
+
+| 配置项 | 说明 |
+| --- | --- |
+| `FAMILY_WEB_URL` | 家属端前端地址，OAuth 回调成功后 302 跳转用，默认 `https://my-website.ccwu.cc/eating-medication/family` |
 
 一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
 
@@ -369,7 +388,7 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 | 模块 | 配置文件 | 关键配置项 |
 |------|----------|------------|
 | elderly_assistant | `config.yaml` | `server.base_url`（默认公网域名）、`ai.base_url`、摄像头、语音引擎、蜂鸣器、热点、轮询间隔 |
-| server | `.env` | `APP_NAME`、`DEBUG`、`PATH_PREFIX`/`API_V1_PREFIX`、`DATABASE_URL`、`SECRET_KEY`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`TURNSTILE_SECRET_KEY`、`ZHIPUAI_API_KEY`/`ZHIPUAI_MODEL`、`OCR_PROVIDER`/`OCR_API_KEY`/`OCR_SECRET_KEY`、`ALLOWED_ORIGINS`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`GITHUB_OAUTH_CALLBACK_URL`/`FAMILY_WEB_URL` |
+| server | `.env` | `APP_NAME`、`DEBUG`、`PATH_PREFIX`/`API_V1_PREFIX`、`DATABASE_URL`、`SECRET_KEY`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`TURNSTILE_SECRET_KEY`、`ZHIPUAI_API_KEY`/`ZHIPUAI_MODEL`、`OCR_PROVIDER`/`OCR_API_KEY`/`OCR_SECRET_KEY`、`ALLOWED_ORIGINS`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`GITHUB_OAUTH_CALLBACK_URL`、`GITEE_CLIENT_ID`/`GITEE_CLIENT_SECRET`/`GITEE_OAUTH_CALLBACK_URL`/`FAMILY_WEB_URL` |
 | family_monitor | `.env` + `config.json` | `.env`：`SECRET_KEY`、`DEBUG`、`COOKIE_SECURE`、`TURNSTILE_SITE_KEY`、`DEVICE_SECRET`、`ALLOWED_ORIGINS`、`PRODUCTION`、`SERVER_HOST`；`config.json`：`ELDERLY_SERVER_URL`、`SERVER_PORT`、`PATH_PREFIX`、`APP_NAME`、`DISPLAY_*` |
 
 ### 路径前缀（PATH_PREFIX）
@@ -403,6 +422,10 @@ TURNSTILE_SECRET_KEY=<Cloudflare Turnstile Secret Key，用于后端 siteverify 
 GITHUB_CLIENT_ID=<GitHub OAuth App Client ID，留空则隐藏登录按钮>
 GITHUB_CLIENT_SECRET=<GitHub OAuth App Client Secret>
 GITHUB_OAUTH_CALLBACK_URL=https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback
+# Gitee OAuth（可选，留空则隐藏 Gitee 登录按钮；应用需勾选 user_info、emails 权限）
+GITEE_CLIENT_ID=<Gitee OAuth 应用 Client ID，留空则隐藏登录按钮>
+GITEE_CLIENT_SECRET=<Gitee OAuth 应用 Secret>
+GITEE_OAUTH_CALLBACK_URL=https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback
 FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 ```
 

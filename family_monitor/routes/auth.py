@@ -90,17 +90,37 @@ async def register_page(request: Request):
     """注册页面：渲染 register.html 模板
 
     补回被误删的 GET /register 路由。
-    GitHub OAuth 首次登录：若携带 oauth_pending cookie 与 gh_login 参数，则进入 OAuth
-    补全注册模式，预填用户名（GitHub login 规范化）与昵称，并隐藏 Turnstile。
+    第三方 OAuth 首次登录：若携带对应平台的待补全身份 cookie（GitHub: oauth_pending /
+    Gitee: oauth_pending_gitee）与对应 login 参数，则进入 OAuth 补全注册模式，
+    预填用户名与昵称，并隐藏 Turnstile。
     """
+    # —— GitHub ——
     gh_login = request.query_params.get("gh_login", "")
     gh_name = request.query_params.get("gh_name", "")
-    oauth_pending = request.cookies.get("oauth_pending", "")
-    oauth_mode = bool(oauth_pending) and bool(gh_login)
+    gh_pending = request.cookies.get("oauth_pending", "")
+    # —— Gitee ——
+    gt_login = request.query_params.get("gt_login", "")
+    gt_name = request.query_params.get("gt_name", "")
+    gt_pending = request.cookies.get("oauth_pending_gitee", "")
 
-    # 规范化 GitHub login 为本地用户名规则（3-20 位字母数字下划线）
-    prefill_username = _sanitize_github_login(gh_login) if gh_login else ""
-    prefill_name = (gh_name or gh_login).strip()
+    oauth_mode = False
+    oauth_provider = ""
+    oauth_provider_name = ""
+    prefill_username = ""
+    prefill_name = ""
+
+    if gh_pending and gh_login:
+        oauth_mode = True
+        oauth_provider = "github"
+        oauth_provider_name = "GitHub"
+        prefill_username = _sanitize_oauth_login(gh_login)
+        prefill_name = (gh_name or gh_login).strip()
+    elif gt_pending and gt_login:
+        oauth_mode = True
+        oauth_provider = "gitee"
+        oauth_provider_name = "Gitee"
+        prefill_username = _sanitize_oauth_login(gt_login)
+        prefill_name = (gt_name or gt_login).strip()
 
     return templates.TemplateResponse(
         request,
@@ -108,6 +128,8 @@ async def register_page(request: Request):
         {
             "app_name": config.APP_NAME,
             "oauth_mode": oauth_mode,
+            "oauth_provider": oauth_provider,
+            "oauth_provider_name": oauth_provider_name,
             "prefill_username": prefill_username,
             "prefill_name": prefill_name,
         },
@@ -137,10 +159,33 @@ async def oauth_github_enabled():
     return {"enabled": False}
 
 
-def _sanitize_github_login(login: str) -> str:
-    """将 GitHub login 规范化为本地用户名规则（3-20 位字母数字下划线）
+@router.get("/oauth/gitee/authorize")
+async def oauth_gitee_authorize():
+    """Gitee OAuth 授权入口
 
-    GitHub login 可能含连字符、点等非法字符，统一替换为下划线并截断；
+    302 跳转到 server 的 authorize 端点；由 server 签发 state 签名 cookie 并继续跳转 Gitee。
+    """
+    server_authorize = _server_url("/auth/oauth/gitee/authorize")
+    return RedirectResponse(url=server_authorize, status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/oauth/gitee/enabled")
+async def oauth_gitee_enabled():
+    """前端用于判断 Gitee 登录按钮是否显示（代理 server 的 OAuth 配置）"""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(_server_url("/auth/oauth/gitee/config"))
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+    return {"enabled": False}
+
+
+def _sanitize_oauth_login(login: str) -> str:
+    """将第三方平台 login 规范化为本地用户名规则（3-20 位字母数字下划线）
+
+    GitHub / Gitee login 可能含连字符、点等非法字符，统一替换为下划线并截断；
     长度不足 3 时补 "user" 后缀以满足校验。
     """
     import re
@@ -149,7 +194,7 @@ def _sanitize_github_login(login: str) -> str:
     if len(sanitized) < 3:
         sanitized = (sanitized + "user")[:20]
     if not sanitized:
-        sanitized = "github_user"
+        sanitized = "oauth_user"
     return sanitized
 
 
@@ -240,8 +285,9 @@ async def post_register(request: Request):
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    # GitHub OAuth 补全注册：携带 oauth_pending cookie 时转发 oauth_token（server 侧跳过 Turnstile）
-    oauth_token = request.cookies.get("oauth_pending", "")
+    # 第三方 OAuth 补全注册：携带 GitHub(oauth_pending) 或 Gitee(oauth_pending_gitee) cookie 时
+    # 转发 oauth_token（server 侧跳过 Turnstile）
+    oauth_token = request.cookies.get("oauth_pending", "") or request.cookies.get("oauth_pending_gitee", "")
 
     # 转发到 server 进行 Turnstile 验证 + 注册
     try:
@@ -285,9 +331,12 @@ async def post_register(request: Request):
 
     response = JSONResponse({"success": True, "redirect": home_redirect})
     response = _set_jwt_cookie(response, access_token)
-    # OAuth 补全注册成功后清除一次性身份 cookie，避免重复利用
+    # OAuth 补全注册成功后清除对应平台的一次性身份 cookie，避免重复利用
     if oauth_token:
-        response.delete_cookie(key="oauth_pending", path="/")
+        if request.cookies.get("oauth_pending_gitee"):
+            response.delete_cookie(key="oauth_pending_gitee", path="/")
+        else:
+            response.delete_cookie(key="oauth_pending", path="/")
     return response
 
 
