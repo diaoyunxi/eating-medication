@@ -20,7 +20,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r elderly_assistant/requirements.txt
           pip install -r server/requirements.txt
-          pip install -r family_monitor/requirement.txt
+          pip install -r family_monitor/requirements.txt
           # CI 测试运行器（与 server/requirements-dev.txt 对齐）
           pip install "pytest==8.3.3" "pytest-asyncio==0.24.0"
       - name: Test with pytest
