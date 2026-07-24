@@ -1,5 +1,16 @@
 # 项目开发历史记录
 
+## v2.15.0 (2026-07-24) — install.py 自动下载安装未发布包 dfrobot_huskylensv2
+
+### 概述
+`dfrobot_huskylensv2`（HuskyLens V2 摄像头 AI 库）在 PyPI 未发布，无法用常规 `pip install` 安装。现已在 `elderly_assistant/install.py` 中配置「从官方仓库自动下载并落地」的逻辑，作为 `install_requirements()` 流程的一部分自动执行，部署时无需手动处理该依赖。
+
+### 主要变更
+- **`elderly_assistant/install.py`**：新增常量 `HUSKYLENS_RAW_URL` / `HUSKYLENS_MIRROR` / `HUSKYLENS_PKG`，以及函数 `_huskylens_download_url()`、`_download_huskylens()`（含内容完整性校验，校验关键类 `HuskylensV2_I2C` / `HuskylensV2_UART` 与算法常量 `ALGORITHM_OBJECT_RECOGNITION`）、`_get_site_packages_dir()`、`install_dfrobot_huskylensv2()`。部署策略为兜底：优先下载到 `elderly_assistant/` 目录（与 `from utils.logger` 同机制，运行即生效），失败则安装到 Python 环境 `site-packages`。下载地址支持镜像前缀（环境变量 `HUSKYLENS_MIRROR` 或 `GH_PROXY`，如 `https://gh-proxy.com`）以规避网络限制，亦可用 `HUSKYLENS_RAW_URL` 覆盖源地址。该文件不纳入仓库（运行时下载），由 `.gitignore` 排除。
+- **`elderly_assistant/requirements.txt`**：更新 `dfrobot_huskylensv2` 注释，说明其不再经 requirements 安装，改由 `install.py` 自动下载；运行依赖 `pinpong`（已在文件中安装）。
+- **`.gitignore`**：新增 `elderly_assistant/dfrobot_huskylensv2.py`，避免自动下载的文件被误提交 / 打包进 Release。
+- 版本 2.14.1 -> 2.15.0（向后兼容的部署能力新增）。
+
 ## v2.14.1 (2026-07-24) — 补充邮箱验证码登录测试
 
 ### 概述

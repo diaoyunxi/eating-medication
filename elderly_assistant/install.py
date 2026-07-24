@@ -28,6 +28,20 @@ PIP_INDEX_URL = os.environ.get("PIP_INDEX_URL", "https://pypi.tuna.tsinghua.edu.
 # get-pip.py 下载地址 (可被 GET_PIP_URL 环境变量覆盖)
 GET_PIP_URL = os.environ.get("GET_PIP_URL", "https://bootstrap.pypa.io/get-pip.py")
 
+# dfrobot_huskylensv2 是 PyPI 未发布的单文件模块, 需从官方仓库自动下载安装
+# 官方仓库单文件模块路径: python/pinpong/dfrobot_huskylensv2.py
+# 该文件不纳入仓库 (运行时下载), install.py 负责落地。
+HUSKYLENS_RAW_URL = os.environ.get(
+    "HUSKYLENS_RAW_URL",
+    "https://raw.githubusercontent.com/DFRobot/DFRobot_HuskylensV2/master/python/pinpong/dfrobot_huskylensv2.py",
+)
+# 下载镜像前缀 (如 https://gh-proxy.com), 设置后下载走镜像, 规避网络限制。
+# 同时兼容 GH_PROXY 环境变量。
+HUSKYLENS_MIRROR = os.environ.get(
+    "HUSKYLENS_MIRROR", os.environ.get("GH_PROXY", "")
+).rstrip("/")
+HUSKYLENS_PKG = "dfrobot_huskylensv2"
+
 
 # ------------------------------------------------------------------
 # 1. pip 检测 / 自动安装
@@ -292,6 +306,125 @@ def install_package(pkg):
 
 
 # ------------------------------------------------------------------
+# 3.5 特殊包: dfrobot_huskylensv2 (PyPI 未发布, 自动下载安装)
+# ------------------------------------------------------------------
+def _huskylens_download_url():
+    """拼接最终下载地址, 支持镜像前缀 (HUSKYLENS_MIRROR / GH_PROXY)"""
+    if HUSKYLENS_MIRROR:
+        return f"{HUSKYLENS_MIRROR}/{HUSKYLENS_RAW_URL}"
+    return HUSKYLENS_RAW_URL
+
+
+def _download_huskylens(target_path):
+    """下载 dfrobot_huskylensv2.py 到 target_path, 含内容完整性校验
+
+    返回 True 表示文件已落盘且包含 camera.py 依赖的关键符号。
+    """
+    url = _huskylens_download_url()
+    print("    下载地址:", url)
+    try:
+        with urllib.request.urlopen(url, timeout=120) as resp:
+            data = resp.read()
+    except Exception as e:
+        print(f"    下载失败: {e}")
+        return False
+    text = data.decode("utf-8", errors="ignore")
+    # 完整性校验: 必须包含 camera.py 依赖的关键类与算法常量
+    required_markers = (
+        "class HuskylensV2_I2C",
+        "class HuskylensV2_UART",
+        "ALGORITHM_OBJECT_RECOGNITION",
+    )
+    missing = [m for m in required_markers if m not in text]
+    if missing:
+        print("    下载内容校验失败, 缺少预期符号:", ", ".join(missing))
+        return False
+    try:
+        with open(target_path, "wb") as f:
+            f.write(data)
+    except Exception as e:
+        print(f"    写入文件失败 ({target_path}): {e}")
+        return False
+    return True
+
+
+def _get_site_packages_dir():
+    """返回当前环境可用的 site-packages 目录, 优先用户级, 回退系统级
+
+    无可用目录时返回 None。
+    """
+    import site
+    candidates = []
+    try:
+        user_site = site.getusersitepackages()
+        if user_site:
+            candidates.append(user_site)
+    except Exception:
+        pass
+    try:
+        candidates.extend(site.getsitepackages() or [])
+    except Exception:
+        pass
+    for d in candidates:
+        if not d:
+            continue
+        try:
+            os.makedirs(d, exist_ok=True)
+            return d
+        except Exception:
+            continue
+    return None
+
+
+def install_dfrobot_huskylensv2():
+    """安装 dfrobot_huskylensv2 (PyPI 未发布, 从官方仓库自动下载)
+
+    部署策略 (兜底):
+      1. 优先下载到 elderly_assistant/ 目录 (运行 install.py 时 cwd 即该目录,
+         与 ``from utils.logger`` 同机制, 模块可直接 import, 运行即生效)
+      2. 若失败 (无写权限 / 导入校验失败), 安装到 Python 环境 site-packages
+
+    注意: 该文件不纳入仓库 (运行时下载), 由本函数负责落地到本地。
+    """
+    if is_package_installed(HUSKYLENS_PKG):
+        print("  ", HUSKYLENS_PKG, "已安装, 跳过")
+        return True
+
+    print("  正在安装", HUSKYLENS_PKG, "(PyPI 未发布, 从官方仓库下载) ...")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # 策略 1: 下载到 elderly_assistant/ 目录
+    local_path = os.path.join(script_dir, f"{HUSKYLENS_PKG}.py")
+    if _download_huskylens(local_path):
+        # 确保 elderly_assistant 在 sys.path (install.py 已 chdir 至此)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        # 清除可能的损坏缓存, 确保重新导入
+        sys.modules.pop(HUSKYLENS_PKG, None)
+        if is_package_installed(HUSKYLENS_PKG):
+            print("  ", HUSKYLENS_PKG, "已下载至 elderly_assistant/ 并验证可导入")
+            return True
+        print("    本地文件已下载, 但当前环境导入失败 "
+              "(可能缺少 pinpong 依赖), 继续尝试 site-packages 兜底")
+
+    # 策略 2: 安装到 site-packages
+    site_dir = _get_site_packages_dir()
+    if site_dir:
+        site_path = os.path.join(site_dir, f"{HUSKYLENS_PKG}.py")
+        if _download_huskylens(site_path):
+            sys.modules.pop(HUSKYLENS_PKG, None)
+            if is_package_installed(HUSKYLENS_PKG):
+                print("  ", HUSKYLENS_PKG, "已安装至", site_dir, "并验证可导入")
+                return True
+        print("    site-packages 兜底安装失败")
+    else:
+        print("    无法确定 site-packages 目录, 兜底安装失败")
+
+    print(f"  安装失败 {HUSKYLENS_PKG}, 请手动下载: {HUSKYLENS_RAW_URL}")
+    return False
+
+
+# ------------------------------------------------------------------
 # 4. 入口
 # ------------------------------------------------------------------
 def install_requirements():
@@ -332,6 +465,9 @@ def install_requirements():
                 installed_count += 1
             else:
                 failed_count += 1
+    # 特殊包: dfrobot_huskylensv2 (PyPI 未发布, 自动下载安装)
+    if not install_dfrobot_huskylensv2():
+        failed_count += 1
     print()
     print("=" * 50)
     print("安装结果:")
