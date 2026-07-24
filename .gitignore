@@ -50,6 +50,8 @@ logs/
 # 放行测试套件与 pytest 配置（CI 通过 `pytest` 运行，必须纳入版本管理）
 !tests/
 !tests/**
+# 但测试缓存字节码仍需忽略：!tests/** 会一并放行 tests/__pycache__，此处重新忽略
+tests/__pycache__/
 !conftest.py
 !pytest.ini
 
