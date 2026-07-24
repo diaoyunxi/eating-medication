@@ -44,7 +44,6 @@ class TestRegister(unittest.TestCase):
         return RegisterReq(
             username="alice",
             password="Passw0rd",
-            full_name="Alice",
             role="family",
             phone="13800138000",
         )
@@ -58,12 +57,12 @@ class TestRegister(unittest.TestCase):
         db.add.assert_called_once()
         db.commit.assert_called_once()
 
-    def test_register_username_conflict_gets_suffix(self):
+    def test_register_phone_conflict_raises(self):
         db = mock.MagicMock()
         existing = mock.MagicMock()
-        db.query.return_value.filter.return_value.first.side_effect = [existing, None, None]
-        token = AuthService.register(db, self._req())
-        self.assertIsInstance(token, str)
+        db.query.return_value.filter.return_value.first.return_value = existing
+        with self.assertRaises(ValueError):
+            AuthService.register(db, self._req())
 
 
 @unittest.skipUnless(_HAVE, "需要 sqlalchemy / pydantic-settings（当前环境未安装）")
@@ -75,7 +74,7 @@ class TestLogin(unittest.TestCase):
         db.query.return_value.filter.return_value.first.return_value = user
         with mock.patch("app.services.auth_service.verify_password", return_value=True), \
                 mock.patch("app.services.auth_service.create_access_token", return_value="tok"):
-            self.assertEqual(AuthService.login(db, "alice", "Passw0rd"), "tok")
+            self.assertEqual(AuthService.login(db, "13800138000", "Passw0rd"), "tok")
 
     def test_login_wrong_password(self):
         db = mock.MagicMock()
@@ -83,12 +82,12 @@ class TestLogin(unittest.TestCase):
         user.hashed_password = "hashed"
         db.query.return_value.filter.return_value.first.return_value = user
         with mock.patch("app.services.auth_service.verify_password", return_value=False):
-            self.assertIsNone(AuthService.login(db, "alice", "wrong"))
+            self.assertIsNone(AuthService.login(db, "13800138000", "wrong"))
 
     def test_login_user_not_found(self):
         db = mock.MagicMock()
         db.query.return_value.filter.return_value.first.return_value = None
-        self.assertIsNone(AuthService.login(db, "ghost", "x"))
+        self.assertIsNone(AuthService.login(db, "13800138000", "x"))
 
 
 @unittest.skipUnless(_HAVE, "需要 sqlalchemy / pydantic-settings（当前环境未安装）")

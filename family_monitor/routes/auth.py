@@ -89,38 +89,18 @@ async def login_page(request: Request):
 async def register_page(request: Request):
     """注册页面：渲染 register.html 模板
 
-    补回被误删的 GET /register 路由。
-    第三方 OAuth 首次登录：若携带对应平台的待补全身份 cookie（GitHub: oauth_pending /
-    Gitee: oauth_pending_gitee）与对应 login 参数，则进入 OAuth 补全注册模式，
-    预填用户名与昵称，并隐藏 Turnstile。
+    第三方 OAuth 首次登录：server 回调重定向到本页并携带 oauth=1、provider、
+    provider_name、prefill_username、prefill_name（以及邮箱冲突时的 bind_email），
+    进入 OAuth 补全注册模式——预填昵称并提示绑定，隐藏 Turnstile。
     """
-    # —— GitHub ——
-    gh_login = request.query_params.get("gh_login", "")
-    gh_name = request.query_params.get("gh_name", "")
-    gh_pending = request.cookies.get("oauth_pending", "")
-    # —— Gitee ——
-    gt_login = request.query_params.get("gt_login", "")
-    gt_name = request.query_params.get("gt_name", "")
-    gt_pending = request.cookies.get("oauth_pending_gitee", "")
+    oauth = request.query_params.get("oauth", "")
+    provider = request.query_params.get("provider", "")
+    provider_name = request.query_params.get("provider_name", "")
+    prefill_username = request.query_params.get("prefill_username", "")
+    prefill_name = request.query_params.get("prefill_name", "")
+    bind_email = request.query_params.get("bind_email", "")
 
-    oauth_mode = False
-    oauth_provider = ""
-    oauth_provider_name = ""
-    prefill_username = ""
-    prefill_name = ""
-
-    if gh_pending and gh_login:
-        oauth_mode = True
-        oauth_provider = "github"
-        oauth_provider_name = "GitHub"
-        prefill_username = _sanitize_oauth_login(gh_login)
-        prefill_name = (gh_name or gh_login).strip()
-    elif gt_pending and gt_login:
-        oauth_mode = True
-        oauth_provider = "gitee"
-        oauth_provider_name = "Gitee"
-        prefill_username = _sanitize_oauth_login(gt_login)
-        prefill_name = (gt_name or gt_login).strip()
+    oauth_mode = oauth == "1"
 
     return templates.TemplateResponse(
         request,
@@ -128,10 +108,11 @@ async def register_page(request: Request):
         {
             "app_name": config.APP_NAME,
             "oauth_mode": oauth_mode,
-            "oauth_provider": oauth_provider,
-            "oauth_provider_name": oauth_provider_name,
+            "oauth_provider": provider,
+            "oauth_provider_name": provider_name,
             "prefill_username": prefill_username,
             "prefill_name": prefill_name,
+            "bind_email": bind_email,
         },
     )
 
@@ -282,22 +263,6 @@ async def email_code_login(request: Request):
     return _set_jwt_cookie(response, access_token)
 
 
-def _sanitize_oauth_login(login: str) -> str:
-    """将第三方平台 login 规范化为本地用户名规则（3-20 位字母数字下划线）
-
-    GitHub / Gitee login 可能含连字符、点等非法字符，统一替换为下划线并截断；
-    长度不足 3 时补 "user" 后缀以满足校验。
-    """
-    import re
-    sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", login or "").strip("_")
-    sanitized = sanitized[:20]
-    if len(sanitized) < 3:
-        sanitized = (sanitized + "user")[:20]
-    if not sanitized:
-        sanitized = "oauth_user"
-    return sanitized
-
-
 @router.post("/login")
 async def post_login(request: Request):
     """登录：转发到 server /auth/login 验证，成功后存 JWT cookie
@@ -306,14 +271,14 @@ async def post_login(request: Request):
     :return: JSON {"success": true, "redirect": "/"} 或 {"success": false, "error": "..."}
     """
     form = await request.form()
-    username = form.get("username", "").strip()
+    phone = form.get("phone", "").strip()
     password = form.get("password", "")
     turnstile_token = form.get("cf-turnstile-response", "")
 
     # 后端兜底校验（前端已校验）
-    if not username or not password:
+    if not phone or not password:
         return JSONResponse(
-            {"success": False, "error": "请输入用户名和密码"},
+            {"success": False, "error": "请输入手机号和密码"},
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -323,7 +288,7 @@ async def post_login(request: Request):
             resp = await client.post(
                 _server_url("/auth/login"),
                 json={
-                    "username": username,
+                    "phone": phone,
                     "password": password,
                     "cf_turnstile_token": turnstile_token,
                 },
@@ -336,7 +301,7 @@ async def post_login(request: Request):
 
     # server 返回非 200 表示登录失败
     if resp.status_code != 200:
-        err_msg = _parse_server_error(resp, "登录失败，请检查用户名和密码")
+        err_msg = _parse_server_error(resp, "登录失败，请检查手机号和密码")
         return JSONResponse(
             {"success": False, "error": err_msg},
             status_code=resp.status_code if resp.status_code >= 400 else 500,
@@ -361,22 +326,22 @@ async def post_login(request: Request):
 async def post_register(request: Request):
     """注册：转发到 server /auth/register，成功后存 JWT cookie 并自动登录
 
-    子女端注册默认 full_name=username、role=family。
+    子女端注册默认昵称（username）可选、role=family。
 
     :param request: 包含表单数据（username, password, confirm_password, cf-turnstile-response）
     :return: JSON {"success": true, "redirect": "/"} 或 {"success": false, "error": "..."}
     """
     form = await request.form()
-    username = form.get("username", "").strip()
+    phone = form.get("phone", "").strip()
+    nickname = form.get("username", "").strip()  # 昵称，可选
     password = form.get("password", "")
     confirm_password = form.get("confirm_password", "")
     turnstile_token = form.get("cf-turnstile-response", "")
-    full_name = form.get("full_name", "").strip() or username
 
     # 后端兜底校验
-    if not username or not password:
+    if not phone or not password:
         return JSONResponse(
-            {"success": False, "error": "请输入用户名和密码"},
+            {"success": False, "error": "请输入手机号和密码"},
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     if password != confirm_password:
@@ -385,18 +350,17 @@ async def post_register(request: Request):
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    # 第三方 OAuth 补全注册：携带 GitHub(oauth_pending) 或 Gitee(oauth_pending_gitee) cookie 时
-    # 转发 oauth_token（server 侧跳过 Turnstile）
+    # 第三方 OAuth 补全注册：携带 GitHub/Gitee 一次性身份 cookie（oauth_pending）时
+    # 转发 oauth_token（server 侧跳过 Turnstile 人机验证）
     oauth_token = request.cookies.get("oauth_pending", "") or request.cookies.get("oauth_pending_gitee", "")
 
     # 转发到 server 进行 Turnstile 验证 + 注册
     try:
         json_body = {
-            "username": username,
+            "phone": phone,
+            "username": nickname or None,
             "password": password,
-            "full_name": full_name,
             "role": "family",       # 子女端注册默认角色为 family
-            "phone": None,
             "cf_turnstile_token": turnstile_token,
         }
         if oauth_token:
