@@ -4,8 +4,8 @@
 项目级自动更新检查与安全更新模块（统一位于仓库根目录）
 
 启动时检查 GitHub 仓库是否有新版本，发现新版本时：
-- 默认仅提示，手动更新
-- auto_pull=True 时，自动下载 release 完整发布包并安全覆盖
+- 默认启用安全自动更新（可由项目根目录 config.json 的 auto_pull 字段关闭）
+- auto_pull=False 时，仅提示、手动更新
 
 【与旧版（各模块内 updater.py）的区别】
 1. 仅从 GitHub Release 拉取「完整发布包」 eating-medication-vX.Y.Z.zip 及其 SHA256
@@ -107,6 +107,36 @@ def _load_github_proxy():
 
 
 _GITHUB_PROXY = _load_github_proxy()
+
+
+# ============================================================
+# 自动更新开关：读取仓库根目录 config.json 的 auto_pull 字段
+# ============================================================
+def _load_auto_pull():
+    """读取仓库根目录 config.json 的 auto_pull 字段，决定是否启用安全自动更新。
+
+    优先级：config.json 的 auto_pull 字段 > 缺省值 True。
+    - 文件不存在 / 字段缺失 / 解析失败：回退 True（默认启用安全自动更新）
+    - 支持 bool 值与字符串 "true"/"false"（大小写不敏感）解析
+    """
+    config_path = Path(__file__).resolve().parent / "config.json"
+    try:
+        if config_path.is_file():
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            val = data.get("auto_pull", True)
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, str) and val.strip():
+                return val.strip().lower() == "true"
+            logger.warning(f"[更新检查] config.json 的 auto_pull 类型无效（{type(val).__name__}），回退为 True")
+            return True
+    except Exception as e:
+        logger.warning(f"[更新检查] 读取 config.json 的 auto_pull 失败: {e}，回退为 True")
+    return True
+
+
+_AUTO_PULL = _load_auto_pull()
 
 
 def _configure_opener():
@@ -528,11 +558,12 @@ def _restart_service():
 # ============================================================
 # 入口
 # ============================================================
-def check_for_update(auto_pull=False):
+def check_for_update(auto_pull=None):
     """
     启动时检查 GitHub 是否有新版本。
-    - auto_pull 默认 False：仅打印提示
-    - auto_pull=True：下载 release 完整发布包并安全覆盖（跳过保护文件）
+    - auto_pull 默认由 config.json 控制（缺省 True）：启用安全自动更新
+    - auto_pull=False：仅打印提示，手动更新
+    - 显式传入 auto_pull 可覆盖 config.json 配置与默认值
 
     【安全机制】
     1. 不使用 git checkout，避免误删未被跟踪的配置文件
@@ -540,6 +571,9 @@ def check_for_update(auto_pull=False):
     3. 保护文件（.env、config.json、data/、logs/、*.db 等）不会被覆盖
     4. SHA256 校验确保资产完整性（缺少校验文件时拒绝自动更新）
     """
+    # 未显式指定时，使用 config.json 配置（缺省 True）
+    if auto_pull is None:
+        auto_pull = _AUTO_PULL
     try:
         latest, release_url, release_data = _fetch_latest_version()
         if not latest:
@@ -565,7 +599,7 @@ def check_for_update(auto_pull=False):
 
         if not auto_pull:
             logger.info(f"[更新检查] 自动更新未启用，请手动访问 {release_url} 下载最新版本")
-            logger.info("[更新检查] 提示：设置 auto_pull=True 可启用安全自动更新（保留配置文件与数据库）")
+            logger.info("[更新检查] 提示：如需启用安全自动更新，可在 config.json 设置 auto_pull: true（保留配置文件与数据库）")
             return
 
         # 自动更新流程：缺少校验文件时拒绝自动更新（安全要求）

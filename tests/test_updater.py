@@ -148,6 +148,65 @@ class TestVerifyReleaseSignature(unittest.TestCase):
             updater._download_text = orig
 
 
+class TestLoadAutoPull(unittest.TestCase):
+    """测试 _load_auto_pull：由根目录 config.json 的 auto_pull 字段控制，缺省 True。"""
+
+    def _call_with_config(self, payload):
+        """临时改写根目录 config.json 并调用 _load_auto_pull，结束后恢复现场。"""
+        cfg = REPO_ROOT / "config.json"
+        backup = cfg.read_text(encoding="utf-8") if cfg.exists() else None
+        try:
+            if payload is None:
+                if cfg.exists():
+                    cfg.unlink()
+            else:
+                cfg.write_text(payload, encoding="utf-8")
+            return updater._load_auto_pull()
+        finally:
+            if backup is None:
+                if cfg.exists():
+                    cfg.unlink()
+            else:
+                cfg.write_text(backup, encoding="utf-8")
+
+    def test_default_true_when_missing(self):
+        self.assertTrue(self._call_with_config(None))
+
+    def test_true_bool(self):
+        self.assertTrue(self._call_with_config('{"auto_pull": true}'))
+
+    def test_false_bool(self):
+        self.assertFalse(self._call_with_config('{"auto_pull": false}'))
+
+    def test_true_string(self):
+        self.assertTrue(self._call_with_config('{"auto_pull": "true"}'))
+
+    def test_false_string(self):
+        self.assertFalse(self._call_with_config('{"auto_pull": "false"}'))
+
+    def test_invalid_type_fallback_true(self):
+        self.assertTrue(self._call_with_config('{"auto_pull": 123}'))
+
+    def test_bad_json_fallback_true(self):
+        self.assertTrue(self._call_with_config('{not valid json'))
+
+
+class TestCheckForUpdateDefault(unittest.TestCase):
+    def test_default_pull_false_uses_config(self):
+        orig_fetch = updater._fetch_latest_version
+        orig_ver = updater.__version__
+        orig_auto = updater._AUTO_PULL
+        updater._fetch_latest_version = lambda: ("9.9.9", "url", {"tag": "v9.9.9"})
+        updater.__version__ = "1.0.0"
+        updater._AUTO_PULL = False
+        try:
+            updater.check_for_update()  # 不应抛异常，auto_pull=False 时仅提示
+        finally:
+            updater._fetch_latest_version = orig_fetch
+            updater.__version__ = orig_ver
+            updater._AUTO_PULL = orig_auto
+
+
 class TestCheckForUpdate(unittest.TestCase):
     def test_no_update_when_current_is_latest(self):
         orig_fetch = updater._fetch_latest_version
