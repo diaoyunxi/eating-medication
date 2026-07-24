@@ -14,6 +14,7 @@ from app.utils.validators import (
     is_valid_username,
     is_valid_password,
     is_valid_time_format,
+    is_valid_email,
 )
 
 
@@ -66,6 +67,31 @@ class TestIsValidTimeFormat(unittest.TestCase):
     def test_invalid(self):
         for t in ["24:00", "08:60", "8:00", "12:345", "ab:cd", ""]:
             self.assertFalse(is_valid_time_format(t), t)
+
+
+class TestIsValidEmail(unittest.TestCase):
+    def test_valid(self):
+        for email in [
+            "a@b.com",
+            "user.name@sub.example.com",
+            "user+tag@domain.io",
+            "user-01@a-b.co",
+        ]:
+            self.assertTrue(is_valid_email(email), email)
+
+    def test_invalid(self):
+        for email in [
+            "",
+            None,
+            "no-at-sign",
+            "a@b",
+            "a@b.",
+            "@missing-local.com",
+            "missing-domain@",
+            "a b@c.com",        # 含空格
+            "a" * 255 + "@b.com",  # 超长（>254）
+        ]:
+            self.assertFalse(is_valid_email(email), repr(email))
 
 
 if __name__ == "__main__":
