@@ -1,5 +1,19 @@
 # 项目开发历史记录
 
+## v2.14.1 (2026-07-24) — 补充邮箱验证码登录测试
+
+### 概述
+为 v2.14.0 的「邮箱验证码登录」功能补齐单元测试与接口测试，覆盖验证码存储、双后端发信、schema 校验、服务层登录/自动注册，以及 `/auth/email/send-code`、`/auth/email/code-login` 两个接口。
+
+### 主要变更（测试）
+- **`tests/test_email_code.py`（新）**：`app.utils.email_code` 单元测试——发送（成功 / 邮件未配置 / 重发间隔 / 每日上限）、校验（成功 / 错误码 / 过期 / 一次性消费防重放）。
+- **`tests/test_mail.py`（新）**：`app.utils.mail` 单元测试——`mail_enabled` 分支（SMTP / API / 未配置 / 非法 provider）、`send_email` 降级、`_send_smtp` 与 `_send_api` 发信（成功 / 失败返回 False）。
+- **`tests/test_email_auth_api.py`（新）**：FastAPI TestClient 接口测试——`/auth/email/send-code`（成功 / Turnstile 失败 / 发信失败 / 限流 429）、`/auth/email/code-login`（成功并自动建号 / 邮箱已存在直接登录不重复 / 验证码错误 / Turnstile 失败）；数据库用独立内存 SQLite 真实建表。
+- **`tests/test_validators.py`**：新增 `is_valid_email` 合法 / 非法 / 超长用例。
+- **`tests/test_schemas_auth.py`**：新增 `EmailSendCodeReq` / `EmailCodeLoginReq` 校验用例（合法 / 非法邮箱 / 验证码长度）。
+- **`tests/test_auth_service.py`**：新增 `login_or_register_by_email` 用例（已注册直接登录 / 未注册自动建号，邮箱归一化 + 默认 role=family）。
+- 版本 2.14.0 -> 2.14.1（向后兼容的测试补充）。
+
 ## v2.14.0 (2026-07-24) — 邮箱验证码登录（自动注册）
 
 ### 概述
