@@ -1,5 +1,24 @@
 # 项目开发历史记录
 
+## v2.16.0 (2026-07-24) — main.py 新增 --reset 重置运行时数据
+
+### 概述
+为方便部署与二次分发，在 `server/main.py` 与 `family_monitor/main.py` 中新增命令行参数 `--reset`：
+执行后删除全部未跟踪 / 被 `.gitignore` 忽略的运行时数据（用户密码库、老人端设备数据等），
+但**保留** `.env`、`config.json`、`logs/`，使工作树与一次全新 `git clone` 的差异仅此三项。
+执行前需交互输入 `YES` 二次确认（非交互环境默认取消），以防误删。
+
+### 主要变更
+- **新增 `reset_runtime.py`（仓库根目录）**：提供 `reset_runtime_data(repo_root)` 与 `confirm_reset()`。
+  删除采用「保留感知」递归策略：基于 `git status --ignored` 精确枚举被忽略 / 未跟踪项删除；
+  同时按显式模式兜底清理核心数据（不依赖 git）。当被忽略目录内含有需保留文件（如 `server/.env`）
+  时仅清理非保留内容，安全保留 `.env` / `config.json` / `logs/`，且绝不删除已跟踪源码。
+- **`server/main.py`**：`main()` 开头解析 `--reset`，在任何副作用（更新检查 / 建目录 / 启动）之前执行并退出。
+- **`family_monitor/main.py`**：`main()` 开头同样解析 `--reset`，在任何副作用之前执行并退出。
+- **新增 `tests/test_reset_runtime.py`**：基于临时 git 仓库验证保留项（含子目录 `.env`/`config.json`/logs）、
+  删除项（DB / `users.json` / `device_id.txt` / 下载库文件 / 缓存）及不误删已跟踪文件。
+- 版本 2.15.0 -> 2.16.0（向后兼容的新增命令行能力）。
+
 ## v2.15.0 (2026-07-24) — install.py 自动下载安装未发布包 dfrobot_huskylensv2
 
 ### 概述
