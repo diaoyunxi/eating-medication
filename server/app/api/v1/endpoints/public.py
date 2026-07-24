@@ -155,7 +155,7 @@ async def register_device(
             username=req.device_id,
             # 生成不可登录的随机密码
             hashed_password=hash_password(secrets.token_urlsafe(32)),
-            full_name=req.device_name or req.device_id,
+            username=req.device_name or req.device_id,
             role="elderly",
             last_heartbeat_at=datetime.now(timezone.utc),
             device_token=device_token,
@@ -270,7 +270,7 @@ async def get_device_status(
     resolved_device_id = user.device_id or device_id or user.username
     return {
         "device_id": resolved_device_id,
-        "device_name": user.full_name,
+        "device_name": user.username,
         "role": user.role,
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "total_plans": total_plans,
@@ -365,7 +365,7 @@ async def get_device_schedule(
 
     return {
         "device_id": device_id,
-        "device_name": user.full_name,
+        "device_name": user.username,
         "schedules": schedules,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }

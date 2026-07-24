@@ -106,9 +106,10 @@
 
                 <form method="POST" action="{{ prefix }}/login" class="auth-form" id="loginForm">
                     <div class="form-group">
-                        <label class="form-label" for="username">用户名</label>
-                        <input type="text" class="form-input" id="username" name="username"
-                               placeholder="请输入用户名" required autofocus>
+                        <label class="form-label" for="phone">手机号</label>
+                        <input type="tel" class="form-input" id="phone" name="phone"
+                               placeholder="请输入手机号" required autofocus
+                               pattern="1[3-9]\d{9}" maxlength="11" title="请输入11位手机号">
                     </div>
 
                     <div class="form-group">
@@ -511,9 +512,9 @@
             submitBtn.disabled = true;
             submitBtnText.textContent = '处理中...';
 
-            // 构造表单数据：username / password / cf-turnstile-response
+            // 构造表单数据：phone / password / cf-turnstile-response
             var formData = new FormData();
-            formData.append('username', document.getElementById('username').value);
+            formData.append('phone', document.getElementById('phone').value);
             formData.append('password', document.getElementById('password').value);
             formData.append('cf-turnstile-response', token);
 

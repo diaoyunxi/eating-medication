@@ -14,12 +14,13 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(20), unique=True, index=True, nullable=False)
+    # 昵称（展示名，可重复、非登录键；登录唯一标识为 phone）
+    username = Column(String(50), nullable=True, index=True)
     # OAuth 用户（如 GitHub 登录）可不设密码，故允许为空
     hashed_password = Column(String, nullable=True)
-    full_name = Column(String, nullable=False)
     role = Column(String, nullable=False)  # "elderly" 或 "family"
-    phone = Column(String, nullable=True)
+    # 手机号：登录唯一标识（必填、唯一；邮箱验证码自动注册的用户为 NULL）
+    phone = Column(String(20), nullable=True, unique=True, index=True)
     group_id = Column(Integer, nullable=True)  # 家庭组ID，老人和家属同组
     created_at = Column(DateTime, default=_utcnow)
     # 账号启用状态与最后登录时间

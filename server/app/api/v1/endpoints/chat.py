@@ -27,7 +27,7 @@ async def send_message(
     校验 receiver_id 与 sender 属于同一家庭组，防止 IDOR。
     """
     # sender_id 从 token 提取，覆盖任何客户端传入值
-    # sender_name 从服务端 current_user.full_name 获取，防止客户端伪造
+    # sender_name 从服务端 current_user.username 获取，防止客户端伪造
     # 校验接收者是否与发送者同组
     if msg.receiver_id:
         receiver = db.query(User).filter(User.id == msg.receiver_id).first()
@@ -40,7 +40,7 @@ async def send_message(
     db_msg = ChatMessage(
         sender_id=current_user.id,
         receiver_id=msg.receiver_id,
-        sender_name=current_user.full_name,
+        sender_name=current_user.username or "用户",
         content=msg.content
     )
     db.add(db_msg)
@@ -130,7 +130,7 @@ async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Que
                     with SessionLocal() as db:
                         # sender_name 从服务端查库获取，防止客户端伪造
                         sender = db.query(User).filter(User.id == user_id).first()
-                        sender_name = sender.full_name if sender else "未知"
+                        sender_name = sender.username if sender else "未知"
                         # sender 可能为 None（用户被删除），
                         # 原代码直接访问 sender.group_id 会抛出 AttributeError，
                         # 导致 WebSocket 连接异常中断。增加 None 检查。

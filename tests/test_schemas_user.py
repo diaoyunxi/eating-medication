@@ -13,21 +13,17 @@ from app.schemas.user import UserUpdate, UserOut, BindFamilyReq
 class TestUserUpdate(unittest.TestCase):
     def test_empty_allowed(self):
         u = UserUpdate()
-        self.assertIsNone(u.full_name)
+        self.assertIsNone(u.username)
         self.assertIsNone(u.phone)
 
     def test_valid(self):
-        u = UserUpdate(full_name="张三", phone="13800138000")
-        self.assertEqual(u.full_name, "张三")
+        u = UserUpdate(username="张三", phone="13800138000")
+        self.assertEqual(u.username, "张三")
         self.assertEqual(u.phone, "13800138000")
 
-    def test_full_name_too_long(self):
+    def test_username_too_long(self):
         with self.assertRaises(ValidationError):
-            UserUpdate(full_name="张" * 51)
-
-    def test_full_name_empty(self):
-        with self.assertRaises(ValidationError):
-            UserUpdate(full_name="")
+            UserUpdate(username="张" * 51)
 
 
 class TestUserOut(unittest.TestCase):
@@ -36,9 +32,9 @@ class TestUserOut(unittest.TestCase):
         class FakeUser:
             id = 1
             username = "alice"
-            full_name = "Alice"
             role = "family"
             phone = None
+            email = None
             group_id = None
             device_id = None
             created_at = "2026-01-01"
