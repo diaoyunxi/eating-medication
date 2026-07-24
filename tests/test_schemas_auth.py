@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from pydantic import ValidationError  # noqa: E402
 
-from app.schemas.auth import RegisterReq, LoginReq  # noqa: E402
+from app.schemas.auth import RegisterReq, LoginReq, EmailSendCodeReq, EmailCodeLoginReq  # noqa: E402
 
 
 class TestRegisterReq(unittest.TestCase):
@@ -73,6 +73,41 @@ class TestLoginReq(unittest.TestCase):
         # LoginReq 不强制密码规则，应可接受任意非空密码
         req = LoginReq(username="alice", password="123")
         self.assertEqual(req.password, "123")
+
+
+class TestEmailSendCodeReq(unittest.TestCase):
+    """邮箱验证码 - 发送请求校验。"""
+
+    def test_valid(self):
+        req = EmailSendCodeReq(email="user@example.com")
+        self.assertEqual(req.email, "user@example.com")
+
+    def test_invalid_email(self):
+        with self.assertRaises(ValidationError):
+            EmailSendCodeReq(email="not-an-email")
+
+    def test_turnstile_token_optional(self):
+        req = EmailSendCodeReq(email="user@example.com")
+        self.assertIsNone(req.cf_turnstile_token)
+
+
+class TestEmailCodeLoginReq(unittest.TestCase):
+    """邮箱验证码 - 登录请求校验。"""
+
+    def test_valid(self):
+        req = EmailCodeLoginReq(email="user@example.com", code="123456")
+        self.assertEqual(req.code, "123456")
+
+    def test_invalid_email(self):
+        with self.assertRaises(ValidationError):
+            EmailCodeLoginReq(email="bad", code="123456")
+
+    def test_code_length(self):
+        # code 长度限定 4~8
+        with self.assertRaises(ValidationError):
+            EmailCodeLoginReq(email="user@example.com", code="12")
+        with self.assertRaises(ValidationError):
+            EmailCodeLoginReq(email="user@example.com", code="123456789")
 
 
 if __name__ == "__main__":

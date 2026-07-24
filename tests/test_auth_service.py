@@ -91,5 +91,35 @@ class TestLogin(unittest.TestCase):
         self.assertIsNone(AuthService.login(db, "ghost", "x"))
 
 
+@unittest.skipUnless(_HAVE, "需要 sqlalchemy / pydantic-settings（当前环境未安装）")
+class TestLoginOrRegisterByEmail(unittest.TestCase):
+    """邮箱验证码登录 / 自动注册。验证码校验由接口层完成，此处直接进入服务方法。"""
+
+    def test_existing_email_logs_in(self):
+        db = mock.MagicMock()
+        user = mock.MagicMock()
+        db.query.return_value.filter.return_value.first.return_value = user
+        with mock.patch("app.services.auth_service.create_access_token", return_value="tok"):
+            token = AuthService.login_or_register_by_email(db, "Existing@Example.com")
+        self.assertEqual(token, "tok")
+        # 已注册：不新建账号，仅提交最后登录时间
+        db.add.assert_not_called()
+        db.commit.assert_called()
+
+    def test_new_email_auto_registers(self):
+        db = mock.MagicMock()
+        # 邮箱未注册 -> 建号；用户名前缀未冲突 -> 不再查重
+        db.query.return_value.filter.return_value.first.return_value = None
+        with mock.patch("app.services.auth_service.create_access_token", return_value="tok"), \
+                mock.patch("app.services.auth_service.hash_password", return_value="hashed"):
+            token = AuthService.login_or_register_by_email(db, "New@Example.com")
+        self.assertEqual(token, "tok")
+        db.add.assert_called_once()
+        created = db.add.call_args.args[0]
+        # 邮箱归一化为小写；未注册自动建号默认角色 family
+        self.assertEqual(created.email, "new@example.com")
+        self.assertEqual(created.role, "family")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
