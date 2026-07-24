@@ -9,6 +9,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # 条件：同时检查 push 的提交信息 和 pull_request 的标题
+    if: |
+      (github.event_name == 'push' && (
+        contains(github.event.head_commit.message, 'feat') ||
+        contains(github.event.head_commit.message, 'fix') ||
+        contains(github.event.head_commit.message, 'refactor') ||
+        contains(github.event.head_commit.message, 'build')
+      )) ||
+      (github.event_name == 'pull_request' && (
+        contains(github.event.pull_request.title, 'feat') ||
+        contains(github.event.pull_request.title, 'fix') ||
+        contains(github.event.pull_request.title, 'refactor') ||
+        contains(github.event.pull_request.title, 'build')
+      ))
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.13
@@ -21,7 +35,6 @@ jobs:
           pip install -r elderly_assistant/requirements.txt
           pip install -r server/requirements.txt
           pip install -r family_monitor/requirements.txt
-          # CI 测试运行器（与 server/requirements-dev.txt 对齐）
           pip install "pytest==8.3.3" "pytest-asyncio==0.24.0"
       - name: Test with pytest
         run: pytest
