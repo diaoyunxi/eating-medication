@@ -97,7 +97,11 @@ def _load_github_proxy():
     try:
         if config_path.is_file():
             with open(config_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+                raw = f.read()
+            # 空文件或仅空白：视为未配置，静默返回直连，不打印告警
+            if not raw.strip():
+                return None
+            data = json.loads(raw)
             proxy = data.get("github_proxy")
             if isinstance(proxy, str) and proxy.strip():
                 return proxy.strip()
