@@ -6,6 +6,7 @@ import secrets
 import logging
 from pathlib import Path
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -148,7 +149,7 @@ _BACKFILL_FIELDS = [
         "# MAIL_PROVIDER: smtp=标准SMTP；api=Resend兼容HTTP API；留空则邮件功能禁用",
     ], ""),
     ("MAIL_HOST", ["# --- SMTP 后端 ---"], ""),
-    ("MAIL_PORT", [], ""),
+    ("MAIL_PORT", [], "587"),
     ("MAIL_USERNAME", [], ""),
     ("MAIL_PASSWORD", [], ""),
     ("MAIL_FROM", [], ""),
@@ -284,6 +285,18 @@ class Settings(BaseSettings):
     # HTTP API 后端（Resend 兼容：POST MAIL_API_URL，Bearer MAIL_API_KEY）
     MAIL_API_URL: Optional[str] = None
     MAIL_API_KEY: Optional[str] = None
+
+    @field_validator("MAIL_PORT", mode="before")
+    @classmethod
+    def _empty_mail_port_to_none(cls, v):
+        """空字符串（.env 中 MAIL_PORT= 或缺失）无法解析为整数，统一转为 None。
+
+        MAIL_PROVIDER 为空时邮件功能本就禁用，端口值被忽略，无副作用；
+        其余情况（如 "587"）保持原值交给 pydantic 解析为 int。
+        """
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
 
     class Config:
         env_file = ".env"
