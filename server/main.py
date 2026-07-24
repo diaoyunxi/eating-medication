@@ -147,6 +147,30 @@ def main():
     print("老人用药管理智能助手 - 服务端")
     print("=" * 50)
 
+    # 重置运行时数据模式（--reset）：在任何副作用（更新检查 / 建目录 / 启动）之前
+    # 执行并退出，删除用户密码库与老人端设备数据等本地文件，
+    # 仅保留 .env / config.json / logs，使工作树接近全新 clone 状态
+    if "--reset" in sys.argv:
+        _root = str(Path(__file__).resolve().parent.parent)
+        from reset_runtime import reset_runtime_data, confirm_reset
+        print("=" * 60)
+        print(" 重置运行时数据模式 (--reset)")
+        if not confirm_reset():
+            print(" 已取消，未做任何修改。")
+            sys.exit(0)
+        deleted, skipped = reset_runtime_data(_root)
+        print(f" 已删除 {len(deleted)} 项运行时文件 / 目录：")
+        for p in deleted:
+            print("   -", p)
+        if skipped:
+            print(f" 跳过 {len(skipped)} 项（删除失败）：")
+            for p in skipped:
+                print("   !", p)
+        print(" 已保留: .env / config.json / logs/")
+        print(" 工作树现已接近全新 clone 状态（仅上述三项差异）。")
+        print("=" * 60)
+        sys.exit(0)
+
     # 启动时检查更新（启用自动拉取）
     try:
         # 统一 updater.py 已迁移至仓库根目录，确保根目录在 sys.path 中
