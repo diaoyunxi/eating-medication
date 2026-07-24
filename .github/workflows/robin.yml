@@ -14,9 +14,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run AI Code Review with Robin
-        uses: robin-review/robin-review@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          openai-api-key: ${{ secrets.OPENROUTER_API_KEY }}
-          model: 'openrouter/free'
+          node-version: '18'
+
+      - name: Run Robin Review via npx
+        run: npx robin-review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ROBIN_MODEL: 'openrouter/free'   # 指定使用免费模型
