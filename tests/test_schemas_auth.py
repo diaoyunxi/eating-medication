@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """server/app/schemas/auth.py 单元测试。
 
-覆盖 RegisterReq / LoginReq 的字段校验（角色、手机号、用户名、密码规则）。
+覆盖 RegisterReq / LoginReq 的字段校验（角色、手机号、昵称、密码规则）。
 """
 import os
 import sys
@@ -21,7 +21,6 @@ class TestRegisterReq(unittest.TestCase):
         base = {
             "username": "alice_01",
             "password": "Passw0rd",
-            "full_name": "Alice",
             "role": "family",
             "phone": "13800138000",
         }
@@ -41,37 +40,38 @@ class TestRegisterReq(unittest.TestCase):
         with self.assertRaises(ValidationError):
             RegisterReq(**self._valid(phone="12345"))
 
-    def test_username_too_short(self):
+    def test_username_too_long(self):
+        # 昵称为展示名，最长 50 字符
         with self.assertRaises(ValidationError):
-            RegisterReq(**self._valid(username="ab"))
+            RegisterReq(**self._valid(username="昵" * 51))
 
     def test_password_too_short(self):
         with self.assertRaises(ValidationError):
             RegisterReq(**self._valid(password="12345"))
 
-    def test_phone_optional(self):
-        # 手机号可省略
+    def test_phone_required(self):
+        # 手机号为必填（唯一登录标识），缺省应报错
         data = self._valid()
         del data["phone"]
-        req = RegisterReq(**data)
-        self.assertIsNone(req.phone)
+        with self.assertRaises(ValidationError):
+            RegisterReq(**data)
 
 
 class TestLoginReq(unittest.TestCase):
-    """登录请求校验。"""
+    """登录请求校验（手机号 + 密码）。"""
 
     def test_valid(self):
-        req = LoginReq(username="alice", password="Passw0rd")
-        self.assertEqual(req.username, "alice")
+        req = LoginReq(phone="13800138000", password="Passw0rd")
+        self.assertEqual(req.phone, "13800138000")
 
-    def test_username_not_validated(self):
-        # LoginReq 不强制用户名长度（仅 RegisterReq 校验），应可接受
-        req = LoginReq(username="ab", password="123")
-        self.assertEqual(req.username, "ab")
+    def test_phone_required(self):
+        # 手机号必填
+        with self.assertRaises(ValidationError):
+            LoginReq(password="123")
 
     def test_password_not_validated(self):
         # LoginReq 不强制密码规则，应可接受任意非空密码
-        req = LoginReq(username="alice", password="123")
+        req = LoginReq(phone="13800138000", password="123")
         self.assertEqual(req.password, "123")
 
 

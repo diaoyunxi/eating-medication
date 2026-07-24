@@ -39,6 +39,7 @@ from app.core.security import (
     create_access_token,
 )
 from app.services.auth_service import AuthService
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -268,12 +269,31 @@ async def _callback(
     )
     # github 沿用历史 cookie 名 oauth_pending，gitee 单独命名 oauth_pending_gitee
     pending_cookie = "oauth_pending" if provider == "github" else f"oauth_pending_{provider}"
-    q_prefix = "gh" if provider == "github" else "gt"
+
+    # 邮箱冲突检测：若 OAuth 邮箱已存在对应用户（且未绑定本 provider），提示"绑定"
+    bind_email = ""
+    oauth_email = info["email"]
+    if oauth_email:
+        email_user = db.query(User).filter(
+            User.email == oauth_email.strip().lower()
+        ).first()
+        if email_user and not (
+            (provider == "github" and email_user.github_id) or
+            (provider == "gitee" and email_user.gitee_id)
+        ):
+            bind_email = oauth_email
+
+    # 构造补全注册页 URL（与 family_monitor 的 register_page 参数对齐）
+    login_hint = quote(info["provider_login"] or "")
+    name_hint = quote(info["provider_name"] or "")
     register_url = (
         f"{settings.FAMILY_WEB_URL}/register"
-        f"?{q_prefix}_login={quote(info['provider_login'])}"
-        f"&{q_prefix}_name={quote(info['provider_name'] or '')}"
+        f"?oauth=1&provider={provider}"
+        f"&provider_name={ 'GitHub' if provider == 'github' else 'Gitee' }"
+        f"&prefill_username={login_hint}&prefill_name={name_hint}"
     )
+    if bind_email:
+        register_url += f"&bind_email={quote(bind_email)}"
     resp = _clear_and_redirect(state_cookie, register_url)
     resp.set_cookie(key=pending_cookie, value=pending, **_cookie_kwargs(900))
     return resp

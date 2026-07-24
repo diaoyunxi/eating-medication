@@ -58,19 +58,14 @@ class AuthService:
                 )
                 return create_access_token(data={"sub": existing_email_user.id})
 
-        # 用户名冲突自动加数字后缀（如 octocat -> octocat2），保证唯一
-        base_username = req.username
-        username = base_username
-        suffix = 1
-        while db.query(User).filter(User.username == username).first():
-            suffix += 1
-            username = f"{base_username}{suffix}"[:20]
+        # 手机号唯一性校验（phone 为登录唯一标识，必填由 schema 保证）
+        if req.phone and db.query(User).filter(User.phone == req.phone).first():
+            raise ValueError("该手机号已注册")
 
-        # 创建新用户
+        # 创建新用户（username 为昵称，可空、非唯一；full_name 已废弃）
         user = User(
-            username=username,
+            username=req.username,
             hashed_password=hash_password(req.password),
-            full_name=req.full_name,
             role=req.role,
             phone=req.phone,
             group_id=None,
@@ -121,9 +116,9 @@ class AuthService:
         return AuthService.get_by_provider(db, "github", github_id)
 
     @staticmethod
-    def login(db: Session, username: str, password: str) -> Optional[str]:
-        """用户登录，返回 access_token，失败返回 None"""
-        user = db.query(User).filter(User.username == username).first()
+    def login(db: Session, phone: str, password: str) -> Optional[str]:
+        """用户登录（手机号 + 密码），返回 access_token，失败返回 None"""
+        user = db.query(User).filter(User.phone == phone).first()
         # 防时序攻击——用户不存在时也执行一次 bcrypt 验证消耗时间，
         # 避免通过响应时间差异探测用户是否存在
         if not user:
@@ -178,7 +173,6 @@ class AuthService:
         user = User(
             username=username,
             hashed_password=hash_password(random_pwd),
-            full_name=email.split("@")[0],
             role="family",                       # 邮箱自动注册默认子女端（家人看护视角）
             phone=None,
             group_id=None,

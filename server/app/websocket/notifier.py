@@ -25,15 +25,15 @@ class Notifier:
         message = {
             "type": "medication_taken",
             "elderly_id": elderly_id,
-            "elderly_name": user.full_name,
+            "elderly_name": user.username,
             "drug_name": drug_name,
             "taken_time": taken_time,
-            "message": f"{user.full_name} 已服用 {drug_name}"
+            "message": f"{user.username} 已服用 {drug_name}"
         }
 
         # 广播给同组所有成员
         await manager.broadcast_to_group(user.group_id, message, db)
-        logger.info(f"已通知家庭组 {user.group_id}：{user.full_name} 服用了 {drug_name}")
+        logger.info(f"已通知家庭组 {user.group_id}：{user.username} 服用了 {drug_name}")
 
     @staticmethod
     async def notify_missed_medication(
@@ -50,14 +50,14 @@ class Notifier:
         message = {
             "type": "medication_missed",
             "elderly_id": elderly_id,
-            "elderly_name": user.full_name,
+            "elderly_name": user.username,
             "drug_name": drug_name,
             "scheduled_time": scheduled_time,
-            "message": f"{user.full_name} 漏服 {drug_name}，请注意提醒"
+            "message": f"{user.username} 漏服 {drug_name}，请注意提醒"
         }
 
         await manager.broadcast_to_group(user.group_id, message, db)
-        logger.warning(f"漏服通知：{user.full_name} 漏服 {drug_name}")
+        logger.warning(f"漏服通知：{user.username} 漏服 {drug_name}")
 
     @staticmethod
     async def notify_low_stock(
@@ -75,15 +75,15 @@ class Notifier:
         message = {
             "type": "low_stock",
             "elderly_id": elderly_id,
-            "elderly_name": user.full_name,
+            "elderly_name": user.username,
             "drug_name": drug_name,
             "remaining": remaining,
             "threshold": threshold,
-            "message": f"{user.full_name} 的 {drug_name} 库存不足（剩余 {remaining}），请及时购买"
+            "message": f"{user.username} 的 {drug_name} 库存不足（剩余 {remaining}），请及时购买"
         }
 
         await manager.broadcast_to_group(user.group_id, message, db)
-        logger.info(f"低库存通知：{user.full_name} 的 {drug_name} 仅剩 {remaining}")
+        logger.info(f"低库存通知：{user.username} 的 {drug_name} 仅剩 {remaining}")
 
     @staticmethod
     async def notify_family_message(
