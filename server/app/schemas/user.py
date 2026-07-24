@@ -6,10 +6,10 @@ from datetime import datetime
 class UserOut(BaseModel):
     """用户信息响应"""
     id: int
-    username: str
-    full_name: str
+    username: Optional[str] = None  # 昵称
     role: str
     phone: Optional[str] = None
+    email: Optional[str] = None
     group_id: Optional[int] = None
     # 设备ID（老人绑定设备后填充，家属为 None）
     device_id: Optional[str] = None
@@ -18,9 +18,9 @@ class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class UserUpdate(BaseModel):
-    """更新用户信息请求"""
-    full_name: Optional[str] = Field(None, min_length=1, max_length=50)
-    phone: Optional[str] = None
+    """更新用户信息请求（昵称与手机号均可修改，二选一或全部）"""
+    username: Optional[str] = Field(None, max_length=50, description="昵称")
+    phone: Optional[str] = Field(None, description="手机号")
 
 class BindFamilyReq(BaseModel):
     """家属绑定老人请求"""

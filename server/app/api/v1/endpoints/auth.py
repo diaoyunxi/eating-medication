@@ -101,9 +101,9 @@ def login(req: LoginReq, request: Request, db: Session = Depends(get_db)):
     client_ip = get_client_ip(request)
     if not check_rate_limit(f"login:{client_ip}", _LOGIN_RATE_LIMIT):
         raise HTTPException(status_code=429, detail="登录请求过于频繁，请稍后再试")
-    token = AuthService.login(db, req.username, req.password)
+    token = AuthService.login(db, req.phone, req.password)
     if token is None:
-        raise HTTPException(status_code=401, detail="用户名或密码错误")
+        raise HTTPException(status_code=401, detail="手机号或密码错误")
     return TokenResp(access_token=token, token_type="bearer")
 
 

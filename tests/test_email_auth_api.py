@@ -127,7 +127,7 @@ class TestEmailAuthAPI(unittest.TestCase):
 
     def test_code_login_existing_user_no_duplicate(self):
         db = self.SessionLocal()
-        db.add(User(username="exists", hashed_password="x", full_name="exists",
+        db.add(User(username="exists", hashed_password="x",
                     email="existing@x.com", role="family"))
         db.commit()
         db.close()
