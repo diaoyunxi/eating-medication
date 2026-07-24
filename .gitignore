@@ -80,6 +80,8 @@ SHA256SUMS.txt
 !/src/
 !package.json
 !/.github
+# 仓库根级工具脚本 (与 updater.py 同性质, 需纳入版本控制)
+!reset_runtime.py
 
 # install.py 自动从官方仓库下载的未发布单文件模块 (运行时落地, 不纳入仓库)
 elderly_assistant/dfrobot_huskylensv2.py
