@@ -32,8 +32,8 @@ class UserService:
         if not user:
             return None
 
-        if update_data.full_name is not None:
-            user.full_name = update_data.full_name
+        if update_data.username is not None:
+            user.username = update_data.username
         if update_data.phone is not None:
             user.phone = update_data.phone
 
