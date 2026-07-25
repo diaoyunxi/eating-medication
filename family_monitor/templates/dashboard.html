@@ -1186,5 +1186,49 @@
         setInterval(refreshDeviceStatus, 15000);
     })();
     </script>
+    <!-- 更新信息轮询（每5分钟），展示当前/最新版本与更新状态 -->
+    <script>
+    (function(){
+        var elId = 'appUpdateBadge';
+        function ensureBadge(){
+            var navUser = document.querySelector('.nav-user');
+            if(!navUser || document.getElementById(elId)) return;
+            var span = document.createElement('span');
+            span.id = elId;
+            span.className = 'nav-update-badge';
+            span.style.cssText = 'margin-right:10px;font-size:12px;padding:2px 8px;border-radius:12px;background:rgba(0,0,0,.06);cursor:default;';
+            navUser.parentNode.insertBefore(span, navUser);
+        }
+        function setBadge(text, color){
+            ensureBadge();
+            var el = document.getElementById(elId);
+            if(!el) return;
+            el.textContent = text;
+            el.style.color = color || '#5a7fa8';
+            el.title = '当前版本 / 最新版本 / 自动更新';
+        }
+        function refreshUpdateInfo(){
+            fetch('{{ prefix }}/api/v1/updater')
+                .then(function(r){return r.json();})
+                .then(function(info){
+                    if(!info){ setBadge('未知版本'); return; }
+                    var cur = info.current_version || '?';
+                    var latest = info.latest_version || cur;
+                    if(info.update_available){
+                        setBadge('当前 ' + cur + ' · 新版 ' + latest + ' 可更新', '#c49a3c');
+                    } else {
+                        setBadge('当前 ' + cur + (latest && latest !== cur ? (' · 最新 ' + latest) : ' · 已是最新'), '#5a8a6a');
+                    }
+                })
+                .catch(function(e){
+                    console.error('更新信息刷新失败:', e);
+                    setBadge('版本检查失败', '#b85450');
+                });
+        }
+        ensureBadge();
+        refreshUpdateInfo();
+        setInterval(refreshUpdateInfo, 300000);
+    })();
+    </script>
 </body>
 </html>
