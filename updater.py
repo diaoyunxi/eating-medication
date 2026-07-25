@@ -527,6 +527,9 @@ def _restart_service():
     """尝试重启所有处于 active 状态的相关 systemd 服务。
 
     完整发布包会同时更新多个模块，因此重启所有被检测到的服务。
+    若没有任何 systemd 服务处于 active 状态（例如以 nohup/python 直接运行），
+    则回退为「重启当前进程自身」（通过 os.execv 重新执行 updater 所属入口脚本），
+    使新代码生效。
     """
     service_names = [
         "eating-medication-server",
@@ -555,8 +558,64 @@ def _restart_service():
                 logger.warning(f"[更新检查] 重启服务 {name} 失败: {r.stderr.strip()}")
     if restarted:
         return True
-    logger.info("[更新检查] 未检测到 systemd 服务，请手动重启应用")
+    logger.info("[更新检查] 未检测到 active 的 systemd 服务，尝试重启当前进程以应用更新")
+    return _restart_self()
+
+
+def _restart_self():
+    """回退方案：重启当前 Python 进程自身以加载新代码。
+
+    - 优先重启 sys.argv[0] 指定的入口脚本（如 server/main.py）；
+    - 若当前文件就是入口（直接运行 updater.py），则重启 updater.py；
+    - 非 Windows 下使用 os.execv 原地替换进程，父进程（如 shell/systemd）无需感知。
+    仅返回 False（无法重启），交由调用方提示手动重启。
+    """
+    try:
+        if sys.platform == "win32":
+            logger.warning("[更新检查] Windows 平台不支持原地重启，请手动重启应用")
+            return False
+        # 计算入口脚本与可执行解释器
+        if getattr(sys.modules.get("__main__"), "__file__", None):
+            target = sys.modules["__main__"].__file__
+        else:
+            target = str(Path(__file__).resolve())
+        interpreter = sys.executable or sys.argv[0]
+        logger.info(f"[更新检查] 重启进程: {interpreter} {target}")
+        # os.execv 会替换当前进程，后续代码不会执行
+        os.execv(interpreter, [interpreter, target] + sys.argv[1:])
+    except Exception as e:
+        logger.warning(f"[更新检查] 重启当前进程失败: {e}，请手动重启应用")
     return False
+
+
+def get_update_info():
+    """查询更新信息，返回结构化字典（供 API 端点 / 前端轮询使用）。
+
+    :return: dict，包含以下字段
+        - current_version: 本地版本号
+        - latest_version:  远端最新版本号（无网络时为 None）
+        - update_available: bool，是否有可用更新
+        - auto_pull:       当前 auto_pull 配置（bool，缺省 True）
+        - release_url:     最新版本发布页 URL（无则为 None）
+        - checked_at:      ISO 时间戳（本地）
+    """
+    info = {
+        "current_version": __version__,
+        "latest_version": None,
+        "update_available": False,
+        "auto_pull": _AUTO_PULL,
+        "release_url": None,
+        "checked_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+    }
+    try:
+        latest, release_url, _ = _fetch_latest_version()
+        info["latest_version"] = latest
+        info["release_url"] = release_url
+        if latest and _compare_versions(latest, __version__) > 0:
+            info["update_available"] = True
+    except Exception as e:
+        logger.warning(f"[更新检查] 查询更新信息失败: {e}")
+    return info
 
 
 # ============================================================
@@ -578,14 +637,32 @@ def check_for_update(auto_pull=None):
     # 未显式指定时，使用 config.json 配置（缺省 True）
     if auto_pull is None:
         auto_pull = _AUTO_PULL
+    info = get_update_info()
+    latest = info["latest_version"]
+    release_url = info["release_url"]
     try:
-        latest, release_url, release_data = _fetch_latest_version()
         if not latest:
-            return
+            logger.warning(f"[更新检查] 无法获取最新版本（网络或 GitHub 异常），跳过检查")
+            return info
 
         if _compare_versions(latest, __version__) <= 0:
             logger.info(f"[更新检查] 当前版本 v{__version__}，已是最新版本。")
-            return
+            return info
+
+        logger.info("=" * 50)
+        logger.info("  发现新版本！")
+        logger.info(f"  当前版本: v{__version__}")
+        logger.info(f"  最新版本: {latest}")
+        logger.info(f"  下载地址: {release_url}")
+        logger.info("=" * 50)
+
+        # 解析 SHA256 校验
+        release_data = _fetch_latest_release()
+        sha_sums = _verify_release_signature(release_data)
+        if sha_sums is None:
+            logger.warning("[更新检查] 未找到 SHA256 校验文件，无法验证资产完整性")
+        else:
+            logger.info(f"[更新检查] 已加载 {len(sha_sums)} 条资产校验记录")
 
         logger.info("=" * 50)
         logger.info("  发现新版本！")
@@ -596,6 +673,9 @@ def check_for_update(auto_pull=None):
 
         # 解析 SHA256 校验
         sha_sums = _verify_release_signature(release_data)
+        # 解析 SHA256 校验（需要在 auto_pull 判断前完成，供两段安全校验共用）
+        release_data = _fetch_latest_release()
+        sha_sums = _verify_release_signature(release_data)
         if sha_sums is None:
             logger.warning("[更新检查] 未找到 SHA256 校验文件，无法验证资产完整性")
         else:
@@ -604,13 +684,13 @@ def check_for_update(auto_pull=None):
         if not auto_pull:
             logger.info(f"[更新检查] 自动更新未启用，请手动访问 {release_url} 下载最新版本")
             logger.info("[更新检查] 提示：如需启用安全自动更新，可在 config.json 设置 auto_pull: true（保留配置文件与数据库）")
-            return
+            return info
 
         # 自动更新流程：缺少校验文件时拒绝自动更新（安全要求）
         if sha_sums is None:
             logger.error("[更新检查] 未找到SHA256校验文件，出于安全考虑拒绝自动更新")
             logger.info(f"[更新检查] 请手动访问 {release_url} 下载并人工校验")
-            return
+            return info
 
         logger.warning("⚠️ 自动更新：将下载并安装新版本")
         logger.info("[更新检查] 保护文件将保留：.env、config.json、data/、logs/、*.db 等")
@@ -621,7 +701,7 @@ def check_for_update(auto_pull=None):
         if not zip_asset:
             logger.error("[更新检查] 未在 Release 资产中找到完整发布包 zip，无法自动更新")
             logger.info(f"[更新检查] 请手动访问 {release_url} 下载")
-            return
+            return info
 
         zip_url = zip_asset.get("browser_download_url")
         zip_name = zip_asset.get("name", "update.zip")
@@ -640,7 +720,7 @@ def check_for_update(auto_pull=None):
             # 下载 zip
             if not _download_file_with_hash(zip_url, str(tmp_zip_path), expected_hash):
                 logger.error("[更新检查] 下载失败")
-                return
+                return info
 
             # 执行安全更新（项目根目录即本 updater.py 所在目录）
             project_dir = Path(__file__).resolve().parent
@@ -666,6 +746,8 @@ def check_for_update(auto_pull=None):
 
     except Exception as e:
         logger.warning(f"[更新检查] 检查更新失败: {e}")
+        info["error"] = str(e)
+    return info
 
 
 if __name__ == "__main__":
