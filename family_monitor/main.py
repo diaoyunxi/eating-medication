@@ -151,6 +151,10 @@ async def auth_middleware(request: Request, call_next):
         f"{PATH_PREFIX}/oauth/github/enabled" if PATH_PREFIX else "/oauth/github/enabled",
         f"{PATH_PREFIX}/oauth/gitee/authorize" if PATH_PREFIX else "/oauth/gitee/authorize",
         f"{PATH_PREFIX}/oauth/github/authorize" if PATH_PREFIX else "/oauth/github/authorize",
+        # 邮箱验证码 - 发送：登录页未登录状态下即会调用，必须公开（否则被重定向到登录页）
+        f"{PATH_PREFIX}/email/send-code" if PATH_PREFIX else "/email/send-code",
+        # 邮箱验证码 - 登录/自动注册：本身就是登录流程的一部分，必须公开
+        f"{PATH_PREFIX}/email/code-login" if PATH_PREFIX else "/email/code-login",
     ]
     path = request.scope.get("path", request.url.path)
     # 静态文件与 .well-known 路径同样需拼接 PATH_PREFIX，否则子路径模式下被误判为非公开路径而触发重定向
