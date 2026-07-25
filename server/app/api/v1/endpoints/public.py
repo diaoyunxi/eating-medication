@@ -155,7 +155,6 @@ async def register_device(
             username=req.device_id,
             # 生成不可登录的随机密码
             hashed_password=hash_password(secrets.token_urlsafe(32)),
-            username=req.device_name or req.device_id,
             role="elderly",
             last_heartbeat_at=datetime.now(timezone.utc),
             device_token=device_token,
