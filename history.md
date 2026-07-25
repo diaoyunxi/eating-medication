@@ -1,5 +1,26 @@
 # 项目开发历史记录
 
+## v2.19.7 (2026-07-25) — 修复 server 启动崩溃：public.py 重复 username 关键字参数
+
+### 概述
+部署端更新到 v2.19.6 后执行 `python3 server/main.py` 立即崩溃，报错
+`SyntaxError: keyword argument repeated: username (public.py, line 158)`。
+根因为 `register_device` 创建虚拟用户时，`User(...)` 构造器中同时出现了
+`username=req.device_id` 与 `username=req.device_name or req.device_id` 两条
+重复的 `username` 关键字参数，属于 Python 语法错误，导致整个模块导入失败、服务无法启动。
+
+### 主要变更
+- **`server/app/api/v1/endpoints/public.py`**：删除 `register_device` 中重复的一行
+  `username=req.device_name or req.device_id`，仅保留 `username=req.device_id`。
+  该值同时与下方回退查询 `User.username == req.device_id` 保持一致，旧虚拟用户可正常反查。
+  `device_name` 为可选字段且无对应持久化列，删除后不影响任何功能。
+- 版本 2.19.6 -> 2.19.7（向下兼容的缺陷修复 / 启动崩溃修复）。
+
+### 部署注意
+该缺陷存在于 v2.19.6 的已发布代码中，会导致 `server` 服务启动即退出（仅 `family_monitor`
+可正常启动）。部署端拉取 v2.19.7 后服务即可恢复正常；若此前已因该错误停止，请重新拉取并启动
+`server/main.py` 与 `family_monitor/main.py`。
+
 ## v2.19.6 (2026-07-25) — 修复 check_for_update 重复请求 GitHub API 与重复日志
 
 ### 概述
