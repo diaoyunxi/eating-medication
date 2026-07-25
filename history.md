@@ -1,5 +1,29 @@
 # 项目开发历史记录
 
+## v2.19.8 (2026-07-25) — 修复注册页 Turnstile 人机验证「container 类型无效」报错
+
+### 概述
+注册页在通过 OAuth（GitHub/Gitee 绑定）回调回到 `/register?oauth=1` 的补全注册流程时，
+前端控制台报：`[Cloudflare Turnstile] Invalid type for parameter "container", expected
+"string" or an implementation of "HTMLElement".`，并回退提示「人机验证加载失败，可尝试直接提交」。
+
+根因为模板在 `oauth_mode` 下按设计隐藏了人机验证容器 `#turnstileContainer`（`{% if not oauth_mode %}`），
+但 `register.html` 的 `renderTurnstile()` 仍无条件调用 `window.turnstile.render(
+document.getElementById('turnstileContainer'), ...)`，当容器被隐藏时取到 `null`，
+向 Turnstile 传入了非法的 `null` 容器参数而抛错。`.catch` 将其包装成上述报错。
+
+### 主要变更
+- **`family_monitor/templates/register.html`**：在 `renderTurnstile()` 渲染前先检查
+  `#turnstileContainer` 是否存在；OAuth 补全注册模式（容器被隐藏）下直接降级
+  （`turnstileAvailable=false`），不再向 `turnstile.render` 传入 `null`，避免报错。
+  降级后提交会携带空的 `cf-turnstile-response`，配合后端 `oauth_pending` cookie 转发
+  `oauth_token`、由 server 跳过 Turnstile 的既有逻辑，提交链路不受影响。
+- 版本 2.19.7 -> 2.19.8（向下兼容的缺陷修复 / 前端人机验证降级健壮性）。
+
+### 部署注意
+该问题仅影响「OAuth 绑定补全注册」子流程的提示文案，不影响普通注册与登录。部署端拉取
+v2.19.8 后 `register.html` 自动更新即可消除报错。
+
 ## v2.19.7 (2026-07-25) — 修复 server 启动崩溃：public.py 重复 username 关键字参数
 
 ### 概述
