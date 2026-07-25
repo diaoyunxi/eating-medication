@@ -1,5 +1,18 @@
 # 项目开发历史记录
 
+## v2.19.6 (2026-07-25) — 修复 check_for_update 重复请求 GitHub API 与重复日志
+
+### 概述
+`check_for_update()` 中存在明显的重复代码：「发现新版本」横幅打印了两次，`_fetch_latest_release()`
+被调用两次，`sha_sums` 被赋值三次（第二次覆盖第一次返回值）。既浪费网络请求、容易触发 GitHub API
+速率限制，又导致部署端日志重复、输出混乱。
+
+### 主要变更
+- **`updater.py`**：删除 `check_for_update()` 中重复的「发现新版本」横幅与重复的
+  `_fetch_latest_release()` / `_verify_release_signature()` 调用，仅在 `auto_pull` 判断前
+  获取并校验一次，供后续安全校验共用。
+- 版本 2.19.5 -> 2.19.6（向下兼容的缺陷修复 / 代码清理）。
+
 ## v2.19.5 (2026-07-25) — 修复 updater 镜像代理被误判为正向代理导致无法检查更新
 
 ### 概述
