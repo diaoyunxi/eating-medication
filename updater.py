@@ -175,13 +175,30 @@ _AUTO_PULL = _load_auto_pull()
 
 
 def _configure_opener():
-    """根据 github_proxy 构建 urllib opener，返回 (opener, is_mirror, mirror_base)。"""
+    """根据 github_proxy 构建 urllib opener，返回 (opener, is_mirror, mirror_base)。
+
+    代理类型判定（仅靠 URL 无法 100% 区分，按常用约定识别）：
+    - 正向代理（CONNECT 隧道）：netloc 含显式端口，或指向本机
+      （如 http://127.0.0.1:7890、http://localhost:8080、socks5://host:1080）。
+      这类代理通过 ProxyHandler 透明转发，目标 URL 不变。
+    - 镜像前缀（gh-proxy 风格）：普通域名、无端口
+      （如 https://gh-proxy.com、https://gh.my-website.ccwu.cc）。
+      目标 URL 改写为 {proxy}/{原始URL} 形式访问。
+    """
     proxy = _GITHUB_PROXY
     if not proxy:
         return urllib.request.build_opener(), False, None
     parsed = urlparse(proxy)
-    # 正向代理：仅 scheme + netloc，无路径（如 http://127.0.0.1:7890）
-    if parsed.scheme in ("http", "https") and parsed.netloc and parsed.path in ("", "/"):
+    if not parsed.scheme or not parsed.netloc:
+        # 非法代理配置，回退直连
+        logger.warning(f"[更新检查] github_proxy 配置非法（{proxy}），回退直连")
+        return urllib.request.build_opener(), False, None
+    # 是否为正向代理：含显式端口或本机地址
+    hostname = (parsed.hostname or "").lower()
+    netloc_no_user = parsed.netloc.split("@")[-1]
+    has_port = ":" in netloc_no_user
+    is_forward = has_port or hostname in ("127.0.0.1", "localhost", "::1")
+    if is_forward:
         handler = urllib.request.ProxyHandler({parsed.scheme: proxy})
         return urllib.request.build_opener(handler), False, None
     # 镜像前缀形式（如 https://gh-proxy.com）

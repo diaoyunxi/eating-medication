@@ -1,5 +1,29 @@
 # 项目开发历史记录
 
+## v2.19.5 (2026-07-25) — 修复 updater 镜像代理被误判为正向代理导致无法检查更新
+
+### 概述
+部署端执行 `python3 updater.py` 时报 `Tunnel connection failed: 400 Bad Request`，
+无法连接 GitHub 检查/拉取更新。根因为 `_configure_opener()` 的代理类型判定逻辑：只要
+`github_proxy` 是 `scheme + netloc` 且无 path（如 `https://gh.my-website.ccwu.cc`、
+注释示例 `https://gh-proxy.com`），就被当作「正向代理」走 CONNECT 隧道；但该镜像是
+gh-proxy 风格的「镜像前缀」，并不支持 CONNECT，于是返回 400。结果检查更新整体失败、跳过。
+
+### 主要变更
+- **`updater.py`**：
+  - 修正 `_configure_opener()` 的代理判定：仅当 netloc 含显式端口或指向本机
+    （如 `http://127.0.0.1:7890`、`socks5://host:1080`）才视为正向代理；其余普通域名
+    （无端口，如 `https://gh-proxy.com`、`https://gh.my-website.ccwu.cc`）按镜像前缀处理，
+    目标 URL 改写为 `{proxy}/https://api.github.com/...` 形式。
+  - 非法代理配置回退直连并告警。
+- **`tests/test_updater.py`**：新增 `TestConfigureOpener` 覆盖镜像/正向/本机/非法等判定。
+- 版本 2.19.4 -> 2.19.5（向下兼容的缺陷修复）。
+
+### 部署注意
+该 bug 位于 `updater.py` 自身（自动更新机制）。部署端因旧 updater 损坏无法自我更新，
+需先在服务器手动取回新的 `updater.py` 一次（`git pull` 或下载 Release 解压提取），
+之后自动更新即可恢复正常。
+
 ## v2.19.4 (2026-07-25) — 修复生产环境 SECRET_KEY 未配置导致服务无法启动
 
 ### 概述
