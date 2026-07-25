@@ -704,24 +704,7 @@ def check_for_update(auto_pull=None):
         logger.info(f"  下载地址: {release_url}")
         logger.info("=" * 50)
 
-        # 解析 SHA256 校验
-        release_data = _fetch_latest_release()
-        sha_sums = _verify_release_signature(release_data)
-        if sha_sums is None:
-            logger.warning("[更新检查] 未找到 SHA256 校验文件，无法验证资产完整性")
-        else:
-            logger.info(f"[更新检查] 已加载 {len(sha_sums)} 条资产校验记录")
-
-        logger.info("=" * 50)
-        logger.info("  发现新版本！")
-        logger.info(f"  当前版本: v{__version__}")
-        logger.info(f"  最新版本: {latest}")
-        logger.info(f"  下载地址: {release_url}")
-        logger.info("=" * 50)
-
-        # 解析 SHA256 校验
-        sha_sums = _verify_release_signature(release_data)
-        # 解析 SHA256 校验（需要在 auto_pull 判断前完成，供两段安全校验共用）
+        # 解析 SHA256 校验（仅获取一次，供后续 auto_pull 判断与安全校验共用）
         release_data = _fetch_latest_release()
         sha_sums = _verify_release_signature(release_data)
         if sha_sums is None:
