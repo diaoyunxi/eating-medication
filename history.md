@@ -1,5 +1,18 @@
 # 项目开发历史记录
 
+## v2.19.3 (2026-07-25) — 修复邮箱验证码接口未登录被重定向到登录页
+
+### 概述
+修复子女端（family_monitor）一个认证中间件缺陷：未登录访问 `/email/send-code`、`/email/code-login`
+时被 `auth_middleware` 当作受保护路径，因无 `access_token` cookie 而 302 重定向到登录页，
+导致在登录页上根本无法发送邮箱验证码、无法用验证码登录/自动注册（重定向循环）。
+
+### 主要变更
+- **`family_monitor/main.py`**：在 `auth_middleware` 的 `public_paths` 白名单中补充
+  `/email/send-code` 与 `/email/code-login`（均按 `PATH_PREFIX` 动态拼接，兼容隧道子路径模式）。
+  这两个接口本就是为未登录用户服务的登录/注册流程环节，必须公开，无需 `access_token`。
+- 版本 2.19.2 -> 2.19.3（向下兼容的缺陷修复）。
+
 ## v2.16.0 (2026-07-24) — main.py 新增 --reset 重置运行时数据
 
 ### 概述
