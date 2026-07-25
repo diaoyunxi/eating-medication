@@ -201,9 +201,16 @@
                             turnstileAvailable = false;
                             return;
                         }
+                        // OAuth 补全注册模式（oauth_mode=true）下模板已隐藏人机验证容器，
+                        // 直接降级，避免向 turnstile.render 传入 null 触发「container 类型无效」
+                        var container = document.getElementById('turnstileContainer');
+                        if (!container) {
+                            turnstileAvailable = false;
+                            return;
+                        }
                         // 显式渲染，保存 widgetId 供后续取 token / 重置
                         widgetId = window.turnstile.render(
-                            document.getElementById('turnstileContainer'),
+                            container,
                             { sitekey: siteKey, theme: 'auto' }
                         );
                         turnstileAvailable = true;
