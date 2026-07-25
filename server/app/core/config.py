@@ -24,6 +24,11 @@ _SECRET_KEY_IS_RANDOM = False
 # 占位符默认值：未通过环境变量/.env 配置 SECRET_KEY 时使用此标记
 _SECRET_KEY_SENTINEL = "__AUTO_GENERATED__"
 
+# 项目根目录（server/ 目录，与 server/app/main.py 同级）。
+# 用于统一「写入 .env」与「读取 .env」的位置，避免 env_file 相对 CWD 解析导致
+# 在非 server/ 目录下启动时读不到配置（如 systemd / 从仓库根目录启动）。
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
 
 def _generate_secret_key():
     """生成安全的随机密钥"""
@@ -206,7 +211,7 @@ def _ensure_default_env():
     .env 已在 .gitignore 中忽略，不会上传到仓库。生产部署时请手动修改 DEBUG=false。
     """
     # .env 位于 server/ 目录（与 server/app/main.py 同级，即 BASE_DIR）
-    env_path = Path(__file__).resolve().parent.parent.parent / '.env'
+    env_path = BASE_DIR / '.env'
     if not env_path.exists():
         # 首次运行：写入完整模板
         secret_key = _generate_secret_key()
@@ -299,7 +304,9 @@ class Settings(BaseSettings):
         return v
 
     class Config:
-        env_file = ".env"
+        # 使用绝对路径指向 server/.env，确保无论从哪个工作目录启动都能正确读取配置
+        env_file = str(BASE_DIR / ".env")
+        env_file_encoding = "utf-8"
         case_sensitive = True
 
     def model_post_init(self, __context):
