@@ -54,6 +54,45 @@ class TestFindReleaseZip(unittest.TestCase):
         self.assertIsNone(updater._find_release_zip(None))
 
 
+class TestGetUpdateInfo(unittest.TestCase):
+    """测试 get_update_info() 返回结构化更新信息（供 API 端点 / 前端轮询）。"""
+
+    def _call(self, latest_side_effect):
+        orig = updater._fetch_latest_version
+        updater._fetch_latest_version = lambda: latest_side_effect
+        try:
+            return updater.get_update_info()
+        finally:
+            updater._fetch_latest_version = orig
+
+    def test_fields_present(self):
+        info = self._call(("9.9.9", "https://github.com/repo/releases/tag/v9.9.9", {}))
+        self.assertIn("current_version", info)
+        self.assertIn("latest_version", info)
+        self.assertIn("update_available", info)
+        self.assertIn("auto_pull", info)
+        self.assertIn("release_url", info)
+        self.assertIn("checked_at", info)
+
+    def test_update_available_true(self):
+        info = self._call(("9.9.9", "url", {}))
+        self.assertEqual(info["latest_version"], "9.9.9")
+        self.assertTrue(info["update_available"])
+        self.assertEqual(info["release_url"], "url")
+
+    def test_update_available_false(self):
+        info = self._call(("0.0.1", "url", {}))
+        self.assertFalse(info["update_available"])
+
+    def test_fetch_failure_no_crash(self):
+        def boom():
+            raise RuntimeError("network down")
+        info = self._call(boom)
+        # 网络异常时不应抛错，latest_version 为 None，update_available 为 False
+        self.assertIsNone(info["latest_version"])
+        self.assertFalse(info["update_available"])
+
+
 class TestFindSha256Assets(unittest.TestCase):
     def test_find(self):
         release = {"assets": [

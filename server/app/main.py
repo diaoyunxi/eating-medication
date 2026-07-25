@@ -162,6 +162,9 @@ app.include_router(chat.router, prefix=api_prefix)
 # OAuth 路由统一带 /auth 前缀，真实路径为 /api/v1/auth/oauth/...
 # 与 family_monitor 的 _server_url("/auth/oauth/...") 调用及回调配置保持一致
 app.include_router(oauth.router, prefix=f"{api_prefix}/auth")
+# 更新信息端点：供 family 前端轮询展示版本与更新状态（详见 endpoints/updater.py）
+from app.api.v1.endpoints.updater import router as updater_router
+app.include_router(updater_router, prefix=api_prefix)
 
     # 移除冲突的 ws_router（/ws 与 chat.py 的 /chat/ws/{user_id} 重叠）
     # WebSocket 聊天功能统一由 chat.py 的 ws_chat 提供
