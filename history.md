@@ -1,5 +1,22 @@
 # 项目开发历史记录
 
+## v2.19.4 (2026-07-25) — 修复生产环境 SECRET_KEY 未配置导致服务无法启动
+
+### 概述
+服务端启动报「配置校验失败：SECRET_KEY 未配置」，即使已在 `server/.env` 中设置固定
+SECRET_KEY 仍无法启动。根因为配置类 `Settings.Config.env_file = ".env"` 是**相对当前
+工作目录（CWD）**解析的，而 `.env` 实际固定写在绝对路径 `server/.env`；当服务不在 `server/`
+目录下启动时（如 systemd、从仓库根目录启动），pydantic 读不到 `.env`，SECRET_KEY 仍为占位符
+→ 被标记为运行时随机生成 → 生产环境（DEBUG=false）强校验直接退出。
+
+### 主要变更
+- **`server/app/core/config.py`**：
+  - 新增模块级常量 `BASE_DIR`（`server/` 目录，基于 `config.py` 文件位置计算）。
+  - `_ensure_default_env()` 与 `Settings.Config.env_file` 统一使用 `BASE_DIR / ".env"` 绝对路径，
+    保证无论从哪个工作目录启动都能正确读取配置。
+  - `Settings.Config` 补充 `env_file_encoding = "utf-8"`。
+- 版本 2.19.3 -> 2.19.4（向下兼容的缺陷修复）。
+
 ## v2.19.3 (2026-07-25) — 修复邮箱验证码接口未登录被重定向到登录页
 
 ### 概述
