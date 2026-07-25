@@ -83,6 +83,34 @@ def _gh_headers():
 
 
 # ============================================================
+# 根目录 config.json 路径与模板
+# ============================================================
+_CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
+
+# 仅包含 updater 关心的字段；首次运行未检测到 config.json 时自动生成该模板
+_CONFIG_TEMPLATE = {
+    # 是否启用安全自动更新（缺省 true；下载完整发布包并保留配置文件与数据库）
+    "auto_pull": True,
+    # GitHub 代理 / 镜像前缀，留空走直连；如 https://gh-proxy.com 或 http://127.0.0.1:7890
+    "github_proxy": "",
+}
+
+
+def _ensure_config_template():
+    """若根目录 config.json 不存在，自动生成带默认值的模板文件。
+
+    便于首次部署即拥有可编辑的配置骨架；已存在文件不会被覆盖。
+    """
+    try:
+        if not _CONFIG_PATH.is_file():
+            with open(_CONFIG_PATH, "w", encoding="utf-8") as f:
+                json.dump(_CONFIG_TEMPLATE, f, ensure_ascii=False, indent=2)
+            logger.info(f"[更新检查] 已生成配置模板: {_CONFIG_PATH}（默认 auto_pull=true，可手动编辑）")
+    except Exception as e:
+        logger.warning(f"[更新检查] 生成 config.json 模板失败: {e}")
+
+
+# ============================================================
 # 代理配置：读取仓库根目录 config.json 的 github_proxy 字段
 # ============================================================
 def _load_github_proxy():
@@ -93,7 +121,7 @@ def _load_github_proxy():
     2. 正向代理（如 http://127.0.0.1:7890）：通过 urllib ProxyHandler 透明转发
     未配置或文件不存在时返回 None，走直连。
     """
-    config_path = Path(__file__).resolve().parent / "config.json"
+    config_path = _CONFIG_PATH
     try:
         if config_path.is_file():
             with open(config_path, "r", encoding="utf-8") as f:
@@ -110,6 +138,9 @@ def _load_github_proxy():
     return None
 
 
+# 首次运行时若根目录无 config.json，自动生成模板
+_ensure_config_template()
+
 _GITHUB_PROXY = _load_github_proxy()
 
 
@@ -123,7 +154,7 @@ def _load_auto_pull():
     - 文件不存在 / 字段缺失 / 解析失败：回退 True（默认启用安全自动更新）
     - 支持 bool 值与字符串 "true"/"false"（大小写不敏感）解析
     """
-    config_path = Path(__file__).resolve().parent / "config.json"
+    config_path = _CONFIG_PATH
     try:
         if config_path.is_file():
             with open(config_path, "r", encoding="utf-8") as f:
