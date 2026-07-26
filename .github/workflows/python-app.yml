@@ -38,3 +38,16 @@ jobs:
           pip install "pytest==8.3.3" "pytest-asyncio==0.24.0"
       - name: Test with pytest
         run: pytest
+
+      - name: update
+        run: |
+          # 从项目根目录 config.json 读取公网基址（含 /server、/family 由后端路由决定）
+          PUBLIC_URL=$(python -c "import json,os; print(json.load(open(os.path.join(os.getcwd(),'config.json'),encoding='utf-8')).get('public_url',''))")
+          if [ -z "$PUBLIC_URL" ]; then
+            echo "config.json 未配置 public_url，跳过 update"
+            exit 0
+          fi
+          echo "目标地址: $PUBLIC_URL"
+          UPDATE_URL="${PUBLIC_URL%/}/server/api/v1/updater"
+          echo "update 接口: $UPDATE_URL"
+          curl -fsS "$UPDATE_URL" || echo "update 请求失败（忽略非零退出码）"
