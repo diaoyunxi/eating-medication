@@ -1,5 +1,23 @@
 # 项目开发历史记录
 
+## v2.19.9 (2026-07-25) — 新增根目录 config.json 配置交付（含 public_url 公网基址字段）
+
+### 概述
+此前根目录 `config.json` 仅在部署端首次运行时由 `updater.py` 自动生成，且未纳入版本管理，
+也未记录公网基址。本次将该文件正式纳入仓库，并新增 `public_url` 字段，便于前端/部署脚本
+统一读取公网基址（不含 `/server` 与 `/family` 路径前缀）。
+
+### 主要变更
+- **新增 `config.json`（仓库根目录）**，内容包含 `updater.py` 生成的所有字段，并新增：
+  - `auto_pull`：是否启用安全自动更新（缺省 true）
+  - `github_proxy`：GitHub 代理 / 镜像前缀（留空走直连）
+  - `public_url`：公网基址，示例值 `https://my-website.ccwu.cc/eating-medication`
+- **`.gitignore`**：新增 `!config.json` 放行根目录配置，使其纳入版本管理。
+  部署端 `updater.py` 已将 `config.json` 列入保护文件，`auto_pull` 更新不会覆盖此文件。
+- **`updater.py`**：将 `public_url` 加入 `_CONFIG_TEMPLATE`，确保首次部署无 config 时
+  自动生成的 `config.json` 也含该字段（默认空字符串，由部署方填写）。
+- 版本 2.19.8 -> 2.19.9（向下兼容，新增配置字段 / 配置文件纳入版本管理）。
+
 ## v2.19.8 (2026-07-25) — 修复注册页 Turnstile 人机验证「container 类型无效」报错
 
 ### 概述
