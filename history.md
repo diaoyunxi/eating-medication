@@ -1,5 +1,32 @@
 # 项目开发历史记录
 
+## v2.19.11 (2026-07-25) — 修复 update CI 在 ci: 提交时被 skip
+
+### 概述
+v2.19.10 发布后，以 `ci:` 开头的提交在 GitHub Actions 中两个 workflow 均被判定为
+「跳过」，update 步骤完全未执行。
+
+### 根因
+- `python-app.yml` 的 `test` job `if` 条件仅含 `feat/fix/refactor/build`，**不含 `ci`**，
+  因此 `ci:` 提交时该 job（含 update 步骤）整体被跳过。
+- `update.yml` 的否定条件又被错误地加入了 `ci`，导致 `ci:` 提交时「完整条件为真、
+  取反为假」，本应补跑 update 的 `update.yml` 也被跳过。
+- 二者叠加，使 `ci:` 提交下 update 无任何 workflow 执行。
+
+### 主要变更
+- **`.github/workflows/update.yml`**：将其否定条件还原为「原 python-app.yml 条件（不含 `ci`）」的取反。
+  这样 `ci:` 提交会触发 `update.yml` 执行 update，且与 `python-app.yml`（无 `ci`）互斥、不会重复。
+- `python-app.yml` 维持原触发条件（不含 `ci`），其 update 步骤仅在 `feat/fix/refactor/build`
+  提交时随 test job 执行。
+- 版本 2.19.10 -> 2.19.11（CI 配置缺陷修复，向下兼容）。
+
+### 修正后触发矩阵
+| 提交类型 | python-app.yml | update.yml |
+| :--- | :--- | :--- |
+| ci: | 跳过 | 执行 update |
+| feat/fix/refactor/build | 执行 test + update | 跳过 |
+| 其他（docs 等） | 跳过 | 执行 update |
+
 ## v2.19.10 (2026-07-25) — CI 新增 update 步骤与独立 update.yml 工作流
 
 ### 概述
