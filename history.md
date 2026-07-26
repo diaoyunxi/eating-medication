@@ -1,5 +1,26 @@
 # 项目开发历史记录
 
+## v2.19.10 (2026-07-25) — CI 新增 update 步骤与独立 update.yml 工作流
+
+### 概述
+在 GitHub Actions 中增加「部署更新」能力：CI 推送 / 合并到 main 后，自动请求部署端的
+更新接口触发拉取新版本。接口地址由项目根目录 `config.json` 的 `public_url` 字段决定，
+拼接为 `{public_url}/server/api/v1/updater`（该路由见 `server/app/api/v1/endpoints/updater.py`）。
+
+### 主要变更
+- **`.github/workflows/python-app.yml`**：在 `Test with pytest` 之后新增 `update` 步骤，
+  运行时从根 `config.json` 读取 `public_url`，对 `{public_url}/server/api/v1/updater`
+  发起 `curl -fsS` 请求触发部署端更新；`public_url` 为空则跳过。
+  同时将 `ci` 加入 CI 触发条件（与 feat/fix/refactor/build 并列），使 `ci:` 提交也能跑流水线。
+- **`.github/workflows/update.yml`（新增）**：专门承载「非主条件」提交（即提交信息/PR 标题
+  不含 feat/fix/refactor/build/ci）的更新触发，条件为 python-app.yml 完整触发条件的否定，
+  两者互斥，保证每次 push 的 update 仅执行一次。其内部 `update` 步骤逻辑与 python-app.yml 一致。
+- 版本 2.19.9 -> 2.19.10（CI 配置增强，向下兼容）。
+
+### 说明
+- 部署端 `server` 需正常运行且 `/server/api/v1/updater` 可达（Cloudflare 隧道已暴露公网）。
+- `update` 步骤对 curl 非零退出码容忍（仅打印提示，不中断流水线）。
+
 ## v2.19.9 (2026-07-25) — 新增根目录 config.json 配置交付（含 public_url 公网基址字段）
 
 ### 概述

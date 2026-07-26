@@ -1,0 +1,46 @@
+name: Update
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    # 执行条件：原 python-app.yml 的触发条件「不满足」时才运行。
+    # 注意：这里对完整条件（含 ci）取反，与 python-app.yml 互斥，
+    # 避免 feat/fix/refactor/build/ci 之外的提交由本 workflow 补跑 update，
+    # 同时这些关键字提交也不会被重复执行 update。
+    if: |
+      !(
+        (github.event_name == 'push' && (
+          contains(github.event.head_commit.message, 'feat') ||
+          contains(github.event.head_commit.message, 'fix') ||
+          contains(github.event.head_commit.message, 'refactor') ||
+          contains(github.event.head_commit.message, 'build') ||
+          contains(github.event.head_commit.message, 'ci')
+        )) ||
+        (github.event_name == 'pull_request' && (
+          contains(github.event.pull_request.title, 'feat') ||
+          contains(github.event.pull_request.title, 'fix') ||
+          contains(github.event.pull_request.title, 'refactor') ||
+          contains(github.event.pull_request.title, 'build') ||
+          contains(github.event.pull_request.title, 'ci')
+        ))
+      )
+    steps:
+      - uses: actions/checkout@v4
+      - name: update
+        run: |
+          # 从项目根目录 config.json 读取公网基址
+          PUBLIC_URL=$(python3 -c "import json,os; print(json.load(open(os.path.join(os.getcwd(),'config.json'),encoding='utf-8')).get('public_url',''))")
+          if [ -z "$PUBLIC_URL" ]; then
+            echo "config.json 未配置 public_url，跳过 update"
+            exit 0
+          fi
+          echo "目标地址: $PUBLIC_URL"
+          UPDATE_URL="${PUBLIC_URL%/}/server/api/v1/updater"
+          echo "update 接口: $UPDATE_URL"
+          curl -fsS "$UPDATE_URL" || echo "update 请求失败（忽略非零退出码）"
