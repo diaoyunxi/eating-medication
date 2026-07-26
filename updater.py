@@ -37,7 +37,6 @@ import shutil
 import zipfile
 import tempfile
 import hashlib
-import subprocess
 import logging
 import fnmatch
 from pathlib import Path
@@ -573,71 +572,6 @@ def _perform_update(zip_path, project_dir):
             pass
 
 
-def _restart_service():
-    """尝试重启所有处于 active 状态的相关 systemd 服务。
-
-    完整发布包会同时更新多个模块，因此重启所有被检测到的服务。
-    若没有任何 systemd 服务处于 active 状态（例如以 nohup/python 直接运行），
-    则回退为「重启当前进程自身」（通过 os.execv 重新执行 updater 所属入口脚本），
-    使新代码生效。
-    """
-    service_names = [
-        "eating-medication-server",
-        "eating-medication-family",
-        "eating-medication",
-    ]
-    restarted = []
-    for name in service_names:
-        try:
-            result = subprocess.run(
-                ["systemctl", "is-active", name],
-                capture_output=True, text=True, timeout=5
-            )
-        except Exception:
-            continue
-        if result.returncode == 0:
-            logger.info(f"[更新检查] 检测到 systemd 服务: {name}，尝试重启")
-            r = subprocess.run(
-                ["systemctl", "restart", name],
-                capture_output=True, text=True, timeout=30
-            )
-            if r.returncode == 0:
-                restarted.append(name)
-                logger.info(f"[更新检查] 服务 {name} 已重启")
-            else:
-                logger.warning(f"[更新检查] 重启服务 {name} 失败: {r.stderr.strip()}")
-    if restarted:
-        return True
-    logger.info("[更新检查] 未检测到 active 的 systemd 服务，尝试重启当前进程以应用更新")
-    return _restart_self()
-
-
-def _restart_self():
-    """回退方案：重启当前 Python 进程自身以加载新代码。
-
-    - 优先重启 sys.argv[0] 指定的入口脚本（如 server/main.py）；
-    - 若当前文件就是入口（直接运行 updater.py），则重启 updater.py；
-    - 非 Windows 下使用 os.execv 原地替换进程，父进程（如 shell/systemd）无需感知。
-    仅返回 False（无法重启），交由调用方提示手动重启。
-    """
-    try:
-        if sys.platform == "win32":
-            logger.warning("[更新检查] Windows 平台不支持原地重启，请手动重启应用")
-            return False
-        # 计算入口脚本与可执行解释器
-        if getattr(sys.modules.get("__main__"), "__file__", None):
-            target = sys.modules["__main__"].__file__
-        else:
-            target = str(Path(__file__).resolve())
-        interpreter = sys.executable or sys.argv[0]
-        logger.info(f"[更新检查] 重启进程: {interpreter} {target}")
-        # os.execv 会替换当前进程，后续代码不会执行
-        os.execv(interpreter, [interpreter, target] + sys.argv[1:])
-    except Exception as e:
-        logger.warning(f"[更新检查] 重启当前进程失败: {e}，请手动重启应用")
-    return False
-
-
 def get_update_info():
     """查询更新信息，返回结构化字典（供 API 端点 / 前端轮询使用）。
 
@@ -761,11 +695,7 @@ def check_for_update(auto_pull=None):
 
             if success:
                 logger.info(f"[更新检查] 自动更新成功！更新了 {updated} 个文件，保护了 {skipped} 个文件")
-                logger.info("[更新检查] 尝试重启服务...")
-                if _restart_service():
-                    logger.info("[更新检查] 服务已重启，更新完成")
-                else:
-                    logger.info("[更新检查] 请手动重启服务以应用更新")
+                logger.info("[更新检查] 文件已更新，请手动重启服务以应用新版本")
             else:
                 logger.error("[更新检查] 自动更新失败，请手动更新")
                 logger.info(f"[更新检查] 手动下载地址: {release_url}")
