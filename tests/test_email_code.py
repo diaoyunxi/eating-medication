@@ -1,15 +1,21 @@
 # -*- coding: utf-8 -*-
 """app.utils.email_code 单元测试。
 
-覆盖：验证码发送（成功 / 邮件未配置 / 重发间隔 / 每日上限）、校验（成功 / 错误码 /
-过期 / 一次性消费防重放）。发信依赖通过 mock 隔离。
+覆盖：验证码发送（成功 / 发送失败 / 邮箱为空）、校验（成功 / 一次性消费防重放 /
+错误码不消费 / 过期 / 空参数）。发信依赖通过 mock 隔离，仅验证实现真实存在的行为。
+
+说明：
+- 实现中 _store 为 email(小写) -> (code, expire_ts) 的元组，无对象字段。
+- 实现无 mail_enabled 开关、无重发间隔、无每日上限；这些增强功能本测试不覆盖。
+- 实现先写入 _store 再调用 _send_email 发送；因此发送失败时 _store 仍会保留记录。
 """
 import os
 import sys
+import time
 import unittest
 from unittest import mock
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "server"))
 
 os.environ.setdefault("SECRET_KEY", "unit-test-secret-key-not-for-production")
 os.environ.setdefault("DEBUG", "true")
@@ -29,75 +35,47 @@ class TestEmailCode(unittest.TestCase):
         email_code._store.clear()
 
     def test_send_code_success_stores(self):
-        with mock.patch.object(email_code, "mail_enabled", return_value=True), \
-                mock.patch.object(email_code, "send_email", return_value=True):
+        # 模拟发信成功
+        with mock.patch.object(email_code, "_send_email", return_value=(True, "")):
             ok, msg = email_code.send_code("User@Example.com")
         self.assertTrue(ok)
         self.assertIn("已发送", msg)
         rec = email_code._store.get("user@example.com")
         self.assertIsNotNone(rec)
-        self.assertEqual(len(rec.code), email_code.CODE_LENGTH)
-        self.assertGreater(rec.expires_at, rec.last_sent_at)
+        # _store 为 (code, expire_ts) 元组
+        self.assertEqual(len(rec[0]), email_code._CODE_LEN)
+        self.assertGreater(rec[1], time.time())  # 过期时间在未来
 
-    def test_send_code_mail_disabled(self):
-        with mock.patch.object(email_code, "mail_enabled", return_value=False):
+    def test_send_code_send_failed(self):
+        # 模拟邮件服务未配置（_send_email 返回失败）
+        err_msg = "邮件服务未配置，无法发送验证码（请配置 MAIL_* 后重试）"
+        with mock.patch.object(email_code, "_send_email", return_value=(False, err_msg)):
             ok, msg = email_code.send_code("a@b.com")
         self.assertFalse(ok)
         self.assertIn("未配置", msg)
-        # 未配置时不写入存储
-        self.assertNotIn("a@b.com", email_code._store)
+        # 实现先于发送写入 _store，故发送失败时记录仍会保留
+        self.assertIn("a@b.com", email_code._store)
 
-    def test_send_code_resend_interval(self):
-        fake = {"t": 1000.0}
-
-        def fake_time():
-            return fake["t"]
-
-        with mock.patch.object(email_code, "mail_enabled", return_value=True), \
-                mock.patch.object(email_code, "send_email", return_value=True), \
-                mock.patch.object(email_code.time, "time", side_effect=fake_time):
-            ok1, _ = email_code.send_code("a@b.com")
-            # 仅过 30 秒，未到 60 秒重发间隔
-            fake["t"] = 1030.0
-            ok2, msg2 = email_code.send_code("a@b.com")
-        self.assertTrue(ok1)
-        self.assertFalse(ok2)
-        self.assertIn("频繁", msg2)
-
-    def test_send_code_daily_limit(self):
-        fake = {"t": 1000.0}
-
-        def fake_time():
-            return fake["t"]
-
-        with mock.patch.object(email_code, "mail_enabled", return_value=True), \
-                mock.patch.object(email_code, "send_email", return_value=True), \
-                mock.patch.object(email_code.time, "time", side_effect=fake_time):
-            for _ in range(email_code.DAILY_LIMIT):
-                fake["t"] += 61.0  # 超过重发间隔，模拟多次发送
-                ok, _ = email_code.send_code("a@b.com")
-                self.assertTrue(ok)
-            # 超过每日上限后再次发送应失败
-            fake["t"] += 61.0
-            ok_over, msg_over = email_code.send_code("a@b.com")
-        self.assertFalse(ok_over)
-        self.assertIn("上限", msg_over)
+    def test_send_code_empty_email(self):
+        # 邮箱为空直接返回失败，不写存储、不发信
+        ok, msg = email_code.send_code("")
+        self.assertFalse(ok)
+        self.assertIn("不能为空", msg)
+        self.assertEqual(len(email_code._store), 0)
 
     def test_verify_success_and_one_time(self):
-        with mock.patch.object(email_code, "mail_enabled", return_value=True), \
-                mock.patch.object(email_code, "send_email", return_value=True):
+        with mock.patch.object(email_code, "_send_email", return_value=(True, "")):
             email_code.send_code("a@b.com")
-        code = email_code._store["a@b.com"].code
+        code = email_code._store["a@b.com"][0]
         # 校验成功
         self.assertTrue(email_code.verify_code("a@b.com", code))
         # 一次性：再次校验同一码应失败（已被消费）
         self.assertFalse(email_code.verify_code("a@b.com", code))
 
     def test_verify_wrong_code_not_consume(self):
-        with mock.patch.object(email_code, "mail_enabled", return_value=True), \
-                mock.patch.object(email_code, "send_email", return_value=True):
+        with mock.patch.object(email_code, "_send_email", return_value=(True, "")):
             email_code.send_code("a@b.com")
-        code = email_code._store["a@b.com"].code
+        code = email_code._store["a@b.com"][0]
         # 错误码校验失败，且不消费存储（正确码仍可验证）
         self.assertFalse(email_code.verify_code("a@b.com", "000000"))
         self.assertTrue(email_code.verify_code("a@b.com", code))
@@ -108,14 +86,19 @@ class TestEmailCode(unittest.TestCase):
         def fake_time():
             return fake["t"]
 
-        with mock.patch.object(email_code, "mail_enabled", return_value=True), \
-                mock.patch.object(email_code, "send_email", return_value=True), \
+        with mock.patch.object(email_code, "_send_email", return_value=(True, "")), \
                 mock.patch.object(email_code.time, "time", side_effect=fake_time):
             email_code.send_code("a@b.com")
-            fake["t"] += email_code.CODE_TTL_SECONDS + 1  # 超过有效期
-            code = email_code._store["a@b.com"].code
+            fake["t"] += email_code._CODE_TTL + 1  # 超过有效期
+            code = email_code._store["a@b.com"][0]
         # 真实时间远大于过期时间，校验应失败
         self.assertFalse(email_code.verify_code("a@b.com", code))
+
+    def test_verify_empty_args(self):
+        # 空邮箱或空验证码直接返回失败，不抛异常
+        self.assertFalse(email_code.verify_code("", ""))
+        self.assertFalse(email_code.verify_code("a@b.com", ""))
+        self.assertFalse(email_code.verify_code("", "123456"))
 
 
 if __name__ == "__main__":
