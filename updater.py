@@ -93,6 +93,8 @@ _CONFIG_TEMPLATE = {
     "auto_pull": True,
     # GitHub 代理 / 镜像前缀，留空走直连；如 https://gh-proxy.com 或 http://127.0.0.1:7890
     "github_proxy": "",
+    # 公网基址（不含 /server 与 /family 路径前缀），供前端拼接各模块地址；留空时由部署方填写
+    "public_url": "",
 }
 
 
