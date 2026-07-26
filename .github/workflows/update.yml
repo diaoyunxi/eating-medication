@@ -19,15 +19,13 @@ jobs:
           contains(github.event.head_commit.message, 'feat') ||
           contains(github.event.head_commit.message, 'fix') ||
           contains(github.event.head_commit.message, 'refactor') ||
-          contains(github.event.head_commit.message, 'build') ||
-          contains(github.event.head_commit.message, 'ci')
+          contains(github.event.head_commit.message, 'build')
         )) ||
         (github.event_name == 'pull_request' && (
           contains(github.event.pull_request.title, 'feat') ||
           contains(github.event.pull_request.title, 'fix') ||
           contains(github.event.pull_request.title, 'refactor') ||
-          contains(github.event.pull_request.title, 'build') ||
-          contains(github.event.pull_request.title, 'ci')
+          contains(github.event.pull_request.title, 'build')
         ))
       )
     steps:
