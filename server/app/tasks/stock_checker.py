@@ -11,6 +11,7 @@ from datetime import datetime, timezone, timedelta
 
 from app.core.database import SessionLocal
 from app.models.medication_plan import MedicationPlan
+from app.models.medication_record import MedicationRecord
 from app.models.user import User
 from app.websocket.notifier import notifier
 
@@ -78,6 +79,73 @@ async def check_low_stock_job():
         db.close()
 
 
+def _hhmm_to_today(t, now):
+    """将 HH:MM 时间字符串转换为今天对应的 naive datetime，失败返回 None"""
+    try:
+        from datetime import time as _time
+        hh, mm = str(t).strip().split(":")
+        return datetime.combine(now.date(), _time(int(hh), int(mm)))
+    except Exception:
+        return None
+
+
+async def check_missed_medication_job():
+    """定时任务：扫描已过点且未服药的计划，标记漏服并通知家属（修复缺口②）
+
+    每 5 分钟执行一次；对同一 plan_id+scheduled_time 仅通知一次（置 missed 后跳过）。
+    """
+    logger.info("开始执行漏服检查任务...")
+    db = SessionLocal()
+    try:
+        plans = (
+            db.query(MedicationPlan)
+            .join(User, MedicationPlan.user_id == User.id)
+            .filter(User.role == "elderly")
+            .all()
+        )
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        missed_count = 0
+        for plan in plans:
+            for t in plan.schedule_times:
+                sched = _hhmm_to_today(t, now)
+                if sched is None:
+                    continue
+                # 仅处理已超过计划时间 30 分钟的时间点；未来时间点跳过
+                if now < sched + timedelta(minutes=30):
+                    continue
+                rec = (
+                    db.query(MedicationRecord)
+                    .filter(
+                        MedicationRecord.plan_id == plan.id,
+                        MedicationRecord.scheduled_time == sched,
+                    )
+                    .first()
+                )
+                if rec and rec.status in ("taken", "missed"):
+                    continue
+                if rec:
+                    rec.status = "missed"
+                else:
+                    rec = MedicationRecord(
+                        plan_id=plan.id,
+                        user_id=plan.user_id,
+                        scheduled_time=sched,
+                        status="missed",
+                    )
+                    db.add(rec)
+                db.commit()
+                await notifier.notify_missed_medication(
+                    db, plan.user_id, plan.drug_name, sched.isoformat()
+                )
+                missed_count += 1
+                logger.info(f"漏服通知：用户 {plan.user_id} 的 {plan.drug_name} @ {sched}")
+        logger.info(f"漏服检查完成，本次通知 {missed_count} 条")
+    except Exception as e:
+        logger.error(f"漏服检查任务出错: {e}")
+    finally:
+        db.close()
+
+
 def start_scheduler():
     """启动后台定时任务调度器"""
     if not scheduler.running:
@@ -87,6 +155,15 @@ def start_scheduler():
             trigger=CronTrigger(hour=2, minute=0),
             id="low_stock_check",
             name="低库存检查",
+            replace_existing=True
+        )
+        # 漏服检查：每 5 分钟执行一次
+        scheduler.add_job(
+            check_missed_medication_job,
+            trigger="interval",
+            minutes=5,
+            id="missed_medication_check",
+            name="漏服检查",
             replace_existing=True
         )
         scheduler.start()

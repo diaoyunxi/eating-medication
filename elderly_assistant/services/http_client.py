@@ -155,11 +155,12 @@ class HTTPClient:
             logger.warning(f"拉取用药计划异常: {e}")
             return []
 
-    def confirm_medication(self, drug_name, dosage, taken_at=None):
+    def confirm_medication(self, drug_name, dosage, taken_at=None, items=None):
         """
         上报服药确认（可选）
         POST /api/v1/public/device/message
         message_type=medication
+        items: 可选，列表，每项含 plan_id/drug_name/dosage/scheduled_time(HH:MM)，用于服务端精确落库
         """
         if taken_at is None:
             taken_at = datetime.now().isoformat()
@@ -172,6 +173,7 @@ class HTTPClient:
                 "drug_name": drug_name,
                 "dosage": dosage,
                 "taken_at": taken_at,
+                "items": items or [],
             },
         }
         try:
