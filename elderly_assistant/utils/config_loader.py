@@ -47,6 +47,7 @@ DEFAULT_CONFIG = {
         "poll_interval": 60,
         "snooze_minutes": 5,
         "buzzer_loop_interval": 3,
+        "long_press_sec": 1.5,
     },
     "camera": {
         "connection": "i2c",
@@ -68,6 +69,7 @@ _ENV_LEAVES = [
     ("POLL_INTERVAL", "reminder", "poll_interval", int),
     ("SNOOZE_MINUTES", "reminder", "snooze_minutes", int),
     ("BUZZER_LOOP_INTERVAL", "reminder", "buzzer_loop_interval", int),
+    ("LONG_PRESS_SEC", "reminder", "long_press_sec", float),
     ("CAMERA_CONNECTION", "camera", "connection", str),
     ("CAMERA_UART_TTY", "camera", "uart_tty", str),
     ("CAMERA_UART_BAUDRATE", "camera", "uart_baudrate", int),
@@ -90,7 +92,8 @@ _ENV_TEMPLATE = (
     "# ===== 提醒 =====\n"
     "POLL_INTERVAL=60\n"
     "SNOOZE_MINUTES=5\n"
-    "BUZZER_LOOP_INTERVAL=3\n\n"
+    "BUZZER_LOOP_INTERVAL=3\n"
+    "LONG_PRESS_SEC=1.5\n\n"
     "# ===== 摄像头 =====\n"
     "CAMERA_CONNECTION=i2c\n"
     "CAMERA_UART_TTY=/dev/ttyS1\n"
@@ -142,6 +145,12 @@ def load_config(config_path=ENV_PATH):
                 config[group][key] = int(raw.strip())
             except (ValueError, TypeError):
                 logger.warning(f"配置 {env_key}={raw!r} 不是整数，保留默认值 {config[group][key]}")
+        elif typ is float:
+            # 浮点（如长按阈值）转换失败时保留默认值，避免崩溃
+            try:
+                config[group][key] = float(raw.strip())
+            except (ValueError, TypeError):
+                logger.warning(f"配置 {env_key}={raw!r} 不是数字，保留默认值 {config[group][key]}")
         else:
             config[group][key] = raw.strip()
     return config
