@@ -34,6 +34,20 @@ sudo DOMAIN=你的域名 bash /opt/eating-medication/deploy/setup.sh
 > 公网访问依赖你在 Cloudflare Zero Trust 已配置的隧道（脚本不处理隧道），请确保两条路由：
 > `/eating-medication/server → :1059`、`/eating-medication/family → :4430`。
 
+## 自动更新与自动重启
+
+仓库根目录 `updater.py` 在应用启动时会检查 GitHub Release：当发现新版本且根目录 `.env` 的 `AUTO_PULL=true`（默认）时，自动下载完整发布包（eating-medication-vX.Y.Z.zip）并**安全更新**——仅覆盖代码文件，保留 `.env`、`data/`、`logs/`、`*.db` 等运行时数据，并做 SHA256 校验。
+
+更新完成后，`updater.py` 会**自动重启**以下 systemd 服务以加载新版本，无需人工干预：
+
+- `eating-medication-server`（:1059）
+- `eating-medication-family`（:4430）
+
+自动重启依赖部署时写入的免密 sudoers 规则（由 `deploy/setup.sh` 步骤 7 生成 `/etc/sudoers.d/eating-medication`，允许 `deploy` 用户 `sudo -n systemctl restart` 这两个服务）。
+
+> 说明：若采用「手动安装」或未执行 `setup.sh`，请自行为运行用户配置等效的免密 sudoers，或以 root 身份运行更新；否则自动重启会因权限不足失败，此时日志会提示「请手动重启服务」。
+> 非 systemd 环境（本地开发、Windows、容器等）不会尝试自动重启，仅打印提示。
+
 ## 手动安装
 
 ```bash
