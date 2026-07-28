@@ -25,7 +25,7 @@ from app.middleware.exception_handler import add_exception_handlers
 # 改用统一的 setup_cors 配置 CORS
 from app.middleware.cors import setup_cors
 from app.api.v1.endpoints import (
-    auth, users, medication, ai, vision, public, chat, oauth
+    auth, users, medication, ai, vision, public, chat, oauth, ai_config
 )
 from app.tasks.stock_checker import start_scheduler, shutdown_scheduler
 
@@ -98,6 +98,13 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
         logger.info(" 数据库表检查完成（create_all）")
 
+    # 确保新增的 user_ai_configs 表存在（兼容 Alembic 已接管、未含该表迁移的场景）
+    try:
+        from app.models.user_ai_config import UserAIConfig
+        UserAIConfig.__table__.create(bind=engine, checkfirst=True)
+    except Exception as e:
+        logger.warning(f" 确保 user_ai_configs 表存在失败（可忽略）: {e}")
+
     # 启动后台定时任务（低库存检查等）
     logger.info(" 启动后台定时任务...")
     start_scheduler()
@@ -156,6 +163,7 @@ app.include_router(auth.router, prefix=api_prefix)
 app.include_router(users.router, prefix=api_prefix)
 app.include_router(medication.router, prefix=api_prefix)
 app.include_router(ai.router, prefix=api_prefix)
+app.include_router(ai_config.router, prefix=api_prefix)
 app.include_router(vision.router, prefix=api_prefix)
 app.include_router(public.router, prefix=api_prefix)
 app.include_router(chat.router, prefix=api_prefix)

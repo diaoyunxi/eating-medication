@@ -18,6 +18,7 @@ from app.models.chat_message import ChatMessage
 from app.models.ai_query_log import AIQueryLog
 from app.services.medication_service import MedicationService
 from app.services.ai_service import AIService
+from app.services.ai_config_service import get_effective_config
 from app.schemas.medication import MedicationPlanCreate
 from app.utils.rate_limit import check_rate_limit
 from app.utils.request_utils import get_client_ip
@@ -307,7 +308,7 @@ async def ai_ask(
         logger.info(f"设备AI提问: {_masked} - {req.question}")
         user = _get_device_user_authed(db, req.device_id, device_token)
 
-    answer = await AIService.ask(req.question)
+    answer = await AIService.ask(req.question, **(get_effective_config(db, user) if user else {}))
 
     # 记录问答日志
     if user:

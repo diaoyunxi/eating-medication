@@ -222,6 +222,62 @@
                 </div>
             </div>
 
+            <!-- AI 助手设置 -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="card-title-icon">&#129302;</span>
+                        AI 助手设置
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <p class="form-hint">为老人端 AI 健康助手选择大模型厂商并填写密钥。配置按用户独立保存在服务端数据库中，不在本地配置文件中。</p>
+
+                    <div class="form-group">
+                        <label class="form-label">AI 厂商</label>
+                        <select class="form-input" id="aiProvider" onchange="onAIProviderChange()">
+                            <option value="">加载中...</option>
+                        </select>
+                        <p class="form-hint" id="aiProviderDoc"></p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">API 密钥</label>
+                        <input type="password" class="form-input" id="aiApiKey" placeholder="粘贴厂商 API Key（留空则不修改已保存的密钥）" autocomplete="off">
+                        <p class="form-hint" id="aiKeyStatus">未配置</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">模型名称</label>
+                        <input type="text" class="form-input" id="aiModel" placeholder="如 glm-4.7-flash">
+                        <p class="form-hint">部分厂商可留空以使用默认模型</p>
+                    </div>
+
+                    <div class="form-group" id="aiBaseUrlGroup" style="display:none;">
+                        <label class="form-label">Base URL（OpenAI 兼容地址）</label>
+                        <input type="text" class="form-input" id="aiBaseUrl" placeholder="https://your-endpoint/v1">
+                        <p class="form-hint">自定义或指定厂商需填写兼容 OpenAI 的接口地址</p>
+                    </div>
+
+                    <div class="toggle-group">
+                        <div class="toggle-item">
+                            <div class="toggle-content">
+                                <div class="toggle-title">启用 AI 助手</div>
+                                <div class="toggle-desc">关闭后老人端将无法使用 AI 问答</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="aiEnabled" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-lg w-full mt-3" onclick="saveAIConfig()">
+                        <span>保存 AI 配置</span>
+                    </button>
+                </div>
+            </div>
+
             <!-- 关于 -->
             <div class="card">
                 <div class="card-header">
@@ -446,6 +502,113 @@
         }
         setInterval(refreshDeviceStatus, 15000);
     })();
+    </script>
+    <!-- AI 助手设置：加载厂商、读取与保存配置 -->
+    <script>
+        (function () {
+            if (window.__aiConfigInit) return;
+            window.__aiConfigInit = true;
+
+            var AI_PROVIDERS = {};
+
+            async function loadAIProviders() {
+                try {
+                    var resp = await fetch('{{ prefix }}/settings/ai-providers');
+                    var data = await resp.json();
+                    if (!data.success) return;
+                    var sel = document.getElementById('aiProvider');
+                    sel.innerHTML = '';
+                    (data.providers || []).forEach(function (p) {
+                        AI_PROVIDERS[p.id] = p;
+                        var opt = document.createElement('option');
+                        opt.value = p.id;
+                        opt.textContent = p.name;
+                        sel.appendChild(opt);
+                    });
+                } catch (e) {
+                    console.error('加载 AI 厂商失败', e);
+                }
+            }
+
+            async function loadAIConfig() {
+                try {
+                    var resp = await fetch('{{ prefix }}/settings/ai-config');
+                    var data = await resp.json();
+                    if (!data.success) return;
+                    var sel = document.getElementById('aiProvider');
+                    if (data.provider) sel.value = data.provider;
+                    document.getElementById('aiModel').value = data.model || '';
+                    document.getElementById('aiBaseUrl').value = data.base_url || '';
+                    document.getElementById('aiEnabled').checked = !!data.enabled;
+                    document.getElementById('aiKeyStatus').textContent = data.has_api_key
+                        ? '已配置密钥（修改时留空则不更改）'
+                        : '未配置密钥';
+                    onAIProviderChange();
+                } catch (e) {
+                    console.error('读取 AI 配置失败', e);
+                }
+            }
+
+            window.onAIProviderChange = function () {
+                var pid = document.getElementById('aiProvider').value;
+                var p = AI_PROVIDERS[pid];
+                var docEl = document.getElementById('aiProviderDoc');
+                var baseGroup = document.getElementById('aiBaseUrlGroup');
+                if (p) {
+                    if (p.doc_url) {
+                        docEl.innerHTML = '<a href="' + p.doc_url + '" target="_blank" rel="noopener noreferrer">查看申请地址</a>';
+                    } else {
+                        docEl.textContent = '';
+                    }
+                    baseGroup.style.display = p.requires_base_url ? 'block' : 'none';
+                    // 模型为空时自动填充默认模型
+                    var modelEl = document.getElementById('aiModel');
+                    if (!modelEl.value && p.default_model) {
+                        modelEl.placeholder = '默认: ' + p.default_model;
+                    }
+                } else {
+                    baseGroup.style.display = 'none';
+                    docEl.textContent = '';
+                }
+            };
+
+            window.saveAIConfig = async function () {
+                var provider = document.getElementById('aiProvider').value;
+                if (!provider) {
+                    showToast('请选择 AI 厂商', 'warning');
+                    return;
+                }
+                var payload = {
+                    provider: provider,
+                    api_key: document.getElementById('aiApiKey').value,
+                    model: document.getElementById('aiModel').value,
+                    base_url: document.getElementById('aiBaseUrl').value,
+                    enabled: document.getElementById('aiEnabled').checked
+                };
+                showToast('正在保存 AI 配置...', 'info');
+                try {
+                    var resp = await fetch('{{ prefix }}/settings/ai-config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    var data = await resp.json();
+                    if (data.success) {
+                        showToast(data.message || 'AI 配置已保存', 'success');
+                        document.getElementById('aiKeyStatus').textContent = data.has_api_key
+                            ? '已配置密钥（修改时留空则不更改）'
+                            : '未配置密钥';
+                        document.getElementById('aiApiKey').value = '';
+                    } else {
+                        showToast(data.message || '保存失败', 'error');
+                    }
+                } catch (e) {
+                    showToast('保存失败：' + e.message, 'error');
+                }
+            };
+
+            loadAIProviders().then(loadAIConfig);
+        })();
     </script>
 </body>
 </html>

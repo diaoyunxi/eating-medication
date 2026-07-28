@@ -42,6 +42,11 @@ logs/
 
 # 根目录默认忽略所有，逐项放行需纳入版本管理的文件
 /*
+# 放行业务源码（server / family_monitor 下的 Python 源码纳入版本管理；.env 与运行时数据仍按各自规则忽略）
+!server/
+!server/app/**/*.py
+!family_monitor/
+!family_monitor/routes/**/*.py
 # 放行根目录统一自动更新器（各模块 main.py 依赖它）
 !updater.py
 # 放行根目录统一安装脚本（各模块 main.py 依赖它）
