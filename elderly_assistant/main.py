@@ -487,7 +487,7 @@ def main():
                 # 按钮 A：确认服药
                 if button_a and button_a.is_pressed():
                     if reminder_state.active:
-                        handle_confirm(reminder_state, buzzer, display, http_client, logger, speech)
+                        handle_confirm(reminder_state, buzzer, display, http_client, logger, speech, config)
                         # 防抖：设置屏蔽期而非 sleep 阻塞主循环
                         button_block_until = now.timestamp() + 0.3
                 # 按钮 B：暂不提醒（5分钟后再提醒）
@@ -635,7 +635,19 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooz
         logger.error(f"检查触发异常: {e}")
 
 
-def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=None):
+def _capture_and_upload(config, http_client, logger):
+    """拍照并上传服药照片（HuskyLens；无摄像头时静默降级）"""
+    try:
+        from core.camera import capture_image
+        path = capture_image(config)
+        if not path:
+            return
+        http_client.upload_image(path)
+    except Exception as e:
+        logger.warning(f"拍照上传失败: {e}")
+
+
+def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=None, config=None):
     """按钮 A：确认服药"""
     try:
         drug = reminder_state.drug_name
@@ -660,6 +672,15 @@ def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=
         if speech:
             try:
                 speech.speak(f"已记录，{drug}")
+            except Exception:
+                pass
+        # 拍照上传服药照片（HuskyLens，无摄像头时静默降级，异步不阻塞主循环）
+        if config is not None and http_client is not None:
+            try:
+                import threading as _th
+                _th.Thread(
+                    target=_capture_and_upload, args=(config, http_client, logger), daemon=True
+                ).start()
             except Exception:
                 pass
     except Exception as e:
