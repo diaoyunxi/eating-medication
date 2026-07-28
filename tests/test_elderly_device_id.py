@@ -7,6 +7,7 @@
 """
 import importlib.util
 import unittest
+import unittest.mock  # noqa: F401  使 unittest.mock 作为属性可用（Python 3.x 不会随 import unittest 自动加载）
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
