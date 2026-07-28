@@ -7,6 +7,7 @@ from .user_service import UserService
 from .medication_service import MedicationService
 from .ai_service import AIService
 from .vision_service import VisionService
+from .device_service import DeviceService
 
 __all__ = [
     "AuthService",
@@ -14,4 +15,5 @@ __all__ = [
     "MedicationService",
     "AIService",
     "VisionService",
+    "DeviceService",
 ]
