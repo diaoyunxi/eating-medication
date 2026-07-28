@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from core import config, elderly_client
+from services.medication_service import validate_and_build
 
 logger = logging.getLogger(__name__)
 
@@ -255,66 +256,11 @@ async def add_medication_plan(request: Request):
                 "message": "请求体格式错误，需要 JSON 数据"
             }, status_code=400)
 
-        drug_name = (payload.get("drug_name") or "").strip()
-        dosage = (payload.get("dosage") or "").strip()
-        schedule_times = payload.get("schedule_times") or []
-        frequency = (payload.get("frequency") or "daily").strip()
-        total_quantity = payload.get("total_quantity", 0)
-        remaining_quantity = payload.get("remaining_quantity")
-        unit = (payload.get("unit") or "片").strip()
-        low_stock_threshold = payload.get("low_stock_threshold", 5)
+        fields, error = validate_and_build(payload)
+        if error:
+            return JSONResponse(content={"success": False, "message": error}, status_code=400)
 
-        # 基础参数校验
-        if not drug_name:
-            return JSONResponse(content={
-                "success": False,
-                "message": "请填写药品名称"
-            }, status_code=400)
-        if not dosage:
-            return JSONResponse(content={
-                "success": False,
-                "message": "请填写剂量"
-            }, status_code=400)
-        if not schedule_times or not isinstance(schedule_times, list):
-            return JSONResponse(content={
-                "success": False,
-                "message": "请至少添加一个服药时间"
-            }, status_code=400)
-        # 过滤空字符串时间并校验格式
-        schedule_times = [t.strip() for t in schedule_times if isinstance(t, str) and t.strip()]
-        if not schedule_times:
-            return JSONResponse(content={
-                "success": False,
-                "message": "请至少添加一个服药时间"
-            }, status_code=400)
-
-        # 数量转换与校验
-        try:
-            total_quantity = int(total_quantity)
-        except (TypeError, ValueError):
-            total_quantity = 0
-        if remaining_quantity is None:
-            remaining_quantity = total_quantity
-        else:
-            try:
-                remaining_quantity = int(remaining_quantity)
-            except (TypeError, ValueError):
-                remaining_quantity = total_quantity
-        try:
-            low_stock_threshold = int(low_stock_threshold)
-        except (TypeError, ValueError):
-            low_stock_threshold = 5
-
-        result = await elderly_client.set_medication_plan(
-            drug_name=drug_name,
-            dosage=dosage,
-            schedule_times=schedule_times,
-            frequency=frequency,
-            total_quantity=total_quantity,
-            remaining_quantity=remaining_quantity,
-            unit=unit,
-            low_stock_threshold=low_stock_threshold,
-        )
+        result = await elderly_client.set_medication_plan(**fields)
 
         if result.get("success"):
             return JSONResponse(content={
@@ -372,54 +318,11 @@ async def update_medication_plan(request: Request, plan_id: int):
                 "message": "请求体格式错误，需要 JSON 数据"
             }, status_code=400)
 
-        drug_name = (payload.get("drug_name") or "").strip()
-        dosage = (payload.get("dosage") or "").strip()
-        schedule_times = payload.get("schedule_times") or []
-        frequency = (payload.get("frequency") or "daily").strip()
-        total_quantity = payload.get("total_quantity", 0)
-        remaining_quantity = payload.get("remaining_quantity")
-        unit = (payload.get("unit") or "片").strip()
-        low_stock_threshold = payload.get("low_stock_threshold", 5)
+        fields, error = validate_and_build(payload)
+        if error:
+            return JSONResponse(content={"success": False, "message": error}, status_code=400)
 
-        # 基础参数校验
-        if not drug_name:
-            return JSONResponse(content={"success": False, "message": "请填写药品名称"}, status_code=400)
-        if not dosage:
-            return JSONResponse(content={"success": False, "message": "请填写剂量"}, status_code=400)
-        if not schedule_times or not isinstance(schedule_times, list):
-            return JSONResponse(content={"success": False, "message": "请至少添加一个服药时间"}, status_code=400)
-        schedule_times = [t.strip() for t in schedule_times if isinstance(t, str) and t.strip()]
-        if not schedule_times:
-            return JSONResponse(content={"success": False, "message": "请至少添加一个服药时间"}, status_code=400)
-
-        # 数量转换与校验
-        try:
-            total_quantity = int(total_quantity)
-        except (TypeError, ValueError):
-            total_quantity = 0
-        if remaining_quantity is None:
-            remaining_quantity = total_quantity
-        else:
-            try:
-                remaining_quantity = int(remaining_quantity)
-            except (TypeError, ValueError):
-                remaining_quantity = total_quantity
-        try:
-            low_stock_threshold = int(low_stock_threshold)
-        except (TypeError, ValueError):
-            low_stock_threshold = 5
-
-        result = await elderly_client.update_medication_plan(
-            plan_id=plan_id,
-            drug_name=drug_name,
-            dosage=dosage,
-            schedule_times=schedule_times,
-            frequency=frequency,
-            total_quantity=total_quantity,
-            remaining_quantity=remaining_quantity,
-            unit=unit,
-            low_stock_threshold=low_stock_threshold,
-        )
+        result = await elderly_client.update_medication_plan(plan_id=plan_id, **fields)
 
         if result.get("success"):
             return JSONResponse(content={
