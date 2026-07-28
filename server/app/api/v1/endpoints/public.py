@@ -24,11 +24,18 @@ from app.utils.rate_limit import check_rate_limit
 from app.utils.request_utils import get_client_ip
 import secrets
 import logging
+import os
+import base64
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/public", tags=["设备公开接口"])
+
+# 设备上传图片保存根目录（位于 server/data/uploads，已被 .gitignore 忽略）
+_UPLOAD_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "data", "uploads")
+)
 
 # AI 公开端点限流：每分钟每 IP 最多 10 次
 _AI_RATE_LIMIT = 10
@@ -232,6 +239,40 @@ async def device_message(
         return {"status": "ok"}
 
     return {"status": "ok"}
+
+
+class DeviceUpload(BaseModel):
+    """设备上传图片（base64 编码）"""
+    device_id: str
+    image_base64: str
+    note: Optional[str] = None
+
+
+@router.post("/device/upload")
+async def device_upload(
+    req: DeviceUpload,
+    db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+):
+    """接收设备上传的服药照片（base64 解码后落盘，HuskyLens 采集）"""
+    user = _get_device_user_authed(db, req.device_id, device_token)
+    try:
+        raw = base64.b64decode(req.image_base64, validate=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="图片编码无效")
+    # 大小与格式校验，防止恶意载荷
+    if len(raw) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="图片过大（上限10MB）")
+    if not (raw.startswith(b"\xff\xd8\xff") or raw.startswith(b"\x89PNG")):
+        raise HTTPException(status_code=400, detail="仅支持 JPEG/PNG 图片")
+    user_dir = os.path.join(_UPLOAD_ROOT, str(user.id))
+    os.makedirs(user_dir, exist_ok=True)
+    fname = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.jpg"
+    fpath = os.path.join(user_dir, fname)
+    with open(fpath, "wb") as f:
+        f.write(raw)
+    logger.info(f"设备上传图片已保存: {fpath}")
+    return {"status": "ok", "path": f"uploads/{user.id}/{fname}"}
 
 
 def _parse_dt(s):
