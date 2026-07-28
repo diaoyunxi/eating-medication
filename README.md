@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.12.0**
+> 当前版本：**v2.21.0**
 > 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
@@ -302,7 +302,7 @@
 │   ├── static/css/                # 样式表
 │   └── templates/                 # 9 个 Jinja2 页面模板（含 Turnstile 登录/注册）
 ├── history.md                     # 项目开发历史记录（版本基准）
-├── VERSION                        # 当前版本号（v2.4.0）
+├── VERSION                        # 当前版本号（v2.21.0）
 ├── deploy/                        # 部署辅助文件（systemd 单元 + cloudflared 配置）
 │   ├── eating-medication-server.service
 │   ├── eating-medication-family.service
