@@ -33,6 +33,9 @@ import importlib
 import urllib.request
 from pathlib import Path
 
+# pip 镜像源：默认清华源，可用环境变量 PIP_INDEX_URL 覆盖
+# （install.py 多处使用，未定义会触发 NameError 导致依赖安装崩溃）
+PIP_INDEX_URL = os.getenv("PIP_INDEX_URL", "https://pypi.tuna.tsinghua.edu.cn/simple")
 
 # 仓库根目录（本文件所在目录）
 ROOT_DIR = Path(__file__).resolve().parent

@@ -74,7 +74,8 @@ class TestTakeMedication(unittest.TestCase):
         self.assertTrue(db.commit.called)
         notifier.notify_taken_medication.assert_awaited_once()
 
-    def test_stock_insufficient_rolls_back(self):
+    def test_stock_insufficient_keeps_record(self):
+        # 库存为 0（最后一粒）时仍保留服药记录，仅告警，不回滚、不抛异常
         plan = self._plan(remaining=0)
         db = _make_db(plan, existing_record=None, rowcount=0)
         req = TakeMedicationRequest(
@@ -82,10 +83,11 @@ class TestTakeMedication(unittest.TestCase):
             scheduled_time=datetime(2026, 1, 1, 8, 0),
             taken_time=datetime(2026, 1, 1, 8, 5),
         )
-        with self.assertRaises(ValueError):
-            asyncio.run(MedicationService.take_medication(db, 1, req))
-        db.rollback.assert_called_once()
-        db.commit.assert_not_called()
+        record = asyncio.run(MedicationService.take_medication(db, 1, req))
+        self.assertEqual(record.status, "taken")
+        self.assertTrue(db.execute.called)
+        self.assertTrue(db.commit.called)
+        db.rollback.assert_not_called()
 
     def test_existing_record_updated_not_added(self):
         plan = self._plan(remaining=5)

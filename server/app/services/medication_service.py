@@ -118,8 +118,9 @@ class MedicationService:
             )
             db.add(record)
 
-        # 仅在确实服药时原子扣减库存，避免并发超扣
-        # 事务边界：record 的 add 与库存扣减在同一事务内，扣减失败 rollback 会一并回滚 record
+        # 仅在确实服药时原子扣减库存，避免并发超扣。
+        # 注意：服药记录（已发生事实）优先级高于库存一致性——即便库存已为 0（最后一粒），
+        # 也保留服药记录并仅告警，不回滚、不抛异常，避免丢失老人已服记录与家属通知。
         if status == "taken":
             result = db.execute(
                 update(MedicationPlan)
@@ -130,9 +131,11 @@ class MedicationService:
                 .values(remaining_quantity=MedicationPlan.remaining_quantity - 1)
             )
             if result.rowcount == 0:
-                # 库存不足或计划不存在，回滚本次记录（确保记录与扣减原子一致）
-                db.rollback()
-                raise ValueError("库存不足，无法扣减")
+                # 库存不足（如已吃到最后一片）时仍保留服药记录，仅记录告警
+                logger.warning(
+                    "服药已确认(plan=%s)但库存扣减失败(库存为0或计划不存在)，"
+                    "保留服药记录、未扣减库存", req.plan_id
+                )
 
         db.commit()
         db.refresh(record)
