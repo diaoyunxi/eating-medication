@@ -194,6 +194,20 @@ $SUDO cp "$DEPLOY_DIR/deploy/eating-medication-family.service" /etc/systemd/syst
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable --now eating-medication-server eating-medication-family
 
+# 配置 deploy 用户免密重启本项目的两个服务（供 updater.py 自动更新后重启使用）
+echo "==> [7/7] 配置 $DEPLOY_USER 免密重启服务（自动更新用）..."
+SUDOERS_FILE="/etc/sudoers.d/eating-medication"
+$SUDO tee "$SUDOERS_FILE" >/dev/null <<EOF
+# eating-medication: 允许 $DEPLOY_USER 免密重启/查看应用服务（由 updater.py 自动更新后调用）
+$DEPLOY_USER ALL=(root) NOPASSWD: \
+    /usr/bin/systemctl restart eating-medication-server eating-medication-family, \
+    /usr/bin/systemctl status eating-medication-server eating-medication-family, \
+    /bin/systemctl restart eating-medication-server eating-medication-family, \
+    /bin/systemctl status eating-medication-server eating-medication-family
+EOF
+$SUDO chmod 440 "$SUDOERS_FILE"
+$SUDO visudo -c -f "$SUDOERS_FILE" || { echo "✗ sudoers 语法校验失败，请检查"; exit 1; }
+
 sleep 3
 echo
 echo "============================================================"
