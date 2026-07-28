@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from core.config import config
+from common.server_client import BaseServerClient
 
 router = APIRouter()
 
@@ -32,14 +33,20 @@ _SERVER_API_BASE = "/api/v1"
 _PATH_PREFIX = config.PATH_PREFIX.rstrip("/")
 
 
+# 统一的服务端 HTTP 客户端（内部每次请求使用独立 httpx.AsyncClient）
+_server_client = BaseServerClient(
+    base_url=f"{config.ELDERLY_SERVER_URL.rstrip('/')}{_SERVER_API_BASE}",
+    timeout=15.0,
+)
+
+
 def _server_url(path: str) -> str:
-    """拼接 server API 完整 URL
+    """拼接 server API 完整 URL（用于 302 跳转目标，需完整地址）
 
     :param path: API 路径（如 /auth/login）
     :return: 完整 URL（如 https://xxx/api/v1/auth/login）
     """
-    base = config.ELDERLY_SERVER_URL.rstrip("/")
-    return f"{base}{_SERVER_API_BASE}{path}"
+    return f"{_server_client.base_url}{path}"
 
 
 def _set_jwt_cookie(response: JSONResponse, access_token: str) -> JSONResponse:
@@ -131,8 +138,7 @@ async def oauth_github_authorize():
 async def oauth_github_enabled():
     """前端用于判断 GitHub 登录按钮是否显示（代理 server 的 OAuth 配置）"""
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(_server_url("/auth/oauth/github/config"))
+        resp = await _server_client._execute("GET", "/auth/oauth/github/config")
         if resp.status_code == 200:
             return resp.json()
     except Exception:
@@ -154,8 +160,7 @@ async def oauth_gitee_authorize():
 async def oauth_gitee_enabled():
     """前端用于判断 Gitee 登录按钮是否显示（代理 server 的 OAuth 配置）"""
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(_server_url("/auth/oauth/gitee/config"))
+        resp = await _server_client._execute("GET", "/auth/oauth/gitee/config")
         if resp.status_code == 200:
             return resp.json()
     except Exception:
@@ -186,11 +191,10 @@ async def email_send_code(request: Request):
         )
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(
-                _server_url("/auth/email/send-code"),
-                json={"email": email, "cf_turnstile_token": turnstile_token},
-            )
+        resp = await _server_client._execute(
+            "POST", "/auth/email/send-code",
+            json_body={"email": email, "cf_turnstile_token": turnstile_token},
+        )
     except httpx.RequestError:
         return JSONResponse(
             {"success": False, "error": "无法连接认证服务，请稍后重试"},
@@ -232,11 +236,10 @@ async def email_code_login(request: Request):
         )
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(
-                _server_url("/auth/email/code-login"),
-                json={"email": email, "code": code, "cf_turnstile_token": turnstile_token},
-            )
+        resp = await _server_client._execute(
+            "POST", "/auth/email/code-login",
+            json_body={"email": email, "code": code, "cf_turnstile_token": turnstile_token},
+        )
     except httpx.RequestError:
         return JSONResponse(
             {"success": False, "error": "无法连接认证服务，请稍后重试"},
@@ -284,15 +287,14 @@ async def post_login(request: Request):
 
     # 转发到 server 进行 Turnstile 验证 + 账号密码校验
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(
-                _server_url("/auth/login"),
-                json={
-                    "phone": phone,
-                    "password": password,
-                    "cf_turnstile_token": turnstile_token,
-                },
-            )
+        resp = await _server_client._execute(
+            "POST", "/auth/login",
+            json_body={
+                "phone": phone,
+                "password": password,
+                "cf_turnstile_token": turnstile_token,
+            },
+        )
     except httpx.RequestError:
         return JSONResponse(
             {"success": False, "error": "无法连接认证服务，请稍后重试"},
@@ -365,11 +367,7 @@ async def post_register(request: Request):
         }
         if oauth_token:
             json_body["oauth_token"] = oauth_token
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(
-                _server_url("/auth/register"),
-                json=json_body,
-            )
+        resp = await _server_client._execute("POST", "/auth/register", json_body=json_body)
     except httpx.RequestError:
         return JSONResponse(
             {"success": False, "error": "无法连接认证服务，请稍后重试"},
