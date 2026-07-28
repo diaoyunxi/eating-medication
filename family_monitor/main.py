@@ -66,8 +66,8 @@ import time
 import uvicorn
 from contextlib import asynccontextmanager
 from typing import Optional
-import httpx
 from fastapi import FastAPI, Request
+from common.server_client import BaseServerClient
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse, Response
@@ -258,11 +258,12 @@ async def _verify_jwt_via_server(access_token: str) -> Optional[tuple]:
     if cached and cached[2] > now:
         return (cached[0], cached[1])
 
-    verify_url = f"{config.ELDERLY_SERVER_URL.rstrip('/')}/api/v1/users/me"
+    verify_url = "/users/me"
     try:
-        # 复用全局 httpx 客户端，避免每个请求新建连接
-        resp = await _http_client.get(
-            verify_url,
+        # 复用统一的 BaseServerClient（每次请求内部使用独立 httpx.AsyncClient，
+        # 配合下方 30 秒短期缓存，既避免连接耗尽又降低对 server 的验证压力）
+        resp = await _http_client._execute(
+            "GET", verify_url,
             headers={"Authorization": f"Bearer {access_token}"},
         )
         if resp.status_code == 200:
@@ -282,8 +283,12 @@ async def _verify_jwt_via_server(access_token: str) -> Optional[tuple]:
     return None
 
 
-# 全局 httpx 客户端（复用 keep-alive 连接）
-_http_client: httpx.AsyncClient = httpx.AsyncClient(timeout=10.0)
+# 统一的服务端 HTTP 客户端（每次请求内部使用独立 httpx.AsyncClient，
+# 配合下方 30 秒 JWT 缓存，避免连接耗尽并降低对 server 的验证压力）
+_http_client: BaseServerClient = BaseServerClient(
+    base_url=f"{config.ELDERLY_SERVER_URL.rstrip('/')}/api/v1",
+    timeout=10.0,
+)
 # JWT 验证缓存：access_token -> (username, user_id, expire_timestamp)
 _jwt_cache: dict = {}
 

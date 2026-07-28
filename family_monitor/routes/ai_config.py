@@ -7,18 +7,21 @@
 import logging
 from typing import Optional
 
-import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from core import config, elderly_client
+from common.server_client import BaseServerClient
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# 服务端 API 前缀（与 family_monitor 路径前缀无关，直接指向 server 根）
-_SERVER_API = f"{config.ELDERLY_SERVER_URL.rstrip('/')}/api/v1"
+# 服务端 API 客户端（统一 base_url 到 /api/v1，每次请求内部使用独立 httpx.AsyncClient）
+_server_client = BaseServerClient(
+    base_url=f"{config.ELDERLY_SERVER_URL.rstrip('/')}/api/v1",
+    timeout=15.0,
+)
 
 
 def _bound_device_id() -> Optional[str]:
@@ -32,15 +35,12 @@ def _bound_device_id() -> Optional[str]:
 async def _server_request(method: str, path: str, *, token: str, params: dict = None, json_body: dict = None):
     """以用户 JWT 调用服务端接口，返回 (status_code, json)"""
     headers = {"Authorization": f"Bearer {token}"} if token else {}
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.request(
-            method, f"{_SERVER_API}{path}", params=params, json=json_body, headers=headers
-        )
-        try:
-            data = resp.json()
-        except Exception:
-            data = {"detail": resp.text}
-        return resp.status_code, data
+    resp = await _server_client._execute(method, path, params=params, json_body=json_body, headers=headers)
+    try:
+        data = resp.json()
+    except Exception:
+        data = {"detail": resp.text}
+    return resp.status_code, data
 
 
 def _require_login(request: Request):
