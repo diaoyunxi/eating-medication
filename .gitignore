@@ -47,6 +47,9 @@ logs/
 !server/app/**/*.py
 !family_monitor/
 !family_monitor/routes/**/*.py
+# 放行部署辅助目录（systemd 单元、隧道配置、一键部署脚本）
+!deploy/
+!deploy/**
 # 放行根目录统一自动更新器（各模块 main.py 依赖它）
 !updater.py
 # 放行根目录统一安装脚本（各模块 main.py 依赖它）

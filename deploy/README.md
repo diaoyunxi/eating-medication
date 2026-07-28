@@ -11,7 +11,30 @@
 | `cloudflared.service` | Cloudflare 隧道守护进程 systemd 单元 |
 | `cloudflared-config.yml` | Cloudflare 隧道路由配置示例（子路径转发） |
 
-## 快速安装
+## 一键部署（推荐）
+
+仓库提供 `deploy/setup.sh`，可一条命令完成「克隆代码 → 装依赖 → 生成生产 `.env` → 建 systemd 服务并启动」，幂等可重跑。
+
+```bash
+# 登录服务器后执行（默认域名 my-website.ccwu.cc）
+sudo bash /opt/eating-medication/deploy/setup.sh
+# 或自定义域名
+sudo DOMAIN=你的域名 bash /opt/eating-medication/deploy/setup.sh
+```
+
+脚本会自动：
+1. 安装系统依赖（git/python3/pip/curl）
+2. 克隆或更新仓库到 `/opt/eating-medication`
+3. 创建 `deploy` 运行用户
+4. 安装 `server` 与 `family_monitor` 的 Python 依赖
+5. 生成生产环境 `.env`（仅首次，已存在则保留）；`DEBUG=false`、`PRODUCTION=true`
+6. 创建运行时目录（`data/`、`logs/`）并修正权限
+7. 安装并启动 `eating-medication-server`（:1059）、`eating-medication-family`（:4430）
+
+> 公网访问依赖你在 Cloudflare Zero Trust 已配置的隧道（脚本不处理隧道），请确保两条路由：
+> `/eating-medication/server → :1059`、`/eating-medication/family → :4430`。
+
+## 手动安装
 
 ```bash
 # 1. 复制 systemd 单元到系统目录
