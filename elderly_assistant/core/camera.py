@@ -78,53 +78,6 @@ def capture_image(config):
         return None
 
 
-def recognize_objects(config, algorithm=None):
-    """使用 HuskyLens 进行物体识别
-
-    :param config: 配置字典
-    :param algorithm: 算法类型，默认使用物体识别
-    :return: 识别结果列表，每项包含 ID, name, xCenter, yCenter, width, height 等
-    """
-    logger = setup_logger()
-    try:
-        from dfrobot_huskylensv2 import ALGORITHM_OBJECT_RECOGNITION
-        hl = get_huskylens(config)
-
-        algo = algorithm or ALGORITHM_OBJECT_RECOGNITION
-        hl.switchAlgorithm(algo)
-        hl.getResult(algo)
-
-        results = []
-        if hl.available(algo):
-            count = hl.getCachedResultNum(algo)
-            for i in range(count):
-                r = hl.getCachedResultByIndex(algo, i)
-                if r:
-                    results.append({
-                        'id': r.ID,
-                        'name': getattr(r, 'name', ''),
-                        'content': getattr(r, 'content', ''),
-                        'x': r.first,
-                        'y': r.second,
-                        'width': r.third,
-                        'height': r.fourth,
-                    })
-        logger.info(f"识别到 {len(results)} 个目标")
-        return results
-    except Exception as e:
-        logger.error(f"物体识别异常: {e}")
-        return []
-
-
-def recognize_face(config):
-    """使用 HuskyLens 进行人脸识别
-
-    :return: 人脸识别结果列表
-    """
-    from dfrobot_huskylensv2 import ALGORITHM_FACE_RECOGNITION
-    return recognize_objects(config, algorithm=ALGORITHM_FACE_RECOGNITION)
-
-
 def reset_connection():
     """重置 HuskyLens 连接"""
     global _huskylens
