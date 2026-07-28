@@ -22,6 +22,10 @@ SERVER = REPO_ROOT / "server"
 if SERVER.exists() and str(SERVER) not in sys.path:
     sys.path.insert(0, str(SERVER))
 
+# common 为跨端共享包，需加入 sys.path 以便 elderly/family/server 测试统一引用
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 # 测试环境变量（覆盖真实配置，避免外部依赖）
 os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-ci-not-for-prod")

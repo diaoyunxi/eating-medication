@@ -3,42 +3,42 @@
 老人端API客户端 - 支持 device_id 绑定
 HTTPS 连接由系统默认 SSL 上下文验证（Cloudflare 隧道公网证书）。
 device_id 在拼接 URL 时使用 urllib.parse.quote 编码，防止特殊字符注入。
+
+本模块基于 common.server_client.BaseServerClient 实现：统一了 httpx 客户端的创建、
+SSL 上下文、认证头合并与 URL 拼接，消除了原先散落的重复请求代码。
 """
 
-import httpx
 import json
-import ssl
 import os
-from urllib.parse import quote
-from typing import Optional, Dict, Any, List
 from datetime import datetime
+from typing import Optional, Dict, Any, List
+
 from core.config import config
+from common.server_client import BaseServerClient, encode_device_id
 
 
-def _encode_device_id(device_id: str) -> str:
-    """对 device_id 进行 URL 编码，防止特殊字符破坏 URL 结构"""
-    return quote(str(device_id), safe='')
+# 历史兼容别名：保持 test_family_api_client 等既有引用可用
+_encode_device_id = encode_device_id
 
 
-class ElderlyAPIClient:
+class ElderlyAPIClient(BaseServerClient):
     """老人端API客户端"""
 
     def __init__(self):
-        self.base_url = config.ELDERLY_SERVER_URL
-        self.timeout = 10.0
+        super().__init__(base_url=config.ELDERLY_SERVER_URL, timeout=10.0)
         self._device_id = self._load_bound_device_id()
         self._device_token = self._load_device_token()
-        self._ssl_context = self._create_ssl_context()
 
-    def _create_ssl_context(self) -> Optional[ssl.SSLContext]:
-        """创建SSL上下文（HTTPS 连接验证，使用系统默认信任库）"""
-        if self.base_url.startswith('https://'):
-            try:
-                return ssl.create_default_context()
-            except Exception as e:
-                print(f"创建SSL上下文失败: {e}")
-                return None
-        return None
+    def _auth_headers(self) -> Dict[str, str]:
+        """返回携带设备ID和设备令牌的请求头"""
+        headers = {}
+        if self._device_id:
+            headers["X-Device-ID"] = self._device_id
+        # 移除无效的 X-Device-Secret（server 端从未校验此头）
+        # 改为发送 X-Device-Token（server 端实际校验的设备令牌）
+        if self._device_token:
+            headers["X-Device-Token"] = self._device_token
+        return headers
 
     def _load_bound_device_id(self) -> Optional[str]:
         """加载已绑定的设备ID"""
@@ -108,37 +108,21 @@ class ElderlyAPIClient:
         self._device_id = None
         self._device_token = None
 
-    def _headers(self) -> Dict[str, str]:
-        """返回携带设备ID和设备令牌的请求头"""
-        headers = {}
-        if self._device_id:
-            headers["X-Device-ID"] = self._device_id
-        # 移除无效的 X-Device-Secret（server 端从未校验此头）
-        # 改为发送 X-Device-Token（server 端实际校验的设备令牌）
-        if self._device_token:
-            headers["X-Device-Token"] = self._device_token
-        return headers
-
     async def register_device(self, device_id: str, device_name: str = "") -> Dict[str, Any]:
         """向服务端注册/绑定设备"""
         try:
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                verify=self._ssl_context if self._ssl_context else True
-            ) as client:
-                response = await client.post(
-                    f"{self.base_url}/api/v1/public/device/register",
-                    json={"device_id": device_id, "device_name": device_name},
-                    headers=self._headers()
-                )
-                if response.status_code == 200:
-                    resp_data = response.json()
-                    # 透传 device_token（仅新设备返回）
-                    token = resp_data.get("device_token", "")
-                    self.save_bound_device(device_id, device_name, token)
-                    return {"success": True, "data": resp_data}
-                else:
-                    return {"success": False, "error": f"状态码: {response.status_code}"}
+            response = await self._execute(
+                "POST", "/api/v1/public/device/register",
+                json_body={"device_id": device_id, "device_name": device_name},
+            )
+            if response.status_code == 200:
+                resp_data = response.json()
+                # 透传 device_token（仅新设备返回）
+                token = resp_data.get("device_token", "")
+                self.save_bound_device(device_id, device_name, token)
+                return {"success": True, "data": resp_data}
+            else:
+                return {"success": False, "error": f"状态码: {response.status_code}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -150,19 +134,12 @@ class ElderlyAPIClient:
         """
         try:
             encoded_id = _encode_device_id(device_id)
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                verify=self._ssl_context if self._ssl_context else True
-            ) as client:
-                response = await client.get(
-                    f"{self.base_url}/api/v1/public/device/check/{encoded_id}",
-                    headers=self._headers()
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    return {"success": True, "data": data}
-                else:
-                    return {"success": False, "error": f"状态码: {response.status_code}"}
+            response = await self._execute("GET", f"/api/v1/public/device/check/{encoded_id}")
+            if response.status_code == 200:
+                data = response.json()
+                return {"success": True, "data": data}
+            else:
+                return {"success": False, "error": f"状态码: {response.status_code}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -175,21 +152,14 @@ class ElderlyAPIClient:
             return []
         try:
             encoded_id = _encode_device_id(self._device_id)
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                verify=self._ssl_context if self._ssl_context else True
-            ) as client:
-                response = await client.get(
-                    f"{self.base_url}/api/v1/public/device/plans/{encoded_id}",
-                    headers=self._headers()
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    # 服务端返回 {device_id, plans: [...]}
-                    if isinstance(data, dict):
-                        return data.get('plans', []) or []
-                    return data or []
-                return []
+            response = await self._execute("GET", f"/api/v1/public/device/plans/{encoded_id}")
+            if response.status_code == 200:
+                data = response.json()
+                # 服务端返回 {device_id, plans: [...]}
+                if isinstance(data, dict):
+                    return data.get('plans', []) or []
+                return data or []
+            return []
         except Exception:
             return []
 
@@ -227,19 +197,13 @@ class ElderlyAPIClient:
             "low_stock_threshold": low_stock_threshold,
         }
         try:
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                verify=self._ssl_context if self._ssl_context else True
-            ) as client:
-                response = await client.post(
-                    f"{self.base_url}/api/v1/public/device/medication_plan",
-                    json=payload,
-                    headers=self._headers()
-                )
-                if response.status_code == 200:
-                    return {"success": True, "data": response.json()}
-                else:
-                    return {"success": False, "error": f"状态码: {response.status_code}"}
+            response = await self._execute(
+                "POST", "/api/v1/public/device/medication_plan", json_body=payload
+            )
+            if response.status_code == 200:
+                return {"success": True, "data": response.json()}
+            else:
+                return {"success": False, "error": f"状态码: {response.status_code}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -249,18 +213,13 @@ class ElderlyAPIClient:
         调用 DELETE /api/v1/public/device/medication_plan/{plan_id}
         """
         try:
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                verify=self._ssl_context if self._ssl_context else True
-            ) as client:
-                response = await client.delete(
-                    f"{self.base_url}/api/v1/public/device/medication_plan/{plan_id}",
-                    headers=self._headers()
-                )
-                if response.status_code == 200:
-                    return {"success": True, "data": response.json()}
-                else:
-                    return {"success": False, "error": f"状态码: {response.status_code}"}
+            response = await self._execute(
+                "DELETE", f"/api/v1/public/device/medication_plan/{plan_id}"
+            )
+            if response.status_code == 200:
+                return {"success": True, "data": response.json()}
+            else:
+                return {"success": False, "error": f"状态码: {response.status_code}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -298,22 +257,15 @@ class ElderlyAPIClient:
             "low_stock_threshold": low_stock_threshold,
         }
         try:
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                verify=self._ssl_context if self._ssl_context else True
-            ) as client:
-                response = await client.put(
-                    f"{self.base_url}/api/v1/public/device/medication_plan/{plan_id}",
-                    json=payload,
-                    headers=self._headers()
-                )
-                if response.status_code == 200:
-                    return {"success": True, "data": response.json()}
-                else:
-                    return {"success": False, "error": f"状态码: {response.status_code}"}
+            response = await self._execute(
+                "PUT", f"/api/v1/public/device/medication_plan/{plan_id}", json_body=payload
+            )
+            if response.status_code == 200:
+                return {"success": True, "data": response.json()}
+            else:
+                return {"success": False, "error": f"状态码: {response.status_code}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
-
 
     async def get_device_info(self) -> Dict[str, Any]:
         """从服务端获取老人端设备信息"""
@@ -327,36 +279,29 @@ class ElderlyAPIClient:
 
         try:
             encoded_id = _encode_device_id(self._device_id)
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                verify=self._ssl_context if self._ssl_context else True
-            ) as client:
-                response = await client.get(
-                    f"{self.base_url}/api/v1/public/device/status/{encoded_id}",
-                    headers=self._headers()
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    # 根据服务端返回的 is_online 判断真实在线状态
-                    is_online = data.get('is_online', False)
-                    return {
-                        'connected': is_online,
-                        'device_id': data.get('device_id'),
-                        'device_name': data.get('device_name'),
-                        'role': data.get('role'),
-                        'created_at': data.get('created_at'),
-                        'total_plans': data.get('total_plans', 0),
-                        'total_records': data.get('total_records', 0),
-                        'status': data.get('status', 'offline'),
-                        'last_heartbeat': data.get('last_heartbeat'),
-                        'last_check': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    }
+            response = await self._execute("GET", f"/api/v1/public/device/status/{encoded_id}")
+            if response.status_code == 200:
+                data = response.json()
+                # 根据服务端返回的 is_online 判断真实在线状态
+                is_online = data.get('is_online', False)
                 return {
-                    'connected': False,
-                    'device_id': self._device_id,
-                    'device_name': '设备离线',
-                    'status': 'offline'
+                    'connected': is_online,
+                    'device_id': data.get('device_id'),
+                    'device_name': data.get('device_name'),
+                    'role': data.get('role'),
+                    'created_at': data.get('created_at'),
+                    'total_plans': data.get('total_plans', 0),
+                    'total_records': data.get('total_records', 0),
+                    'status': data.get('status', 'offline'),
+                    'last_heartbeat': data.get('last_heartbeat'),
+                    'last_check': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }
+            return {
+                'connected': False,
+                'device_id': self._device_id,
+                'device_name': '设备离线',
+                'status': 'offline'
+            }
         except Exception:
             return {
                 'connected': False,
@@ -365,36 +310,17 @@ class ElderlyAPIClient:
                 'status': 'offline'
             }
 
-    async def check_connection(self) -> bool:
-        """检查老人端服务器连接"""
-        try:
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                verify=self._ssl_context if self._ssl_context else True
-            ) as client:
-                response = await client.get(f"{self.base_url}/health", headers=self._headers())
-                return response.status_code == 200
-        except Exception:
-            return False
-
     async def get_reminders(self) -> List[Dict[str, Any]]:
         """获取提醒列表（改用公开接口 /device/plans）"""
         if not self._device_id:
             return []
         try:
             encoded_id = _encode_device_id(self._device_id)
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                verify=self._ssl_context if self._ssl_context else True
-            ) as client:
-                response = await client.get(
-                    f"{self.base_url}/api/v1/public/device/plans/{encoded_id}",
-                    headers=self._headers()
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    return data.get('plans', []) or []
-                return []
+            response = await self._execute("GET", f"/api/v1/public/device/plans/{encoded_id}")
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('plans', []) or []
+            return []
         except Exception:
             pass
         return []
@@ -405,18 +331,11 @@ class ElderlyAPIClient:
             return []
         try:
             encoded_id = _encode_device_id(self._device_id)
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                verify=self._ssl_context if self._ssl_context else True
-            ) as client:
-                response = await client.get(
-                    f"{self.base_url}/api/v1/public/device/records/{encoded_id}",
-                    headers=self._headers()
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    return data.get('records', []) or []
-                return []
+            response = await self._execute("GET", f"/api/v1/public/device/records/{encoded_id}")
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('records', []) or []
+            return []
         except Exception:
             pass
         return []
@@ -479,19 +398,14 @@ class ElderlyAPIClient:
             return []
         try:
             encoded_id = _encode_device_id(self._device_id)
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                verify=self._ssl_context if self._ssl_context else True
-            ) as client:
-                response = await client.get(
-                    f"{self.base_url}/api/v1/public/device/chat_history/{encoded_id}",
-                    params={"limit": limit},
-                    headers=self._headers()
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    return data.get('messages', []) or []
-                return []
+            response = await self._execute(
+                "GET", f"/api/v1/public/device/chat_history/{encoded_id}",
+                params={"limit": limit},
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('messages', []) or []
+            return []
         except Exception:
             pass
         return []
