@@ -1,53 +1,73 @@
 # -*- coding: utf-8 -*-
-"""elderly_assistant 配置加载/合并纯逻辑测试。"""
-import importlib.util
+"""elderly_assistant 配置加载纯逻辑测试（扁平 .env 体系）。"""
 import os
 import tempfile
 import unittest
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-_HAS_YAML = importlib.util.find_spec("yaml") is not None
+from tests._helpers import load_module
 
-if _HAS_YAML:
-    from tests._helpers import load_module
-    config_loader = load_module("elderly_utils_config_loader",
-                                "elderly_assistant/utils/config_loader.py")
-else:
-    config_loader = None
+config_loader = load_module(
+    "elderly_utils_config_loader", "elderly_assistant/utils/config_loader.py"
+)
 
 
-@unittest.skipIf(config_loader is None, "pyyaml not installed")
-class TestDeepMerge(unittest.TestCase):
-    def test_nested_merge(self):
-        base = {"a": 1, "b": {"x": 1, "y": 2}}
-        override = {"b": {"y": 3, "z": 4}, "c": 5}
-        merged = config_loader._deep_merge(base, override)
-        # 原对象不被修改
-        self.assertEqual(base["b"]["y"], 2)
-        self.assertEqual(merged, {"a": 1, "b": {"x": 1, "y": 3, "z": 4}, "c": 5})
-
-    def test_scalar_override(self):
-        self.assertEqual(config_loader._deep_merge({"a": 1}, {"a": 2}), {"a": 2})
-
-    def test_list_override(self):
-        self.assertEqual(config_loader._deep_merge({"a": [1, 2]}, {"a": [3]}), {"a": [3]})
+def _clear_env():
+    """清除所有扁平 .env 键，避免 load_dotenv 残留污染后续用例。"""
+    for env_key, _, _, _ in config_loader._ENV_LEAVES:
+        os.environ.pop(env_key, None)
 
 
-@unittest.skipIf(config_loader is None, "pyyaml not installed")
 class TestLoadSave(unittest.TestCase):
     def test_default_when_missing(self):
-        p = os.path.join(tempfile.mkdtemp(), "config.yaml")
+        _clear_env()
+        # 传递一个空的 .env（不存在时 load_dotenv 不报错）
+        p = Path(tempfile.mkdtemp()) / ".env"
+        p.write_text("", encoding="utf-8")
         cfg = config_loader.load_config(p)
         self.assertEqual(cfg["server"]["base_url"], "http://localhost:1059")
-        self.assertTrue(os.path.exists(p))
+        self.assertEqual(cfg["server"]["timeout"], 10)
+        self.assertEqual(cfg["hotspot"]["web_port"], 8088)
+        self.assertEqual(cfg["reminder"]["poll_interval"], 60)
+        self.assertEqual(cfg["camera"]["connection"], "i2c")
 
-    def test_roundtrip(self):
-        p = os.path.join(tempfile.mkdtemp(), "config.yaml")
-        cfg = {"server": {"base_url": "http://example.com"}}
-        config_loader.save_config(cfg, p)
-        loaded = config_loader.load_config(p)
-        self.assertEqual(loaded["server"]["base_url"], "http://example.com")
+    def test_override(self):
+        _clear_env()
+        p = Path(tempfile.mkdtemp()) / ".env"
+        p.write_text(
+            "SERVER_BASE_URL=http://example.com\nSERVER_TIMEOUT=30\nHOTSPOT_WEB_PORT=9000\n",
+            encoding="utf-8",
+        )
+        cfg = config_loader.load_config(p)
+        self.assertEqual(cfg["server"]["base_url"], "http://example.com")
+        self.assertEqual(cfg["server"]["timeout"], 30)
+        self.assertEqual(cfg["hotspot"]["web_port"], 9000)
+
+    def test_save_server_url(self):
+        _clear_env()
+        p = Path(tempfile.mkdtemp()) / ".env"
+        p.write_text("SERVER_BASE_URL=http://old.example\n", encoding="utf-8")
+        ok = config_loader.save_server_url("http://new.example", p)
+        self.assertTrue(ok)
+        cfg = config_loader.load_config(p)
+        self.assertEqual(cfg["server"]["base_url"], "http://new.example")
+
+    def test_save_server_url_adds_when_absent(self):
+        _clear_env()
+        p = Path(tempfile.mkdtemp()) / ".env"
+        p.write_text("SERVER_TIMEOUT=10\n", encoding="utf-8")
+        ok = config_loader.save_server_url("http://added.example", p)
+        self.assertTrue(ok)
+        cfg = config_loader.load_config(p)
+        self.assertEqual(cfg["server"]["base_url"], "http://added.example")
+
+    def test_int_coercion_invalid_keeps_default(self):
+        _clear_env()
+        p = Path(tempfile.mkdtemp()) / ".env"
+        p.write_text("SERVER_TIMEOUT=notanint\n", encoding="utf-8")
+        cfg = config_loader.load_config(p)
+        # 非法整数保留默认值，不崩溃
+        self.assertEqual(cfg["server"]["timeout"], 10)
 
 
 if __name__ == "__main__":

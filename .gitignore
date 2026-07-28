@@ -13,14 +13,10 @@ venv/
 env/
 ENV/
 
-# ===== 环境变量 / 敏感配置 =====
-.env
-.env.*
-
-# ===== 模块本地配置（含密钥/服务器地址，部署时各自创建）=====
-family_monitor/config.json
-elderly_assistant/config.yaml
-# 保留 .example 模板供参考
+# ===== 各模块 .env（含密钥/部署配置，部署时各自创建，忽略）=====
+server/.env
+family_monitor/.env
+elderly_assistant/.env
 
 # ===== 数据库 =====
 *.db
@@ -43,16 +39,19 @@ logs/
 *.swp
 *.swo
 *~
-/*
-# 放行根目录统一自动更新器（必须纳入版本管理，各模块 main.py 依赖它）
-!updater.py
-# 放行根目录统一配置文件（含 auto_pull / github_proxy / public_url，部署端受保护不被覆盖）
-!config.json
 
-# 放行测试套件与 pytest 配置（CI 通过 `pytest` 运行，必须纳入版本管理）
+# 根目录默认忽略所有，逐项放行需纳入版本管理的文件
+/*
+# 放行根目录统一自动更新器（各模块 main.py 依赖它）
+!updater.py
+# 放行根目录统一安装脚本（各模块 main.py 依赖它）
+!install.py
+# 放行根目录全局更新配置 .env（仅含 AUTO_PULL / GITHUB_PROXY，无密钥，纳入版本管理）
+!.env
+# 放行测试套件与 pytest 配置（CI 通过 pytest 运行，必须纳入版本管理）
 !tests/
 !tests/**
-# 但测试缓存字节码仍需忽略：!tests/** 会一并放行 tests/__pycache__，此处重新忽略
+# 测试缓存字节码仍需忽略
 tests/__pycache__/
 !conftest.py
 !pytest.ini
@@ -84,8 +83,8 @@ SHA256SUMS.txt
 !/src/
 !package.json
 !/.github
-# 仓库根级工具脚本 (与 updater.py 同性质, 需纳入版本控制)
+# 仓库根级工具脚本（与 updater.py 同性质，需纳入版本控制）
 !reset_runtime.py
 
-# install.py 自动从官方仓库下载的未发布单文件模块 (运行时落地, 不纳入仓库)
+# install.py 自动从官方仓库下载的未发布单文件模块（运行时落地，不纳入仓库）
 elderly_assistant/dfrobot_huskylensv2.py

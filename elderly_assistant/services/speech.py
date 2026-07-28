@@ -8,7 +8,8 @@ from utils.logger import setup_logger
 class Speech:
     def __init__(self, config=None):
         self.logger = setup_logger()
-        self.config = config.get('speech', {}) if (config and 'speech' in config) else {}
+        # speech 配置段为幽灵字段（历史遗留，从未生效），统一删除，此处不读取
+        self.config = {}
         self._speak_queue = queue.Queue(maxsize=20)  # 有界队列，避免无界增长
         self._stop_event = threading.Event()
         self._engine = None

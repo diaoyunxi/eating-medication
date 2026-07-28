@@ -3,7 +3,7 @@
 
 验证 ``--reset`` 的运行时数据清理逻辑：
 - 仅删除未跟踪 / 被忽略的运行时文件（DB、users.json、device_id.txt 等）
-- 保留 .env / config.json / logs（含子目录中的同名文件）
+- 保留 .env / logs（含子目录中的同名文件）
 - 不误删已跟踪的源码文件
 """
 import os
@@ -29,10 +29,6 @@ class TestIsPreserved(unittest.TestCase):
         self.assertTrue(_is_preserved((".env",)))
         self.assertTrue(_is_preserved(("server", ".env")))
 
-    def test_preserve_config_json(self):
-        self.assertTrue(_is_preserved(("config.json",)))
-        self.assertTrue(_is_preserved(("family_monitor", "config.json")))
-
     def test_preserve_logs_dir(self):
         self.assertTrue(_is_preserved(("logs",)))
         self.assertTrue(_is_preserved(("logs", "server.log")))
@@ -49,20 +45,19 @@ class TestResetRuntimeData(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp(prefix="reset_test_"))
         gitignore = (
             "*.sqlite\n*.db\ndata/\nusers.json\ndevice_id.txt\n"
-            "dfrobot_huskylensv2.py\n__pycache__/\n*.pyc\n.env\nconfig.json\n*.log\n"
+            "dfrobot_huskylensv2.py\n__pycache__/\n*.pyc\n.env\n*.log\n"
         )
         (self.tmp / ".gitignore").write_text(gitignore, encoding="utf-8")
         # 已跟踪文件（不应被删除）
         (self.tmp / "README.md").write_text("tracked\n", encoding="utf-8")
         # 需保留的运行时文件
         (self.tmp / ".env").write_text("SECRET=1\n", encoding="utf-8")
-        (self.tmp / "config.json").write_text("{}\n", encoding="utf-8")
         (self.tmp / "logs").mkdir()
         (self.tmp / "logs" / "server.log").write_text("log\n", encoding="utf-8")
         (self.tmp / "server").mkdir()
         (self.tmp / "server" / ".env").write_text("S=2\n", encoding="utf-8")
         (self.tmp / "family_monitor").mkdir()
-        (self.tmp / "family_monitor" / "config.json").write_text("{}\n", encoding="utf-8")
+        (self.tmp / "family_monitor" / ".env").write_text("S=3\n", encoding="utf-8")
         # 需删除的运行时文件
         (self.tmp / "server" / "data").mkdir()
         (self.tmp / "server" / "data" / "db.sqlite").write_text("db", encoding="utf-8")
@@ -87,12 +82,11 @@ class TestResetRuntimeData(unittest.TestCase):
 
         # 保留项
         self.assertTrue((self.tmp / ".env").exists(), ".env 应保留")
-        self.assertTrue((self.tmp / "config.json").exists(), "config.json 应保留")
         self.assertTrue((self.tmp / "logs" / "server.log").exists(), "logs 应保留")
         self.assertTrue((self.tmp / "server" / ".env").exists(), "server/.env 应保留")
         self.assertTrue(
-            (self.tmp / "family_monitor" / "config.json").exists(),
-            "family_monitor/config.json 应保留",
+            (self.tmp / "family_monitor" / ".env").exists(),
+            "family_monitor/.env 应保留",
         )
         # 已跟踪源码不被误删
         self.assertTrue((self.tmp / "README.md").exists(), "已跟踪文件不应被删")

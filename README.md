@@ -241,7 +241,7 @@
 │   ├── main.py                    # 程序入口（行空板 M10 GUI 主流程）
 │   ├── updater.py                 # 自动更新检查模块
 │   ├── install.py                 # 依赖自动安装
-│   ├── config.yaml.example        # 配置文件示例
+│   ├── .env.example                # 配置文件示例（扁平 .env）
 │   ├── requirements.txt           # 依赖清单
 │   ├── core/                      # 核心业务逻辑
 │   │   ├── ai_assistant.py        # AI 助手交互
@@ -291,7 +291,7 @@
 │   ├── main.py                    # FastAPI 应用 + 中间件链（JWT 转发验证 + Turnstile）
 │   ├── updater.py                 # 自动更新检查
 │   ├── install.py                 # 依赖自动安装
-│   ├── config.json.example        # 配置文件示例
+│   ├── .env                        # 配置文件（单一 .env 源，已忽略）
 │   ├── requirements.txt
 │   ├── core/                      # 配置 / BFF 客户端 / 遗留模块
 │   │   ├── api_client.py          # 调用老人端服务端的 BFF 客户端
@@ -327,7 +327,7 @@
 | AI | pyttsx3 / edge-tts | 智谱 AI `glm-4.7-flash`（zhipuai SDK） | — |
 | OCR | pytesseract 0.3.10（本地） | 百度 OCR（aip.baidubce.com） | — |
 | 调度 | schedule 1.2.1 | APScheduler 3.11.0 | — |
-| 配置 | PyYAML 6.0.1 | pydantic-settings 2.6 + .env | config.json + .env |
+| 配置 | python-dotenv 1.0.1 | pydantic-settings 2.6 + .env | .env |
 | 模糊匹配 | rapidfuzz 3.6.2 | — | — |
 | 图像 | Pillow 10.0.1 | Pillow 10.4.0 | — |
 | HTTPS | Cloudflare 隧道 | Cloudflare 隧道 | Cloudflare 隧道 |
@@ -354,8 +354,8 @@
 
 ```bash
 cd elderly_assistant
-python install.py          # 自动安装依赖
-# config.yaml 默认服务器地址已配置为公网域名，可在热点配网页面修改
+python ../install.py requirements.txt --huskylens   # 自动安装依赖（含 huskylens）
+# .env 的 SERVER_BASE_URL 默认服务器地址已配置为公网域名，可在热点配网页面修改
 python main.py             # 启动（--debug 启用调试模式）
 ```
 
@@ -365,7 +365,7 @@ python main.py             # 启动（--debug 启用调试模式）
 
 ```bash
 cd server
-python install.py          # 自动安装依赖
+python ../install.py requirements.txt                # 自动安装依赖
 # 编辑 .env 配置数据库、密钥、智谱 AI、京东比价、PATH_PREFIX、ALLOWED_ORIGINS
 python main.py             # 启动服务（本地端口 1059，HTTP 监听）
 ```
@@ -377,8 +377,8 @@ python main.py             # 启动服务（本地端口 1059，HTTP 监听）
 
 ```bash
 cd family_monitor
-python install.py          # 自动安装依赖
-# 编辑 .env（SECRET_KEY 等）和 config.json（服务器地址、PATH_PREFIX）
+python ../install.py requirements.txt                # 自动安装依赖
+# 编辑 .env（SECRET_KEY、服务器地址 ELDERLY_SERVER_URL、PATH_PREFIX 等全部配置）
 python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 ```
 
@@ -403,9 +403,9 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 
 | 模块 | 配置文件 | 关键配置项 |
 |------|----------|------------|
-| elderly_assistant | `config.yaml` | `server.base_url`（默认公网域名）、`ai.base_url`、摄像头、语音引擎、蜂鸣器、热点、轮询间隔 |
-| server | `.env` | `APP_NAME`、`DEBUG`、`PATH_PREFIX`/`API_V1_PREFIX`、`DATABASE_URL`、`SECRET_KEY`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`TURNSTILE_SECRET_KEY`、`ZHIPUAI_API_KEY`/`ZHIPUAI_MODEL`、`OCR_PROVIDER`/`OCR_API_KEY`/`OCR_SECRET_KEY`、`ALLOWED_ORIGINS`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`GITHUB_OAUTH_CALLBACK_URL`、`GITEE_CLIENT_ID`/`GITEE_CLIENT_SECRET`/`GITEE_OAUTH_CALLBACK_URL`/`FAMILY_WEB_URL` |
-| family_monitor | `.env` + `config.json` | `.env`：`SECRET_KEY`、`DEBUG`、`COOKIE_SECURE`、`TURNSTILE_SITE_KEY`、`DEVICE_SECRET`、`ALLOWED_ORIGINS`、`PRODUCTION`、`SERVER_HOST`；`config.json`：`ELDERLY_SERVER_URL`、`SERVER_PORT`、`PATH_PREFIX`、`APP_NAME`、`DISPLAY_*` |
+| elderly_assistant | `.env` | `SERVER_BASE_URL`（默认公网域名）、`HEARTBEAT_INTERVAL`、摄像头 `CAMERA_*`、蜂鸣器 `BUZZER_LOOP_INTERVAL`、热点 `HOTSPOT_*`、轮询 `POLL_INTERVAL`/`SNOOZE_MINUTES` |
+| server | `.env` | `APP_NAME`、`DEBUG`、`PATH_PREFIX`/`API_V1_PREFIX`、`SERVER_HOST`/`SERVER_PORT`、`DATABASE_URL`、`SECRET_KEY`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`TURNSTILE_SECRET_KEY`、`ZHIPUAI_API_KEY`/`ZHIPUAI_MODEL`、`OCR_PROVIDER`/`OCR_API_KEY`/`OCR_SECRET_KEY`、`ALLOWED_ORIGINS`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`GITHUB_OAUTH_CALLBACK_URL`、`GITEE_CLIENT_ID`/`GITEE_CLIENT_SECRET`/`GITEE_OAUTH_CALLBACK_URL`/`FAMILY_WEB_URL` |
+| family_monitor | `.env` | `SECRET_KEY`、`DEBUG`、`COOKIE_SECURE`、`TURNSTILE_SITE_KEY`、`DEVICE_SECRET`、`ALLOWED_ORIGINS`、`PRODUCTION`、`SERVER_HOST`/`SERVER_PORT`、`ELDERLY_SERVER_URL`、`PATH_PREFIX`、`APP_NAME`、`DISPLAY_*` |
 
 ### 路径前缀（PATH_PREFIX）
 

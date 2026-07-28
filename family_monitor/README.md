@@ -18,7 +18,7 @@
 ### 1. 安装依赖
 
 ```bash
-python install.py
+python ../install.py requirements.txt
 ```
 
 安装脚本行为（已与其他模块统一为同一份脚本）：
@@ -32,44 +32,44 @@ python install.py
 > ```bash
 > python -m venv venv
 > source venv/bin/activate  # Windows: venv\Scripts\activate
-> python install.py
+> python ../install.py requirements.txt
 > ```
 
 ### 2. 配置
 
-#### 配置文件 config.json
+所有配置统一来自 `family_monitor/.env`（单一配置源，已通过 `.gitignore` 忽略）。
+首次运行无 `.env` 时由 `core/config.py` 自动生成完整模板（含随机 `SECRET_KEY`），开箱即用。
 
-复制 `config.json.example` 为 `config.json` 并修改：
-
-```bash
-cp config.json.example config.json
-```
-
-主要配置项：
-- `SERVER_HOST`: 服务监听地址（默认: 0.0.0.0）
-- `SERVER_PORT`: 服务端口（默认: 4430）
-- `ELDERLY_SERVER_URL`: 老人端服务器地址
-- `DEBUG`: 调试模式
-- `APP_NAME`: 应用名称
-- `PATH_PREFIX`: 路径前缀（Cloudflare 隧道子路径，本地直连设为空）
-- `DISPLAY_THEME` / `DISPLAY_COLOR` 等：界面显示设置
-
-#### 敏感配置 .env（推荐）
-
-`SECRET_KEY` 等敏感配置应通过 `.env` 文件注入，不应写入 `config.json`：
+可直接编辑 `.env`：
 
 ```bash
 cat > .env <<'EOF'
+# 服务监听
+SERVER_HOST=0.0.0.0
+SERVER_PORT=4430
+# 老人端（服务端）地址
+ELDERLY_SERVER_URL=https://my-website.ccwu.cc/eating-medication/server
+# 路径前缀（Cloudflare 隧道子路径，本地直连设为空）
+PATH_PREFIX=/eating-medication/family
+# 应用
+APP_NAME=子女守护中心
+DEBUG=false
+COOKIE_SECURE=true
+PRODUCTION=false
 # 会话加密密钥（生产环境必须配置为一个固定的随机字符串）
 SECRET_KEY=请替换为您生成的随机密钥
-# 是否为生产环境（true 时禁止通过 Web 修改 DEBUG）
-PRODUCTION=false
-# Cookie 是否启用 secure 标志（本地 HTTP 调试可设为 false）
-COOKIE_SECURE=true
-# CORS 允许的来源（逗号分隔）
-ALLOWED_ORIGINS=http://localhost:4430,http://127.0.0.1:4430
+# 设备共享密钥：调用后端 API 时的服务端鉴权（X-Device-Secret），留空则兼容旧版
+DEVICE_SECRET=
 # Cloudflare Turnstile 站点密钥（前端人机验证组件，请填入你的 Site Key）
 TURNSTILE_SITE_KEY=
+# CORS 允许的来源（逗号分隔）
+ALLOWED_ORIGINS=http://localhost:4430,http://127.0.0.1:4430
+# 界面显示
+DISPLAY_THEME=light
+DISPLAY_COLOR=purple
+DISPLAY_LANGUAGE=zh-CN
+DISPLAY_ANIMATIONS=True
+DISPLAY_COMPACT=False
 EOF
 ```
 
@@ -101,12 +101,8 @@ python main.py
 ```
 family_monitor/
 ├── main.py                 # 主程序入口（含中间件、生命周期、路由注册）
-├── install.py              # 自动安装脚本（不修改全局 pip 配置）
-├── updater.py              # 自动更新检查模块
 ├── requirements.txt        # Python 依赖（使用 ~= 兼容版本）
-├── config.json             # 运行时配置（已被 .gitignore 忽略）
-├── config.json.example     # 配置文件模板（不含敏感值）
-├── .env                    # 敏感配置（SECRET_KEY 等，已被 .gitignore 忽略）
+├── .env                    # 运行时配置（单一 .env 源，已被 .gitignore 忽略，首次运行自动生成）
 ├── .gitignore              # Git 忽略文件
 ├── core/                   # 核心模块
 │   ├── __init__.py
@@ -147,7 +143,7 @@ family_monitor/
 - **路径精确匹配**：公开路径使用精确匹配，防止路径前缀绕过
 - **敏感信息隔离**：`SECRET_KEY`、`TURNSTILE_SITE_KEY` 仅通过 `.env` 注入
 - **URL 编码**：`device_id` 等参数在拼接 URL 时进行编码，防止注入
-- **版本控制排除**：`.env`、`config.json`、`data/` 已加入 `.gitignore`
+- **版本控制排除**：`.env`、`data/` 已加入 `.gitignore`
 
 ## 环境变量
 
