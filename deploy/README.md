@@ -26,7 +26,7 @@ sudo DOMAIN=你的域名 bash /opt/eating-medication/deploy/setup.sh
 1. 安装系统依赖（git/python3/pip/curl）
 2. 克隆或更新仓库到 `/opt/eating-medication`
 3. 创建 `deploy` 运行用户
-4. 安装 `server` 与 `family_monitor` 的 Python 依赖
+4. 创建独立虚拟环境 `/opt/eating-medication/venv` 并安装 `server` 与 `family_monitor` 的 Python 依赖（避免污染系统 Python，兼容 Debian 12+ 的 PEP 668）
 5. 生成生产环境 `.env`（仅首次，已存在则保留）；`DEBUG=false`、`PRODUCTION=true`
 6. 创建运行时目录（`data/`、`logs/`）并修正权限
 7. 安装并启动 `eating-medication-server`（:1059）、`eating-medication-family`（:4430）
@@ -60,7 +60,7 @@ sudo systemctl status eating-medication-server eating-medication-family cloudfla
 示例中部署目录为 `/opt/eating-medication/`，运行用户为 `deploy`，请按实际环境修改：
 - `WorkingDirectory`：各模块的根目录（含 `main.py` 的目录）
 - `User` / `Group`：运行服务的系统用户
-- `ExecStart`：Python 解释器绝对路径（`which python3` 确认）
+- `ExecStart`：Python 解释器绝对路径（`/opt/eating-medication/venv/bin/python`，由 `setup.sh` 创建）
 
 ## Cloudflare 隧道配置
 
