@@ -108,11 +108,11 @@ def create_app_dirs():
     # - 首次运行写入完整模板（含 Turnstile / GitHub OAuth / AI / OCR / CORS 等）
     # - 已存在但缺失关键字段时自动补齐（兼容旧版字段不全的存量 .env）
     try:
-        from app.core.config import _ensure_default_env
-        _ensure_default_env()
-        print("已确保 .env 配置文件（含全部必填字段）")
+        from app.core.bootstrap import bootstrap_config
+        bootstrap_config()
+        print("已确保 .env 配置文件（含全部必填字段）并完成必填项校验")
     except Exception as e:
-        print(f"确保 .env 配置文件失败: {e}")
+        print(f"配置引导失败: {e}")
 
 
 def start_server():

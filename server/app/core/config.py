@@ -228,8 +228,8 @@ def _ensure_default_env():
         _backfill_env_fields(env_path)
 
 
-# 模块加载时确保 .env 存在且字段完整
-_ensure_default_env()
+# 注意：.env 的生成 / 缺失字段补齐已外移至 app.core.bootstrap.bootstrap_config()
+# （在应用启动入口 server/main.py 调用），避免导入期写盘。
 
 
 class Settings(BaseSettings):
@@ -400,5 +400,5 @@ def validate_mandatory_config():
 
 
 settings = Settings()
-# 启动期集中校验「最基本必填」配置；缺失或非法则打印提示并结束进程
-validate_mandatory_config()
+# 注意：必填项校验已外移至 app.core.bootstrap.bootstrap_config()（启动入口调用），
+# 避免导入期因配置非法而直接 sys.exit。
