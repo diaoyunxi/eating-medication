@@ -12,6 +12,14 @@ from app.utils import email_code as email_code_store
 logger = logging.getLogger(__name__)
 
 
+def _mask_email(email: Optional[str]) -> str:
+    """对邮箱做日志脱敏，仅保留首字符，避免 PII 明文落日志。"""
+    if not email:
+        return "***"
+    local = email.split("@", 1)[0]
+    return (local[:1] + "***") if local else "***"
+
+
 class AuthService:
     """认证服务"""
 
@@ -54,7 +62,7 @@ class AuthService:
                 AuthService._bind_provider(existing_email_user, provider, provider_id)
                 db.commit()
                 logger.info(
-                    f"OAuth({provider}) 邮箱 {email} 已合并绑定至现有账号 {existing_email_user.username}"
+                    f"OAuth({provider}) 邮箱 {_mask_email(email)} 已合并绑定至现有账号 {existing_email_user.username}"
                 )
                 return create_access_token(data={"sub": existing_email_user.id})
 
