@@ -98,23 +98,12 @@ _ENV_DEFAULT_CONTENT = (
 
 
 def _load_root_env():
-    """解析根目录 .env，返回 dict。
+    """解析根目录 .env，返回 dict（复用 common.envfile，避免手写解析重复）。
 
-    .env 为扁平 key=value 格式（无 section），手写解析避免依赖 python-dotenv
-    （updater 处于引导阶段，不应引入额外依赖）。
+    .env 为扁平 key=value 格式；处于引导阶段不引入额外依赖（common.envfile 仅标准库）。
     """
-    data = {}
-    try:
-        if _CONFIG_PATH.is_file():
-            for line in _CONFIG_PATH.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                data[k.strip()] = v.strip()
-    except Exception as e:
-        logger.warning(f"[更新检查] 解析根目录 .env 失败: {e}")
-    return data
+    from common.envfile import read_env_dict
+    return read_env_dict(_CONFIG_PATH)
 
 
 def _ensure_env_template():

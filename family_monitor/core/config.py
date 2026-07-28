@@ -194,26 +194,9 @@ class Config:
             return False
 
     def _update_env_file(self, updates: dict):
-        """就地更新 .env 中指定字段，保留其它字段与注释不变
-
-        :param updates: {字段名: 新值}
-        """
-        lines = []
-        if self.env_path.exists():
-            lines = self.env_path.read_text(encoding='utf-8').splitlines()
-        existing = {}
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if not stripped or stripped.startswith('#') or '=' not in stripped:
-                continue
-            k, _ = stripped.split('=', 1)
-            existing[k.strip()] = i
-        for key, value in updates.items():
-            if key in existing:
-                lines[existing[key]] = f"{key}={value}"
-            else:
-                lines.append(f"{key}={value}")
-        self.env_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+        """就地更新 .env 中指定字段，保留其它字段与注释不变（复用 common.envfile）"""
+        from common.envfile import update_env_fields
+        update_env_fields(self.env_path, updates)
 
 
 def validate_mandatory_config():
