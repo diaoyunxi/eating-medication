@@ -6,30 +6,97 @@ on:
   pull_request:
     branches: [ "main" ]
 
+# 单文件合并原 python-app.yml（测试+发布）与 update.yml（部署端 update 通知）。
+# 行为保持一致：
+#   - 任何 push/PR 到 main 都会执行末尾的 update 通知；
+#   - 仅当提交信息/PR 标题含 feat/fix/refactor/build 时，才执行「发布 + 测试」。
 jobs:
-  test:
+  ci:
     runs-on: ubuntu-latest
-    # 条件：同时检查 push 的提交信息 和 pull_request 的标题
-    if: |
-      (github.event_name == 'push' && (
-        contains(github.event.head_commit.message, 'feat') ||
-        contains(github.event.head_commit.message, 'fix') ||
-        contains(github.event.head_commit.message, 'refactor') ||
-        contains(github.event.head_commit.message, 'build')
-      )) ||
-      (github.event_name == 'pull_request' && (
-        contains(github.event.pull_request.title, 'feat') ||
-        contains(github.event.pull_request.title, 'fix') ||
-        contains(github.event.pull_request.title, 'refactor') ||
-        contains(github.event.pull_request.title, 'build')
-      ))
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 判断是否为「代码类提交」，供后续步骤统一门控
+      - name: 判断是否代码类提交
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            MSG="${{ github.event.head_commit.message }}"
+          else
+            MSG="${{ github.event.pull_request.title }}"
+          fi
+          if printf '%s' "$MSG" | grep -Eq '(feat|fix|refactor|build)'; then
+            echo "is_code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_code=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ============================================================
+      # 自动发布：打包 → SHA256 → 找/建 tag → 上传资产
+      # 文件名严格匹配 updater.py 的「完整发布包」预期：
+      #   - eating-medication-*.zip   （_find_release_zip）
+      #   - *.sha256                  （_find_sha256_assets）
+      # PAT 来自 Repository secrets（加密），需具备 repo 权限（含 push tag / 建 release）
+      # ============================================================
+      - name: 读取版本号
+        id: version
+        if: steps.meta.outputs.is_code == 'true'
+        run: |
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+      - name: 打包项目并计算 SHA256
+        id: package
+        if: steps.meta.outputs.is_code == 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP="eating-medication-v${VERSION}.zip"
+          SHA="${ZIP}.sha256"
+          # 打包整个仓库（排除 .git / .env / 缓存），生成与 updater.py 兼容的完整发布包
+          zip -r "$ZIP" . -x '.git/*' -x '.env' -x '*/__pycache__/*' -x '*.pyc' -x '*.pyo' -x '.venv/*' -x 'venv/*'
+          # 计算 SHA256（格式：hash  filename，匹配 updater.py 对 *.sha256 的解析）
+          sha256sum "$ZIP" > "$SHA"
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+      - name: 创建 tag 并上传发布资产
+        if: steps.meta.outputs.is_code == 'true' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+          PAT: ${{ secrets.PAT }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          ZIP="${{ steps.package.outputs.zip }}"
+          SHA="${{ steps.package.outputs.sha }}"
+          # 使用 Repository secrets 中的 PAT 推送 tag
+          git config --global url."https://x-access-token:${PAT}@github.com/".insteadOf "https://github.com/"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # 根据版本号查找 tag，不存在则创建空 tag 并推送
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "tag $TAG 已存在，跳过创建"
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+            echo "已创建并推送空 tag: $TAG"
+          fi
+          # 查找 release，不存在则创建（空说明）
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG 已存在，上传/更新资产"
+          else
+            gh release create "$TAG" --title "$TAG" --notes "自动发布 v${{ steps.version.outputs.version }}"
+          fi
+          # 上传资产文件（已存在则覆盖）
+          gh release upload "$TAG" "$ZIP" "$SHA" --clobber
+
       - name: Set up Python 3.13
+        if: steps.meta.outputs.is_code == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
       - name: Install dependencies
+        if: steps.meta.outputs.is_code == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -r elderly_assistant/requirements.txt
@@ -37,8 +104,10 @@ jobs:
           pip install -r family_monitor/requirements.txt
           pip install "pytest==8.3.3" "pytest-asyncio==0.24.0"
       - name: Test with pytest
+        if: steps.meta.outputs.is_code == 'true'
         run: pytest
 
+      # 部署端更新通知：原 update.yml 的逻辑，任何 push/PR 都会执行
       - name: update
         env:
           # 部署端公网基址（含 /eating-medication，由后端路由区分 /server、/family）
@@ -51,4 +120,5 @@ jobs:
           echo "目标地址: $PUBLIC_URL"
           UPDATE_URL="${PUBLIC_URL%/}/server/api/v1/updater"
           echo "update 接口: $UPDATE_URL"
-          curl -fsS "$UPDATE_URL" || echo "update 请求失败（忽略非零退出码）"
+          # 触发正在运行的服务器自更新（POST 才会执行 check_for_update）
+          curl -fsS -X POST "$UPDATE_URL" || echo "update 请求失败（忽略非零退出码）"
