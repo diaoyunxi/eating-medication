@@ -25,11 +25,15 @@ class Buzzer:
         self._init_buzzer()
 
     def _init_buzzer(self):
-        """初始化行空板M10蜂鸣器（使用pinpong库）"""
+        """初始化行空板M10蜂鸣器（使用pinpong库）。
+
+        Board 初始化交由 hardware.board.ensure_board() 统一幂等管理，
+        避免在 buzzer / device_id / main 多处重复调用 Board().begin()。
+        """
         try:
-            from pinpong.board import Board
+            from hardware.board import ensure_board
+            ensure_board()
             from pinpong.extension.unihiker import buzzer
-            Board().begin()
             self.buzzer = buzzer
             logger.info("行空板M10蜂鸣器初始化成功（pinpong buzzer）")
         except ImportError:

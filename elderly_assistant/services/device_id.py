@@ -29,10 +29,15 @@ def get_device_id():
 
 
 def _get_fcc_id():
-    """通过 pinpong 库获取行空板M10设备FCC ID"""
+    """通过 pinpong 库获取行空板M10设备FCC ID。
+
+    Board 初始化交由 hardware.board.ensure_board() 统一幂等管理，
+    非 M10 环境（无 pinpong）下 ensure_board 返回 False，直接降级到持久化 UUID。
+    """
     try:
-        from pinpong.board import Board
-        Board().begin()
+        from hardware.board import ensure_board
+        if not ensure_board():
+            return None
         # 通过pinpong库初始化协处理器后，使用MAC地址生成FCC ID
         mac = uuid.getnode()
         fcc_id = f"FCC_{mac:012X}"
