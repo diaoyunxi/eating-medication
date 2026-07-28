@@ -13,6 +13,9 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # 最小权限原则：仅授予本工作流实际需要的权限（推送 tag / 创建 Release 需要 contents: write）
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
