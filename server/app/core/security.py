@@ -38,6 +38,21 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
+def mask_device_id(device_id: str) -> str:
+    """设备 ID 日志脱敏：仅保留前 4 位与后 4 位，中间以 *** 遮挡。
+
+    长度不足 8 位时统一返回 ***，避免泄露短 ID 的可识别片段。全仓统一使用此函数，
+    消除 public.py 等各处重复的 ``_did[:4] + "***" + _did[-4:]`` 脱敏写法。
+
+    :param device_id: 原始设备 ID
+    :return: 脱敏后的字符串
+    """
+    _did = device_id or ""
+    if len(_did) > 8:
+        return _did[:4] + "***" + _did[-4:]
+    return "***"
+
+
 def create_access_token(data: Dict[str, Any], expires_delta: timedelta = None) -> str:
     """创建 JWT access token"""
     to_encode = data.copy()
