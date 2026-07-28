@@ -19,6 +19,7 @@ import logging
 import importlib
 import subprocess
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # 模块级 logger，供 signal_handler / MedicationPoller 等非 main() 函数使用
 # main() 内部会通过 global logger 覆盖为 setup_logger() 返回的实例
