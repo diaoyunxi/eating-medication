@@ -19,7 +19,7 @@
 3. 仅复制非保护文件到项目根目录（保护文件列表见 PROTECTED_PATTERNS）
 4. 保护文件：.env、data/、logs/、*.db、*.sqlite* 等运行时数据
 5. 更新失败时自动回滚到备份
-6. 更新后尝试重启相关 systemd 服务
+6. 更新成功后自动重启相关 systemd 服务（详见 _restart_services：普通部署用户经免密 sudoers 调用 systemctl restart，由 systemd 接管完成 server+family 重启）
 
 【保护文件清单】
 - .env（含 server/.env、family_monitor/.env、elderly_assistant/.env 等嵌套路径）
@@ -42,6 +42,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 import urllib.request
 import urllib.error
+import subprocess
 
 # ============================================================
 # 版本与仓库常量
@@ -571,6 +572,47 @@ def _perform_update(zip_path, project_dir):
             pass
 
 
+
+
+def _restart_services():
+    """更新成功后自动重启相关 systemd 服务，使新版本代码生效。
+
+    设计要点：
+    - 仅 systemd 环境（/run/systemd/system 存在且 systemctl 可用）下生效；
+      非 systemd 环境（如本地开发、Windows、容器）仅记录警告并跳过，不报错。
+    - 以 root 运行时直接调用 systemctl；以普通部署用户（如 deploy）运行时，
+      使用 `sudo -n`（非交互，避免阻塞）调用，依赖部署脚本写入的免密 sudoers 规则
+      （见 deploy/setup.sh 步骤 7）。
+    - 通过单次 `systemctl restart <svc1> <svc2>` 将重启请求提交给 systemd，
+      systemd 会接管 server 与 family 两个单元的停止/启动，即使当前进程（updater
+      所在的应用进程）随后被 SIGTERM 终止，重启仍会由 systemd 完成。
+    - 服务名集中在函数内，便于扩展。
+    """
+    service_names = ["eating-medication-server", "eating-medication-family"]
+    if not shutil.which("systemctl") or not os.path.exists("/run/systemd/system"):
+        logger.warning("[更新] 当前环境非 systemd，无法自动重启服务，请手动重启以应用新版本")
+        return False
+    cmd = ["systemctl", "restart"] + service_names
+    if os.geteuid() != 0:
+        cmd = ["sudo", "-n"] + cmd
+    logger.info(f"[更新] 即将重启服务以应用新版本: {', '.join(service_names)}")
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if proc.returncode == 0:
+            logger.info(f"[更新] 已向 systemd 提交重启请求: {', '.join(service_names)}")
+            return True
+        logger.warning(f"[更新] 重启服务失败(rc={proc.returncode}): {proc.stderr.strip()}")
+        if os.geteuid() != 0:
+            logger.warning("[更新] 普通用户重启失败，请确认部署时已配置免密 sudoers（见 deploy/setup.sh）")
+        return False
+    except subprocess.TimeoutExpired:
+        logger.warning("[更新] 重启服务命令超时")
+        return False
+    except Exception as e:
+        logger.warning(f"[更新] 重启服务异常: {e}")
+        return False
+
+
 def get_update_info():
     """查询更新信息，返回结构化字典（供 API 端点 / 前端轮询使用）。
 
@@ -694,7 +736,15 @@ def check_for_update(auto_pull=None):
 
             if success:
                 logger.info(f"[更新检查] 自动更新成功！更新了 {updated} 个文件，保护了 {skipped} 个文件")
-                logger.info("[更新检查] 文件已更新，请手动重启服务以应用新版本")
+                restarted = _restart_services()
+
+                if restarted:
+
+                    logger.info("[更新] 服务正在重启以应用新版本（当前进程会由 systemd 重新拉起）")
+
+                else:
+
+                    logger.warning("[更新] 文件已更新，但自动重启失败，请手动重启服务以应用新版本")
             else:
                 logger.error("[更新检查] 自动更新失败，请手动更新")
                 logger.info(f"[更新检查] 手动下载地址: {release_url}")
