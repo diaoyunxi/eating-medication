@@ -1,10 +1,6 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>注册 - {{ app_name }}</title>
-    <link rel="stylesheet" href="{{ prefix }}/static/css/style.css?v=2.10.0">
+{% extends "base.html" %}
+{% block title %}注册 - {{ app_name }}{% endblock %}
+{% block head_extra %}
     <!-- Cloudflare Turnstile 人机验证 JS 库，使用显式渲染模式（render=explicit） -->
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     <style>
@@ -32,8 +28,9 @@
         }
         .oauth-gitee-btn:hover { background: #a8171c; }
     </style>
-</head>
-<body>
+{% endblock %}
+{% block nav %}{% endblock %}
+{% block content %}
     <div class="bg-gradient">
         <div class="floating-shapes">
             <div class="shape shape-1"></div>
@@ -324,5 +321,4 @@
                 });
         });
     </script>
-</body>
-</html>
+{% endblock %}
