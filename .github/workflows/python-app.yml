@@ -16,6 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          token: ${{ secrets.PAT }}
           fetch-depth: 0
 
       # 判断是否为「代码类提交」，供后续步骤统一门控
@@ -69,8 +70,7 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           ZIP="${{ steps.package.outputs.zip }}"
           SHA="${{ steps.package.outputs.sha }}"
-          # 使用 Repository secrets 中的 PAT 推送 tag
-          git config --global url."https://x-access-token:${PAT}@github.com/".insteadOf "https://github.com/"
+          # checkout 已使用 secrets.PAT 鉴权，直接以 PAT 推送 tag（无需 insteadOf 改写）
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # 根据版本号查找 tag，不存在则创建空 tag 并推送
