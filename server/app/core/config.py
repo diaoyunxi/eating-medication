@@ -67,10 +67,12 @@ def _write_full_env(env_path: Path, secret_key: str):
         f"# 须与 family_monitor/.env 的 TURNSTILE_SITE_KEY 来自同一 Turnstile 站点\n"
         f"# 获取地址：https://dash.cloudflare.com/  -> Turnstile -> 你的站点 -> Keys\n"
         f"TURNSTILE_SECRET_KEY=\n\n"
-        f"# ===== 智谱 AI 对话 =====\n"
-        f"# 留空则 AI 对话功能不可用；申请地址：https://open.bigmodel.cn/\n"
-        f"ZHIPUAI_API_KEY=\n"
-        f"ZHIPUAI_MODEL=glm-4.7-flash\n\n"
+        f"# ===== AI 健康助手（多厂商，自 v2.21 起迁移至数据库，按用户独立配置） =====\n"
+        f"# AI 厂商 / 密钥 / 模型由每个用户在子女端「设置 - AI 助手设置」中配置并存入数据库，\n"
+        f"# 不再写入本文件。以下仅保留可选的「服务端全局兜底」配置（留空表示不使用全局兜底，\n"
+        f"# 完全依赖用户在数据库中各自配置；如需服务端统一默认，可取消注释并填写）。\n"
+        f"# ZHIPUAI_API_KEY=\n"
+        f"# ZHIPUAI_MODEL=glm-4.7-flash\n\n"
         f"# ===== 图片 OCR 识别 =====\n"
         f"# OCR_PROVIDER 留空则图片识别功能不可用；可选 baidu / tencent / aliyun\n"
         f"OCR_PROVIDER=\n"
@@ -125,11 +127,6 @@ _BACKFILL_FIELDS = [
         "# 须与 family_monitor/.env 的 TURNSTILE_SITE_KEY 来自同一 Turnstile 站点",
         "# 获取地址：https://dash.cloudflare.com/  -> Turnstile -> 你的站点 -> Keys",
     ], ""),
-    ("ZHIPUAI_API_KEY", [
-        "# ===== 智谱 AI 对话 =====",
-        "# 留空则 AI 对话功能不可用；申请地址：https://open.bigmodel.cn/",
-    ], ""),
-    ("ZHIPUAI_MODEL", ["# 智谱 AI 模型"], "glm-4.7-flash"),
     ("OCR_PROVIDER", [
         "# ===== 图片 OCR 识别 =====",
         "# OCR_PROVIDER 留空则图片识别功能不可用；可选 baidu / tencent / aliyun",

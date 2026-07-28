@@ -75,6 +75,7 @@ from core import config
 from routes import home_router
 from routes import chat_router
 from routes import auth_router
+from routes import ai_config_router
 import logging
 from updater import __version__ as __app_version__
 
@@ -374,6 +375,7 @@ async def chrome_devtools_json():
 app.include_router(auth_router)
 app.include_router(home_router)
 app.include_router(chat_router)
+app.include_router(ai_config_router)
 
 def main():
     """主函数"""
