@@ -47,6 +47,14 @@ logs/
 !server/app/**/*.py
 !family_monitor/
 !family_monitor/routes/**/*.py
+
+# 放行老人端源码（M10 硬件程序，.py 纳入版本管理；data/ 与下载的 huskylens 库仍忽略）
+!elderly_assistant/
+!elderly_assistant/main.py
+!elderly_assistant/core/**/*.py
+!elderly_assistant/services/**/*.py
+!elderly_assistant/utils/**/*.py
+elderly_assistant/data/
 # 放行部署辅助目录（systemd 单元、隧道配置、一键部署脚本）
 !deploy/
 !deploy/**
