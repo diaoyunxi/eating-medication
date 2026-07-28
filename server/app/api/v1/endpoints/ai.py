@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 from fastapi import APIRouter, Depends, HTTPException, Request
-from app.core.dependencies import get_current_user
+from sqlalchemy.orm import Session
+from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.ai import AIQuestion, AIAnswer
 from app.services.ai_service import AIService
+from app.services.ai_config_service import get_effective_config
 from app.utils.rate_limit import check_rate_limit
 import logging
 
@@ -17,12 +19,15 @@ _AI_RATE_LIMIT = 10
 @router.post("/chat", response_model=AIAnswer)
 async def chat(
     req: AIQuestion,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """向AI健康助手提问（需要认证）"""
+    """向AI健康助手提问（需要认证，使用当前用户各自的 AI 配置）"""
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="问题不能为空")
-    answer = await AIService.ask(req.question)
+    # 优先使用当前用户（或同组兜底）在数据库中配置的每用户 AI 设置
+    cfg = get_effective_config(db, current_user)
+    answer = await AIService.ask(req.question, **cfg)
     # 可选：保存问答记录到数据库
     return AIAnswer(answer=answer)
 

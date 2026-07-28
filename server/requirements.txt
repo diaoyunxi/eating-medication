@@ -13,4 +13,5 @@ pillow==10.4.0
 python-multipart==0.0.12
 apscheduler==3.11.0
 alembic==1.14.0
-zhipuai>=2.1.5
+openai>=1.40.0
+cryptography>=42.0.0
