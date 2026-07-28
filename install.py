@@ -51,23 +51,11 @@ HUSKYLENS_PKG = "dfrobot_huskylensv2"
 def _load_root_github_proxy():
     """读取根目录 .env 的 GITHUB_PROXY 字段，统一 GitHub 下载代理出口。
 
-    与 updater.py 共用同一配置源，避免代理配置分散。
+    与 updater.py 共用同一配置源（common.envfile.read_env_dict），避免代理配置分散。
     返回代理字符串（镜像前缀或正向代理），未配置返回空串。
     """
-    env_path = ROOT_DIR / ".env"
-    if not env_path.is_file():
-        return ""
-    try:
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            if k.strip() == "GITHUB_PROXY":
-                return v.strip()
-    except Exception:
-        pass
-    return ""
+    from common.envfile import read_env_dict
+    return read_env_dict(ROOT_DIR / ".env").get("GITHUB_PROXY", "")
 
 
 # ------------------------------------------------------------------

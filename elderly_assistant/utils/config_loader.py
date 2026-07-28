@@ -150,28 +150,15 @@ def load_config(config_path=ENV_PATH):
 def save_server_url(server_url, config_path=ENV_PATH):
     """保存服务器地址到 .env（改写 SERVER_BASE_URL 字段）。
 
-    供配网 Web 服务在用户提交后持久化服务端地址；保留文件中其它字段与注释不变。
+    复用 common.envfile.update_env_fields，保留文件中其它字段与注释不变；
+    wifi_config.WiFiConfigManager.save_server_url 亦委托本函数，故一并受益。
 
     :return: True 表示保存成功
     """
     server_url = (server_url or "").strip()
     try:
-        lines = []
-        if config_path.is_file():
-            lines = config_path.read_text(encoding="utf-8").splitlines()
-        existing = {}
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#") or "=" not in stripped:
-                continue
-            k, _ = stripped.split("=", 1)
-            existing[k.strip()] = i
-        new_line = f"SERVER_BASE_URL={server_url}"
-        if "SERVER_BASE_URL" in existing:
-            lines[existing["SERVER_BASE_URL"]] = new_line
-        else:
-            lines.append(new_line)
-        config_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        from common.envfile import update_env_fields
+        update_env_fields(config_path, {"SERVER_BASE_URL": server_url})
         logger.info(f"已保存服务器地址: {server_url}")
         return True
     except Exception as e:

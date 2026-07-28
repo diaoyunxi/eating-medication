@@ -15,6 +15,12 @@ import logging
 from pathlib import Path
 
 
+# 确保仓库根目录在 sys.path（以便 import common 共享包）
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+
 def global_exception_handler(exc_type, exc_value, exc_tb):
     """全局未捕获异常处理"""
     error_msg = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
