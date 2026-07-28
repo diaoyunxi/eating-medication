@@ -113,9 +113,9 @@ class TestIsProtectedPath(unittest.TestCase):
         self.assertTrue(updater._is_protected_path("server/.env"))
         self.assertTrue(updater._is_protected_path(".env"))
 
-    def test_config_json(self):
-        self.assertTrue(updater._is_protected_path("family_monitor/config.json"))
-        self.assertTrue(updater._is_protected_path("config.yaml"))
+    def test_env_files_protected(self):
+        self.assertTrue(updater._is_protected_path("family_monitor/.env"))
+        self.assertTrue(updater._is_protected_path("elderly_assistant/.env"))
 
     def test_data_subdir(self):
         self.assertTrue(updater._is_protected_path("server/data/db.sqlite"))
@@ -188,46 +188,45 @@ class TestVerifyReleaseSignature(unittest.TestCase):
 
 
 class TestLoadAutoPull(unittest.TestCase):
-    """测试 _load_auto_pull：由根目录 config.json 的 auto_pull 字段控制，缺省 True。"""
+    """测试 _load_auto_pull：由根目录 .env 的 AUTO_PULL 字段控制，缺省 True。"""
 
     def _call_with_config(self, payload):
-        """临时改写根目录 config.json 并调用 _load_auto_pull，结束后恢复现场。"""
-        cfg = REPO_ROOT / "config.json"
-        backup = cfg.read_text(encoding="utf-8") if cfg.exists() else None
+        """临时改写根目录 .env（重定向 _CONFIG_PATH 到临时文件）并调用 _load_auto_pull。"""
+        import tempfile
+        tmp = Path(tempfile.mktemp(suffix=".env"))
+        orig = updater._CONFIG_PATH
+        updater._CONFIG_PATH = tmp
         try:
-            if payload is None:
-                if cfg.exists():
-                    cfg.unlink()
-            else:
-                cfg.write_text(payload, encoding="utf-8")
+            if payload is not None:
+                tmp.write_text(payload, encoding="utf-8")
             return updater._load_auto_pull()
         finally:
-            if backup is None:
-                if cfg.exists():
-                    cfg.unlink()
-            else:
-                cfg.write_text(backup, encoding="utf-8")
+            updater._CONFIG_PATH = orig
+            if tmp.exists():
+                tmp.unlink()
 
     def test_default_true_when_missing(self):
         self.assertTrue(self._call_with_config(None))
 
-    def test_true_bool(self):
-        self.assertTrue(self._call_with_config('{"auto_pull": true}'))
+    def test_true(self):
+        self.assertTrue(self._call_with_config("AUTO_PULL=true"))
 
-    def test_false_bool(self):
-        self.assertFalse(self._call_with_config('{"auto_pull": false}'))
+    def test_false(self):
+        self.assertFalse(self._call_with_config("AUTO_PULL=false"))
 
-    def test_true_string(self):
-        self.assertTrue(self._call_with_config('{"auto_pull": "true"}'))
+    def test_true_case_insensitive(self):
+        self.assertTrue(self._call_with_config("AUTO_PULL=True"))
 
-    def test_false_string(self):
-        self.assertFalse(self._call_with_config('{"auto_pull": "false"}'))
+    def test_false_explicit(self):
+        self.assertFalse(self._call_with_config('AUTO_PULL="false"'))
 
-    def test_invalid_type_fallback_true(self):
-        self.assertTrue(self._call_with_config('{"auto_pull": 123}'))
+    def test_unknown_value_false(self):
+        # .env 值为非 true/false 字符串时按 False 处理（无布尔类型概念）
+        self.assertFalse(self._call_with_config("AUTO_PULL=123"))
 
-    def test_bad_json_fallback_true(self):
-        self.assertTrue(self._call_with_config('{not valid json'))
+    def test_bad_env_fallback_true(self):
+        # 非 key=value 内容被忽略，回退缺省 True
+        self.assertTrue(self._call_with_config("this is not a valid env content"))
 
 
 class TestCheckForUpdateDefault(unittest.TestCase):

@@ -40,11 +40,12 @@ jobs:
         run: pytest
 
       - name: update
+        env:
+          # 部署端公网基址（含 /eating-medication，由后端路由区分 /server、/family）
+          PUBLIC_URL: https://my-website.ccwu.cc/eating-medication
         run: |
-          # 从项目根目录 config.json 读取公网基址（含 /server、/family 由后端路由决定）
-          PUBLIC_URL=$(python -c "import json,os; print(json.load(open(os.path.join(os.getcwd(),'config.json'),encoding='utf-8')).get('public_url',''))")
           if [ -z "$PUBLIC_URL" ]; then
-            echo "config.json 未配置 public_url，跳过 update"
+            echo "PUBLIC_URL 未配置，跳过 update"
             exit 0
           fi
           echo "目标地址: $PUBLIC_URL"

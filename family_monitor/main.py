@@ -21,6 +21,46 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+
+def _check_and_install_dependencies():
+    """检查关键依赖是否已安装，若缺失则调用根目录统一 install.py。"""
+    import importlib
+    import subprocess
+
+    required = [('dotenv', 'python-dotenv'), ('fastapi', 'fastapi')]
+    missing = []
+    for mod, pip in required:
+        try:
+            importlib.import_module(mod)
+        except ImportError:
+            missing.append(pip)
+    if missing:
+        print(f"检测到缺失依赖: {missing}")
+        print("正在调用根目录 install.py 安装依赖...")
+        root_install = os.path.join(str(PROJECT_ROOT), "install.py")
+        req_path = os.path.join(str(SCRIPT_DIR), "requirements.txt")
+        if os.path.exists(root_install):
+            try:
+                result = subprocess.run(
+                    [sys.executable, root_install, req_path],
+                    capture_output=False, text=True, cwd=str(PROJECT_ROOT),
+                )
+                if result.returncode == 0:
+                    print("依赖安装完成，正在重新启动服务...")
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
+                else:
+                    print("依赖安装可能未完全成功，尝试继续运行...")
+            except Exception as e:
+                print(f"自动安装失败: {e}")
+                print(f"请手动运行: python {root_install} {req_path}")
+        else:
+            print("未找到根目录 install.py，请手动安装依赖:")
+            print(f"pip install {' '.join(missing)}")
+
+
+# 启动前检查依赖，缺失则调用根目录统一 install.py 安装
+_check_and_install_dependencies()
+
 import struct
 import time
 import uvicorn
@@ -42,9 +82,9 @@ from updater import __version__ as __app_version__
 # 否则默认 Python logging 只显示 WARNING+，应用层的 info 诊断日志将不可见
 logger = logging.getLogger("uvicorn.error")
 
-# 路径前缀（Cloudflare 隧道子路径），默认 /eating-medication/family
-# 本地直连时设为空字符串即可
-PATH_PREFIX = os.getenv("PATH_PREFIX", getattr(config, "PATH_PREFIX", "/eating-medication/family")).rstrip("/")
+# 路径前缀（Cloudflare 隧道子路径），统一从 config（单一 .env 源）读取
+# 本地直连时在 .env 设 PATH_PREFIX 为空字符串即可
+PATH_PREFIX = config.PATH_PREFIX.rstrip("/")
 
 
 @asynccontextmanager
@@ -344,7 +384,7 @@ def main():
 
     # 重置运行时数据模式（--reset）：在任何副作用（校验配置 / 检查更新 / 启动）之前
     # 执行并退出，删除用户密码库与老人端设备数据等本地文件，
-    # 仅保留 .env / config.json / logs，使工作树接近全新 clone 状态
+    # 仅保留 .env / logs，使工作树接近全新 clone 状态
     if "--reset" in sys.argv:
         from reset_runtime import reset_runtime_data, confirm_reset
         print("=" * 60)
@@ -360,8 +400,8 @@ def main():
             print(f" 跳过 {len(skipped)} 项（删除失败）：")
             for p in skipped:
                 print("   !", p)
-        print(" 已保留: .env / config.json / logs/")
-        print(" 工作树现已接近全新 clone 状态（仅上述三项差异）。")
+        print(" 已保留: .env / logs/")
+        print(" 工作树现已接近全新 clone 状态（仅上述两项差异）。")
         print("=" * 60)
         sys.exit(0)
 

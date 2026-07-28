@@ -4,26 +4,25 @@
 项目级自动更新检查与安全更新模块（统一位于仓库根目录）
 
 启动时检查 GitHub 仓库是否有新版本，发现新版本时：
-- 默认启用安全自动更新（可由项目根目录 config.json 的 auto_pull 字段关闭）
-- auto_pull=False 时，仅提示、手动更新
+- 默认启用安全自动更新（可由项目根目录 .env 的 AUTO_PULL 字段关闭）
+- AUTO_PULL=false 时，仅提示、手动更新
 
 【与旧版（各模块内 updater.py）的区别】
 1. 仅从 GitHub Release 拉取「完整发布包」 eating-medication-vX.Y.Z.zip 及其 SHA256
    校验文件；不再单独处理各模块分包（如 server_v*.zip / family_monitor_v*.zip）。
-2. 读取仓库根目录 config.json 的 github_proxy 字段，通过该代理/镜像下载
+2. 读取仓库根目录 .env 的 GITHUB_PROXY 字段，通过该代理/镜像下载
    （兼容 gh-proxy.com 镜像前缀形式，亦兼容 http(s)://host:port 正向代理）。
 
 【安全更新机制】
 1. 下载 release 完整 zip 到临时目录
 2. 解压到临时子目录
 3. 仅复制非保护文件到项目根目录（保护文件列表见 PROTECTED_PATTERNS）
-4. 保护文件：.env、config.json、data/、logs/、*.db、*.sqlite* 等运行时数据
+4. 保护文件：.env、data/、logs/、*.db、*.sqlite* 等运行时数据
 5. 更新失败时自动回滚到备份
 6. 更新后尝试重启相关 systemd 服务
 
 【保护文件清单】
-- .env（含 server/.env、family_monitor/.env 等嵌套路径）
-- config.json、config.yaml
+- .env（含 server/.env、family_monitor/.env、elderly_assistant/.env 等嵌套路径）
 - data/ 整个目录（含数据库、用户数据、会话、缓存）
 - logs/ 整个目录
 - *.db / *.sqlite / *.sqlite3
@@ -82,93 +81,95 @@ def _gh_headers():
 
 
 # ============================================================
-# 根目录 config.json 路径与模板
+# 根目录 .env 路径与默认内容（全局更新配置，无密钥，纳入版本管理）
 # ============================================================
-_CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
+_CONFIG_PATH = Path(__file__).resolve().parent / ".env"
 
-# 仅包含 updater 关心的字段；首次运行未检测到 config.json 时自动生成该模板
-_CONFIG_TEMPLATE = {
-    # 是否启用安全自动更新（缺省 true；下载完整发布包并保留配置文件与数据库）
-    "auto_pull": True,
-    # GitHub 代理 / 镜像前缀，留空走直连；如 https://gh-proxy.com 或 http://127.0.0.1:7890
-    "github_proxy": "",
-    # 公网基址（不含 /server 与 /family 路径前缀），供前端拼接各模块地址；留空时由部署方填写
-    "public_url": "",
-}
+# .env 默认内容；首次运行未检测到 .env 时自动生成
+_ENV_DEFAULT_CONTENT = (
+    "# 全局更新配置（无密钥，纳入版本管理）\n"
+    "# 是否启用安全自动更新（下载完整发布包并保留配置文件与数据库）\n"
+    "AUTO_PULL=true\n"
+    "# GitHub 代理/镜像前缀（如 https://gh-proxy.com），留空走直连\n"
+    "# 同时供根 install.py 下载 huskylens 模块使用，统一代理出口\n"
+    "GITHUB_PROXY=\n"
+)
 
 
-def _ensure_config_template():
-    """若根目录 config.json 不存在，自动生成带默认值的模板文件。
+def _load_root_env():
+    """解析根目录 .env，返回 dict。
+
+    .env 为扁平 key=value 格式（无 section），手写解析避免依赖 python-dotenv
+    （updater 处于引导阶段，不应引入额外依赖）。
+    """
+    data = {}
+    try:
+        if _CONFIG_PATH.is_file():
+            for line in _CONFIG_PATH.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                data[k.strip()] = v.strip()
+    except Exception as e:
+        logger.warning(f"[更新检查] 解析根目录 .env 失败: {e}")
+    return data
+
+
+def _ensure_env_template():
+    """若根目录 .env 不存在，自动生成带默认值的配置文件。
 
     便于首次部署即拥有可编辑的配置骨架；已存在文件不会被覆盖。
     """
     try:
         if not _CONFIG_PATH.is_file():
-            with open(_CONFIG_PATH, "w", encoding="utf-8") as f:
-                json.dump(_CONFIG_TEMPLATE, f, ensure_ascii=False, indent=2)
-            logger.info(f"[更新检查] 已生成配置模板: {_CONFIG_PATH}（默认 auto_pull=true，可手动编辑）")
+            _CONFIG_PATH.write_text(_ENV_DEFAULT_CONTENT, encoding="utf-8")
+            logger.info(f"[更新检查] 已生成配置模板: {_CONFIG_PATH}（默认 AUTO_PULL=true，可手动编辑）")
     except Exception as e:
-        logger.warning(f"[更新检查] 生成 config.json 模板失败: {e}")
+        logger.warning(f"[更新检查] 生成 .env 模板失败: {e}")
 
 
 # ============================================================
-# 代理配置：读取仓库根目录 config.json 的 github_proxy 字段
+# 代理配置：读取根目录 .env 的 GITHUB_PROXY 字段
 # ============================================================
 def _load_github_proxy():
-    """读取仓库根目录 config.json 的 github_proxy 字段。
+    """读取根目录 .env 的 GITHUB_PROXY 字段。
 
     支持两种形式：
     1. 镜像前缀（如 https://gh-proxy.com）：下载 URL 改写为 {proxy}/{原始URL}
     2. 正向代理（如 http://127.0.0.1:7890）：通过 urllib ProxyHandler 透明转发
     未配置或文件不存在时返回 None，走直连。
     """
-    config_path = _CONFIG_PATH
-    try:
-        if config_path.is_file():
-            with open(config_path, "r", encoding="utf-8") as f:
-                raw = f.read()
-            # 空文件或仅空白：视为未配置，静默返回直连，不打印告警
-            if not raw.strip():
-                return None
-            data = json.loads(raw)
-            proxy = data.get("github_proxy")
-            if isinstance(proxy, str) and proxy.strip():
-                return proxy.strip()
-    except Exception as e:
-        logger.warning(f"[更新检查] 读取 config.json 的 github_proxy 失败: {e}")
+    data = _load_root_env()
+    proxy = data.get("GITHUB_PROXY")
+    if isinstance(proxy, str) and proxy.strip():
+        return proxy.strip()
     return None
 
 
-# 首次运行时若根目录无 config.json，自动生成模板
-_ensure_config_template()
+# 首次运行时若根目录无 .env，自动生成模板
+_ensure_env_template()
 
 _GITHUB_PROXY = _load_github_proxy()
 
 
 # ============================================================
-# 自动更新开关：读取仓库根目录 config.json 的 auto_pull 字段
+# 自动更新开关：读取根目录 .env 的 AUTO_PULL 字段
 # ============================================================
 def _load_auto_pull():
-    """读取仓库根目录 config.json 的 auto_pull 字段，决定是否启用安全自动更新。
+    """读取根目录 .env 的 AUTO_PULL 字段，决定是否启用安全自动更新。
 
-    优先级：config.json 的 auto_pull 字段 > 缺省值 True。
+    优先级：.env 的 AUTO_PULL 字段 > 缺省值 True。
     - 文件不存在 / 字段缺失 / 解析失败：回退 True（默认启用安全自动更新）
     - 支持 bool 值与字符串 "true"/"false"（大小写不敏感）解析
     """
-    config_path = _CONFIG_PATH
-    try:
-        if config_path.is_file():
-            with open(config_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            val = data.get("auto_pull", True)
-            if isinstance(val, bool):
-                return val
-            if isinstance(val, str) and val.strip():
-                return val.strip().lower() == "true"
-            logger.warning(f"[更新检查] config.json 的 auto_pull 类型无效（{type(val).__name__}），回退为 True")
-            return True
-    except Exception as e:
-        logger.warning(f"[更新检查] 读取 config.json 的 auto_pull 失败: {e}，回退为 True")
+    data = _load_root_env()
+    val = data.get("AUTO_PULL", "true")
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str) and val.strip():
+        return val.strip().lower() == "true"
+    logger.warning(f"[更新检查] .env 的 AUTO_PULL 类型无效（{type(val).__name__}），回退为 True")
     return True
 
 
@@ -230,8 +231,6 @@ def _open_url(url, timeout, headers=None):
 # 文件名或目录名（精确匹配，任意一级路径段命中即保护）
 PROTECTED_NAMES = {
     ".env",
-    "config.json",
-    "config.yaml",  # 老人端使用
     "data",
     "logs",
     "certs",
@@ -289,9 +288,9 @@ PROTECTED_SUBDIRS = {
 def _is_protected_path(rel_path: str) -> bool:
     """判断相对路径是否属于受保护范围。
 
-    完整发布包解压后路径形如 server/.env、family_monitor/config.json、
+    完整发布包解压后路径形如 server/.env、family_monitor/.env、
     server/data/db.sqlite，因此需对任意一级路径段做受保护判定，
-    避免嵌套的 .env / config.json / data/ 等被覆盖。
+    避免嵌套的 .env / data/ 等被覆盖。
     """
     parts = rel_path.replace("\\", "/").split("/")
     if not parts:
@@ -608,17 +607,17 @@ def get_update_info():
 def check_for_update(auto_pull=None):
     """
     启动时检查 GitHub 是否有新版本。
-    - auto_pull 默认由 config.json 控制（缺省 True）：启用安全自动更新
+    - auto_pull 默认由根目录 .env 的 AUTO_PULL 控制（缺省 True）：启用安全自动更新
     - auto_pull=False：仅打印提示，手动更新
-    - 显式传入 auto_pull 可覆盖 config.json 配置与默认值
+    - 显式传入 auto_pull 可覆盖 .env 配置与默认值
 
     【安全机制】
     1. 不使用 git checkout，避免误删未被跟踪的配置文件
     2. 下载 zip 到临时目录，解压后逐文件判断
-    3. 保护文件（.env、config.json、data/、logs/、*.db 等）不会被覆盖
+    3. 保护文件（.env、data/、logs/、*.db 等）不会被覆盖
     4. SHA256 校验确保资产完整性（缺少校验文件时拒绝自动更新）
     """
-    # 未显式指定时，使用 config.json 配置（缺省 True）
+    # 未显式指定时，使用根目录 .env 的 AUTO_PULL 配置（缺省 True）
     if auto_pull is None:
         auto_pull = _AUTO_PULL
     info = get_update_info()
@@ -650,7 +649,7 @@ def check_for_update(auto_pull=None):
 
         if not auto_pull:
             logger.info(f"[更新检查] 自动更新未启用，请手动访问 {release_url} 下载最新版本")
-            logger.info("[更新检查] 提示：如需启用安全自动更新，可在 config.json 设置 auto_pull: true（保留配置文件与数据库）")
+            logger.info("[更新检查] 提示：如需启用安全自动更新，可在根目录 .env 设置 AUTO_PULL=true（保留配置文件与数据库）")
             return info
 
         # 自动更新流程：缺少校验文件时拒绝自动更新（安全要求）
@@ -660,7 +659,7 @@ def check_for_update(auto_pull=None):
             return info
 
         logger.warning("⚠️ 自动更新：将下载并安装新版本")
-        logger.info("[更新检查] 保护文件将保留：.env、config.json、data/、logs/、*.db 等")
+        logger.info("[更新检查] 保护文件将保留：.env、data/、logs/、*.db 等")
         if _GITHUB_PROXY:
             logger.info(f"[更新检查] 通过代理下载: {_GITHUB_PROXY}")
 

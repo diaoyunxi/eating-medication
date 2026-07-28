@@ -2,7 +2,7 @@
 
 > 当前版本：v2.9.6（2026-07-15，安全清理与文档更新）
 
-基于 Python 的智能用药管理系统（老人使用端），适用于行空板及通用设备（Windows/Linux）。提供用药提醒、药品识别、AI 语音问答、服药记录上传、库存管理、家属沟通和紧急呼叫等功能。所有配置均通过 YAML 文件管理，无硬编码。
+基于 Python 的智能用药管理系统（老人使用端），适用于行空板及通用设备（Windows/Linux）。提供用药提醒、药品识别、AI 语音问答、服药记录上传、库存管理、家属沟通和紧急呼叫等功能。所有配置均通过扁平 `.env` 文件管理（与 server / family_monitor 统一），无硬编码。
 
 ---
 
@@ -24,8 +24,8 @@
 ```
 elderly_assistant/
 ├── main.py                     # 程序入口
-├── config.yaml                 # 所有可配置项（API、服务器、路径等）
-├── install.py                  # 自动安装依赖并切换清华源
+├── .env                        # 所有可配置项（扁平 .env，首次运行自动生成）
+├── .env.example                # 配置模板（纳入版本管理）
 ├── requirements.txt
 ├── core/                       # 核心业务逻辑
 │   ├── __init__.py
@@ -64,10 +64,10 @@ elderly_assistant/
 
 ### 2. 安装依赖
 
-直接运行安装脚本（自动安装流程）：
+依赖安装已统一为仓库根目录 `install.py`（各模块不再各自维护），需传入本模块 `requirements.txt` 路径，老人端额外加 `--huskylens` 安装摄像头依赖：
 
 ```bash
-python install.py
+python ../install.py requirements.txt --huskylens
 ```
 
 `install.py` 行为：
@@ -76,6 +76,7 @@ python install.py
 2. 正常 `pip install`（使用 `-i PIP_INDEX_URL` 临时指定镜像源，默认清华源，可通过环境变量覆盖，不修改全局 pip 配置）。
 3. 若 `pip install` 输出包含 `--break-system-packages`（PEP 668 `externally-managed-environment` 错误），自动加上该参数重新 `pip install`。
 4. 已安装的包自动跳过（优先 `importlib.import_module` 检测，回退 `pip show`）。
+5. `--huskylens`：额外从官方仓库下载 `dfrobot_huskylensv2.py`（PyPI 未发布），GitHub 下载代理统一读根目录 `.env` 的 `GITHUB_PROXY`。
 
 或手动安装：
 ```bash
@@ -91,13 +92,12 @@ pip install --break-system-packages -r requirements.txt
 - 安装后确保 `tesseract` 命令在系统 PATH 中，或修改 `services/ocr_engine.py` 中 `tesseract_cmd` 变量指向安装路径。
 
 ### 3. 配置文件
-编辑根目录下的 `config.yaml`，根据实际情况修改：
-- 服务器地址和接口（用于上传、聊天、紧急呼救等）
-- AI 服务密钥（若需 AI 问答）
-- 京东 API 密钥（若需比价）
-- 摄像头设备 ID、分辨率
-- 语音合成参数、蜂鸣器类型（声音文件或 GPIO 引脚）
-- 提醒升级间隔等
+编辑根目录下的 `.env`（首次运行无 `.env` 时会自动生成完整模板），根据实际情况修改：
+- `SERVER_BASE_URL`：服务端 API 基址（用于上传、聊天、紧急呼救等）
+- `HEARTBEAT_INTERVAL`：心跳上报间隔（秒）
+- `HOTSPOT_*`：热点配网 SSID / IP / 端口
+- `POLL_INTERVAL` / `SNOOZE_MINUTES` / `BUZZER_LOOP_INTERVAL`：提醒与蜂鸣器间隔
+- `CAMERA_*`：摄像头连接方式与保存路径
 
 配置文件包含合理默认值，即使不修改程序也能运行（仅语音提醒和基础功能可用）。
 
@@ -143,20 +143,19 @@ python main.py
 
 ## 配置说明
 
-所有功能开关和参数都在 `config.yaml` 中，重要项：
+所有功能开关和参数都在 `.env` 中（扁平键），重要项：
 
-| 配置节点 | 说明 |
-|----------|------|
-| `server.base_url` | 后端服务器地址 |
-| `server.upload_endpoint` | 服药照片上传接口路径 |
-| `server.chat_endpoint` | 家属聊天消息收发接口 |
-| `ai.api_key` | AI 服务密钥（支持 OpenAI 格式） |
-| `ai.base_url` | 可切换为私有部署的大模型地址 |
-| `camera.device_id` | 摄像头设备编号（一般为 0） |
-| `speech.engine` | 语音合成引擎（默认为 pyttsx3） |
-| `buzzer.type` | 蜂鸣器类型：`sound`（播放音频文件）或 `gpio`（树莓派 GPIO） |
-| `reminders.escalation_interval` | 未确认时音量升级间隔（秒） |
-| `paths.data_dir` | 数据文件存放目录 |
+| 配置键 | 说明 |
+|--------|------|
+| `SERVER_BASE_URL` | 后端服务器地址 |
+| `SERVER_UPLOAD_ENDPOINT` | 服药照片上传接口路径 |
+| `SERVER_TIMEOUT` | HTTP 超时（秒） |
+| `HEARTBEAT_INTERVAL` | 心跳上报间隔（秒） |
+| `HOTSPOT_SSID` / `HOTSPOT_IP` / `HOTSPOT_WEB_PORT` | 热点配网 SSID / IP / 端口 |
+| `POLL_INTERVAL` | 用药计划轮询间隔（秒） |
+| `SNOOZE_MINUTES` | 暂缓提醒间隔（分钟） |
+| `BUZZER_LOOP_INTERVAL` | 蜂鸣器循环间隔（秒） |
+| `CAMERA_CONNECTION` / `CAMERA_UART_TTY` / `CAMERA_UART_BAUDRATE` / `CAMERA_SAVE_PATH` | 摄像头连接方式与保存路径 |
 
 所有配置均可热加载（修改后重启程序生效），无需改动代码。
 
@@ -168,7 +167,7 @@ python main.py
 A：电脑无麦克风或扬声器，不影响提醒功能，仅语音输入禁用。可在 Windows 声音设置中检查默认设备。
 
 **Q：摄像头打开失败？**  
-A：检查摄像头是否被其他程序占用，或修改 `config.yaml` 中 `camera.device_id` 尝试 0、1 等不同编号。
+A：检查摄像头是否被其他程序占用，或修改 `.env` 中 `CAMERA_CONNECTION` / `CAMERA_UART_TTY` 等参数尝试不同连接方式。
 
 **Q：OCR 识别结果为空白或报错？**  
 A：请确保已安装 Tesseract 并配置好环境变量。中文识别需安装 `chi_sim` 语言包。
@@ -177,7 +176,7 @@ A：请确保已安装 Tesseract 并配置好环境变量。中文识别需安�
 A：程序已使用队列模式解决线程冲突，若仍出现请检查 `services/speech.py` 是否为最新版本。
 
 **Q：如何更换 AI 服务为本地模型（如 Ollama）？**  
-A：修改 `config.yaml` 中 `ai.base_url` 为 `http://localhost:11434/v1`，`ai.model` 填写模型名（如 `qwen:7b`），`ai.api_key` 填任意非空字符串即可。
+A：老人端 AI 问答复用服务端地址（`.env` 的 `SERVER_BASE_URL`），AI 服务由服务端统一配置（详见服务端 `.env` 的 `ZHIPUAI_*`），老人端无需单独配置 AI 密钥。
 
 **Q：如何在没有 GUI 的服务器上运行？**  
 A：当前版本依赖 unihiker GUI 图形界面，若需纯终端运行，可改写 `main.py` 为命令行交互模式（不推荐，老人端需大按钮）。
@@ -199,7 +198,7 @@ A：当前版本依赖 unihiker GUI 图形界面，若需纯终端运行，可�
 - 更换语音引擎：替换 `services/speech.py` 中的 pyttsx3 为其他 TTS 服务
 - 自定义 GUI 组件：在 `core/display.py` 中添加
 
-所有路径、接口、密钥均从 `config.yaml` 读取，切换环境时仅需修改该文件。
+所有路径、接口均从 `.env` 读取，切换环境时仅需修改该文件。
 
 ---
 

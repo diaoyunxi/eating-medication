@@ -16,6 +16,8 @@ import threading
 import time
 import json
 import logging
+import importlib
+import subprocess
 from datetime import datetime, timedelta
 
 # 模块级 logger，供 signal_handler / MedicationPoller 等非 main() 函数使用
@@ -60,6 +62,45 @@ def parse_arguments():
 def signal_handler(sig, frame):
     logger.info("收到退出信号，正在清理...")
     sys.exit(0)
+
+
+def check_and_install_dependencies():
+    """检查关键依赖是否已安装，若缺失则调用根目录统一 install.py（含 huskylens）。"""
+    required_modules = [
+        ('dotenv', 'python-dotenv'),
+        ('requests', 'requests'),
+        ('pyttsx3', 'pyttsx3'),
+    ]
+    missing = []
+    for module_name, pip_name in required_modules:
+        try:
+            importlib.import_module(module_name)
+        except ImportError:
+            missing.append(pip_name)
+
+    if missing:
+        print(f"检测到缺失依赖: {missing}")
+        print("正在调用根目录 install.py 安装依赖（含 huskylens）...")
+        project_root = str(Path(__file__).resolve().parent.parent)
+        root_install = os.path.join(project_root, "install.py")
+        req_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
+        if os.path.exists(root_install):
+            try:
+                result = subprocess.run(
+                    [sys.executable, root_install, req_path, "--huskylens"],
+                    capture_output=False, text=True, cwd=project_root,
+                )
+                if result.returncode != 0:
+                    print("依赖安装可能未完全成功，尝试继续运行...")
+                else:
+                    print("依赖安装完成，正在重新启动老人端...")
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
+            except Exception as e:
+                print(f"自动安装失败: {e}")
+                print(f"请手动运行: python {root_install} {req_path} --huskylens")
+        else:
+            print("未找到根目录 install.py，请手动安装依赖:")
+            print(f"pip install {' '.join(missing)}")
 
 
 def init_pinpong_board():
@@ -281,6 +322,9 @@ def main():
     args = parse_arguments()
     DEBUG_MODE = args.debug or args.verbose
 
+    # 启动前检查依赖，缺失则调用根目录统一 install.py 安装（含 huskylens）
+    check_and_install_dependencies()
+
     # 启动时检查更新（自动更新功能）
     try:
         from updater import check_for_update
@@ -306,7 +350,8 @@ def main():
     from core.display import Display
 
     config = load_config()
-    log_dir = config.get('paths', {}).get('log_dir', 'logs') if 'paths' in config else 'logs'
+    # log_dir 固定使用 logs/（原 paths.log_dir 为幽灵字段，已删除）
+    log_dir = 'logs'
     logger = setup_logger(log_dir)
     logger.info("=" * 50)
     logger.info("老人端启动（M10 GUI 模式）")

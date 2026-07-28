@@ -2,8 +2,8 @@
 """运行时数据重置工具。
 
 通过 ``main.py --reset`` 调用：删除仓库内所有「未跟踪」或「被 .gitignore 忽略」的
-运行时文件 / 目录，但**保留** ``.env``、``config.json`` 与 ``logs/`` 文件夹，
-使工作树与一次全新 ``git clone`` 的差异仅剩这三项。
+运行时文件 / 目录，但**保留** ``.env`` 与 ``logs/`` 文件夹，
+使工作树与一次全新 ``git clone`` 的差异仅剩这两项（各模块的 .env）。
 
 典型清理对象：
 - 用户密码库：server 的 SQLAlchemy 数据库（User 表）、family_monitor 的 ``users.json``
@@ -16,7 +16,7 @@
 
 删除采用「保留感知」递归策略：当某个被忽略目录内同时含有需保留的文件
 （如 ``server/.env``）时，不会整目录删除，而是仅清理其中的非保留内容，
-从而安全保留 ``.env`` / ``config.json`` / ``logs/``。
+从而安全保留 ``.env`` / ``logs/``。
 """
 
 import os
@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 # 必须保留的运行时文件名（任意层级）
-PRESERVE_NAMES = {".env", "config.json"}
+PRESERVE_NAMES = {".env"}
 # 必须保留的目录名（任意层级，含其内部所有内容），即 logs 文件夹
 PRESERVE_DIR_NAMES = {"logs"}
 
@@ -47,7 +47,7 @@ EXPLICIT_FILE_PATTERNS = (
 
 
 def _is_preserved(parts):
-    """判断相对路径片段中是否包含需保留项（.env / config.json / logs 目录）。"""
+    """判断相对路径片段中是否包含需保留项（.env / logs 目录）。"""
     if any(p in PRESERVE_NAMES for p in parts):
         return True
     if PRESERVE_DIR_NAMES & set(parts):
@@ -168,7 +168,7 @@ def confirm_reset():
     try:
         ans = input(
             "确认重置运行时数据？将删除用户密码库、老人端设备数据等本地数据"
-            "（保留 .env / config.json / logs）。输入 YES 继续: "
+            "（保留 .env / logs）。输入 YES 继续: "
         ).strip()
     except (EOFError, OSError):
         return False
