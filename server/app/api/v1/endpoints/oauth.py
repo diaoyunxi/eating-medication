@@ -149,8 +149,9 @@ async def _fetch_email(emails_api: str, access_token: str, auth_header: str) -> 
                 emails[0],
             )
             return primary.get("email")
-    except Exception as e:
-        logger.warning(f"获取 {emails_api} 邮箱失败: {e}")
+    except Exception:
+        # 不记录异常细节（可能含第三方接口/令牌相关信息），仅记录失败事实
+        logger.warning(f"获取 {emails_api} 邮箱失败")
     return None
 
 

@@ -123,9 +123,10 @@ def email_send_code(req: EmailSendCodeReq, request: Request, db: Session = Depen
 
     ok, msg = email_code_store.send_code(req.email)
     if not ok:
-        # 邮件服务未配置 / 发送失败 / 频率限制等，统一以 400 返回提示
-        raise HTTPException(status_code=400, detail=msg)
-    return {"success": True, "message": msg}
+        # 邮件服务未配置 / 发送失败 / 频率限制等：内部细节仅记录日志，不向客户端泄露
+        logger.warning(f"发送邮箱验证码失败: {msg}")
+        raise HTTPException(status_code=400, detail="验证码发送失败，请稍后重试")
+    return {"success": True, "message": "验证码已发送，请查收邮箱"}
 
 
 @router.post("/email/code-login", response_model=TokenResp)

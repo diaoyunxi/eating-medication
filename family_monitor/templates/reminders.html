@@ -215,7 +215,13 @@
             (times || []).forEach(function(t, idx) {
                 var tag = document.createElement('span');
                 tag.className = 'dns-time-tag';
-                tag.innerHTML = t + '<button class="dns-time-tag-remove" onclick="removeTime(this,' + idx + ')">&times;</button>';
+                // 使用 textContent 而非 innerHTML，避免时间文本被当作 HTML 解析（DOM XSS 防护）
+                tag.textContent = t;
+                var btn = document.createElement('button');
+                btn.className = 'dns-time-tag-remove';
+                btn.textContent = '×';
+                btn.setAttribute('onclick', 'removeTime(this,' + idx + ')');
+                tag.appendChild(btn);
                 container.appendChild(tag);
             });
             var input = document.createElement('input');
