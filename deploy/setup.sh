@@ -81,13 +81,27 @@ else
   fi
 fi
 
-# ===== 4. 安装 Python 依赖 =====
-echo "==> [4/7] 安装 server 依赖..."
-( cd "$DEPLOY_DIR" && $SUDO python3 install.py server/requirements.txt ) \
-  || ( cd "$DEPLOY_DIR" && $SUDO python3 -m pip install -r server/requirements.txt )
-echo "==> [4/7] 安装 family_monitor 依赖..."
-( cd "$DEPLOY_DIR" && $SUDO python3 install.py family_monitor/requirements.txt ) \
-  || ( cd "$DEPLOY_DIR" && $SUDO python3 -m pip install -r family_monitor/requirements.txt )
+# ===== 4. 创建虚拟环境并安装 Python 依赖（避免 PEP 668 / 系统 pip 污染）=====
+# 可选：通过环境变量 PIP_MIRROR 指定 pip 镜像（默认清华源，国内更快）。
+PIP_MIRROR="${PIP_MIRROR:-https://pypi.tuna.tsinghua.edu.cn/simple}"
+PIP_EXTRA=""
+if [ -n "$PIP_MIRROR" ]; then PIP_EXTRA="-i $PIP_MIRROR"; fi
+VENV="$DEPLOY_DIR/venv"
+if [ ! -x "$VENV/bin/python" ]; then
+  echo "==> [4/7] 创建虚拟环境 $VENV ..."
+  $SUDO python3 -m venv "$VENV"
+fi
+echo "==> [4/7] 升级 venv pip ..."
+$SUDO "$VENV/bin/python" -m pip install --upgrade pip $PIP_EXTRA || \
+  $SUDO "$VENV/bin/python" -m pip install --upgrade pip
+echo "==> [4/7] 安装 server 依赖 ..."
+$SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt" $PIP_EXTRA || \
+  $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt"
+echo "==> [4/7] 安装 family_monitor 依赖 ..."
+$SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt" $PIP_EXTRA || \
+  $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt"
+# venv 运行时只需被 deploy 读取/执行，归属 deploy 以免权限问题
+$SUDO chown -R "$DEPLOY_USER:$DEPLOY_USER" "$VENV"
 
 # ===== 5. 生成生产环境 .env（仅首次） =====
 gen_key() { python3 -c "import secrets; print(secrets.token_urlsafe(32))"; }
