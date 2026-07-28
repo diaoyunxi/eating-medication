@@ -4,7 +4,7 @@
 WiFi 配网 Web 服务模块
 用于 M10 设备：在热点上运行 HTTP 服务器（端口 8088），提供配网页面。
 用户提交后：
-  1. 保存服务器地址到 config.yaml
+  1. 保存服务器地址到 .env（SERVER_BASE_URL）
   2. 使用 nmcli 命令连接指定 WiFi
   3. 调用 device_id 获取 FCC ID，POST 注册到服务器
   4. 返回成功/失败状态
@@ -22,7 +22,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 import logging
-from utils.config_loader import load_config, save_config
+from utils.config_loader import load_config, save_server_url
 
 logger = logging.getLogger("ElderlyAssistant")
 
@@ -32,7 +32,7 @@ HOTSPOT_SSID = "M10-Config"
 # CORS 允许来源：仅限本地热点网关，避免任意来源跨域请求
 CONFIG_CORS_ORIGIN = "http://10.0.0.1:8088"
 
-# 设备主程序所在目录（用于读取/写入 config.yaml）
+# 设备主程序所在目录（用于读取/写入 .env）
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -58,7 +58,7 @@ class WiFiConfigManager:
         self._scan_lock = threading.Lock()
 
     def load_server_url(self):
-        """从 config.yaml 读取当前服务器地址"""
+        """从 .env 读取当前服务器地址（SERVER_BASE_URL）"""
         try:
             config = load_config()
             return config.get('server', {}).get('base_url', '')
@@ -67,13 +67,12 @@ class WiFiConfigManager:
             return ''
 
     def save_server_url(self, server_url):
-        """保存服务器地址到 config.yaml"""
+        """保存服务器地址到 .env（SERVER_BASE_URL 字段）"""
         try:
-            config = load_config()
-            config.setdefault('server', {})['base_url'] = server_url
-            save_config(config)
-            logger.info(f"已保存服务器地址: {server_url}")
-            return True
+            ok = save_server_url(server_url)
+            if ok:
+                logger.info(f"已保存服务器地址: {server_url}")
+            return ok
         except Exception as e:
             logger.error(f"保存服务器地址失败: {e}")
             return False
@@ -251,7 +250,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
                     self._send_json({"status": "error", "message": "请填写服务器地址"}, 400)
                     return
 
-                # 1. 保存服务器地址到 config.yaml
+                # 1. 保存服务器地址到 .env
                 self.wifi_manager.save_server_url(server_url)
 
                 # 2. 连接 WiFi

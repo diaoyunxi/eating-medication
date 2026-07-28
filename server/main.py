@@ -32,7 +32,7 @@ sys.excepthook = global_exception_handler
 
 
 def check_and_install_dependencies():
-    """检查关键依赖是否已安装，若缺失则自动运行 install.py"""
+    """检查关键依赖是否已安装，若缺失则调用根目录统一 install.py"""
     required_modules = [
         ('fastapi', 'fastapi'),
         ('uvicorn', 'uvicorn'),
@@ -54,16 +54,19 @@ def check_and_install_dependencies():
 
     if missing:
         print(f"检测到缺失依赖: {missing}")
-        print("正在自动运行 install.py 安装依赖...")
+        print("正在调用根目录 install.py 安装依赖...")
 
-        install_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "install.py")
-        if os.path.exists(install_script):
+        # 根目录统一安装脚本，传入本模块 requirements.txt 路径
+        project_root = str(Path(__file__).resolve().parent.parent)
+        root_install = os.path.join(project_root, "install.py")
+        req_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
+        if os.path.exists(root_install):
             try:
                 result = subprocess.run(
-                    [sys.executable, install_script],
+                    [sys.executable, root_install, req_path],
                     capture_output=False,
                     text=True,
-                    cwd=os.path.dirname(os.path.abspath(__file__))
+                    cwd=project_root,
                 )
                 if result.returncode != 0:
                     print("依赖安装可能未完全成功，尝试继续运行...")
@@ -73,10 +76,10 @@ def check_and_install_dependencies():
                     os.execv(sys.executable, [sys.executable] + sys.argv)
             except Exception as e:
                 print(f"自动安装失败: {e}")
-                print("请手动运行: python install.py")
+                print(f"请手动运行: python {root_install} {req_path}")
                 sys.exit(1)
         else:
-            print("未找到 install.py，请手动安装依赖:")
+            print("未找到根目录 install.py，请手动安装依赖:")
             print(f"pip install {' '.join(missing)}")
             sys.exit(1)
 
@@ -117,9 +120,9 @@ def start_server():
         sys.exit(1)
 
     path_prefix = settings.PATH_PREFIX
-    # host/port 优先从环境变量读取，便于部署时覆盖，默认 0.0.0.0:1059
-    host = os.getenv("SERVER_HOST", "0.0.0.0")
-    port = int(os.getenv("SERVER_PORT", "1059"))
+    # host/port 纳入 Settings 统一管理（与 APP_NAME/DEBUG 等一致）
+    host = settings.SERVER_HOST
+    port = settings.SERVER_PORT
 
     print("\n" + "=" * 50)
     print(f"启动 {settings.APP_NAME} 服务端")

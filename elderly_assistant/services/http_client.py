@@ -48,7 +48,7 @@ class HTTPClient:
         self.config = server_cfg
         self.base_url = server_cfg.get('base_url', '')
         if not self.base_url:
-            raise ValueError("配置缺少 server.base_url，请检查config.yaml")
+            raise ValueError("配置缺少 server.base_url，请检查 .env（SERVER_BASE_URL）")
         self.timeout = server_cfg.get('timeout', 10)
         self.device_id = get_device_id()
         # 加载持久化的 device_token
