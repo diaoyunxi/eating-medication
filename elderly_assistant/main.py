@@ -444,6 +444,9 @@ def main():
     last_time_update = 0
     server_connected = False
     button_block_until = 0  # 非阻塞防抖屏蔽截止时间戳
+    btn_a_down_since = 0.0  # 按钮 A 按下起始时间戳（边沿+长按检测）
+    btn_a_long_fired = False  # 本次按下是否已触发长按 AI
+    LONG_PRESS_SEC = 1.5  # 按钮 A 长按阈值（秒），超过则触发 AI 问答
 
     # 10. 主循环
     logger.info("进入主循环")
@@ -484,12 +487,32 @@ def main():
             # 非阻塞防抖：防抖屏蔽期内跳过按钮检测，避免 sleep 阻塞主循环
             if (now.timestamp() - last_button_check) >= 0.2 and now.timestamp() >= button_block_until:
                 last_button_check = now.timestamp()
-                # 按钮 A：确认服药
-                if button_a and button_a.is_pressed():
-                    if reminder_state.active:
-                        handle_confirm(reminder_state, buzzer, display, http_client, logger, speech, config)
-                        # 防抖：设置屏蔽期而非 sleep 阻塞主循环
-                        button_block_until = now.timestamp() + 0.3
+                # 按钮 A：短按=确认服药；长按(>1.5s)=问 AI 该药注意事项并语音播报
+                if button_a:
+                    _a_pressed = button_a.is_pressed()
+                    if _a_pressed:
+                        if btn_a_down_since == 0.0:
+                            btn_a_down_since = now.timestamp()
+                            btn_a_long_fired = False
+                        elif not btn_a_long_fired and (now.timestamp() - btn_a_down_since) >= LONG_PRESS_SEC:
+                            btn_a_long_fired = True
+                            if reminder_state.active:
+                                try:
+                                    import threading as _th
+                                    _th.Thread(
+                                        target=_ask_ai_and_speak,
+                                        args=(reminder_state, http_client, speech, logger, config),
+                                        daemon=True,
+                                    ).start()
+                                except Exception:
+                                    pass
+                    else:
+                        if btn_a_down_since != 0.0:
+                            if not btn_a_long_fired and (now.timestamp() - btn_a_down_since) < LONG_PRESS_SEC:
+                                if reminder_state.active:
+                                    handle_confirm(reminder_state, buzzer, display, http_client, logger, speech, config)
+                            btn_a_down_since = 0.0
+                            btn_a_long_fired = False
                 # 按钮 B：暂不提醒（5分钟后再提醒）
                 if button_b and button_b.is_pressed():
                     if reminder_state.active:
@@ -645,6 +668,22 @@ def _capture_and_upload(config, http_client, logger):
         http_client.upload_image(path)
     except Exception as e:
         logger.warning(f"拍照上传失败: {e}")
+
+
+def _ask_ai_and_speak(reminder_state, http_client, speech, logger, config):
+    """向 AI 询问当前药品的服用注意事项并语音播报（缺失环境静默降级，异步线程调用）"""
+    try:
+        drug = reminder_state.drug_name or "当前药物"
+        question = f"请简要说明 {drug} 的服用注意事项，用通俗易懂的话，不超过3句。"
+        answer = http_client.ask_ai(question) if http_client else "抱歉，网络不可用"
+        logger.info(f"AI 问答: {question} -> {answer}")
+        if speech is not None:
+            try:
+                speech.speak(answer)
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error(f"AI 问答异常: {e}")
 
 
 def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=None, config=None):
