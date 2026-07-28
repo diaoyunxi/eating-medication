@@ -187,20 +187,28 @@ class HTTPClient:
             return False
 
     def upload_image(self, image_path, endpoint=None):
-        # 原代码使用 self.config['upload_endpoint'] 直接索引访问，
-        # 若配置缺少该键则抛出 KeyError，且该行在 try/except 块外导致程序崩溃。
-        # 改用 .get() 安全访问，并提供默认值。
+        # 图片以 base64 编码放入 JSON 上传（避免 multipart 在大文件/代理下不稳定）
         if endpoint is None:
-            endpoint = self.config.get('upload_endpoint', '/api/upload')
-        url = f"{self.base_url}{endpoint}"
+            endpoint = self.config.get('upload_endpoint', '/api/v1/public/device/upload')
+        import base64
         try:
             with open(image_path, 'rb') as f:
-                files = {'file': f}
-                resp = requests.post(url, files=files, timeout=self.timeout, headers=self._headers())
-                if resp.status_code == 200:
-                    return True
-                logger.warning(f"上传图片失败，状态码: {resp.status_code}")
-                return False
+                b64 = base64.b64encode(f.read()).decode('utf-8')
+        except Exception as e:
+            logger.warning(f"读取图片失败: {e}")
+            return False
+        url = f"{self.base_url}{endpoint}"
+        try:
+            resp = requests.post(
+                url,
+                json={"image_base64": b64},
+                timeout=self.timeout,
+                headers=self._headers(),
+            )
+            if resp.status_code == 200:
+                return True
+            logger.warning(f"上传图片失败，状态码: {resp.status_code}")
+            return False
         except Exception as e:
             logger.warning(f"上传图片异常: {e}")
             return False
