@@ -257,13 +257,14 @@ class ReminderState:
         self.fired_keys = set()
         self.current_key = ""     # 当前响铃中的提醒 key
 
-    def trigger(self, drug_name, dosage, key):
+    def trigger(self, drug_name, dosage, key, items=None):
         self.active = True
         self.drug_name = drug_name
         self.dosage = dosage
         self.current_key = key
         self.fired_keys.add(key)
         self.snooze_until = None
+        self.items = items or []
 
     def confirm(self):
         self.active = False
@@ -371,6 +372,14 @@ def main():
     # 3. 初始化蜂鸣器
     buzzer = Buzzer(config)
 
+    # 3.1 初始化语音播报（TTS，缺失环境静默降级）
+    speech = None
+    try:
+        from services.speech import Speech
+        speech = Speech()
+    except Exception as e:
+        logger.warning(f"语音播报初始化失败，已降级: {e}")
+
     # 4. 初始化 HTTP 客户端
     http_client = None
     try:
@@ -468,7 +477,7 @@ def main():
 
             # ---- 检查用药提醒触发 ----
             check_medication_trigger(
-                now, poller, reminder_state, buzzer, display, snooze_minutes, logger
+                now, poller, reminder_state, buzzer, display, snooze_minutes, logger, speech
             )
 
             # ---- 检查按钮（约每 200ms 一次）----
@@ -478,7 +487,7 @@ def main():
                 # 按钮 A：确认服药
                 if button_a and button_a.is_pressed():
                     if reminder_state.active:
-                        handle_confirm(reminder_state, buzzer, display, http_client, logger)
+                        handle_confirm(reminder_state, buzzer, display, http_client, logger, speech)
                         # 防抖：设置屏蔽期而非 sleep 阻塞主循环
                         button_block_until = now.timestamp() + 0.3
                 # 按钮 B：暂不提醒（5分钟后再提醒）
@@ -541,7 +550,7 @@ def main():
         logger.info("老人端已退出")
 
 
-def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooze_minutes, logger):
+def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooze_minutes, logger, speech=None):
     """
     检查是否到达用药提醒时间，触发提醒
     - 到达提醒时间（匹配当前 HH:MM）且未触发过，触发提醒
@@ -584,39 +593,60 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooz
             # 同一分钟内同一药品只触发一次
             if key in reminder_state.fired_keys:
                 continue
-            matched_reminders.append((drug_name, dosage, key))
+            matched_reminders.append({
+                "drug_name": drug_name,
+                "dosage": dosage,
+                "key": key,
+                "plan_id": s.get('plan_id'),
+                "scheduled_time": s.get('time'),
+            })
 
         if matched_reminders:
             # 合并所有同一时间的提醒为一条复合消息
             if len(matched_reminders) == 1:
-                drug_name, dosage, key = matched_reminders[0]
+                m = matched_reminders[0]
+                drug_name, dosage, key = m["drug_name"], m["dosage"], m["key"]
             else:
                 # 多个药品合并显示，例如 "阿司匹林 1片、降压药 2片"
-                parts = [f"{d[0]} {d[1]}" for d in matched_reminders]
+                parts = [f"{m['drug_name']} {m['dosage']}" for m in matched_reminders]
                 drug_name = "、".join(parts)
                 dosage = ""
                 # 使用合并后的 key，包含所有药品名
-                key = f"{today}|{now_hm}|" + "|".join(d[0] for d in matched_reminders)
+                key = f"{today}|{now_hm}|" + "|".join(m["drug_name"] for m in matched_reminders)
+            # 收集本批提醒对应的计划项，供确认时精确回传服务端落库
+            items = [{
+                "plan_id": m["plan_id"],
+                "drug_name": m["drug_name"],
+                "dosage": m["dosage"],
+                "scheduled_time": m["scheduled_time"],
+            } for m in matched_reminders]
             # 触发提醒
-            reminder_state.trigger(drug_name, dosage, key)
+            reminder_state.trigger(drug_name, dosage, key, items=items)
             buzzer.play_reminder()
             display.show_reminder(drug_name, dosage)
+            # 语音播报提醒（TTS，缺失时静默降级）
+            if speech:
+                try:
+                    speech.speak(f"该吃药了，{drug_name}")
+                except Exception:
+                    pass
             logger.info(f"触发用药提醒: {drug_name} {dosage} @ {now_hm} (共 {len(matched_reminders)} 个)")
     except Exception as e:
         logger.error(f"检查触发异常: {e}")
 
 
-def handle_confirm(reminder_state, buzzer, display, http_client, logger):
+def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=None):
     """按钮 A：确认服药"""
     try:
         drug = reminder_state.drug_name
         dosage = reminder_state.dosage
         logger.info(f"用户确认服药: {drug} {dosage}")
         buzzer.stop()
-        # 上报服药确认（可选，失败不影响）
+        # 上报服药确认（可选，失败不影响），回传精确计划项供服务端落库
         if http_client:
             try:
-                http_client.confirm_medication(drug, dosage)
+                items = getattr(reminder_state, "items", [])
+                http_client.confirm_medication(drug, dosage, items=items)
             except Exception as e:
                 logger.error(f"上报服药确认失败: {e}")
         reminder_state.confirm()
@@ -626,6 +656,12 @@ def handle_confirm(reminder_state, buzzer, display, http_client, logger):
             buzzer.play_success()
         except Exception:
             pass
+        # 语音播报确认（TTS，缺失时静默降级）
+        if speech:
+            try:
+                speech.speak(f"已记录，{drug}")
+            except Exception:
+                pass
     except Exception as e:
         logger.error(f"处理确认服药异常: {e}")
 

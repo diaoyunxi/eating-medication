@@ -19,7 +19,7 @@ from app.models.ai_query_log import AIQueryLog
 from app.services.medication_service import MedicationService
 from app.services.ai_service import AIService
 from app.services.ai_config_service import get_effective_config
-from app.schemas.medication import MedicationPlanCreate
+from app.schemas.medication import MedicationPlanCreate, TakeMedicationRequest
 from app.utils.rate_limit import check_rate_limit
 from app.utils.request_utils import get_client_ip
 import secrets
@@ -226,8 +226,98 @@ async def device_message(
     if req.message_type == "emergency":
         logger.warning(f"紧急消息: {_masked} - {req.content}")
         # TODO: 通过WebSocket推送给子女端
+    elif req.message_type == "medication":
+        # 设备上报服药确认：落库并通知家属（修复缺口①）
+        await _handle_device_medication(db, user, req)
+        return {"status": "ok"}
 
     return {"status": "ok"}
+
+
+def _parse_dt(s):
+    """宽松解析 ISO 时间字符串为 naive datetime，失败返回 None"""
+    if not s:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt
+    except Exception:
+        return None
+
+
+def _hhmm_to_today(t, now):
+    """将 HH:MM 时间字符串转换为今天对应的 naive datetime，失败返回 None"""
+    try:
+        from datetime import time as _time
+        hh, mm = str(t).strip().split(":")
+        return datetime.combine(now.date(), _time(int(hh), int(mm)))
+    except Exception:
+        return None
+
+
+def _match_plans_by_drug(db, user, drug_name, now_dt):
+    """兼容旧版设备：仅传 drug_name 时，按药名+时间窗口匹配本用户计划"""
+    if not drug_name:
+        return []
+    plans = db.query(MedicationPlan).filter(MedicationPlan.user_id == user.id).all()
+    matched = []
+    for p in plans:
+        if p.drug_name != drug_name:
+            continue
+        for t in p.schedule_times:
+            sched = _hhmm_to_today(t, now_dt)
+            if sched and abs((now_dt - sched).total_seconds()) <= 90 * 60:
+                matched.append({
+                    "plan_id": p.id,
+                    "drug_name": p.drug_name,
+                    "scheduled_time": t,
+                })
+    return matched
+
+
+async def _handle_device_medication(db, user, req):
+    """处理设备上报的服药确认：写入服药记录并实时通知家属（修复缺口①）
+
+    设备优先通过 data.items 携带 plan_id + scheduled_time(HH:MM) 精确匹配；
+    旧版设备仅传 drug_name 时，按药名+时间窗口回退匹配。
+    """
+    data = req.data or {}
+    taken_dt = _parse_dt(data.get("taken_at")) or datetime.now(timezone.utc).replace(tzinfo=None)
+    items = data.get("items") or []
+    if not items:
+        items = _match_plans_by_drug(db, user, data.get("drug_name", ""), taken_dt)
+
+    if not items:
+        # 兜底：无法匹配到计划也至少通知家属，保证反馈闭环
+        try:
+            from app.websocket.notifier import notifier
+            await notifier.notify_taken_medication(
+                db, user.id, data.get("drug_name", "药品"), taken_dt.isoformat()
+            )
+        except Exception as e:
+            logger.error(f"设备服药确认兜底通知失败: {e}")
+        return
+
+    for it in items:
+        try:
+            plan_id = int(it.get("plan_id"))
+            sched_raw = it.get("scheduled_time") or data.get("taken_at")
+            if isinstance(sched_raw, str) and len(sched_raw) <= 5 and ":" in sched_raw:
+                sched_dt = _hhmm_to_today(sched_raw, taken_dt)
+            else:
+                sched_dt = _parse_dt(sched_raw)
+            if sched_dt is None:
+                sched_dt = taken_dt
+            req_obj = TakeMedicationRequest(
+                plan_id=plan_id,
+                scheduled_time=sched_dt,
+                taken_time=taken_dt,
+            )
+            await MedicationService.take_medication(db, user.id, req_obj)
+        except Exception as e:
+            logger.error(f"设备服药确认处理失败(plan_id={it.get('plan_id')}): {e}")
 
 
 @router.get("/device/status/{device_id}")
