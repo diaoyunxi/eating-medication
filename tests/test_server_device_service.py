@@ -40,9 +40,9 @@ def test_parse_dt():
 
 def test_hhmm_to_today():
     now = datetime(2024, 1, 1, 12, 0, 0)
-    dt = device_service._hhmm_to_today("08:30", now)
+    dt = device_service.hhmm_to_today("08:30", now)
     assert dt is not None and dt.hour == 8 and dt.minute == 30 and dt.date() == now.date()
-    assert device_service._hhmm_to_today("bad", now) is None
+    assert device_service.hhmm_to_today("bad", now) is None
 
 
 # ---------------- 内存 SQLite 集成 ----------------
@@ -50,6 +50,45 @@ def _make_session():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
+
+
+def test_find_device_accounts_returns_both_candidates():
+    db = _make_session()
+    by_field = User(username="real-elderly", device_id="DEVICE_X", role="elderly")
+    by_name = User(username="DEVICE_X", role="elderly")  # 开机注册产生的虚拟用户
+    db.add_all([by_field, by_name])
+    db.commit()
+    f, n = DeviceService.find_device_accounts(db, "DEVICE_X")
+    assert f is not None and f.id == by_field.id
+    assert n is not None and n.id == by_name.id
+
+
+def test_get_device_user_resolves_and_404():
+    db = _make_session()
+    # 仅 username 匹配（虚拟用户）也应解析成功
+    db.add(User(username="DEVICE_Y", role="elderly"))
+    db.commit()
+    user = DeviceService.get_device_user(db, "DEVICE_Y")
+    assert user.username == "DEVICE_Y"
+
+    # 未注册 -> 404
+    from fastapi import HTTPException
+    try:
+        DeviceService.get_device_user(db, "UNKNOWN_DEVICE")
+        assert False, "应抛 404"
+    except HTTPException as e:
+        assert e.status_code == 404
+
+
+def test_get_device_user_field_priority_over_username():
+    db = _make_session()
+    # device_id 字段与 username 同时匹配不同用户时，优先返回 device_id 字段命中者
+    by_field = User(username="elderly-A", device_id="DUP", role="elderly")
+    by_name = User(username="DUP", role="elderly")
+    db.add_all([by_field, by_name])
+    db.commit()
+    user = DeviceService.get_device_user(db, "DUP")
+    assert user.id == by_field.id
 
 
 def test_get_device_user_authed():

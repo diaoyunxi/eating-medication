@@ -15,6 +15,7 @@ from typing import Optional
 from app.core.dependencies import get_current_user, get_db
 from app.core.crypto import encrypt_text, decrypt_text
 from app.models.user import User
+from app.services.device_service import DeviceService
 from app.models.user_ai_config import UserAIConfig
 from app.schemas.ai import UserAIConfigIn, UserAIConfigOut, AIProviderPreset
 from app.services.ai_service import (
@@ -55,12 +56,8 @@ def _resolve_target_user(
     授权：目标 == 自身，或目标与自身同组（group_id 一致）才允许，否则 403。
     """
     if device_id:
-        # 复刻 public 端点设备→用户解析逻辑（避免跨模块循环依赖）
-        user = db.query(User).filter(User.device_id == device_id).first()
-        if not user:
-            user = db.query(User).filter(User.username == device_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="设备未注册")
+        # 复用统一设备→用户解析（device_service 不反向依赖本模块，无循环依赖）
+        user = DeviceService.get_device_user(db, device_id)
     elif user_id is not None:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
