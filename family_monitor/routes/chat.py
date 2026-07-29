@@ -5,35 +5,22 @@
 """
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
-from core import config, elderly_client
+from fastapi.responses import JSONResponse
+from core import elderly_client
+from .web_helpers import templates, require_login, login_redirect, unauthorized_json
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
-templates.env.cache = {}
-# 注入路径前缀变量，供模板链接加前缀
-templates.env.globals["prefix"] = config.PATH_PREFIX
 
 
-def _require_login(request: Request) -> bool:
-    """显式校验登录状态，防御中间件逻辑变更导致的越权"""
-    return bool(getattr(request.state, 'user', None))
 
-
-def _login_redirect():
-    """未登录时重定向到登录页（显式拼接 PATH_PREFIX）"""
-    prefix = config.PATH_PREFIX.rstrip("/")
-    login_url = f"{prefix}/login" if prefix else "/login"
-    return RedirectResponse(url=login_url, status_code=302)
 
 
 @router.get("/chat")
 async def chat(request: Request):
     """消息页面
     传入 current_user 和 elderly_id 供模板使用"""
-    if not _require_login(request):
-        return _login_redirect()
+    if not require_login(request):
+        return login_redirect()
     user = getattr(request.state, 'user', None) or ''
     user_id = getattr(request.state, 'user_id', None)
     elderly_id = ''
@@ -66,8 +53,8 @@ async def chat(request: Request):
 @router.get("/chat/history")
 async def chat_history(request: Request, limit: int = 50):
     """BFF 代理聊天历史接口"""
-    if not _require_login(request):
-        return JSONResponse(content={"success": False, "message": "请先登录"}, status_code=401)
+    if not require_login(request):
+        return unauthorized_json()
     # 边界校验：限制 1~200，防止过大查询拖慢服务
     limit = max(1, min(limit, 200))
     messages = await elderly_client.get_chat_history(limit=limit)
