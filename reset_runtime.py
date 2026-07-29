@@ -8,7 +8,7 @@
 典型清理对象：
 - 用户密码库：server 的 SQLAlchemy 数据库（User 表）、family_monitor 的 ``users.json``
 - 老人端设备数据：``elderly_assistant/device_id.txt`` 及其 ``data/`` 目录
-- 其他运行时产物：各模块 ``data/``、``*.db`` / ``*.sqlite*``、由 install.py 下载的
+- 其他运行时产物：各模块 ``data/``、``*.db`` / ``*.sqlite*``、由 common/install.py 下载的
   ``dfrobot_huskylensv2.py``、``__pycache__`` 与 ``*.pyc`` 等
 
 删除策略：优先基于 ``git status --ignored`` 精确枚举被忽略 / 未跟踪项；

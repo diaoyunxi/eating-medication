@@ -76,7 +76,7 @@ def signal_handler(sig, frame):
 
 
 def check_and_install_dependencies():
-    """检查关键依赖是否已安装，若缺失则调用根目录统一 install.py（含 huskylens）。"""
+    """检查关键依赖是否已安装，若缺失则调用公共安装脚本 common/install.py（含 huskylens）。"""
     required_modules = [
         ('dotenv', 'python-dotenv'),
         ('requests', 'requests'),
@@ -91,9 +91,9 @@ def check_and_install_dependencies():
 
     if missing:
         print(f"检测到缺失依赖: {missing}")
-        print("正在调用根目录 install.py 安装依赖（含 huskylens）...")
+        print("正在调用common/install.py 安装依赖（含 huskylens）...")
         project_root = str(Path(__file__).resolve().parent.parent)
-        root_install = os.path.join(project_root, "install.py")
+        root_install = os.path.join(project_root, "common", "install.py")
         req_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
         if os.path.exists(root_install):
             try:
@@ -110,7 +110,7 @@ def check_and_install_dependencies():
                 print(f"自动安装失败: {e}")
                 print(f"请手动运行: python {root_install} {req_path} --huskylens")
         else:
-            print("未找到根目录 install.py，请手动安装依赖:")
+            print("未找到common/install.py，请手动安装依赖:")
             print(f"pip install {' '.join(missing)}")
 
 
@@ -130,7 +130,7 @@ def main():
     args = parse_arguments()
     DEBUG_MODE = args.debug or args.verbose
 
-    # 启动前检查依赖，缺失则调用根目录统一 install.py 安装（含 huskylens）
+    # 启动前检查依赖，缺失则调用 common/install.py 安装（含 huskylens）
     check_and_install_dependencies()
 
     # 启动时检查更新（自动更新功能）
