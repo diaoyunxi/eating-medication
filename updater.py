@@ -16,7 +16,7 @@
 【安全更新机制】
 1. 下载 release 完整 zip 到临时目录
 2. 解压到临时子目录
-3. 仅复制非保护文件到项目根目录（保护文件列表见 PROTECTED_PATTERNS）
+3. 仅复制非保护文件到项目根目录（保护文件规则见 common.runtime_protection）
 4. 保护文件：.env、data/、logs/、*.db、*.sqlite* 等运行时数据
 5. 更新失败时自动回滚到备份
 6. 更新成功后自动重启相关 systemd 服务（详见 _restart_services：普通部署用户经免密 sudoers 调用 systemctl restart，由 systemd 接管完成 server+family 重启）
@@ -37,7 +37,6 @@ import zipfile
 import tempfile
 import hashlib
 import logging
-import fnmatch
 from pathlib import Path
 from urllib.parse import urlparse
 import urllib.request
@@ -215,92 +214,11 @@ def _open_url(url, timeout, headers=None):
 
 
 # ============================================================
-# 保护文件配置：自动更新时这些文件/目录不会被覆盖
+# 保护文件判定：复用 common.runtime_protection 单一事实来源
+# （更新 / 部署场景：不覆盖 .env、data/、logs/、*.db 等运行时数据）
+# 保留原函数名 _is_protected_path 以兼容内部调用与既有测试。
 # ============================================================
-# 文件名或目录名（精确匹配，任意一级路径段命中即保护）
-PROTECTED_NAMES = {
-    ".env",
-    "data",
-    "logs",
-    "certs",
-    "captures",
-    "__pycache__",
-    ".git",
-    ".venv",
-    "venv",
-    "env",
-    "device_id.txt",
-    "bound_device.json",
-    "users.json",
-    "sessions.json",
-    "elderly_care.db",
-}
-
-# 文件名模式（通配符匹配，仅对文件名本身）
-PROTECTED_PATTERNS = [
-    "*.db",
-    "*.sqlite",
-    "*.sqlite3",
-    "*.key",
-    "*.cer",
-    "*.crt",
-    "*.pem",
-    "*.log",
-    "*.pid",
-    "*.sock",
-    "*.pyc",
-    "*.pyo",
-    "*.pyd",
-    "*.so",
-    "*.dll",
-    "*.exe",
-    "*.egg-info",
-    ".DS_Store",
-    "Thumbs.db",
-    "*.swp",
-    "*.swo",
-    "*~",
-    "*.tmp",
-    "*.bak",
-]
-
-# 子目录保护：data/ 与 logs/ 下所有文件均保护
-PROTECTED_SUBDIRS = {
-    "data",
-    "logs",
-    "certs",
-    "captures",
-    "__pycache__",
-}
-
-
-def _is_protected_path(rel_path: str) -> bool:
-    """判断相对路径是否属于受保护范围。
-
-    完整发布包解压后路径形如 server/.env、family_monitor/.env、
-    server/data/db.sqlite，因此需对任意一级路径段做受保护判定，
-    避免嵌套的 .env / data/ 等被覆盖。
-    """
-    parts = rel_path.replace("\\", "/").split("/")
-    if not parts:
-        return False
-    filename = parts[-1]
-    # 任意一级路径段为受保护文件名/目录名
-    for part in parts:
-        if part in PROTECTED_NAMES:
-            return True
-    # 文件名模式匹配
-    for pattern in PROTECTED_PATTERNS:
-        if fnmatch.fnmatch(filename.lower(), pattern.lower()):
-            return True
-    # 子目录保护：data/、logs/ 等下的所有文件均保护
-    for sub in PROTECTED_SUBDIRS:
-        if sub in parts:
-            return True
-    # .git 目录及子文件保护
-    if ".git" in parts:
-        return True
-    return False
+from common.runtime_protection import is_protected_path as _is_protected_path
 
 
 # ============================================================
