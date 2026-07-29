@@ -3,6 +3,14 @@
 """公共依赖安装脚本（位于 common/install.py，原仓库根目录 install.py 已迁移至此；各模块 main.py 检测到依赖缺失时调用）。
 
 执行流程:
+0. venv 引导（作为脚本运行时优先执行）:
+   - 已在 venv 中: 直接正常安装
+   - 不在 venv 中:
+     * venv 工具可用: 检测仓库根 .venv 目录, 存在则用其解释器
+       重新执行本脚本（进入 venv 环境）; 不存在则先创建再进入
+     * venv 工具不可用: Linux 尝试 sudo apt 安装 python3-venv 后重试;
+       Windows 仅提示（venv 属标准库, 缺失需修复 Python 安装）,
+       并降级在当前解释器继续安装
 1. 检测 pip 是否存在, 无则自动安装
    - Linux 优先 apt (apt-get install python3-pip)
    - Windows 使用 get-pip.py 引导安装
@@ -19,7 +27,7 @@
     - --target <dir>: huskylens 模块落地目录（默认仓库根/elderly_assistant/）
 
 也可被 import 调用:
-    from common.install import ensure_pip, install_requirements, install_dfrobot_huskylensv2
+    from common.install import ensure_venv, ensure_pip, install_requirements, install_dfrobot_huskylensv2
 
 GitHub 下载代理统一读取仓库根目录 .env 的 GITHUB_PROXY 字段（与 updater.py / common.envfile 共用）。
 """
@@ -69,6 +77,172 @@ def _load_root_github_proxy():
     """
     from common.envfile import read_github_proxy
     return read_github_proxy(ROOT_DIR)
+
+
+# ------------------------------------------------------------------
+# 0. venv 检测 / 引导
+# ------------------------------------------------------------------
+# 统一约定：虚拟环境目录固定为仓库根 .venv（与常见 IDE / 工具链默认一致）
+VENV_DIR = REPO_ROOT / ".venv"
+
+
+def in_venv():
+    """判断当前解释器是否运行在虚拟环境中 (venv/virtualenv 通用判据)"""
+    return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+
+
+def _venv_python(venv_dir):
+    """返回虚拟环境内 python 解释器路径 (按平台区分 Scripts/bin)"""
+    venv_dir = Path(venv_dir)
+    if os.name == "nt":
+        return venv_dir / "Scripts" / "python.exe"
+    return venv_dir / "bin" / "python"
+
+
+def _venv_tool_available():
+    """检测 venv 工具是否可用
+
+    仅有 venv 模块不够：Debian/Ubuntu 系统 Python 常缺 ensurepip
+    （需 apt 安装 python3-venv），此时 python -m venv 会创建失败。
+    因此两者同时存在才判定可用。
+    """
+    import importlib.util
+    importlib.invalidate_caches()
+    return (
+        importlib.util.find_spec("venv") is not None
+        and importlib.util.find_spec("ensurepip") is not None
+    )
+
+
+def _apt_install_venv_tool():
+    """Linux 下通过 apt 安装 python3-venv (尝试 sudo 与直接执行)"""
+    print("  [Linux] 尝试 apt 安装 python3-venv ...")
+    if shutil.which("apt-get") is None:
+        print("  未检测到 apt-get, 跳过")
+        return False
+    apt_steps = [
+        ["apt-get", "update"],
+        ["apt-get", "install", "-y", "python3-venv"],
+    ]
+    for apt_cmd in apt_steps:
+        for prefix in (["sudo"], []):
+            cmd = prefix + apt_cmd
+            try:
+                print("    执行:", " ".join(cmd))
+                proc = subprocess.run(
+                    cmd, timeout=900,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                )
+                if proc.returncode == 0:
+                    break
+                print(f"    失败 (返回码={proc.returncode})")
+            except FileNotFoundError:
+                print("    找不到命令:", cmd[0])
+                return False
+            except subprocess.TimeoutExpired:
+                print("    执行超时")
+                continue
+            except PermissionError as e:
+                print(f"    权限不足: {e}")
+                continue
+        else:
+            return False
+    return _venv_tool_available()
+
+
+def _create_venv(venv_dir):
+    """创建虚拟环境 (--system-site-packages 复用系统级硬件库, 如 pinpong)
+
+    返回 True 表示创建成功且解释器可用。
+    """
+    print(f"  创建虚拟环境: {venv_dir} ...")
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "venv", "--system-site-packages",
+             str(venv_dir)],
+            timeout=600,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        )
+    except Exception as e:
+        print(f"  创建虚拟环境失败: {e}")
+        return False
+    if proc.returncode != 0:
+        tail = (proc.stdout or b"")[-2000:].decode("utf-8", errors="ignore")
+        print(f"  创建虚拟环境失败 (返回码={proc.returncode})")
+        if tail.strip():
+            print("  --- 输出尾部 ---\n" + tail)
+        return False
+    return _venv_python(venv_dir).exists()
+
+
+def _reexec_in_venv(venv_python):
+    """用 .venv 内的解释器重新执行本脚本 (透传原始参数), 完成后退出
+
+    子进程运行于 venv 中 (in_venv() 为 True), 不会再次触发引导, 无递归风险。
+    """
+    cmd = [str(venv_python), os.path.abspath(__file__)] + sys.argv[1:]
+    print("  切换到虚拟环境执行:", " ".join(cmd))
+    print()
+    try:
+        code = subprocess.call(cmd)
+    except Exception as e:
+        print(f"  虚拟环境内执行失败: {e}")
+        sys.exit(1)
+    sys.exit(code)
+
+
+def ensure_venv():
+    """确保依赖安装发生在虚拟环境中（不在则自动引导）
+
+    逻辑:
+    - 已在 venv: 返回 True, 继续正常安装
+    - 不在 venv:
+      * venv 工具可用: .venv 存在(且解释器完整) -> re-exec 进入;
+        不存在/残缺 -> 创建后 re-exec 进入
+      * venv 工具不可用: Linux 走 sudo apt 安装 python3-venv 后重试;
+        Windows 仅提示, 降级在当前解释器继续
+    返回 True 表示继续在当前解释器安装; re-exec 成功则不会返回 (sys.exit)。
+    """
+    print("=" * 50)
+    print("检查虚拟环境 ...")
+    print("=" * 50)
+    if in_venv():
+        print("  已在虚拟环境中:", sys.prefix)
+        return True
+    print("  当前不在虚拟环境中")
+
+    if not _venv_tool_available():
+        print("  venv 工具不可用 (缺少 venv/ensurepip 模块)")
+        if sys.platform.startswith("linux"):
+            if not _apt_install_venv_tool():
+                print("  警告: python3-venv 自动安装失败, "
+                      "降级在当前环境继续安装依赖")
+                return True
+            print("  python3-venv 安装成功")
+        else:
+            # Windows: venv 属标准库, 缺失说明 Python 安装不完整, 仅提示
+            print("  提示: Windows 下 venv 为标准库, 缺失请修复/重装 Python; "
+                  "本次降级在当前环境继续安装依赖")
+            return True
+
+    venv_python = _venv_python(VENV_DIR)
+    if VENV_DIR.exists() and venv_python.exists():
+        print(f"  检测到已有虚拟环境: {VENV_DIR}")
+    else:
+        if VENV_DIR.exists():
+            print(f"  虚拟环境残缺 (缺少解释器), 重新创建: {VENV_DIR}")
+            try:
+                shutil.rmtree(VENV_DIR)
+            except Exception as e:
+                print(f"  清理残缺虚拟环境失败: {e}, "
+                      "降级在当前环境继续安装依赖")
+                return True
+        if not _create_venv(VENV_DIR):
+            print("  警告: 虚拟环境创建失败, 降级在当前环境继续安装依赖")
+            return True
+        print("  虚拟环境创建成功")
+    _reexec_in_venv(venv_python)  # 不会返回
+    return True  # 防御性返回, 正常不可达
 
 
 # ------------------------------------------------------------------
@@ -320,10 +494,10 @@ def install_package(pkg):
     tail = combined[-1000:]
     if tail.strip():
         print("  --- 错误尾部 ---\n" + tail)
-    print("  提示: 建议使用虚拟环境安装依赖:")
-    print("    python -m venv venv")
-    print("    source venv/bin/activate  # Linux/macOS")
-    print("    venv\\Scripts\\activate     # Windows")
+    print("  提示: 建议使用虚拟环境安装依赖 (本脚本可自动创建 .venv):")
+    print("    python -m venv .venv")
+    print("    source .venv/bin/activate  # Linux/macOS")
+    print("    .venv\\Scripts\\activate     # Windows")
     return False
 
 
@@ -346,7 +520,8 @@ def install_requirements(requirements_path):
     print(f"正在安装依赖 ({req_path}) 镜像源: {PIP_INDEX_URL}")
     print("=" * 50)
     packages = []
-    with open(req_path, "r", encoding="utf-8") as f:
+    # utf-8-sig: 兼容 Windows 记事本等写入的带 BOM 文件, 避免首包名混入 \ufeff
+    with open(req_path, "r", encoding="utf-8-sig") as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith("#"):
@@ -531,6 +706,10 @@ if __name__ == "__main__":
         print("=" * 60)
         print()
         requirements_path, huskylens, target = _parse_args(sys.argv)
+        # 第 0 步: venv 引导（在 venv 内则直接继续; 否则创建/进入 .venv
+        # 后 re-exec, 或按平台降级在当前环境继续）
+        ensure_venv()
+        print()
         if not ensure_pip():
             sys.exit(1)
         print()
