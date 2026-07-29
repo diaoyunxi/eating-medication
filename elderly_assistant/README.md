@@ -64,13 +64,13 @@ elderly_assistant/
 
 ### 2. 安装依赖
 
-依赖安装已统一为仓库根目录 `install.py`（各模块不再各自维护），需传入本模块 `requirements.txt` 路径，老人端额外加 `--huskylens` 安装摄像头依赖：
+依赖安装已统一为仓库根目录 `common/install.py`（各模块不再各自维护），需传入本模块 `requirements.txt` 路径，老人端额外加 `--huskylens` 安装摄像头依赖：
 
 ```bash
-python ../install.py requirements.txt --huskylens
+python ../common/install.py requirements.txt --huskylens
 ```
 
-`install.py` 行为：
+`common/install.py` 行为：
 
 1. 先检测 `pip` 是否存在；无则按平台自动安装（Linux 优先 `apt-get install python3-pip`，Windows 下载 `get-pip.py`，其他走 `ensurepip` 后备）。
 2. 正常 `pip install`（使用 `-i PIP_INDEX_URL` 临时指定镜像源，默认清华源，可通过环境变量覆盖，不修改全局 pip 配置）。

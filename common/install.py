@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""根目录统一依赖安装脚本（各模块 main.py 检测到依赖缺失时调用）。
+"""公共依赖安装脚本（位于 common/install.py，原仓库根目录 install.py 已迁移至此；各模块 main.py 检测到依赖缺失时调用）。
 
 执行流程:
 1. 检测 pip 是否存在, 无则自动安装
@@ -13,15 +13,15 @@
 4. 可选: 安装 dfrobot_huskylensv2 (PyPI 未发布, 从官方仓库下载, 供老人端使用)
 
 命令行用法:
-    python install.py <requirements_path> [--huskylens] [--target <dir>]
+    python common/install.py <requirements_path> [--huskylens] [--target <dir>]
     - requirements_path: requirements.txt 的路径（必填）
     - --huskylens: 同时安装 dfrobot_huskylensv2（老人端专用）
     - --target <dir>: huskylens 模块落地目录（默认仓库根/elderly_assistant/）
 
 也可被 import 调用:
-    from install import ensure_pip, install_requirements, install_dfrobot_huskylensv2
+    from common.install import ensure_pip, install_requirements, install_dfrobot_huskylensv2
 
-GitHub 下载代理统一读取根目录 .env 的 GITHUB_PROXY 字段（与 updater.py 共用）。
+GitHub 下载代理统一读取仓库根目录 .env 的 GITHUB_PROXY 字段（与 updater.py / common.envfile 共用）。
 """
 
 import sys
@@ -43,8 +43,15 @@ GET_PIP_URL = os.environ.get(
     "https://bootstrap.pypa.io/get-pip.py",
 )
 
-# 仓库根目录（本文件所在目录）
-ROOT_DIR = Path(__file__).resolve().parent
+# 仓库根目录：本文件位于 common/ 下，parent.parent 即为仓库根目录。
+# 将仓库根加入 sys.path，使脚本既可作为 `python common/install.py` 运行，
+# 也可被 common 包内其它模块 import（install.py 内部依赖 common.envfile）。
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+# 安装脚本解析相对 requirements.txt 路径、定位仓库根 .env 时使用的基准目录。
+ROOT_DIR = REPO_ROOT
 
 # dfrobot_huskylensv2 是 PyPI 未发布的单文件模块, 需从官方仓库自动下载安装
 HUSKYLENS_RAW_URL = os.environ.get(
@@ -512,7 +519,7 @@ def _parse_args(argv):
             sys.exit(2)
         i += 1
     if not requirements_path:
-        print("用法: python install.py <requirements_path> [--huskylens] [--target <dir>]")
+        print("用法: python common/install.py <requirements_path> [--huskylens] [--target <dir>]")
         sys.exit(2)
     return requirements_path, huskylens, target
 
