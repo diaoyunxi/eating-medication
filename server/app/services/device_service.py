@@ -70,6 +70,22 @@ class DeviceService:
     """设备相关业务逻辑。"""
 
     @staticmethod
+    def find_device_accounts(
+        db: Session, device_id: str
+    ) -> "tuple[Optional[User], Optional[User]]":
+        """按 device_id 查找「设备-用户」的两个候选，集中维护查询模式。
+
+        返回 ``(by_device_id_field, by_username)``：
+        - by_device_id_field：``User.device_id == device_id`` 命中（已被家属绑定的真实老人）
+        - by_username：``User.username == device_id`` 命中（开机注册自动创建的虚拟用户）
+
+        作为 device_id->用户的唯一查询原语，避免各端点重复实现。
+        """
+        by_field = db.query(User).filter(User.device_id == device_id).first()
+        by_name = db.query(User).filter(User.username == device_id).first()
+        return by_field, by_name
+
+    @staticmethod
     def get_device_user(db: Session, device_id: str) -> User:
         """查找设备对应的真实用户
 
@@ -78,10 +94,8 @@ class DeviceService:
 
         :raises HTTPException: 设备未注册时抛 404
         """
-        user = db.query(User).filter(User.device_id == device_id).first()
-        if user:
-            return user
-        user = db.query(User).filter(User.username == device_id).first()
+        by_field, by_name = DeviceService.find_device_accounts(db, device_id)
+        user = by_field or by_name
         if not user:
             raise HTTPException(status_code=404, detail="设备未注册")
         return user
@@ -121,9 +135,8 @@ class DeviceService:
         _masked = mask_device_id(device_id or "")
         logger.info(f"设备注册/心跳: {_masked}")
 
-        user = db.query(User).filter(User.device_id == device_id).first()
-        if not user:
-            user = db.query(User).filter(User.username == device_id).first()
+        by_field, by_name = DeviceService.find_device_accounts(db, device_id)
+        user = by_field or by_name
 
         if not user:
             # 都找不到，创建虚拟用户（待家属后续绑定到真实老人）

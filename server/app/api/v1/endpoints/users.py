@@ -6,6 +6,7 @@ from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.user import UserOut, UserUpdate, BindFamilyReq
 from app.services.user_service import UserService
+from app.services.device_service import DeviceService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/users", tags=["用户"])
@@ -56,11 +57,8 @@ def bind_family(
         raise HTTPException(status_code=400, detail="绑定失败，请检查用户ID或角色")
 
     # 校验 device_id 对应的设备已注册
-    # 查找逻辑：
-    # - 优先查 device_id 字段（已被其他老人绑定的情况）
-    # - 回退查 username == device_id（虚拟用户，待迁移）
-    existing_device_user = db.query(User).filter(User.device_id == req.device_id).first()
-    virtual_user = db.query(User).filter(User.username == req.device_id).first()
+    # 复用统一设备→用户解析（优先 device_id 字段，回退 username 虚拟用户）
+    existing_device_user, virtual_user = DeviceService.find_device_accounts(db, req.device_id)
 
     if not existing_device_user and not virtual_user:
         # 设备未注册，家属无法绑定
