@@ -24,11 +24,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-# 必须保留的运行时文件名（任意层级）
-PRESERVE_NAMES = {".env"}
-# 必须保留的目录名（任意层级，含其内部所有内容），即 logs 文件夹
-PRESERVE_DIR_NAMES = {"logs"}
+# 保留项判定复用 common 单一事实来源（is_reset_preserved_path 别名 _is_preserved）
+from common.runtime_protection import is_reset_preserved_path as _is_preserved
 
+# 保留项（.env / logs/）判定已上收至 common.runtime_protection.is_reset_preserved_path
 # 兜底显式删除的运行时数据目录（相对仓库根）
 EXPLICIT_DATA_DIRS = (
     "server/data",
@@ -44,15 +43,6 @@ EXPLICIT_FILE_PATTERNS = (
     "device_id.txt",
     "dfrobot_huskylensv2.py",
 )
-
-
-def _is_preserved(parts):
-    """判断相对路径片段中是否包含需保留项（.env / logs 目录）。"""
-    if any(p in PRESERVE_NAMES for p in parts):
-        return True
-    if PRESERVE_DIR_NAMES & set(parts):
-        return True
-    return False
 
 
 def _delete_path(path: Path, deleted: list, skipped: list):
