@@ -125,16 +125,15 @@ def _ensure_env_template():
 def _load_github_proxy():
     """读取根目录 .env 的 GITHUB_PROXY 字段。
 
+    与 install.py 共用 common.envfile.read_github_proxy()，避免代理配置分散。
     支持两种形式：
     1. 镜像前缀（如 https://gh-proxy.com）：下载 URL 改写为 {proxy}/{原始URL}
     2. 正向代理（如 http://127.0.0.1:7890）：通过 urllib ProxyHandler 透明转发
     未配置或文件不存在时返回 None，走直连。
     """
-    data = _load_root_env()
-    proxy = data.get("GITHUB_PROXY")
-    if isinstance(proxy, str) and proxy.strip():
-        return proxy.strip()
-    return None
+    from common.envfile import read_github_proxy
+    proxy = read_github_proxy(_CONFIG_PATH.parent)
+    return proxy if proxy else None
 
 
 # 首次运行时若根目录无 .env，自动生成模板

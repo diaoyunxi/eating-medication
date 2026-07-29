@@ -4,12 +4,14 @@
 用于 AI 公开端点与注册端点等场景。
 注意：仅适用于单进程部署，多进程需改用 Redis 等共享存储。
 """
+import threading
 import time
 from collections import defaultdict
 from typing import Dict, List
 
 # 内存存储：key -> [时间戳列表]
 _bucket: Dict[str, List[float]] = defaultdict(list)
+_lock = threading.Lock()
 
 
 def check_rate_limit(key: str, max_calls: int, window_seconds: int = 60) -> bool:
@@ -23,18 +25,18 @@ def check_rate_limit(key: str, max_calls: int, window_seconds: int = 60) -> bool
     """
     now = time.time()
     cutoff = now - window_seconds
-    # 清理过期记录
-    recent = [t for t in _bucket[key] if t > cutoff]
-    # 当 recent 为空时从 _bucket 中删除该 key，
-    # 避免 _bucket 无限增长（每个新 IP 或 key 都会留下空列表条目永不清理）。
-    if not recent:
-        _bucket.pop(key, None)
-        recent = [now]
-        # 空列表直接放行，但需记录本次调用
+    with _lock:
+        # 清理过期记录
+        recent = [t for t in _bucket[key] if t > cutoff]
+        # 当 recent 为空时从 _bucket 中删除该 key，
+        # 避免 _bucket 无限增长（每个新 IP 或 key 都会留下空列表条目永不清理）。
+        if not recent:
+            _bucket.pop(key, None)
+            recent = [now]
+            _bucket[key] = recent
+            return True
         _bucket[key] = recent
+        if len(recent) >= max_calls:
+            return False
+        _bucket[key].append(now)
         return True
-    _bucket[key] = recent
-    if len(recent) >= max_calls:
-        return False
-    _bucket[key].append(now)
-    return True

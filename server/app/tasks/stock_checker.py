@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 from app.core.database import SessionLocal
+from app.utils.datetime_utils import hhmm_to_today
 from app.models.medication_plan import MedicationPlan
 from app.models.medication_record import MedicationRecord
 from app.models.user import User
@@ -53,8 +54,8 @@ async def check_low_stock_job():
             # 去重，仅在未通知或距上次通知超过 1 天时发送
             last = plan.last_notified_at
             if last is not None:
-                # SQLite 取出可能为 naive，统一按 naive 比较
-                last_naive = last.replace(tzinfo=None) if last.tzinfo is not None else last
+                # 统一转换为 naive UTC 后比较（对 naive 无副作用，对 aware 安全）
+                last_naive = last.replace(tzinfo=None)
                 if now_naive - last_naive < _NOTIFY_INTERVAL:
                     continue
 
@@ -79,16 +80,6 @@ async def check_low_stock_job():
         db.close()
 
 
-def _hhmm_to_today(t, now):
-    """将 HH:MM 时间字符串转换为今天对应的 naive datetime，失败返回 None"""
-    try:
-        from datetime import time as _time
-        hh, mm = str(t).strip().split(":")
-        return datetime.combine(now.date(), _time(int(hh), int(mm)))
-    except Exception:
-        return None
-
-
 async def check_missed_medication_job():
     """定时任务：扫描已过点且未服药的计划，标记漏服并通知家属（修复缺口②）
 
@@ -107,38 +98,43 @@ async def check_missed_medication_job():
         missed_count = 0
         for plan in plans:
             for t in plan.schedule_times:
-                sched = _hhmm_to_today(t, now)
-                if sched is None:
+                # 检查今天和昨天的计划时间（修复跨天漏服边界缺陷：00:00-00:30 窗口
+                # 可能漏检前一天的 23:00 漏服）
+                sched_today = hhmm_to_today(t, now)
+                if sched_today is None:
                     continue
-                # 仅处理已超过计划时间 30 分钟的时间点；未来时间点跳过
-                if now < sched + timedelta(minutes=30):
-                    continue
-                rec = (
-                    db.query(MedicationRecord)
-                    .filter(
-                        MedicationRecord.plan_id == plan.id,
-                        MedicationRecord.scheduled_time == sched,
+                sched_yesterday = sched_today - timedelta(days=1)
+
+                for sched in (sched_yesterday, sched_today):
+                    # 仅处理已超过计划时间 30 分钟的时间点；未来时间点跳过
+                    if now < sched + timedelta(minutes=30):
+                        continue
+                    rec = (
+                        db.query(MedicationRecord)
+                        .filter(
+                            MedicationRecord.plan_id == plan.id,
+                            MedicationRecord.scheduled_time == sched,
+                        )
+                        .first()
                     )
-                    .first()
-                )
-                if rec and rec.status in ("taken", "missed"):
-                    continue
-                if rec:
-                    rec.status = "missed"
-                else:
-                    rec = MedicationRecord(
-                        plan_id=plan.id,
-                        user_id=plan.user_id,
-                        scheduled_time=sched,
-                        status="missed",
+                    if rec and rec.status in ("taken", "missed"):
+                        continue
+                    if rec:
+                        rec.status = "missed"
+                    else:
+                        rec = MedicationRecord(
+                            plan_id=plan.id,
+                            user_id=plan.user_id,
+                            scheduled_time=sched,
+                            status="missed",
+                        )
+                        db.add(rec)
+                    db.commit()
+                    await notifier.notify_missed_medication(
+                        db, plan.user_id, plan.drug_name, sched.isoformat()
                     )
-                    db.add(rec)
-                db.commit()
-                await notifier.notify_missed_medication(
-                    db, plan.user_id, plan.drug_name, sched.isoformat()
-                )
-                missed_count += 1
-                logger.info(f"漏服通知：用户 {plan.user_id} 的 {plan.drug_name} @ {sched}")
+                    missed_count += 1
+                    logger.info(f"漏服通知：用户 {plan.user_id} 的 {plan.drug_name} @ {sched}")
         logger.info(f"漏服检查完成，本次通知 {missed_count} 条")
     except Exception as e:
         logger.error(f"漏服检查任务出错: {e}")

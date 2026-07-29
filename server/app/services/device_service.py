@@ -18,6 +18,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, mask_device_id
+from app.utils.datetime_utils import hhmm_to_today
 from app.models.chat_message import ChatMessage
 from app.models.medication_plan import MedicationPlan
 from app.models.medication_record import MedicationRecord
@@ -45,17 +46,6 @@ def _parse_dt(s):
     except Exception:
         return None
 
-
-def _hhmm_to_today(t, now):
-    """将 HH:MM 时间字符串转换为今天对应的 naive datetime，失败返回 None"""
-    try:
-        from datetime import time as _time
-        hh, mm = str(t).strip().split(":")
-        return datetime.combine(now.date(), _time(int(hh), int(mm)))
-    except Exception:
-        return None
-
-
 def _match_plans_by_drug(db, user, drug_name, now_dt):
     """兼容旧版设备：仅传 drug_name 时，按药名+时间窗口匹配本用户计划"""
     if not drug_name:
@@ -66,7 +56,7 @@ def _match_plans_by_drug(db, user, drug_name, now_dt):
         if p.drug_name != drug_name:
             continue
         for t in p.schedule_times:
-            sched = _hhmm_to_today(t, now_dt)
+            sched = hhmm_to_today(t, now_dt)
             if sched and abs((now_dt - sched).total_seconds()) <= 90 * 60:
                 matched.append({
                     "plan_id": p.id,

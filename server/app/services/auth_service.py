@@ -11,6 +11,10 @@ from app.utils import email_code as email_code_store
 
 logger = logging.getLogger(__name__)
 
+# 预计算 dummy hash，用于时序攻击防护（用户不存在时也执行一次 bcrypt verify，
+# 使两条路径耗时一致，避免通过响应时间差探测用户是否存在）
+_DUMMY_HASH = hash_password("__dummy_timing_attack_protection__")
+
 
 def _mask_email(email: Optional[str]) -> str:
     """对邮箱做日志脱敏，仅保留首字符，避免 PII 明文落日志。"""
@@ -127,13 +131,12 @@ class AuthService:
     def login(db: Session, phone: str, password: str) -> Optional[str]:
         """用户登录（手机号 + 密码），返回 access_token，失败返回 None"""
         user = db.query(User).filter(User.phone == phone).first()
-        # 防时序攻击——用户不存在时也执行一次 bcrypt 验证消耗时间，
-        # 避免通过响应时间差异探测用户是否存在
-        if not user:
-            dummy_hash = hash_password("dummy")
-            verify_password(password, dummy_hash)
+        # 防时序攻击：用户存在和不存在时均执行一次 verify_password，
+        # 使两条路径耗时一致，避免通过响应时间差探测用户是否存在
+        user_hash = user.hashed_password if user else _DUMMY_HASH
+        if not verify_password(password, user_hash):
             return None
-        if not verify_password(password, user.hashed_password):
+        if not user:
             return None
         # 记录最后登录时间
         user.last_login_at = datetime.now(timezone.utc)
