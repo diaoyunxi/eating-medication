@@ -16,6 +16,7 @@ import secrets
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
+from common.envfile import write_env_text
 
 logger = logging.getLogger(__name__)
 
@@ -159,9 +160,7 @@ class Config:
             f"DISPLAY_COMPACT=False\n"
         )
         try:
-            env_path.write_text(env_content, encoding='utf-8')
-            # 设置文件权限为 600，仅所有者可读写（保护密钥）
-            os.chmod(env_path, 0o600)
+            write_env_text(env_path, env_content)
             logger.info(f"首次运行：已自动生成 {env_path}（含随机 SECRET_KEY，DEBUG=true）")
             logger.warning("生产部署时请将 .env 中 DEBUG 改为 false")
         except Exception as e:

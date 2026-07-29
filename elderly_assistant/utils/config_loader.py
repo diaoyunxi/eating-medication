@@ -105,8 +105,7 @@ _ENV_TEMPLATE = (
 def _ensure_env_template():
     """首次运行无 .env 时自动生成完整模板（开箱即用），已存在则不覆盖。"""
     try:
-        if not ENV_PATH.is_file():
-            ENV_PATH.write_text(_ENV_TEMPLATE, encoding="utf-8")
+        if ensure_env_template(ENV_PATH, _ENV_TEMPLATE):
             logger.info(f"首次运行：已自动生成 {ENV_PATH}（含全部默认配置项）")
     except Exception as e:
         logger.warning(f"自动生成 .env 模板失败: {e}")
@@ -166,7 +165,7 @@ def save_server_url(server_url, config_path=ENV_PATH):
     """
     server_url = (server_url or "").strip()
     try:
-        from common.envfile import update_env_fields
+        from common.envfile import update_env_fields, ensure_env_template
         update_env_fields(config_path, {"SERVER_BASE_URL": server_url})
         logger.info(f"已保存服务器地址: {server_url}")
         return True

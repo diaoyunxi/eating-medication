@@ -27,7 +27,11 @@ def read_env_dict(path: PathLike) -> Dict[str, str]:
             if not s or s.startswith("#") or "=" not in s:
                 continue
             k, v = s.split("=", 1)
-            data[k.strip()] = v.strip()
+            k = k.strip()
+            if not k:
+                # 跳过形如 "=value"（无键）的非法行，避免产生空键
+                continue
+            data[k] = v.strip()
     except Exception:
         pass
     return data
@@ -64,6 +68,21 @@ def write_env_text(path: PathLike, content: str) -> None:
         p.chmod(0o600)
     except Exception:
         pass
+
+
+def ensure_env_template(path: PathLike, template_text: str) -> bool:
+    """若 .env 模板不存在则写入（含 600 权限），已存在则跳过。
+
+    统一三端「首次运行自动生成 .env」的创建逻辑，避免各自重复实现
+    ``write_text`` + ``chmod`` 与「存在性守卫」。
+
+    :return: True 表示本次实际写入了文件（可用于决定是否打印提示）
+    """
+    p = Path(path)
+    if p.exists():
+        return False
+    write_env_text(p, template_text)
+    return True
 
 
 def read_github_proxy(root_dir: PathLike = None) -> str:
