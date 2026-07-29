@@ -15,10 +15,11 @@ python main.py
 
 `common/install.py` 行为（已与其他模块统一为同一份脚本）：
 
-1. 先检测 `pip` 是否存在；无则按平台自动安装（Linux 优先 `apt-get install python3-pip`，Windows 下载 `get-pip.py`，其他走 `ensurepip` 后备）。
-2. 正常 `pip install`（使用 `-i PIP_INDEX_URL` 临时指定镜像源，默认清华源，可通过环境变量覆盖，不修改全局 pip 配置）。
-3. 若 `pip install` 输出包含 `--break-system-packages`（PEP 668 `externally-managed-environment` 错误），自动加上该参数重新 `pip install`。
-4. 已安装的包自动跳过（优先 `importlib.import_module` 检测，回退 `pip show`）。
+1. venv 引导：已在虚拟环境则直接安装；否则检测 venv 工具（`venv`+`ensurepip` 模块），可用时复用/创建仓库根 `.venv`（`--system-site-packages`）并用其解释器重新执行安装；不可用时 Linux 尝试 `sudo apt-get install python3-venv` 后重试，Windows 仅提示并降级在当前环境继续。
+2. 检测 `pip` 是否存在；无则按平台自动安装（Linux 优先 `apt-get install python3-pip`，Windows 下载 `get-pip.py`，其他走 `ensurepip` 后备）。
+3. 正常 `pip install`（使用 `-i PIP_INDEX_URL` 临时指定镜像源，默认清华源，可通过环境变量覆盖，不修改全局 pip 配置）。
+4. 若 `pip install` 输出包含 `--break-system-packages`（PEP 668 `externally-managed-environment` 错误），自动加上该参数重新 `pip install`。
+5. 已安装的包自动跳过（优先 `importlib.import_module` 检测，回退 `pip show`）。
 
 ## API 文档
 
