@@ -1,1161 +1,835 @@
 # 项目开发历史记录
 
-## v2.19.11 (2026-07-25) — 修复 update CI 在 ci: 提交时被 skip
+> 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
+> 条目按版本号倒序（最新在前）。
+
+## v2.24.1 (2026-07-29) — 版本号升至 2.24.1（.env 注释修正）
 
 ### 概述
-v2.19.10 发布后，以 `ci:` 开头的提交在 GitHub Actions 中两个 workflow 均被判定为
-「跳过」，update 步骤完全未执行。
-
-### 根因
-- `python-app.yml` 的 `test` job `if` 条件仅含 `feat/fix/refactor/build`，**不含 `ci`**，
-  因此 `ci:` 提交时该 job（含 update 步骤）整体被跳过。
-- `update.yml` 的否定条件又被错误地加入了 `ci`，导致 `ci:` 提交时「完整条件为真、
-  取反为假」，本应补跑 update 的 `update.yml` 也被跳过。
-- 二者叠加，使 `ci:` 提交下 update 无任何 workflow 执行。
+相对 v2.24.0，本版本仅 1 个提交、无功能性代码改动（仅 `.env` 注释微调），为纯版本号对齐。
 
 ### 主要变更
-- **`.github/workflows/update.yml`**：将其否定条件还原为「原 python-app.yml 条件（不含 `ci`）」的取反。
-  这样 `ci:` 提交会触发 `update.yml` 执行 update，且与 `python-app.yml`（无 `ci`）互斥、不会重复。
-- `python-app.yml` 维持原触发条件（不含 `ci`），其 update 步骤仅在 `feat/fix/refactor/build`
-  提交时随 test job 执行。
-- 版本 2.19.10 -> 2.19.11（CI 配置缺陷修复，向下兼容）。
+- chore: 版本 2.24.0 -> 2.24.1（.env 注释修正）
 
-### 修正后触发矩阵
-| 提交类型 | python-app.yml | update.yml |
-| :--- | :--- | :--- |
-| ci: | 跳过 | 执行 update |
-| feat/fix/refactor/build | 执行 test + update | 跳过 |
-| 其他（docs 等） | 跳过 | 执行 update |
+---
 
-## v2.19.10 (2026-07-25) — CI 新增 update 步骤与独立 update.yml 工作流
+## v2.24.0 (2026-07-29) — 重构版本收尾：.env 注释修正 + read_env_dict bug 修复标注
 
 ### 概述
-在 GitHub Actions 中增加「部署更新」能力：CI 推送 / 合并到 main 后，自动请求部署端的
-更新接口触发拉取新版本。接口地址由项目根目录 `config.json` 的 `public_url` 字段决定，
-拼接为 `{public_url}/server/api/v1/updater`（该路由见 `server/app/api/v1/endpoints/updater.py`）。
+相对 v2.23.0，本版本共 2 个提交、1 个文件（`.env`）变更。作为 v2.23.0「单一事实来源」重构的收尾，修正 `.env` 模板中 install.py 路径说明为 `common/install.py`，并在版本说明中标注同步修复了 `read_env_dict` bug。
 
 ### 主要变更
-- **`.github/workflows/python-app.yml`**：在 `Test with pytest` 之后新增 `update` 步骤，
-  运行时从根 `config.json` 读取 `public_url`，对 `{public_url}/server/api/v1/updater`
-  发起 `curl -fsS` 请求触发部署端更新；`public_url` 为空则跳过。
-  同时将 `ci` 加入 CI 触发条件（与 feat/fix/refactor/build 并列），使 `ci:` 提交也能跑流水线。
-- **`.github/workflows/update.yml`（新增）**：专门承载「非主条件」提交（即提交信息/PR 标题
-  不含 feat/fix/refactor/build/ci）的更新触发，条件为 python-app.yml 完整触发条件的否定，
-  两者互斥，保证每次 push 的 update 仅执行一次。其内部 `update` 步骤逻辑与 python-app.yml 一致。
-- 版本 2.19.9 -> 2.19.10（CI 配置增强，向下兼容）。
+- docs(.env): 修正注释中 install.py 路径说明为 common/install.py
+- chore: 版本 2.23.0 -> 2.24.0（重构版本：受保护路径 / 设备解析 / 家属端样板 / .env 写入统一 + read_env_dict bug 修复）
 
-### 说明
-- 部署端 `server` 需正常运行且 `/server/api/v1/updater` 可达（Cloudflare 隧道已暴露公网）。
-- `update` 步骤对 curl 非零退出码容忍（仅打印提示，不中断流水线）。
+---
 
-## v2.19.9 (2026-07-25) — 新增根目录 config.json 配置交付（含 public_url 公网基址字段）
+## v2.23.0 (2026-07-29) — 多端样板与基础设施「单一事实来源」收口 + install venv 自动引导
 
 ### 概述
-此前根目录 `config.json` 仅在部署端首次运行时由 `updater.py` 自动生成，且未纳入版本管理，
-也未记录公网基址。本次将该文件正式纳入仓库，并新增 `public_url` 字段，便于前端/部署脚本
-统一读取公网基址（不含 `/server` 与 `/family` 路径前缀）。
+相对 v2.22.3，本版本共 5 个提交、20 个文件变更，是近期最大的一次结构收口：将散落在三端的 `.env` 写入、受保护路径规则、device_id→用户解析、家属端路由样板统一到 `common/` 单一模块；install 脚本新增 venv 自动引导。
 
 ### 主要变更
-- **新增 `config.json`（仓库根目录）**，内容包含 `updater.py` 生成的所有字段，并新增：
-  - `auto_pull`：是否启用安全自动更新（缺省 true）
-  - `github_proxy`：GitHub 代理 / 镜像前缀（留空走直连）
-  - `public_url`：公网基址，示例值 `https://my-website.ccwu.cc/eating-medication`
-- **`.gitignore`**：新增 `!config.json` 放行根目录配置，使其纳入版本管理。
-  部署端 `updater.py` 已将 `config.json` 列入保护文件，`auto_pull` 更新不会覆盖此文件。
-- **`updater.py`**：将 `public_url` 加入 `_CONFIG_TEMPLATE`，确保首次部署无 config 时
-  自动生成的 `config.json` 也含该字段（默认空字符串，由部署方填写）。
-- 版本 2.19.8 -> 2.19.9（向下兼容，新增配置字段 / 配置文件纳入版本管理）。
+- refactor(env): .env 模板生成与写入统一到 common.envfile；路由改用绝对导入
+- refactor(family): 路由鉴权 / Jinja / 用户 JWT 客户端样板合并为 routes.web_helpers
+- refactor(server): device_id→用户解析合并为 DeviceService.find_device_accounts 单一原语
+- refactor(protection): 受保护路径规则三份合一为 common.runtime_protection 单一事实来源
+- feat(install): 依赖安装脚本增加 venv 自动引导（自动建/复用仓库根 .venv 并 re-exec；Linux 缺 venv 走 apt 安装，Windows 降级提示）
 
-## v2.19.8 (2026-07-25) — 修复注册页 Turnstile 人机验证「container 类型无效」报错
+### 涉及文件
+- `common/envfile.py`、`common/install.py`、`common/runtime_protection.py`、`server/app/services/device_service.py`、`family_monitor/routes/web_helpers.py`、`updater.py`、`reset_runtime.py`、三端 `main.py` / `README.md` / `requirements.txt`，以及 `tests/` 下 4 个新增测试（`test_envfile_helpers.py`、`test_family_web_helpers.py`、`test_runtime_protection.py`、`test_server_device_service.py`）等共 20 个文件
+
+---
+
+## v2.22.3 (2026-07-29) — 版本号对齐 v2.22.2（修复发布版本冲突）
 
 ### 概述
-注册页在通过 OAuth（GitHub/Gitee 绑定）回调回到 `/register?oauth=1` 的补全注册流程时，
-前端控制台报：`[Cloudflare Turnstile] Invalid type for parameter "container", expected
-"string" or an implementation of "HTMLElement".`，并回退提示「人机验证加载失败，可尝试直接提交」。
-
-根因为模板在 `oauth_mode` 下按设计隐藏了人机验证容器 `#turnstileContainer`（`{% if not oauth_mode %}`），
-但 `register.html` 的 `renderTurnstile()` 仍无条件调用 `window.turnstile.render(
-document.getElementById('turnstileContainer'), ...)`，当容器被隐藏时取到 `null`，
-向 Turnstile 传入了非法的 `null` 容器参数而抛错。`.catch` 将其包装成上述报错。
+相对 v2.22.2，本版本仅 1 个提交、无代码文件变更，为版本号对齐发布（2.22.2 -> 2.22.3），说明本批 install.py 迁移已合入。
 
 ### 主要变更
-- **`family_monitor/templates/register.html`**：在 `renderTurnstile()` 渲染前先检查
-  `#turnstileContainer` 是否存在；OAuth 补全注册模式（容器被隐藏）下直接降级
-  （`turnstileAvailable=false`），不再向 `turnstile.render` 传入 `null`，避免报错。
-  降级后提交会携带空的 `cf-turnstile-response`，配合后端 `oauth_pending` cookie 转发
-  `oauth_token`、由 server 跳过 Turnstile 的既有逻辑，提交链路不受影响。
-- 版本 2.19.7 -> 2.19.8（向下兼容的缺陷修复 / 前端人机验证降级健壮性）。
+- chore: 版本号 2.22.2 -> 2.22.3（对齐最新发布 v2.22.2，修复版本冲突；本批变更含 install.py 迁移至 common/）
 
-### 部署注意
-该问题仅影响「OAuth 绑定补全注册」子流程的提示文案，不影响普通注册与登录。部署端拉取
-v2.19.8 后 `register.html` 自动更新即可消除报错。
+---
 
-## v2.19.7 (2026-07-25) — 修复 server 启动崩溃：public.py 重复 username 关键字参数
+## v2.22.2 (2026-07-29) — 将 install.py 迁移至 common/ 统一基础设施
 
 ### 概述
-部署端更新到 v2.19.6 后执行 `python3 server/main.py` 立即崩溃，报错
-`SyntaxError: keyword argument repeated: username (public.py, line 158)`。
-根因为 `register_device` 创建虚拟用户时，`User(...)` 构造器中同时出现了
-`username=req.device_id` 与 `username=req.device_name or req.device_id` 两条
-重复的 `username` 关键字参数，属于 Python 语法错误，导致整个模块导入失败、服务无法启动。
+相对 v2.22.1，本版本共 1 个提交、11 个文件变更，把三端各自的 install.py 收敛到 `common/install.py` 单一实现：`ROOT_DIR` 指向仓库根并注入 `sys.path`，同步更新三端 `main.py` 与文档引用。
 
 ### 主要变更
-- **`server/app/api/v1/endpoints/public.py`**：删除 `register_device` 中重复的一行
-  `username=req.device_name or req.device_id`，仅保留 `username=req.device_id`。
-  该值同时与下方回退查询 `User.username == req.device_id` 保持一致，旧虚拟用户可正常反查。
-  `device_name` 为可选字段且无对应持久化列，删除后不影响任何功能。
-- 版本 2.19.6 -> 2.19.7（向下兼容的缺陷修复 / 启动崩溃修复）。
+- refactor(common): 将 install.py 迁移至 common/ 统一基础设施（阶段一收口首项；ROOT_DIR 指向仓库根并注入 sys.path；三端 main.py 与文档引用同步更新）
 
-### 部署注意
-该缺陷存在于 v2.19.6 的已发布代码中，会导致 `server` 服务启动即退出（仅 `family_monitor`
-可正常启动）。部署端拉取 v2.19.7 后服务即可恢复正常；若此前已因该错误停止，请重新拉取并启动
-`server/main.py` 与 `family_monitor/main.py`。
+### 涉及文件
+- `common/envfile.py`、`common/install.py`、`elderly_assistant/main.py`、`elderly_assistant/README.md`、`elderly_assistant/requirements.txt`、`family_monitor/main.py`、`family_monitor/README.md`、`server/main.py`、`server/README.md`、`reset_runtime.py`、`updater.py`
 
-## v2.19.6 (2026-07-25) — 修复 check_for_update 重复请求 GitHub API 与重复日志
+## v2.22.1 (2026-07-29) — 批量修复 P0 缺陷 + 公共基座提取（阶段 A0/A1）
 
 ### 概述
-`check_for_update()` 中存在明显的重复代码：「发现新版本」横幅打印了两次，`_fetch_latest_release()`
-被调用两次，`sha_sums` 被赋值三次（第二次覆盖第一次返回值）。既浪费网络请求、容易触发 GitHub API
-速率限制，又导致部署端日志重复、输出混乱。
+相对 v2.22.0，本版本共 3 个提交、13 个文件变更，批量修复 P0 缺陷并提取公共基座（`common/envfile`、`common/runtime_protection`、`common/security`、`common/validators`），新增默认老人端 `.env`。
 
 ### 主要变更
-- **`updater.py`**：删除 `check_for_update()` 中重复的「发现新版本」横幅与重复的
-  `_fetch_latest_release()` / `_verify_release_signature()` 调用，仅在 `auto_pull` 判断前
-  获取并校验一次，供后续安全校验共用。
-- 版本 2.19.5 -> 2.19.6（向下兼容的缺陷修复 / 代码清理）。
+- 批量修复 P0 缺陷 + 公共基座提取（阶段 A0+A1）
+- chore: 增加默认老人端 .env 文件
+- build(release): 版本号升至 2.22.1
 
-## v2.19.5 (2026-07-25) — 修复 updater 镜像代理被误判为正向代理导致无法检查更新
+### 涉及文件
+- `common/envfile.py`、`common/runtime_protection.py`、`common/security.py`、`common/validators.py`、`elderly_assistant/.env`、`server/app/services/auth_service.py`、`server/app/services/device_service.py`、`server/app/tasks/stock_checker.py`、`server/app/utils/datetime_utils.py`、`server/app/utils/rate_limit.py`、`family_monitor/routes/home.py`、`install.py`、`updater.py`
+
+---
+
+## v2.22.0 (2026-07-28) — 大规模重构收口（.env 统一读写 / HTTP 客户端 / 模板消重 / 老人端分层）
 
 ### 概述
-部署端执行 `python3 updater.py` 时报 `Tunnel connection failed: 400 Bad Request`，
-无法连接 GitHub 检查/拉取更新。根因为 `_configure_opener()` 的代理类型判定逻辑：只要
-`github_proxy` 是 `scheme + netloc` 且无 path（如 `https://gh.my-website.ccwu.cc`、
-注释示例 `https://gh-proxy.com`），就被当作「正向代理」走 CONNECT 隧道；但该镜像是
-gh-proxy 风格的「镜像前缀」，并不支持 CONNECT，于是返回 400。结果检查更新整体失败、跳过。
+相对 v2.21.0，本版本共 9 个提交、64 个文件变更，是近期最大的一次结构重构：新建 `common/envfile` 统一 .env 读写、`common/server_client` 统一 HTTP 客户端；服务端抽 `device_service` 并将 config 导入副作用外移至 `bootstrap`；家属端抽 `medication_service`、以 `base.html` 消除 9 个模板重复；老人端将 `main` 分层为 `workflow`/`hardware`；并修复三处破窗缺陷。
 
 ### 主要变更
-- **`updater.py`**：
-  - 修正 `_configure_opener()` 的代理判定：仅当 netloc 含显式端口或指向本机
-    （如 `http://127.0.0.1:7890`、`socks5://host:1080`）才视为正向代理；其余普通域名
-    （无端口，如 `https://gh-proxy.com`、`https://gh.my-website.ccwu.cc`）按镜像前缀处理，
-    目标 URL 改写为 `{proxy}/https://api.github.com/...` 形式。
-  - 非法代理配置回退直连并告警。
-- **`tests/test_updater.py`**：新增 `TestConfigureOpener` 覆盖镜像/正向/本机/非法等判定。
-- 版本 2.19.4 -> 2.19.5（向下兼容的缺陷修复）。
+- refactor(server): 抽 device_service + 统一 mask_device_id 脱敏
+- refactor(server): 将 config 导入期副作用外移至 bootstrap.bootstrap_config()
+- refactor(family): 抽取 base.html 消除 9 模板 head/nav 重复，活动导航改为 request.url.path 自动计算
+- refactor(family): 统一 HTTP 客户端到 common.server_client.BaseServerClient
+- refactor(family): 抽 medication_service 校验、删 auth/session 死代码
+- refactor(elderly): 分层 main -> workflow/hardware，集中 Board 初始化，删死代码
+- refactor: 新建 common/envfile 统一 .env 读写，install/updater/elderly/family 接入；server/main 注入仓库根
+- fix: 修复三处破窗缺陷（install PIP_INDEX_URL / elderly Path 导入 / 库存不足保留记录）
+- chore: 版本号升级 2.21.0 -> 2.22.0
 
-### 部署注意
-该 bug 位于 `updater.py` 自身（自动更新机制）。部署端因旧 updater 损坏无法自我更新，
-需先在服务器手动取回新的 `updater.py` 一次（`git pull` 或下载 Release 解压提取），
-之后自动更新即可恢复正常。
+### 涉及文件
+- `common/envfile.py`、`common/server_client.py`、`server/app/core/bootstrap.py`、`server/app/core/config.py`、`server/app/core/security.py`、`server/app/services/device_service.py`、`server/app/services/medication_service.py`、`family_monitor/core/*`、`family_monitor/routes/*`、`family_monitor/templates/*`（9 个）、`elderly_assistant/workflow/*`、`elderly_assistant/hardware/*`、`install.py`、`updater.py` 及 `tests/` 下 9 个用例等共 64 个文件
 
-## v2.19.4 (2026-07-25) — 修复生产环境 SECRET_KEY 未配置导致服务无法启动
+---
+
+## v2.21.0 (2026-07-28) — 老人端接入 AI 问答与服药拍照；systemd 一键部署；CodeQL 安全修复
 
 ### 概述
-服务端启动报「配置校验失败：SECRET_KEY 未配置」，即使已在 `server/.env` 中设置固定
-SECRET_KEY 仍无法启动。根因为配置类 `Settings.Config.env_file = ".env"` 是**相对当前
-工作目录（CWD）**解析的，而 `.env` 实际固定写在绝对路径 `server/.env`；当服务不在 `server/`
-目录下启动时（如 systemd、从仓库根目录启动），pydantic 读不到 `.env`，SECRET_KEY 仍为占位符
-→ 被标记为运行时随机生成 → 生产环境（DEBUG=false）强校验直接退出。
+相对 v2.20.1，本版本共 13 个提交、41 个文件变更，重大功能版本：老人端接入 AI 问答（长按按钮 A 问药品注意事项并 TTS 播报）与 HuskyLens 拍照 base64 上传服药照片；新增 systemd 一键部署（`deploy/setup.sh` + 免密 sudoers）；修复 6 条 CodeQL 真问题告警；AI 助手支持多厂商并按用户独立配置（数据库存储）。
 
 ### 主要变更
-- **`server/app/core/config.py`**：
-  - 新增模块级常量 `BASE_DIR`（`server/` 目录，基于 `config.py` 文件位置计算）。
-  - `_ensure_default_env()` 与 `Settings.Config.env_file` 统一使用 `BASE_DIR / ".env"` 绝对路径，
-    保证无论从哪个工作目录启动都能正确读取配置。
-  - `Settings.Config` 补充 `env_file_encoding = "utf-8"`。
-- 版本 2.19.3 -> 2.19.4（向下兼容的缺陷修复）。
+- feat(elderly): 接入 AI 问答——长按按钮 A(>1.5s) 问药品注意事项并 TTS 播报
+- feat(elderly): 接入 HuskyLens 拍照并以 base64 上传服药照片到服务端
+- fix: 修复 M10 确认落库 / 家属通知、漏服实时通知，接入 TTS 语音播报
+- feat(deploy): updater 更新后自动重启 systemd 服务（配 deploy 免密 sudoers）
+- fix(deploy): setup.sh 改用独立 venv，避免 PEP 668 污染系统 Python
+- chore: 新增 deploy/setup.sh 一键部署脚本（server+family 经 systemd）
+- security: 修复 6 条 CodeQL 真问题告警（DOM XSS / 临时文件 / 异常泄露 / 权限 / 日志脱敏）
+- feat: AI 助手支持多厂商并按用户独立配置（数据库存储）
+- 其它：.gitignore 放行 elderly_assistant 源码、README 版本对齐、删除未启用的 ai-code-reviewer 目录、CI 推送 tag 改用 PAT 鉴权
 
-## v2.19.3 (2026-07-25) — 修复邮箱验证码接口未登录被重定向到登录页
+### 涉及文件
+- `deploy/setup.sh`、`deploy/*.service`、`server/app/services/ai_service.py`、`server/app/services/ai_config_service.py`、`server/app/services/auth_service.py`、`server/app/api/v1/endpoints/{ai,ai_config,oauth,updater}.py`、`server/app/models/user_ai_config.py`、`elderly_assistant/main.py`、`family_monitor/routes/ai_config.py`、`updater.py` 等共 41 个文件
+
+---
+
+## v2.20.1 (2026-07-28) — 合并 CI 工作流并补充自动更新端点
 
 ### 概述
-修复子女端（family_monitor）一个认证中间件缺陷：未登录访问 `/email/send-code`、`/email/code-login`
-时被 `auth_middleware` 当作受保护路径，因无 `access_token` cookie 而 302 重定向到登录页，
-导致在登录页上根本无法发送邮箱验证码、无法用验证码登录/自动注册（重定向循环）。
+相对 v2.20.0，本版本共 2 个提交、2 个文件变更，合并 CI 工作流并补充自动更新端点，版本号提升至 2.20.1。
 
 ### 主要变更
-- **`family_monitor/main.py`**：在 `auth_middleware` 的 `public_paths` 白名单中补充
-  `/email/send-code` 与 `/email/code-login`（均按 `PATH_PREFIX` 动态拼接，兼容隧道子路径模式）。
-  这两个接口本就是为未登录用户服务的登录/注册流程环节，必须公开，无需 `access_token`。
-- 版本 2.19.2 -> 2.19.3（向下兼容的缺陷修复）。
+- chore: 合并 CI 工作流并补充自动更新端点
+- chore: 版本号提升至 2.20.1
 
-## v2.16.0 (2026-07-24) — main.py 新增 --reset 重置运行时数据
+### 涉及文件
+- `.github/workflows/python-app.yml`、`.github/workflows/update.yml`
+
+---
+
+## v2.20.0 (2026-07-28) — 统一三端配置为单一 .env，install.py 收敛至根目录
 
 ### 概述
-为方便部署与二次分发，在 `server/main.py` 与 `family_monitor/main.py` 中新增命令行参数 `--reset`：
-执行后删除全部未跟踪 / 被 `.gitignore` 忽略的运行时数据（用户密码库、老人端设备数据等），
-但**保留** `.env`、`config.json`、`logs/`，使工作树与一次全新 `git clone` 的差异仅此三项。
-执行前需交互输入 `YES` 二次确认（非交互环境默认取消），以防误删。
+相对 v2.19.14，本版本共 1 个提交、28 个文件变更，把三端各自的配置/install 收敛为单一 `.env` 与根目录 `install.py`，并同步更新对应 README、CI 与测试。
 
 ### 主要变更
-- **新增 `reset_runtime.py`（仓库根目录）**：提供 `reset_runtime_data(repo_root)` 与 `confirm_reset()`。
-  删除采用「保留感知」递归策略：基于 `git status --ignored` 精确枚举被忽略 / 未跟踪项删除；
-  同时按显式模式兜底清理核心数据（不依赖 git）。当被忽略目录内含有需保留文件（如 `server/.env`）
-  时仅清理非保留内容，安全保留 `.env` / `config.json` / `logs/`，且绝不删除已跟踪源码。
-- **`server/main.py`**：`main()` 开头解析 `--reset`，在任何副作用（更新检查 / 建目录 / 启动）之前执行并退出。
-- **`family_monitor/main.py`**：`main()` 开头同样解析 `--reset`，在任何副作用之前执行并退出。
-- **新增 `tests/test_reset_runtime.py`**：基于临时 git 仓库验证保留项（含子目录 `.env`/`config.json`/logs）、
-  删除项（DB / `users.json` / `device_id.txt` / 下载库文件 / 缓存）及不误删已跟踪文件。
-- 版本 2.15.0 -> 2.16.0（向后兼容的新增命令行能力）。
+- refactor(config): 统一三端配置为单一 .env，install.py 收敛至根目录 (v2.20.0)
 
-## v2.15.0 (2026-07-24) — install.py 自动下载安装未发布包 dfrobot_huskylensv2
+### 涉及文件
+- `.env`、`.gitignore`、`README.md`、`config.json`、三端 `main.py` / `install.py` / `config.*` / `README.md`、`reset_runtime.py`、`server/app/core/config.py`、`updater.py` 及 `tests/` 下 3 个用例等共 28 个文件
+
+---
+
+## v2.19.14 (2026-07-28) — 删除默认镜像源；updater 改为仅替换文件
 
 ### 概述
-`dfrobot_huskylensv2`（HuskyLens V2 摄像头 AI 库）在 PyPI 未发布，无法用常规 `pip install` 安装。现已在 `elderly_assistant/install.py` 中配置「从官方仓库自动下载并落地」的逻辑，作为 `install_requirements()` 流程的一部分自动执行，部署时无需手动处理该依赖。
+相对 v2.19.12，本版本共 2 个提交、2 个文件变更，删除默认镜像源，并移除 updater 自动重启逻辑（更新后仅替换文件，交由人工手动重启）。
 
 ### 主要变更
-- **`elderly_assistant/install.py`**：新增常量 `HUSKYLENS_RAW_URL` / `HUSKYLENS_MIRROR` / `HUSKYLENS_PKG`，以及函数 `_huskylens_download_url()`、`_download_huskylens()`（含内容完整性校验，校验关键类 `HuskylensV2_I2C` / `HuskylensV2_UART` 与算法常量 `ALGORITHM_OBJECT_RECOGNITION`）、`_get_site_packages_dir()`、`install_dfrobot_huskylensv2()`。部署策略为兜底：优先下载到 `elderly_assistant/` 目录（与 `from utils.logger` 同机制，运行即生效），失败则安装到 Python 环境 `site-packages`。下载地址支持镜像前缀（环境变量 `HUSKYLENS_MIRROR` 或 `GH_PROXY`，如 `https://gh-proxy.com`）以规避网络限制，亦可用 `HUSKYLENS_RAW_URL` 覆盖源地址。该文件不纳入仓库（运行时下载），由 `.gitignore` 排除。
-- **`elderly_assistant/requirements.txt`**：更新 `dfrobot_huskylensv2` 注释，说明其不再经 requirements 安装，改由 `install.py` 自动下载；运行依赖 `pinpong`（已在文件中安装）。
-- **`.gitignore`**：新增 `elderly_assistant/dfrobot_huskylensv2.py`，避免自动下载的文件被误提交 / 打包进 Release。
-- 版本 2.14.1 -> 2.15.0（向后兼容的部署能力新增）。
+- chore: 删除默认镜像源
+- refactor(updater): 移除自动重启逻辑，更新后仅替换文件交由人工手动重启 (v2.19.14)
+
+### 涉及文件
+- `install.py`、`updater.py`
+
+> 注：版本号由 v2.19.12 直接跳至 v2.19.14，v2.19.13 未发布。
+
+---
+
+## v2.19.12 (2026-07-26) — 对齐 email_code 真实实现，修复 CI 失败用例
+
+### 概述
+相对 v2.19.11，本版本共 1 个提交、1 个文件变更，对齐 `email_code` 真实实现，修复 python-app CI 失败用例。
+
+### 主要变更
+- test: 对齐 email_code 真实实现，修复 python-app CI 失败用例 (v2.19.12)
+
+### 涉及文件
+- `tests/test_email_code.py`
+
+---
+
+## v2.19.11 (2026-07-26) — 修正 update.yml 否定条件，ci 提交不再被 skip
+
+### 概述
+相对 v2.19.10，本版本共 1 个提交、2 个文件变更，修正 `update.yml` 否定条件（去掉多余 ci），使 `ci:` 提交触发的 update 不再被 skip。
+
+### 主要变更
+- ci: 修正 update.yml 否定条件（去掉多余 ci），使 ci: 提交触发 update 不再被 skip (v2.19.11)
+
+### 涉及文件
+- `.github/workflows/update.yml`、`history.md`
+
+---
+
+## v2.19.10 (2026-07-26) — 新增 update 步骤与独立 update.yml
+
+### 概述
+相对 v2.19.9，本版本共 1 个提交、3 个文件变更，新增 update 步骤与独立 `update.yml`，update 目标为 `{public_url}/server/api/v1/updater`。
+
+### 主要变更
+- ci: 新增 update 步骤与独立 update.yml，update 目标为 {public_url}/server/api/v1/updater (v2.19.10)
+
+### 涉及文件
+- `.github/workflows/python-app.yml`、`.github/workflows/update.yml`、`history.md`
+
+---
+
+## v2.19.9 (2026-07-26) — 新增根目录 config.json（含 public_url）
+
+### 概述
+相对 v2.19.8，本版本共 1 个提交、4 个文件变更，新增根目录 `config.json`（含 `public_url`）并纳入版本管理。
+
+### 主要变更
+- feat(config): 新增根目录 config.json（含 public_url）并纳入版本管理 (v2.19.9)
+
+### 涉及文件
+- `.gitignore`、`config.json`、`history.md`、`updater.py`
+
+## v2.19.8 (2026-07-25) — 修复注册页 OAuth 补全流程 Turnstile 容器缺失报错
+
+### 概述
+相对 v2.19.7，本版本仅 1 个提交，修复注册页 OAuth 补全流程下 Turnstile 容器缺失导致 `container` 类型无效的报错（前端）。
+
+### 主要变更
+- fix(frontend): 注册页 OAuth 补全流程下 Turnstile 容器缺失导致 container 类型无效报错 (v2.19.8)
+
+---
+
+## v2.19.7 (2026-07-25) — 修复 v2.19.6 启动崩溃（public.py 重复参数）
+
+### 概述
+相对 v2.19.6，本版本仅 1 个提交，删除 `public.py` 重复的 `username` 关键字参数，修复 v2.19.6 启动崩溃。
+
+### 主要变更
+- fix(server): 删除 public.py 重复的 username 关键字参数，修复 v2.19.6 启动崩溃 (v2.19.7)
+
+---
+
+## v2.19.6 (2026-07-25) — 清理 updater 中 check_for_update 的重复请求
+
+### 概述
+相对 v2.19.5，本版本仅 1 个提交，删除 `check_for_update` 中重复的 API 请求与日志输出（updater 代码清理）。
+
+### 主要变更
+- refactor(updater): 删除 check_for_update 重复的 API 请求与日志输出 (v2.19.6)
+
+---
+
+## v2.19.5 (2026-07-25) — 修复镜像代理误判导致无法检查更新
+
+### 概述
+相对 v2.19.4，本版本仅 1 个提交，修复镜像代理被误判为正向代理导致无法检查更新的问题。
+
+### 主要变更
+- fix(updater): 修复镜像代理被误判为正向代理导致无法检查更新 (v2.19.5)
+
+---
+
+## v2.19.4 (2026-07-25) — 修复生产环境 SECRET_KEY 无法启动
+
+### 概述
+相对 v2.19.3，本版本仅 1 个提交，修复 `env_file` 相对 CWD 解析导致 `SECRET_KEY` 在生产环境无法启动的问题。
+
+### 主要变更
+- fix(server): 修复 env_file 相对 CWD 解析导致 SECRET_KEY 生产环境无法启动 (v2.19.4)
+
+---
+
+## v2.19.3 (2026-07-25) — 修复邮箱验证码接口未登录被重定向
+
+### 概述
+相对 v2.19.2，本版本仅 1 个提交，修复邮箱验证码接口在未登录时被重定向到登录页的问题（家属端）。
+
+### 主要变更
+- fix(family): 修复邮箱验证码接口未登录被重定向到登录页 (v2.19.3)
+
+---
+
+## v2.19.2 (2026-07-25) — 修复 email_code 模块缺失导致启动崩溃
+
+### 概述
+相对 v2.19.1，本版本仅 1 个提交，修复 `email_code` 模块缺失导致的服务端启动崩溃。
+
+### 主要变更
+- fix(server): 修复 email_code 模块缺失导致的启动崩溃 (v2.19.2)
+
+---
+
+## v2.19.1 (2026-07-25) — updater 未检测到 config.json 时自动生成模板
+
+### 概述
+相对 v2.19.0，本版本仅 1 个提交，updater 在未检测到 `config.json` 时自动生成模板，降低首次部署门槛。
+
+### 主要变更
+- feat(updater): 未检测到 config.json 时自动生成模板 (v2.19.1)
+
+---
+
+## v2.19.0 (2026-07-25) — 新增更新信息端点 /api/v1/updater 与前端轮询重启
+
+### 概述
+相对 v2.18.1，本版本共 2 个提交，新增更新信息端点 `/api/v1/updater`，前端轮询更新并在下载后自动重启（对应 PR #7）。
+
+### 主要变更
+- feat: 关于 updater.py 的修改
+- feat(updater): 新增更新信息端点 /api/v1/updater、前端轮询与下载后重启（#7）
+
+---
+
+## v2.18.1 (2026-07-25) — 修复 MAIL_PORT 空串导致启动崩溃
+
+### 概述
+相对 v2.18.0，本版本仅 1 个提交，修复 `MAIL_PORT` 空串导致服务启动崩溃（配置容错）。
+
+### 主要变更
+- fix(config): 修复 MAIL_PORT 空串导致服务启动崩溃 (v2.18.1)
+
+## v2.18.0 (2026-07-25) — updater auto_pull 默认改由 config.json 控制
+
+### 概述
+相对 v2.17.0，本版本主要将 updater 的 `auto_pull` 默认值改为由 `config.json` 控制（缺省 `true`），并暂时移除 CI 中的 AI review 步骤。
+
+### 主要变更
+- feat(updater): auto_pull 默认值改为由 config.json 控制（缺省 true）
+- ci: 暂时删除 AI review
+
+---
+
+## v2.17.0 (2026-07-24) — 登录改为手机号+密码，昵称统一 username
+
+### 概述
+相对 v2.16.0，本版本核心改动为登录方式由邮箱改为「手机号+密码」，昵称统一使用 `username`（对应 #3）。该版本在 CI 调整期间被多次回退/重打，最终定稿于本次提交。
+
+### 主要变更
+- feat(auth): 登录改为手机号+密码，昵称统一使用 username (#3)
+- ci: 调整 AI review 实现（robin 接入与实现方式变更，多次迭代）
+
+---
+
+## v2.16.0 (2026-07-24) — 新增 --reset 重置运行时；history.md 重排归集附录
+
+### 概述
+相对 v2.15.0，本版本新增 `main.py --reset` 重置运行时数据，将 `reset_runtime.py` 纳入版本控制；并把 `history.md` 按时间倒序重排、通用文档归集为附录。该版本在 CI/merge 震荡中被多次回退重打，最终定稿于本次提交。
+
+### 主要变更
+- feat: main.py 新增 --reset 重置运行时数据 (v2.16.0)
+- fix: 将 reset_runtime.py 纳入版本控制（修复 .gitignore /* 遗漏）
+- docs: 将 history.md 按时间倒序重排并归集通用文档为附录
+- fix: 补提交 .gitignore 中 tests/__pycache__ 忽略规则
+- ci: 仅在功能变更时触发
+
+---
+
+## v2.15.0 (2026-07-24) — install 自动下载未发布包 dfrobot_huskylensv2
+
+### 概述
+相对 v2.14.1，本版本让 install 脚本自动下载安装未发布的 `dfrobot_huskylensv2` 包，便于 HuskyLens 依赖落地。
+
+### 主要变更
+- chore(install): 自动下载安装未发布包 dfrobot_huskylensv2 (v2.15.0)
+
+---
 
 ## v2.14.1 (2026-07-24) — 补充邮箱验证码登录测试
 
 ### 概述
-为 v2.14.0 的「邮箱验证码登录」功能补齐单元测试与接口测试，覆盖验证码存储、双后端发信、schema 校验、服务层登录/自动注册，以及 `/auth/email/send-code`、`/auth/email/code-login` 两个接口。
-
-### 主要变更（测试）
-- **`tests/test_email_code.py`（新）**：`app.utils.email_code` 单元测试——发送（成功 / 邮件未配置 / 重发间隔 / 每日上限）、校验（成功 / 错误码 / 过期 / 一次性消费防重放）。
-- **`tests/test_mail.py`（新）**：`app.utils.mail` 单元测试——`mail_enabled` 分支（SMTP / API / 未配置 / 非法 provider）、`send_email` 降级、`_send_smtp` 与 `_send_api` 发信（成功 / 失败返回 False）。
-- **`tests/test_email_auth_api.py`（新）**：FastAPI TestClient 接口测试——`/auth/email/send-code`（成功 / Turnstile 失败 / 发信失败 / 限流 429）、`/auth/email/code-login`（成功并自动建号 / 邮箱已存在直接登录不重复 / 验证码错误 / Turnstile 失败）；数据库用独立内存 SQLite 真实建表。
-- **`tests/test_validators.py`**：新增 `is_valid_email` 合法 / 非法 / 超长用例。
-- **`tests/test_schemas_auth.py`**：新增 `EmailSendCodeReq` / `EmailCodeLoginReq` 校验用例（合法 / 非法邮箱 / 验证码长度）。
-- **`tests/test_auth_service.py`**：新增 `login_or_register_by_email` 用例（已注册直接登录 / 未注册自动建号，邮箱归一化 + 默认 role=family）。
-- 版本 2.14.0 -> 2.14.1（向后兼容的测试补充）。
-
-## v2.14.0 (2026-07-24) — 邮箱验证码登录（自动注册）
-
-### 概述
-新增「邮箱验证码登录」入口：用户仅凭邮箱 + 6 位验证码即可登录；若邮箱尚未注册则自动创建账号并登录。发信支持 SMTP（标准）与 Resend 兼容 HTTP API 双后端，由 `MAIL_PROVIDER` 切换；未配置时整体降级，不影响既有登录方式。
+相对 v2.14.0，本版本补充邮箱验证码登录的单元测试与接口测试，并新增相关测试文件。
 
 ### 主要变更
-- **`server/app/core/config.py`**：新增 `MAIL_*` 配置（MAIL_PROVIDER / MAIL_HOST / MAIL_PORT / MAIL_USERNAME / MAIL_PASSWORD / MAIL_FROM / MAIL_USE_TLS / MAIL_USE_SSL / MAIL_API_URL / MAIL_API_KEY），写入 `.env` 模板与自动补齐逻辑。
-- **`server/app/utils/mail.py`（新）**：`send_email()` 双后端发信；`MAIL_PROVIDER` 未配置时降级返回 False 并记录 warning，不抛异常，确保未配置邮件也能正常启动。
-- **`server/app/utils/email_code.py`（新）**：进程内验证码存储（与 `rate_limit.py` 风格一致，不引入 Redis）；6 位码、5 分钟过期、同邮箱 60 秒重发间隔、每日发送上限 10 封；校验成功后失效防重放，常量时间比较。
-- **`server/app/utils/validators.py`**：新增 `is_valid_email()` 邮箱格式校验。
-- **`server/app/schemas/auth.py`**：新增 `EmailSendCodeReq` / `EmailCodeLoginReq`。
-- **`server/app/services/auth_service.py`**：新增 `login_or_register_by_email()`——验证码已通过时，邮箱已注册则直接登录，未注册则自动建号（随机强密码占位，仅以验证码登录，默认 role=family），用户名取自邮箱前缀，冲突自动加后缀。
-- **`server/app/api/v1/endpoints/auth.py`**：新增 `POST /auth/email/send-code` 与 `POST /auth/email/code-login`，均含 Turnstile 人机验证 + 按 IP 限流；发送接口不泄露账号存在性，登录接口先校验验证码再进入账号逻辑（避免泄露）。
-- **`family_monitor/routes/auth.py`**：新增 `/email/send-code`、`/email/code-login` 代理路由（转发 server 并写 JWT HttpOnly cookie）。
-- **`family_monitor/templates/login.html`**：登录页新增「邮箱验证码」区块（邮箱输入、获取验证码按钮带 60 秒倒计时、验证码输入、专用 Turnstile 组件、登录按钮），含成功/错误提示。VERSION 升至 2.14.0。
+- build: 增加新的邮箱登录 tests 等文件
+- test: 补充邮箱验证码登录单元测试与接口测试
 
-## v2.13.1 (2026-07-23) — GitHub OAuth 获取邮箱 + 邮箱冲突合并
+---
+
+## v2.14.0 (2026-07-24) — 新增邮箱验证码登录（SMTP / Resend 双后端）
 
 ### 概述
-GitHub OAuth 登录现可正确获取用户邮箱（含私有邮箱）；并新增邮箱冲突处理，避免同一邮箱产生重复账号。
+相对 v2.13.x，本版本新增邮箱验证码登录：支持 SMTP / Resend 双后端，邮箱未注册时自动建号。
 
 ### 主要变更
-- **`server/app/api/v1/endpoints/oauth.py`**：GitHub 的 `emails_api` 由 `None` 改为 `https://api.github.com/user/emails`（scope 已含 `user:email`），在 `/user` 返回邮箱为 null（私有）时回退拉取；`_fetch_email` 增加 `User-Agent` 头以满足 GitHub API 强制要求。
-- **`server/app/services/auth_service.py`**：`register` 增加邮箱冲突处理——OAuth 返回的邮箱若已属于某本地账号，则合并绑定到该账号并直接登录；若邮箱已被另一个第三方绑定则明确报错拒绝。新增 `_bind_provider()` 辅助函数。VERSION 升至 2.13.1。
+- feat: 新增邮箱验证码登录（SMTP / Resend 双后端，邮箱未注册自动建号）
 
-## v2.12.0 (2026-07-23) — 配置健壮性：可选服务降级 + 基础必填启动校验
+## v2.13.1 (2026-07-24) — CI 完善 + GitHub OAuth 邮箱获取与冲突合并
 
 ### 概述
-全面增强配置缺失的健壮性。可选外部服务（Cloudflare Turnstile、GitHub/Gitee OAuth、OCR 药名识别）缺失时自动降级运行，不再硬失败；核心基础配置（SECRET_KEY 生产环境、APP_NAME、DATABASE_URL、API_V1_PREFIX、PATH_PREFIX）缺失或非法时，启动期统一打印清晰提示并结束进程（`sys.exit(1)`）。三端（server / family_monitor）行为一致。
+相对 v2.13.0，本版本为综合完善：接入 AI 代码审查机器人、补全 CI 依赖安装与缓存、修正 `family_monitor` 依赖文件名并解决 `dfrobot_huskylensv2` 包缺失；OAuth 侧支持 GitHub 获取邮箱（含私有）及邮箱冲突合并绑定；并修正 `test_vision_service` 断言与 `.gitignore`。
 
 ### 主要变更
-- **`server/app/core/config.py`**：新增 `validate_mandatory_config()`，启动期集中校验基础必填；`model_post_init` 不再对生产环境 `SECRET_KEY` 缺失直接 `raise`，改由校验函数统一提示退出；`.env` 模板注释同步（基础必填标注、Turnstile 改为「可选/降级」）。
-- **`server/app/api/v1/endpoints/auth.py`**：`verify_turnstile` 未配置 `TURNSTILE_SECRET_KEY` 时统一降级跳过验证（不再区分环境硬拒绝登录/注册）。
-- **`server/app/services/vision_service.py`**：`recognize` 及子服务（baidu/tencent/aliyun）未配置或厂商未实现时返回 `{"configured": false, "reason": ...}` 降级标志，不再抛出导致 500。
-- **`server/app/api/v1/endpoints/vision.py`**：`/vision/recognize` 在 `configured=false` 时返回 HTTP 200 + 友好提示，而非 500。
-- **`family_monitor/core/config.py`**：新增 `validate_mandatory_config()`，并移除 `Config.__init__` 中对 `SECRET_KEY` 缺失的 `raise`，改由校验函数统一提示退出；`SECRET_KEY` 是否为随机生成以 `_secret_key_is_random` 标记。
-- **`family_monitor/main.py`**：`main()` 启动期调用 `validate_mandatory_config()`。
-- **文档**：README 新增「配置健壮性与降级策略」节，VERSION 升至 2.12.0。
+- ci: 集成 AI 代码审查机器人；完善 python-app CI（老人端依赖安装、setup-python、pip 缓存）
+- fix(oauth): GitHub OAuth 获取邮箱（含私有）+ 邮箱冲突合并绑定
+- build: 修正 family_monitor 依赖文件名、解决 dfrobot_huskylensv2 包不存在、放宽老人端版本号限制
+- fix: 修正 test_vision_service 对 _extract_drug_name 的断言以匹配真实实现
+- chore: 增加 tests 目录、更新 .gitignore 与 README
 
-## v2.11.0 (2026-07-23) — 新增 Gitee OAuth 登录（通用 provider 框架）
+---
+
+## v2.13.0 (2026-07-23) — 自动更新器统一迁移至仓库根目录 updater.py
 
 ### 概述
-在既有 GitHub OAuth 基础上，新增 **Gitee OAuth 登录**。将原先 GitHub 专属的 OAuth 逻辑重构为通用 provider 框架（provider 配置表 + 通用 authorize/callback 流程），GitHub 行为完全不变，Gitee 平行接入，消除约 180 行重复代码（DRY）。Gitee 应用需勾选「访问用户的个人信息、最新动态」(`user_info`) 与「查看用户的个人邮箱信息」(`emails`) 权限。
+相对 v2.12.4，本版本将自动更新器统一迁移至仓库根目录 `updater.py`，为后续统一更新流程打基础。
 
 ### 主要变更
-- **`server/app/api/v1/endpoints/oauth.py`**：重构为 `_OAUTH_PROVIDERS` 配置表 + `_authorize()` / `_callback()` / `_fetch_provider_user()` 通用流程；成对声明 GitHub / Gitee 路由（`/config`、`/enabled`、`/authorize`、`/callback`）。
-- **`server/app/core/security.py`**：`create_oauth_pending_token` 改为 provider 无关（载荷含 `provider` / `provider_id` / `provider_login` / `provider_name` / `provider_avatar` / `email`）。
-- **`server/app/core/config.py`**：新增 `GITEE_CLIENT_ID` / `GITEE_CLIENT_SECRET` / `GITEE_OAUTH_CALLBACK_URL`，纳入 `.env` 自愈与字段补齐。
-- **`server/app/models/user.py`**：`users` 表新增 `gitee_id`（唯一索引）与 `email` 字段。
-- **`server/app/services/auth_service.py`**：`register` 改为通用 provider 绑定（github/gitee）；新增 `get_by_provider()`，`get_by_github_id()` 转调之。
-- **`server/app/migrations/versions/20260723_001_add_gitee_oauth_and_email.py`**：新增迁移（gitee_id + email）。
-- **`family_monitor/routes/auth.py`**：新增 `/oauth/gitee/authorize`、`/oauth/gitee/enabled` 代理；`register_page` 与 `post_register` 同时支持 Gitee 待补全 cookie（`oauth_pending_gitee`）。
-- **`family_monitor/templates/login.html` / `register.html`**：新增 Gitee 登录按钮（探测 `/oauth/gitee/enabled`）与按平台显示的补全横幅。
-- **文档**：README 新增 Gitee OAuth 章节与配置项，VERSION 升至 2.11.0。
+- refactor: 将自动更新器统一迁移至仓库根目录 updater.py
 
-## v2.10.4 (2026-07-23) — 修复自动生成的 .env 仍缺失必填字段（Turnstile / GitHub OAuth 等）
+---
+
+## v2.12.4 (2026-07-23) — 修复子女端 OAuth 登录按钮不显示
 
 ### 概述
-v2.10.2 已让 `server/app/core/config.py` 的 `_ensure_default_env` 生成含全部字段的 .env 模板，但 `server/main.py` 的 `create_app_dirs()` 在 `start_server()` **之前**会先写入一份「精简版」.env（仅 `APP_NAME`/`DEBUG`/`SECRET_KEY`/`ALLOWED_ORIGINS` 等），导致后续 config.py 检测到 .env 已存在而直接 `return`，完整模板从未落盘。最终磁盘上的 .env 仍是精简版，缺少 `TURNSTILE_SECRET_KEY`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` 等必填字段，表现为"依旧不携带必须字段"。
+相对 v2.12.3，本版本仅 1 个提交，修复子女端 OAuth 登录按钮不显示的问题。
 
 ### 主要变更
-- **`server/main.py`** 的 `create_app_dirs`：移除自带的精简版 .env 写入，改为统一调用 `app.core.config._ensure_default_env()`，由 config.py 全权负责 .env 生成，消除两处模板竞争导致的字段缺失；并移除不再使用的 `import secrets`。
-- **`server/app/core/config.py`** 的 `_ensure_default_env`：拆分为"首次写完整模板"与"已存在则补齐缺失字段"：
-  - 新增 `_backfill_env_fields()`：对已有 .env 缺失的必填/重要字段（`TURNSTILE_SECRET_KEY`、`ZHIPUAI_API_KEY`/`ZHIPUAI_MODEL`、`OCR_PROVIDER`/`OCR_API_KEY`/`OCR_SECRET_KEY`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`GITHUB_OAUTH_CALLBACK_URL`、`FAMILY_WEB_URL`）自动追加并附注释，保留用户原有配置，修复已部署的旧精简 .env。
-  - 字段注释补充获取地址（Cloudflare Turnstile、智谱 AI、GitHub OAuth），便于上线填写。
-- **`server/app/api/v1/endpoints/oauth.py`**：新增 `GET /api/v1/auth/oauth/github/enabled` 别名（与 `/config` 返回一致的 `{"enabled": ...}`）。
-  - 说明：前端登录页探测 GitHub 登录走的是 `family_monitor` 代理 `/oauth/github/enabled` → server `/auth/oauth/github/config`，该链路本身已一致；新增 server 端 `/enabled` 仅为安全网，确保任何拓扑下该端点都不会 404，GitHub 登录按钮可正常显示（前提是在 .env 中填好 `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`）。
-- 版本号 2.10.3 → 2.10.4（补丁号递增，向下兼容）。
+- fix: 修复子女端 OAuth 登录按钮不显示
 
-### 注意事项
-- 已部署的旧实例**重启服务端即可自动补齐**缺失字段，无需手动改 .env。
-- 自动补齐仅追加缺失字段行，不会覆盖已填写的值；若需将精简 .env 升级为完整注释模板，可删除 .env 后重启（会重新生成完整模板，但 `SECRET_KEY` 会重置，需重新配置）。
+---
 
-## v2.10.3 (2026-07-22) — 修正 README 配置说明以贴合代码实际
+## v2.12.3 (2026-07-23) — 版本号对齐（修复 oauth.py get_db 导入）
 
 ### 概述
-
-核对代码后，README 的配置说明存在与实现不符之处，本次按代码实际修正（仅文档变更，无代码改动）。
-
-### 主要变更（README.md）
-
-- **配置表（server）**：删除代码中不存在的 `JD_*`（京东比价相关环境变量实际未被读取）；补全实际字段 `APP_NAME`、`DEBUG`、`API_V1_PREFIX`、`ZHIPUAI_MODEL`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`GITHUB_OAUTH_CALLBACK_URL`/`FAMILY_WEB_URL`。
-- **配置表（family_monitor）**：区分 `.env` 字段（`SECRET_KEY`/`DEBUG`/`COOKIE_SECURE`/`TURNSTILE_SITE_KEY`/`DEVICE_SECRET`/`ALLOWED_ORIGINS`/`PRODUCTION`/`SERVER_HOST`）与 `config.json` 字段（`ELDERLY_SERVER_URL`/`SERVER_PORT`/`PATH_PREFIX`/`APP_NAME`/`DISPLAY_*`），与 `core/config.py` 一致。
-- **服务端 `.env` 示例**：删除代码中未读取的 `OCR_APP_ID` 与 `WS_HEARTBEAT_INTERVAL` 两行；补上实际的 GitHub OAuth 字段块（与上方「GitHub OAuth 登录配置」一致）。
-- 版本号 2.10.2 → 2.10.3（补丁号递增，文档修正）。
-
-### 说明
-
-- 经全文核查：`JD_*`、`OCR_APP_ID`、`WS_HEARTBEAT_INTERVAL` 在代码中均未被读取（vision_service 用 `OCR_API_KEY` 当 client_id），属历史文档滞后，已从 README 移除。
-
-## v2.10.2 (2026-07-22) — 首次运行自动生成的 .env 模板补全全部可配置字段
-
-### 概述
-
-此前 `server` 与 `family_monitor` 首次启动时自动生成的 `.env` 模板只含部分字段（`SECRET_KEY`/`DEBUG`/`TURNSTILE_*`/`GITHUB_*` 等），`ALLOWED_ORIGINS`、`ZHIPUAI_*`、`OCR_*` 等生产需要的字段缺失，用户只能对照 README 手动补，易漏配（如 CORS、`ALLOWED_ORIGINS` 为空导致跨域被拒）。本版本让自动生成的 `.env` 模板带全所有可被读取的环境变量。
+相对 v2.12.2，本版本为 PATCH 对齐：修复 `oauth.py` 中 `get_db` 错误导入并升级版本号至 2.12.3（无新增功能）。
 
 ### 主要变更
+- chore(release): 升级版本号至 2.12.3 (PATCH) - 修复 oauth.py 中 get_db 错误导入
 
-- **`server/app/core/config.py`** 的 `_ensure_default_env`：模板新增 `APP_NAME`、`API_V1_PREFIX`、`PATH_PREFIX`、`DATABASE_URL`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`ZHIPUAI_API_KEY`、`ZHIPUAI_MODEL`、`OCR_PROVIDER`、`OCR_API_KEY`、`OCR_SECRET_KEY`、`ALLOWED_ORIGINS`，并对必填项（`TURNSTILE_SECRET_KEY`、`ALLOWED_ORIGINS`）及可选功能字段加注释说明。
-- **`family_monitor/core/config.py`** 的 `_generate_default_env`：模板新增 `PRODUCTION`、`DEVICE_SECRET`、`ALLOWED_ORIGINS`、`SERVER_HOST`；`SERVER_PORT`/`ELDERLY_SERVER_URL`/`PATH_PREFIX`/`APP_NAME`/`DISPLAY_*` 因由 `config.json` 管理（Web 设置页可改），以注释形式列出，避免 `.env` 覆盖导致设置页失效。
-- 版本号 2.10.1 → 2.10.2（补丁号递增，向下兼容）。
+---
 
-### 注意事项
-
-- README 中列出的 `OCR_APP_ID`、`WS_HEARTBEAT_INTERVAL` 在代码中未被读取（vision_service 用 `OCR_API_KEY` 作 client_id），属文档滞后，本次生成模板未包含这两个无效字段；后续若接好代码可再补。
-- cloudflared 隧道 token 不在 `.env`，仍配置于 `deploy/cloudflared.service` 的 `<TUNNEL_TOKEN>`。
-
-## v2.10.1 (2026-07-22) — 修复 Turnstile 服务端密钥缺失导致登录/注册被拒
+## v2.12.2 (2026-07-23) — 修正 oauth.py get_db 导入，修复启动导入错误
 
 ### 概述
-
-Cloudflare Turnstile 需要**两把**密钥：站点密钥（Site Key，前端渲染）与密钥（Secret Key，后端校验）。此前仅 `family_monitor/.env` 配了站点密钥，`server/.env` 未配密钥，导致生产模式（`DEBUG=False`）下 `verify_turnstile` 拒绝全部登录/注册，表现疑似「人机验证失败」。本版本强化配置诊断与文档，使该误配一目了然。
+相对 v2.12.1，本版本修正 `oauth.py` 中 `get_db` 的错误导入来源，并升级版本号至 2.12.2（PATCH，修复服务端启动导入错误）。
 
 ### 主要变更
+- fix(server): 修正 oauth.py 中 get_db 的错误导入来源
+- chore(release): 升级版本号至 2.12.2 (PATCH) - 修复服务端启动导入错误
 
-- **启动诊断**（`server/app/main.py`）：lifespan 启动阶段新增 Turnstile 配置检查，密钥缺失时在日志中明确告警（生产为 ERROR、开发为 WARNING），并打印配置状态。
-- **校验日志**（`server/app/api/v1/endpoints/auth.py` 的 `verify_turnstile`）：
-  - 缺失 Secret Key 时给出可操作提示（请填 `server/.env` 的 `TURNSTILE_SECRET_KEY` 并重启）。
-  - 前端未提交令牌、Cloudflare 返回 `error-codes`、网络异常等场景均记录明确日志，便于排障。
-- **文档**（`README.md`）：新增「Turnstile 两把密钥（易错点）」说明与排障步骤，`.env` 示例中标注 `TURNSTILE_SECRET_KEY` 为必填且与 Site Key 须同站点。
-- 版本号 2.10.0 → 2.10.1（补丁号递增）。
+---
 
-### 注意事项
+## v2.12.1 (2026-07-23) — 用 fastapi-oauth20 重构 GitHub/Gitee OAuth 登录
 
-- 实际修复动作：在部署机的 `server/.env` 填入 `TURNSTILE_SECRET_KEY`（Cloudflare Turnstile 的 Secret Key，须与 `family_monitor/.env` 的 Site Key 同站点），并重启 server。
-- 该密钥属敏感凭证，仅存于部署机 `server/.env`（已被 `.gitignore` 排除），不会进入仓库或 Release 资产。
+### 概述
+相对 v2.12.0，本版本用 `fastapi-oauth20` 重构 GitHub/Gitee OAuth 登录流程，并修复 `vision.py` 中 `JSONResponse` 从 fastapi 顶层错误导入导致启动失败的问题。
+
+### 主要变更
+- refactor: 使用 fastapi-oauth20 重构 GitHub/Gitee OAuth 登录流程 (v2.12.1)
+- fix(server): 修复 vision.py 中 JSONResponse 从 fastapi 顶层错误导入导致启动失败
+
+---
+
+## v2.12.0 (2026-07-23) — 配置健壮性：可选服务缺失自动降级
+
+### 概述
+相对 v2.11.0，本版本增强配置健壮性：可选服务缺失时自动降级，基础必填项缺失则启动即报错退出。
+
+### 主要变更
+- 配置健壮性：可选服务缺失自动降级，基础必填缺失启动即报错退出 (v2.12.0)
+
+---
+
+## v2.11.0 (2026-07-23) — 新增 Gitee OAuth 登录，重构为通用 provider 框架
+
+### 概述
+相对 v2.10.4，本版本新增 Gitee OAuth 登录，并将 OAuth 重构为通用 provider 框架，便于扩展更多平台。
+
+### 主要变更
+- feat(oauth): 新增 Gitee OAuth 登录，重构为通用 provider 框架 (v2.11.0)
+
+---
+
+## v2.10.4 (2026-07-23) — 清理写死版本号，改由 VERSION 动态读取
+
+### 概述
+相对 v2.10.3，本版本清理代码中写死的版本号（_DEFAULT_VERSION / version=2.10.3 等），统一改为动态读取 `VERSION` 文件；并修复自动生成 `.env` 缺失必填字段、新增 GitHub OAuth `/enabled` 端点别名。
+
+### 主要变更
+- 重构：清理版本/变更类注释，版本号改为动态读取 VERSION；删除写死版本号改由 VERSION 文件动态读取
+- fix: 修复自动生成 .env 缺失必填字段并新增 GitHub OAuth /enabled 端点别名 (v2.10.4)
+
+---
+
+## v2.10.3 (2026-07-23) — 删除无关文件，修正 README 配置说明
+
+### 概述
+相对 v2.10.2，本版本删除无关文件，并修正 README 配置说明以贴合代码实际。
+
+### 主要变更
+- chore: 删除无关文件
+- docs: 修正 README 配置说明以贴合代码实际 (v2.10.3)
+
+## v2.10.2 (2026-07-22) — 首次运行 .env 模板补全全部字段
+
+### 概述
+相对 v2.10.1，本版本仅 1 个提交，补全首次运行自动生成的 `.env` 模板中的全部可配置字段。
+
+### 主要变更
+- fix: 首次运行自动生成的 .env 模板补全全部可配置字段 (v2.10.2)
+
+---
+
+## v2.10.1 (2026-07-22) — 修复 Turnstile Secret Key 缺失导致登录/注册被拒
+
+### 概述
+相对 v2.10.0，本版本仅 1 个提交，修复 Turnstile 服务端密钥（Secret Key）缺失导致登录/注册被拒的问题。
+
+### 主要变更
+- fix: 修复 Turnstile 服务端密钥(Secret Key)缺失导致登录/注册被拒 (v2.10.1)
+
+---
 
 ## v2.10.0 (2026-07-22) — 新增 GitHub OAuth 登录
 
 ### 概述
-
-服务端新增 GitHub OAuth 登录端点，家属端登录页增加「使用 GitHub 登录」按钮（参照 dash.cloudflare.com 风格）。支持 GitHub 账号一键登录与首次登录补全注册。
+相对 v2.9.15，本版本新增 GitHub OAuth 登录，并调整 `.gitignore`。
 
 ### 主要变更
+- feat(auth): 新增 GitHub OAuth 登录 (v2.10.0)
+- chore: 更新 .gitignore
 
-- **新增端点**（`server/app/api/v1/endpoints/oauth.py`）：
-  - `GET /api/v1/auth/oauth/github/authorize`：签发 state 签名 cookie 并重定向到 GitHub。
-  - `GET /api/v1/auth/oauth/github/callback`：校验 state → 换 token → 查用户 → 已绑定写登录态并跳转，未绑定签发短期身份令牌跳注册页补全信息。
-  - `GET /api/v1/auth/oauth/github/config`：前端判断按钮是否显示。
-- **用户表**（`server/app/models/user.py`）：新增 `github_id`（唯一索引）、`oauth_provider` 字段；`hashed_password` 改为可空。新增 Alembic 迁移 `20260722_001_add_github_oauth_fields.py`。
-- **注册改造**：`/api/v1/auth/register` 支持可选 `oauth_token`，OAuth 注册跳过 Turnstile 人机验证；用户名冲突自动加数字后缀。
-- **配置**：`server/.env` 新增 `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_OAUTH_CALLBACK_URL` / `FAMILY_WEB_URL`。
-- **前端**：`family_monitor` 登录页新增 GitHub 按钮（后端配置后显示），注册页支持 OAuth 预填与隐藏 Turnstile。
-- 版本号 2.9.15 → 2.10.0（中间号递增，补丁号归零）。
+---
 
-### 注意事项
-
-- 一个 GitHub OAuth App 仅允许配置**一个**固定回调 URL；本地开发需另建 OAuth App。
-- 生产环境 server 与 family_monitor 经 Cloudflare 隧道同域（my-website.ccwu.cc），登录态 cookie 可共享。
-
-## v2.9.15 (2026-07-20) — 代码审查 Bug 修复版本
+## v2.9.15 (2026-07-22) — 修复 8 个 Bug（localhost 复现验证）
 
 ### 概述
+相对 v2.9.14，本版本修复 8 个 Bug（均在 localhost 复现验证），并调整 `.gitignore`、更新 README。
 
-本版本修复了通过 `/cr` 代码审查发现并经 localhost 完整复现的 8 个 Bug（含 2 个致命、4 个严重、1 个一般、1 个新发现致命）。所有 Bug 均在本地环境（server:8000 + family_monitor:4430）100% 复现后修复并验证。
-
-### 🔴 致命 Bug 修复
-
-- **【Bug5】WebSocket sender None AttributeError**：聊天 WebSocket 处理器中，当发送者用户被删除后通过 WebSocket 发送消息时，`sender.group_id` 抛出 `AttributeError: 'NoneType' object has no attribute 'group_id'`，导致连接异常中断。增加 `sender is None` 检查，返回友好错误消息。
-  - 文件：`server/app/api/v1/endpoints/chat.py`
-  - 复现：用户被删除后通过 WebSocket 发送消息 → AttributeError → 连接中断
-- **【Bug8】WebSocket 认证查询字段错误（新发现）**：JWT `sub` 字段存储的是 `user.id`（数字字符串），但 WebSocket 认证代码用 `User.username == sub` 查询，导致所有 WebSocket 聊天连接认证失败返回 403。修正为 `User.id == int(sub)`。
-  - 文件：`server/app/api/v1/endpoints/chat.py`
-  - 复现：任何用户连接 WebSocket → HTTP 403（认证始终失败）
-
-### 🟡 严重 Bug 修复
-
-- **【Bug1】POST /logout 返回 405**：前端登出按钮使用 POST 表单提交，但服务端仅注册 `GET /logout`，导致 `405 Method Not Allowed`。抽取公共逻辑 `_do_logout()`，新增 `POST /logout` 处理器。
-  - 文件：`family_monitor/routes/auth.py`
-  - 复现：`POST /logout` → 405 Method Not Allowed
-- **【Bug2】聊天消息方向错误（currentUserId=null）**：family_monitor 认证中间件仅向模板传递 `username`，未传递数字 `user_id`，导致前端 `currentUserId = null`，所有聊天消息方向判断失效。修改 `_verify_jwt_via_server` 返回 `(username, user_id)` 元组，中间件存储 `request.state.user_id`。
-  - 文件：`family_monitor/main.py`、`family_monitor/routes/chat.py`
-  - 复现：浏览器中 `currentUserId = null`，消息方向全部显示错误
-- **【Bug3】解绑设备未清除 device_token**：`clear_bound_device()` 仅清除 `_device_id`，未清除 `_device_token`，导致解绑后设备令牌仍残留内存，后续请求仍携带旧 token。增加 `self._device_token = None`。
-  - 文件：`family_monitor/core/api_client.py`
-  - 复现：解绑后 `_device_token` 仍为旧值
-- **【Bug6】upload_image KeyError 崩溃**：`self.config['upload_endpoint']` 使用 `[]` 直接索引访问，配置缺少该键时抛出 `KeyError`，且该行在 try/except 块外导致程序崩溃。改用 `self.config.get('upload_endpoint', '/api/upload')` 安全访问。
-  - 文件：`elderly_assistant/services/http_client.py`
-  - 复现：配置缺少 `upload_endpoint` → `KeyError: 'upload_endpoint'`
-- **【Bug7】多提醒只触发第一个**：`check_medication_trigger` 函数的 for 循环中使用 `break`，导致同一时间多个用药提醒只触发第一个。改为收集所有匹配的提醒，合并为一条复合提醒后触发（如 "阿司匹林 1片、降压药 2片"）。
-  - 文件：`elderly_assistant/main.py`
-  - 复现：3 个同一时间的提醒，实际只触发 1 个
-
-### 🟢 一般 Bug 修复
-
-- **【Bug4】rate_limit _bucket 内存泄漏**：`_bucket[key] = recent` 在 recent 为空时仍保留空列表条目，随着不同 IP/key 的积累，`_bucket` 字典无限增长。增加空列表清理逻辑：`recent` 为空时从 `_bucket` 中删除该 key。
-  - 文件：`server/app/utils/rate_limit.py`
-  - 复现：100 个过期 key 调用后，`_bucket` 保留 100 个空列表条目
-
-### 验证方式
-
-所有 8 个 Bug 均在 localhost 环境（server:8000 + family_monitor:4430）完整复现并验证修复：
-- 复现脚本：`reproduce_bug5.py`（Bug5+Bug8）、`reproduce_bug67.py`（Bug6+Bug7）
-- 验证脚本：`verify_all_fixes.py`
-- 验证结果：8/8 通过
+### 主要变更
+- fix: v2.9.15 修复 8 个 Bug（全部 localhost 复现验证）
+- docs: 更新 README.md
+- chore: 更改 .gitignore
 
 ---
 
-## v2.9.14 (2026-07-20) — 安全加固版本
-
-### 🔴 高危漏洞修复（渗透测试复现）
-
-- **【高危1】device_token 任意获取/覆盖**：`/device/register` 对已注册设备不再返回 `device_token`，仅新设备首次注册时返回一次。攻击者无法再通过枚举 `device_id` 获取已有设备的访问令牌。
-  - 文件：`server/app/api/v1/endpoints/public.py`
-  - PoC：`POST /api/v1/public/device/register {"device_id":"TARGET_ID"}` → 旧版返回 token，新版仅返回 `user_id`
-- **【高危2】旧设备无 token 校验放行**：`_get_device_user_authed` 移除旧数据兼容放行逻辑，强制要求所有设备必须有 `device_token`。无 token 的旧设备由 `register_device` 自动生成后，需家属重新绑定。
-  - 文件：`server/app/api/v1/endpoints/public.py`
-
-### 🟡 中危漏洞修复
-
-- **【中危3】跨家庭组消息发送（IDOR）**：`/chat/send` 和 WebSocket 聊天增加同组关系校验，`sender.group_id == receiver.group_id` 不满足时拒绝发送。
-  - 文件：`server/app/api/v1/endpoints/chat.py`
-- **【中危4】Turnstile 未配置绕过**：生产环境（`DEBUG=False`）未配置 `TURNSTILE_SECRET_KEY` 时拒绝认证请求，不再跳过校验。
-  - 文件：`server/app/api/v1/endpoints/auth.py`
-- **【中危5】限流基于代理 IP 失效**：新增 `get_client_ip()` 工具函数，优先读取 `CF-Connecting-IP` 和 `X-Forwarded-For` 头获取真实客户端 IP。
-  - 文件：`server/app/utils/request_utils.py`（新增）、`auth.py`、`public.py`
-- **【中危7】API 文档生产环境暴露**：`/openapi.json`、`/docs`、`/redoc` 在生产环境返回 404，仅开发环境可用。
-  - 文件：`server/app/main.py`
-
-### 🟢 低危漏洞修复
-
-- **【低危10】X-Device-Secret 伪安全**：移除 family_monitor 中无效的 `X-Device-Secret` 头，改为发送 `X-Device-Token`（server 实际校验的令牌）。
-  - 文件：`family_monitor/core/api_client.py`
-- **【低危12】WebSocket cookie 名 + user_id bug**：chat.html cookie 名从 `session_token` 改为 `access_token`；WebSocket 认证从 `int(sub)` 改为通过 username 查库获取数字 ID。
-  - 文件：`family_monitor/templates/chat.html`、`server/app/api/v1/endpoints/chat.py`
-
-### 代码审查修复（/cr）
-
-- **【致命1.1】老人端不发送 X-Device-Token**：`elderly_assistant/services/http_client.py` 新增 `device_token` 加载、持久化和发送逻辑。新设备注册时自动保存返回的 token，后续请求携带 `X-Device-Token` 头。
-  - 文件：`elderly_assistant/services/http_client.py`
-- **【严重1.3】重新绑定覆盖 token**：`save_bound_device` 在未传入新 token 时保留已有 token，防止重新绑定导致 token 丢失。
-  - 文件：`family_monitor/core/api_client.py`、`family_monitor/routes/home.py`
-- **【一般1.2】register_device 未透传 token**：`api_client.register_device` 内部调用 `save_bound_device` 时透传 `device_token`。
-  - 文件：`family_monitor/core/api_client.py`
-- **【严重2.1】JWT 验证性能优化**：auth_middleware 改用全局 `httpx.AsyncClient` 复用连接 + JWT 30 秒短期缓存，避免每个请求都新建客户端和发送 HTTP 验证请求。
-  - 文件：`family_monitor/main.py`
-
-### 新增文件
-
-- `server/app/utils/request_utils.py`：共享的 `get_client_ip()` 工具函数
-
----
-
-## v2.9.13 (2026-07-19)
-
-### UI 统一
-- **family_monitor**: 删除 CSS 中所有 `.page-home` 导航栏样式覆盖（约 100 行）
-  - 移除 `.page-home .navbar-logo` 样式（背景色、图标颜色、字体大小）
-  - 移除 `.page-home .navbar-title` 样式（serif 字体、品牌色）
-  - 移除 `.page-home .nav-link` 样式（导航链接颜色、圆角）
-  - 确保主页导航栏图标和文字与其他页面完全一致
-- **family_monitor**: 所有模板 CSS 版本号从 `v=2.9.3` 更新到 `v=2.9.13`，强制刷新浏览器缓存
-
----
-
-## v2.9.12 (2026-07-19)
-
-### UI 统一
-- **family_monitor**: 统一主页字体和样式与其他页面（仪表盘、提醒、记录等）
-  - 移除 `index.html` 的 Google Fonts 引入（Newsreader, Poppins, Lora）
-  - body class 从 `page-home` 改为 `bg-gradient`，与其他页面保持一致
-  - 修复主页导航栏字体和图标显示与其他页面不一致的问题
-
----
-
-## v2.9.11 (2026-07-19)
-
-### Bug 修复
-- **family_monitor**: 修复注册失败时前端显示 `[object Object]` 的问题
-  - `_parse_server_error` 函数增加对 FastAPI 422 验证错误格式的处理
-  - 当 `detail` 是列表时，提取所有错误消息并用分号连接显示
-- **family_monitor**: 注册页面添加用户名格式提示
-  - 输入框添加 `pattern` 和 `title` 属性，前端预校验
-  - 添加 `.form-hint` 提示文字："用户名只能包含字母、数字和下划线，长度3-20位（不支持邮箱）"
-
----
-
-## v2.9.10 (2026-07-19)
-
-### Bug 修复
-- **family_monitor**: 修复静态文件在 PATH_PREFIX 模式下被重定向到登录页的问题
-  - `is_public` 检查中的 `/static/` 和 `/.well-known/` 前缀改为动态拼接 PATH_PREFIX
-  - 修复 `/eating-medication/family/static/css/style.css` 不匹配 `/static/` 导致的 302 重定向
-
----
-
-## v2.9.9 (2026-07-19)
-
-### Bug 修复
-- **family_monitor**: 修复 PATH_PREFIX 模式下 auth_middleware 重定向循环（ERR_TOO_MANY_REDIRECTS）
-  - public_paths 从硬编码改为动态拼接 PATH_PREFIX
-  - 修复隧道子路径模式下 `/eating-medication/family/login` 不匹配 `/login` 导致的无限重定向
-
----
-
-## v2.9.8 (2026-07-19)
-
-### Bug 修复
-- **family_monitor**: 修复登录成功后用户名仍显示"用户"的问题
-  - 补回 Turnstile 改动时误删的 GET /login 和 GET /register 路由
-  - login/register 成功后 redirect 值显式拼接 PATH_PREFIX，修复隧道子路径模式下跳转错误
-  - logout 重定向 URL 显式拼接 PATH_PREFIX
-- **family_monitor**: auth_middleware 和 _verify_jwt_via_server 添加诊断日志，定位 JWT 验证失败根因
-
-### 改进
-- **family_monitor**: 所有需认证路由（home.py 10个 + chat.py 2个）添加 _require_login 二次校验
-- **family_monitor**: Turnstile JS 加载失败/site_key 为空时降级为直接提交（后端兜底校验）
-- **family_monitor**: _verify_jwt_via_server 异常处理从 `except: pass` 改为输出详细日志
-
-### 版本统一
-- 全模块版本号统一至 2.9.8（server、family_monitor、elderly_assistant）
-
----
-
-## v2.9.7 (2026-07-17)
-
----
-
-## v2.9.6 (2026-07-15)
-
-### 安全清理
-- 使用 `git filter-repo` 清理 Git 历史中的敏感文件：
-  - 删除 `upload_123pan.py`（含明文账号密码）
-  - 删除 `代码审查报告.md`（含敏感信息引用）
-  - 删除所有 `.zip` 和 `.sha256` 文件历史记录
-- 统一所有 commit 的 author/committer 为 diaoyunxi
-- 删除 main 以外的分支
-
-### 文档更新
-- 更新 `README.md`：版本号、三模块差异表格版本号同步到 2.9.6
-- 更新 `elderly_assistant/README.md`：版本号同步到 2.9.6
-- 更新 `history.md`：追加 v2.9.6 ~ v2.9.5 变更记录
-
-### 版本统一
-- 全模块版本号统一至 2.9.6（server、family_monitor、elderly_assistant）
-
----
-
-## v2.9.5 (2026-07-15)
-
-### 版本统一
-- 全模块版本号统一至 2.9.5
-
----
-
-## v2.9.4 (2026-07-15)
-
-### Bug 修复
-- **family_monitor**: 修复 Starlette 0.28+ 版本兼容性问题
-  - `Jinja2Templates.TemplateResponse` 签名变更：`request` 参数变为第一个位置参数
-  - 影响文件：`routes/auth.py`、`routes/home.py`、`routes/chat.py`、`routes/admin.py`
-  - 错误表现：`TypeError: unhashable type: 'dict'`（GET /login 500 Internal Server Error）
-
----
-
-## v2.7.0 变更（2026-07-08）- 修复"设备即用户"设计缺陷
-
-#### 背景与根因
-
-测试发现 4 个失败项，其中 3 个（家属绑定老人、获取设备状态、删除用药计划）指向同一根本问题：**设备（device）与用户（user）的关联模型不完整**。
-
-原设计采用"设备即用户"：`device/register` 接口会自动创建一个 `role="elderly"` 的 User 记录，用 `username` 字段存储 `device_id`。这导致**两套并行的"老人"概念**：
-
-| 老人来源 | 创建方式 | user_id 示例 | 用药计划归属 |
-|---------|---------|------------|------------|
-| 真实老人 | `/auth/register` 注册（有账号密码） | 13 | plan.user_id=13 |
-| 设备老人 | `/public/device/register` 自动创建 | 15、16、17... | plan.user_id=15 |
-
-连锁失败：
-- **#9 家属绑定老人 (400)**：家属传 `elderly_user_id=13`（真实老人）+ `device_id=xxx`，但 `elderly.username != device_id`（真实老人 username 是账号名，不是 device_id）→ 400
-- **#29 删除用药计划 (404)**：老人用 JWT 创建计划 `plan.user_id=13`，但删除接口用 device_id 反查到虚拟用户 `user_id=15`，`plan.user_id(13) != 15` → 404
-- **#21 获取设备状态 (500)**：设备关联虚拟用户 user_id=15，因数据关联异常 → 500
-
-#### 修复方案：设备绑定真实老人
-
-在 User 表新增 `device_id` 字段，建立 device_id 与真实老人的关联。家属绑定时把 device_id 关联到真实老人，并迁移虚拟用户数据。
-
-#### server 模块改动
-
-##### 数据模型
-- `app/models/user.py`：User 模型新增 `device_id` 字段（nullable, unique, index），用于关联真实老人与设备 ID
-
-##### 数据迁移
-- `app/migrations/versions/20260708_001_add_device_id_to_users.py`：新增 Alembic 迁移脚本，升级时添加 `device_id` 字段及唯一索引
-
-##### 接口改造
-- `app/api/v1/endpoints/public.py`：
-  - `_get_device_user`：优先按 `User.device_id` 查找（真实老人），回退 `User.username == device_id`（兼容旧虚拟用户）
-  - `register_device`：同步采用新查找逻辑，找不到时才创建虚拟用户（待家属后续绑定）
-  - `device_offline`、`check_device`、`ai_ask`：统一采用新查找逻辑
-
-- `app/api/v1/endpoints/users.py`：
-  - `bind_family`：重写弱保护逻辑——校验 device_id 对应的设备已注册（虚拟用户或已绑定的真实老人），调用服务层完成数据迁移 + device_id 关联 + 家庭组绑定
-
-##### 服务层改造
-- `app/services/user_service.py`：
-  - `bind_family`：新增 `device_id` 参数，处理设备关联逻辑
-  - 新增 `_migrate_virtual_user_data`：将虚拟用户的用药计划、服药记录、AI 日志、聊天消息迁移到真实老人，然后删除虚拟用户
-  - 绑定流程：校验 device_id 未被占用 → 迁移虚拟用户数据 → 删除虚拟用户 → 把 device_id 关联到真实老人 → 家庭组绑定
-
-##### Schema 调整
-- `app/schemas/user.py`：`UserOut` 新增 `device_id` 字段，方便家属端查看老人绑定的设备
-
-#### 兼容性说明
-
-- **旧虚拟用户兼容**：未绑定的虚拟用户 `device_id` 字段为 None，所有设备查询接口回退到 `username == device_id` 查找，旧数据不破坏
-- **设备端无感**：老人端 `elderly_assistant` 无需改动，仍通过 `X-Device-ID` 头标识设备
-- **数据迁移自动化**：家属绑定老人时自动迁移虚拟用户数据，无需手动清理
-
-#### 验证
-
-- 修复后流程：
-  1. 老人通过 `/auth/register` 注册（user_id=13）
-  2. 设备通过 `/public/device/register` 注册（创建虚拟用户 user_id=15）
-  3. 家属调用 `/users/bind`（elderly_user_id=13, device_id=xxx）：
-     - 虚拟用户 user_id=15 的数据迁移到真实老人 user_id=13
-     - 删除虚拟用户 user_id=15
-     - 真实老人 user_id=13 的 device_id 字段 = xxx
-     - 家属加入家庭组
-  4. 设备心跳：device_id → 反查到真实老人 user_id=13 → 更新心跳
-  5. 设备状态查询：device_id → user_id=13 → 返回真实老人的计划/记录数
-  6. 老人创建计划：user_id=13
-  7. 删除计划：device_id → user_id=13 → 匹配 plan.user_id=13 → 200 OK
-
-#### 文档同步
-
-- `VERSION`：2.6.0 → 2.7.0
-- 三个子项目的 `updater.py` 版本号统一升级到 2.7.0
-- `history.md` 追加 v2.7.0 变更说明
-
-#### 未修复项
-
-- **#16 药名识别 (500)**：1x1 像素测试图无法识别，接口校验本身正常，P2 优先级暂不处理（用户已确认非 BUG）
-
----
-
-## v2.6.0 变更（2026-07-08）
-
-#### server 模块
-
-##### 新增删除用户 API
-
-- **背景**：原 users 端点仅有 `GET /users/me`、`PUT /users/me`、`POST /users/bind`，缺少账号注销与家属清理老人账号的能力。
-- **新增端点**：
-  - `DELETE /users/me`：当前用户注销自己账号。采用**硬删除**（`db.delete`），会触发级联删除（`MedicationPlan` / `MedicationRecord` / `AIQueryLog`，依据 `User` 模型 relationship 的 `cascade="all, delete-orphan"` 配置），删除后不可恢复。
-  - `DELETE /users/{user_id}`：家属删除同家庭组的老人账号。校验链：
-    1. `current_user.role == "family"`（仅家属可调用）
-    2. `user_id != current_user.id`（禁止删除自己，应走 `/me`）
-    3. `current_user.group_id is not None`（家属须已绑定老人）
-    4. 目标用户存在且 `role == "elderly"`
-    5. `target.group_id == current_user.group_id`（必须同一家庭组）
-- **UserService 新增方法**：
-  - `delete_user(db, user_id) -> bool`：硬删除指定用户，返回是否成功（用户不存在返回 False）。
-- **响应格式**：`200 + {"status": "success", "message": "账号已删除"}`，与项目现有 `medication/take` 端点返回风格一致。
-- **删除策略决策**：采用硬删除而非软删除（`is_active=False`）。原因：用户已确认删除意图，且家庭组关系仅清空被删用户自身（用户记录整体移除，不影响同组其他成员）。
-- **路由顺序**：`/me` 在 `/{user_id}` 之前声明，避免路径参数误匹配（虽 `user_id: int` 类型注解已可拒绝 "me" 字符串，但顺序保障更稳健）。
-
-#### 文档同步
-
-- `VERSION`：2.5.0 → 2.6.0
-- `README.md`：
-  - 版本头更新为 v2.6.0（2026-07-08）
-  - 用户 API 表格补充 `DELETE /users/me` 与 `DELETE /users/{user_id}` 两条记录
-  - 版本历史段落追加 v2.6.0 条目
-
----
-
----
-
-## v2.4.0 - 移动端导航优化版本（2026-07-07）
-
-### 变更概述
-
-修复 family_monitor（子女看护 Web 端）在移动端导航栏占比过大的问题。原布局在手机/平板上因 `flex-wrap` 换行导致导航栏占据过多垂直空间，影响主内容可视区域。
-
-采用「横向滚动导航 + 头像下拉菜单」方案：
-- 导航项改为横向滚动（不再换行），mask-image 实现滚动渐隐提示
-- `nav-user`（用户名 + 登出按钮）在移动端折叠为圆形头像按钮，点击展开下拉菜单
-- 桌面端（≥769px）保持原布局不变，自动隐藏移动端专属组件
-
-### 响应式断点设计
-
-| 断点 | 范围 | 行为 |
-|------|------|------|
-| 平板 | ≤1024px | 缩小尺寸但保持横向布局（logo 38px、字号 0.9rem） |
-| 手机 | ≤768px | navbar-nav 横向滚动，nav-user 折叠为头像按钮 + 下拉菜单（核心改造） |
-| 小屏 | ≤480px | 进一步紧凑（头像 32×32、下拉菜单 min-width 180px） |
-| 桌面 | ≥769px | 隐藏头像按钮和下拉菜单，恢复原换行布局 |
-
-### 关键技术点
-
-#### CSS 改造（style.css 末尾追加约 314 行）
-- `.navbar-container` 强制 `flex-direction: row` + `flex-wrap: nowrap`，避免换行
-- `.navbar-nav` 启用 `overflow-x: auto` + `-webkit-overflow-scrolling: touch`，并隐藏滚动条（`scrollbar-width: none` + `::-webkit-scrollbar { display: none }`）
-- `.nav-link` 加 `white-space: nowrap` + `flex-shrink: 0`，防止单项被压缩
-- 滚动渐隐提示：`mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 44px), transparent 100%)`
-- `.nav-user-avatar`：34×34 圆形按钮，使用 `--gradient-primary` 渐变背景，含 hover 放大 + active 缩小交互
-- `.nav-user-dropdown`：绝对定位下拉菜单，含 `opacity/visibility/transform` 三重过渡动画 + `.show` 状态类
-- 桌面端 `@media (min-width: 769px)` 显式 `display: none` 隐藏头像按钮和下拉菜单
-
-#### HTML 结构改造（6 个模板统一）
-保留桌面端原有 `.nav-username` + 登出按钮结构，新增移动端专属元素：
-- `.nav-user-avatar` 头像按钮（含用户 SVG 图标 + ARIA 属性）
-- `.nav-user-dropdown` 下拉菜单容器（role="menu"）
-  - `.nav-user-dropdown-user`：用户信息区（含 `.nav-user-dropdown-avatar` 首字母圆形 + `.nav-user-dropdown-name` 用户名）
-  - `.nav-user-dropdown-item.danger`：登出按钮（含登出 SVG 图标）
-
-#### JavaScript 交互（IIFE 模式注入）
-每个模板 `</body>` 前注入相同 IIFE 脚本：
-- `window.__navUserDropdownInit` 防重复初始化标志
-- `window.toggleNavUserDropdown(e)`：切换下拉菜单显示状态，同步 ARIA `aria-expanded`
-- `window.navLogout()`：登出流程，从 cookie 读取 `csrf_token`，`fetch` POST `/logout` 携带 `X-CSRF-Token` Header，完成后重定向到 `/login`
-- `document.click` 监听：点击下拉菜单外部时自动关闭
-- `document.keydown` 监听：按 ESC 键关闭下拉菜单
-
-### 涉及的文件清单
-
-#### 修改文件（共 11 个）
-
-**CSS 样式（1 个）**：
-- `family_monitor/static/css/style.css`：末尾追加 4 个媒体查询块（共约 314 行）
-
-**HTML 模板（6 个，导航栏改造 + CSS 版本号升级）**：
-- `family_monitor/templates/index.html`
-- `family_monitor/templates/dashboard.html`
-- `family_monitor/templates/reminders.html`
-- `family_monitor/templates/records.html`
-- `family_monitor/templates/settings.html`
-- `family_monitor/templates/medication_settings.html`
-
-**CSS 缓存版本号升级（4 个，仅 ?v= 参数）**：
-- `family_monitor/templates/admin_settings.html`
-- `family_monitor/templates/chat.html`
-- `family_monitor/templates/login.html`
-- `family_monitor/templates/register.html`
-
-**版本号同步（5 个）**：
-- `VERSION`：2.3.0 → 2.4.0
-- `family_monitor/updater.py`：`__version__` = "2.3.0" → "2.4.0"
-- `server/updater.py`：`__version__` = "2.3.0" → "2.4.0"
-- `elderly_assistant/updater.py`：`__version__` = "2.3.0" → "2.4.0"
-- `README.md`：当前版本引用和三模块差异表格同步到 2.4.0
-- `elderly_assistant/README.md`：当前版本声明同步到 2.4.0
-
-### 兼容性说明
-
-- 桌面端（≥769px）行为完全不变，原有用户名 + 登出按钮正常显示
-- 移动端导航项支持横向滑动，长导航也不会换行占满屏幕
-- 头像下拉菜单点击外部或按 ESC 自动关闭，符合无障碍访问规范（ARIA 属性完整）
-- 登出流程保留 CSRF 防护，POST + X-CSRF-Token Header 与原桌面端一致
-- 所有改造均为渐进增强，不破坏现有桌面端功能
-
-### 验证结果
-
-- Jinja2 模板渲染：6 个改造模板全部渲染成功，包含完整新结构
-- curl 端到端测试：注册测试用户 testuser/Test1234 后访问首页，HTML 包含 `nav-user-avatar`、`nav-user-dropdown`、`nav-user-dropdown-item`、`toggleNavUserDropdown`、`navLogout` 等所有元素
-- 下拉菜单首字母显示正确（"T"），用户名显示 "testuser"
-
----
-
----
-
-## v2.3.0 - 代码质量与安全加固版本（2026-07-07）
-
-### 破坏性变更
-- 移除 device_token/X-Device-Token 机制，所有公开接口仅通过 device_id 校验
-- 家属端 logout 改为 POST 方法并要求 CSRF 校验
-- 老人端删除未使用的 TUI、ReminderManager、AIAssistant、LocalFallback、AIClient、OCREngine 模块
-
-### 安全修复
-- 服务端：修复 group_id 为 None 时的数据越权泄露
-- 服务端：登录端点添加 IP 限流（每分钟 10 次）
-- 服务端：DELETE 用药计划接口添加设备归属校验
-- 服务端：修复时区 aware/naive 混用导致的 TypeError
-- 服务端：WebSocket chat 异常完全捕获，防止连接泄漏
-- 家属端：修复 chat.html XSS 漏洞（用户名注入 JS 字符串）
-- 家属端：CSRF 比较改用 secrets.compare_digest 防止时序攻击
-- 家属端：_save_users 先加锁后截断，防止写入失败导致数据丢失
-- 家属端：修复 _login_attempts 和 _revoked_tokens 内存泄漏
-- 老人端：修复 socket 资源泄漏
-- 老人端：修复 upload_image 文件不存在异常未捕获
-
-### 功能修复
-- 服务端：修复 Alembic 迁移路径错误（始终回退 create_all）
-- 服务端：修复 env.py 缺少 chat_message 模型导入
-- 服务端：接线服药通知（notify_taken_medication）
-- 家属端：修复 chat.html parseInt 对字符串 device_id 返回 NaN
-- 家属端：修复 CSS 未定义变量（--font-sans、--brand-color 等）
-- 家属端：修复 dashboard/records/reminders 模板的 None 类型错误
-- 老人端：修复 Buzzer.beep() 调用不存在的方法
-- 老人端：修复 main.py 混用 logging 模块级 API 与 logger 实例
-- 老人端：修复 config_loader.py yaml 解析为 None 时的崩溃
-
-### 代码质量
-- 删除大量死代码和未使用导入（服务端 8 处、家属端 13 处、老人端 5 处）
-- 统一日志脱敏（device_id 前4+后4）
-- 修复老人端 requirements.txt 包含未使用依赖
-- 修复老人端 config.yaml.example 过时端点配置
-- 统一三个子项目的版本号到 2.3.0
-
----
-
----
-
-## v2.2.0 - 安全加固版本（2026-07-01）
-
-### 背景
-
-基于对 `diaoyunxi/eating-medication` 仓库的全面严格审查，发现 47+ 个安全问题（11 严重 + 15 高危 + 21 中危 + 20+ 低危），详见 `SECURITY_AUDIT_REPORT.md`。本次发布为安全加固版本，允许破坏性变更。
-
-### 服务端（server）修复
-
-#### 严重问题修复
-- **C2**：`main.py` 默认 `.env` 中 `DEBUG=False`，`SECRET_KEY` 用 `secrets.token_urlsafe(32)` 动态生成
-- **C3**：`config.py` 启动时校验 SECRET_KEY，弱密钥拒绝启动
-- **C4**：聊天端点（send/history/ws）全部加 `Depends(get_current_user)`，sender_id 从 token 提取
-- **C5**：设备端点引入 `X-Device-Token` 机制，写/读操作需携带 token；AI 端点 IP 限流
-- **C7**：删除内联 CORS，改用 `setup_cors(app)` 从 `ALLOWED_ORIGINS` 环境变量读取白名单
-- **C8**：日志中间件对敏感路径跳过请求体记录，对敏感字段脱敏
-- **C9**：updater 加 SHA256 校验查找，auto_pull 默认 False
-
-#### 高危问题修复
-- **H7**：JWT sub 统一为 str，增加 type/jti 字段，token 有效期缩短至 1 小时
-- **H8**：登录防时序攻击（用户不存在时执行 dummy bcrypt）
-- **H9**：库存扣减原子化，按 plan_id+scheduled_time 去重，status 计算（missed/taken/pending）
-- **H10**：异常不返回客户端，logger.exception 记录
-- **H11**：stock_checker 改用 AsyncIOScheduler
-- **H12**：删除 env.py 中 purchase_suggestion 引用，修正 alembic.ini script_location
-- **H13**：bind_family 增加 device_id 校验（弱保护）
-- **H14**：WebSocket token 长度校验
-- **H15**：文件上传限制 5MB
-
-#### 中危问题修复
-- M12：schemas/auth.py 集成 validators
-- M13：schedule_times 加时间格式校验
-- M14：所有 datetime.utcnow() 改 datetime.now(timezone.utc)
-- M16：chat ws 用 `with SessionLocal() as db`
-- M17：get_db 统一从 dependencies 导入
-- M18：异常处理器脱敏
-- M19：low_stock_threshold 改 Float
-- M20：confidence 改 Optional
-
-#### 低危修复
-- L8：注册端点 IP 限流
-- L9：User 模型增加 is_active、last_login_at 字段
-- L11：ChatMessage 字段加索引
-- L12：history limit 上限 200
-- L14：ai_query_log 默认模型改 glm-4.7-flash
-
-#### 依赖升级
-- python-jose 3.3.0 → 3.4.0（修复 CVE-2024-33664）
-- pydantic 2.9.2 → 2.10.0（修复 CVE-2024-1561）
-- sqlalchemy 2.0.35 → 2.0.36（修复 CVE-2024-29906）
-- 新增 bcrypt>=4.0,<4.1 约束
-- 测试依赖移至 requirements-dev.txt
-
-### 家属监控端（family_monitor）修复
-
-#### 严重问题修复
-- **C1**：移除 config.json 中硬编码 SECRET_KEY，改为从 .env 注入，空时自动生成临时密钥并警告；config.json 加入 .gitignore，新增 config.json.example
-- **C6**：CORS 改从 ALLOWED_ORIGINS 环境变量读取；引入 CSRF 双重提交防护
-
-#### 高危问题修复
-- **H2**：cookie 加 secure/samesite=strict；登出调用 invalidate_session；撤销令牌持久化到 data/revoked_tokens.json
-- **H3**：移除 SECRET_KEY 的 Web 修改入口
-- **H4**：公开路径精确匹配
-- **H5**：chat.html XSS 修复（innerHTML → DOM + textContent）
-- **H6**：medication_settings.html 移除 `| safe`，改用 data-* 属性
-
-#### 中危问题修复
-- M1：config.py 不写回 os.environ
-- M2：auth.py 加 fcntl 文件锁 + chmod 0600
-- M3：添加安全响应头中间件
-- M4：禁用 Web 修改 DEBUG
-- M5：admin_settings 表单 action 路径修正
-- M6：chat 路由传入 current_user 和 elderly_id
-- M7：install.py 不修改全局 pip 配置
-- M8：device_id URL 编码
-- M9：移除未使用的 API_KEY 配置
-- M10：端口使用 config.SERVER_PORT
-
-#### 低危修复
-- L16：更新 README
-- L17：修复 routes/__init__.py 编码
-- L18：登录限流
-- 依赖：requirements.txt `>=` 改 `~=`
-
-### 老人端（elderly_assistant）修复
-
-#### 严重问题修复
-- **C10**：热点加 WPA2 随机密码；配网服务加 X-Config-Token 校验；server_url 转义防 XSS；CORS 限制为本地热点网关
-- **C11**：ai_client.py 改 `config.get('ai', {})` 容错；config.yaml 补充 ai 段
-
-#### 高危问题修复
-- **H1**：hotspot_manager.py 改列表形式调用 subprocess，去掉 shell=True
-
-#### 低危修复
-- L6：install.py 改为读取 requirements.txt
-- L7：移除 opencv-python、fuzzywuzzy、python-Levenshtein，改用 rapidfuzz
-- main.py 自动更新异常不静默
-- tui_app.py os.system 改 ANSI 转义序列
-- config.yaml 占位符替换
-
-### 跨模块共享文件修复
-
-- **.gitignore**：新增 family_monitor/config.json、elderly_assistant/config.yaml 忽略规则
-- **README.md**：生产域名替换为占位符；新增 v2.2.0 版本记录
-- **history.md**：移除本地绝对路径（file:///run/media/xixi/...）
-- **VERSION**：2.1.0 → 2.2.0
-- 新增 config.yaml.example、config.json.example 模板
-
-### 破坏性变更说明
-
-1. **SECRET_KEY 必须配置**：server 和 family_monitor 启动时若未配置 SECRET_KEY（或为已知弱值），生产模式（DEBUG=False）将拒绝启动
-2. **设备 token 机制**：首次注册设备会返回 device_token，后续读写操作需在 Header 携带 X-Device-Token，老设备需重新注册
-3. **JWT 有效期缩短**：从 7 天缩短至 1 小时，客户端需实现 refresh 机制或重新登录
-4. **CORS 白名单**：生产环境必须配置 ALLOWED_ORIGINS 环境变量，否则跨域请求被拒绝
-5. **CSRF 防护**：family_monitor 所有 POST 请求需携带 csrf_token
-6. **热点加密**：elderly_assistant 热点现在需要密码连接，启动时打印
-
-### 验证
-
-- 服务端：`python -c "from app.main import app; print('OK')"` → OK
-- 家属端：`python -c "from main import app; print('OK')"` → OK（含端到端测试通过）
-- 老人端：`python -m py_compile` 全部通过，`import main` 成功
-
----
-
-## 大版本更新 v2.0 (2026-06-27) - 老人端 pinpong/unihiker 重构
+## v2.9.14 (2026-07-20) — 回退 v3.0.0，移除源码仓库中的 SHA256SUMS.txt
 
 ### 概述
+相对 v3.0.0，本版本将版本号回退至 v2.9.14，并移除源码仓库中的 `SHA256SUMS.txt`（撤销 v3.0.0 的发布产物）。
 
-本次大版本更新彻底重构老人端交互模式：**舍弃 TUI 界面，改用 pinpong 库 + unihiker GUI 库实现适配行空板 M10 的图形化交互**。同时完善端到端的设备配网、注册、用药计划下发、到点提醒全流程。
-
-完整工作流：
-1. 老人端启动 → 默认显示当前时间 + 后台创建热点 `M10-Config`
-2. 用户连接热点 → 访问 `10.0.0.1:8088` → 仅设置服务器地址和 WiFi（名称+密码）
-3. 老人端 nmcli 连接 WiFi → 通过 pinpong 库获取 FCC ID → POST 到服务器注册设备
-4. 子女端设置服务器地址和设备 FCC ID → 服务器校验设备是否存在
-5. 子女端设置用药时间（药品名、剂量、服药时间列表、频率、数量）→ POST 到服务端
-6. 老人端每分钟 curl 获取用药时间 → 到点使用 pinpong 蜂鸣器提醒
-7. 老人按 A 键确认服药、B 键暂缓 5 分钟
-
-### pinpong 库 API 调研
-
-通过搜索获取了 pinpong 库的完整 API 文档（行空板 M10 专用）：
-
-- **Board**：`Board().begin()` 初始化板子
-- **Pin**：`Pin(pin, mode)` GPIO 控制，`pin.write_digital(1)` / `pin.read_digital()`
-- **button_a / button_b**：`button_a.is_pressed()` 检测按下
-- **buzzer**：`buzzer.melody(melody, tempo)` 播放旋律；音乐常量 `DADADADUM`、`BA_DING`、`JUMP_UP`、`POWER_DOWN`、`PRELUDE` 等；播放模式 `Once` / `Forever` / `OnceInBackground` / `ForeverInBackground`；`buzzer.off()` 停止
-- **light**：`light.read()` 读光感
-- **accelerometer**：`accelerometer.get_x/y/z()` 三轴加速度
-- **gyroscope**：`gyroscope.get_x/y/z()` 三轴陀螺仪
-- **UART / SPI / I2C**：`UART(baudrate, tx, rx)`、`SPI()`、`I2C()` 通信总线
-
-unihiker GUI 库：
-- `gui = GUI()` 实例化
-- `gui.draw_text(x, y, text, ...)` 文本
-- `gui.draw_digit(...)` 数字
-- `gui.draw_image(...)` / `gui.draw_emoji(...)` 图像
-- `gui.add_button(...)` 按钮
-- `gui.draw_clock(...)` / `gui.fill_clock(...)` 时钟
-- `gui.draw_qr_code(...)` 二维码
-
-### 服务端改动
-
-#### 新增 5 个设备公开接口（无需 JWT 认证）
-文件：[server/app/api/v1/endpoints/public.py](server/app/api/v1/endpoints/public.py)
-
-- 新增 `FamilyMedicationPlan` Pydantic 模型
-- `GET /api/v1/public/device/check/{device_id}` - 子女端绑定前校验设备是否已注册
-- `GET /api/v1/public/device/schedule/{device_id}` - 老人端每分钟轮询用药时间表（聚合所有计划的每个时间点）
-- `POST /api/v1/public/device/medication_plan` - 家属通过设备 ID 设置用药计划
-- `GET /api/v1/public/device/plans/{device_id}` - 获取设备所有用药计划
-- `DELETE /api/v1/public/device/medication_plan/{plan_id}` - 删除用药计划
-
-设备注册沿用原 `POST /api/v1/public/device/register`，自动以 FCC ID 作为 username 创建 role=elderly 用户。
-
-### 老人端重构
-
-#### main.py 完全重写
-文件：[elderly_assistant/main.py](elderly_assistant/main.py)
-
-- 舍弃原 TUI（tui_app.py 不再使用）
-- 主循环每秒更新 unihiker GUI 时间显示
-- 后台线程创建热点并启动配网 Web 服务
-- `MedicationPoller` 线程每 60 秒轮询用药计划
-- 到点触发：调用蜂鸣器 + GUI 显示提醒；A 键确认服药、B 键暂缓 5 分钟
-- 防重复触发：同一计划同一时间点 60 秒内只触发一次
-- 暂缓后 5 分钟复活，可再次暂缓或确认
-- 所有 pinpong/unihiker 导入放 try-except ImportError，非 M10 环境可调试运行
-
-#### 新建 core/display.py
-文件：[elderly_assistant/core/display.py](elderly_assistant/core/display.py)
-
-集中所有屏幕显示逻辑：
-- `show_time(now)` 显示当前时间
-- `show_reminder(drug_name, dosage)` 显示用药提醒
-- `show_config_mode()` 显示配网模式提示
-- `show_status(server_url, connected)` 显示网络状态
-- `show_fcc_id(fcc_id)` 显示设备 FCC ID
-- `show_next_reminder(time, drug)` 显示下次提醒
-
-#### buzzer.py 重写
-文件：[elderly_assistant/services/buzzer.py](elderly_assistant/services/buzzer.py)
-
-- `play_reminder()` 在独立线程循环播放 `buzzer.BA_DING`，直到 stop
-- `stop()` 停止蜂鸣
-- `play_success()` 播放 `buzzer.JUMP_UP` 表示确认服药
-
-#### wifi_config.py 重写
-文件：[elderly_assistant/services/wifi_config.py](elderly_assistant/services/wifi_config.py)
-
-- 使用标准库 `http.server.BaseHTTPRequestHandler`（无额外依赖）
-- `CONFIG_PORT=8088`，提供 HTML 配网页面
-- 仅收集：服务器地址 + WiFi 名称 + WiFi 密码
-- 表单提交后调用 nmcli 连接 WiFi
-- WiFi 连接成功后获取 FCC ID 并 POST 注册到服务器
-
-#### hotspot_manager.py 修改
-文件：[elderly_assistant/services/hotspot_manager.py](elderly_assistant/services/hotspot_manager.py)
-
-统一热点参数：
-- `HOTSPOT_SSID = "M10-Config"`
-- `HOTSPOT_IP = "10.0.0.1"`
-- `HOTSPOT_WEB_PORT = 8088`
-
-#### http_client.py 修改
-文件：[elderly_assistant/services/http_client.py](elderly_assistant/services/http_client.py)
-
-新增方法：
-- `get_medication_schedule()` → GET `/api/v1/public/device/schedule/{device_id}`
-- `confirm_medication()` 确认服药上报
-
-#### device_id.py（沿用，无需修改）
-文件：[elderly_assistant/services/device_id.py](elderly_assistant/services/device_id.py)
-
-- 优先通过 pinpong `Board().begin()` 获取 `FCC_{MAC}`
-- 失败回退 `DEV_{UUID}`
-
-#### 配置文件
-- `config.yaml` 与 `utils/config_loader.py` 新增 `server.base_url`、`hotspot.*`、`reminder.poll_interval=60`、`reminder.snooze_minutes=5`
-
-### 子女端改动
-
-#### api_client.py 修改
-文件：[family_monitor/core/api_client.py](family_monitor/core/api_client.py)
-
-- **Bug 修复**：原 `register_device` 方法存在 `return` 后紧跟 `return` 的死代码，缺少 else 分支，已重构为显式 if/else
-- 新增方法：`check_device()`、`get_device_plans()`、`set_medication_plan()`、`delete_medication_plan()`
-
-#### home.py 修改
-文件：[family_monitor/routes/home.py](family_monitor/routes/home.py)
-
-- `bind_device` 路由绑定前先调用 `check_device` 校验设备是否已注册
-- 新增路由：
-  - `GET /medication_settings` - 用药设置页面
-  - `POST /medication_settings/add` - 新增用药计划
-  - `POST /medication_settings/delete/{plan_id}` - 删除计划
-
-#### 新建 medication_settings.html
-文件：[family_monitor/templates/medication_settings.html](family_monitor/templates/medication_settings.html)
-
-- 当前用药计划列表（可删除）
-- 添加计划表单：药品名、剂量、可动态增删的服药时间、频率、数量
-- fetch API 提交，Toast 通知反馈
-
-#### settings.html 修改
-- `bindDevice()` JS 函数增加非 JSON 响应容错
-- 绑定成功后才刷新页面
-
-### 测试验证
-
-- 老人端所有模块导入测试通过
-- 老人端用药提醒全流程测试通过（触发 → 防重复 → 暂缓 → 复活 → 确认）
-- 子女端语法检查通过
-- 非 M10 环境优雅降级运行正常（pinpong/unihiker 缺失时主循环仍可工作）
-
-### 端口/IP 统一
-
-本次重构统一了多处端口不一致问题（原 hotspot_manager.py 用 4321、main.py 日志用 8088 等）：
-- 热点 IP：`10.0.0.1`
-- 配网 Web 端口：`8088`
-- 子女端 Web 端口：`4430`（HTTPS）
-- 服务端 API 端口：HTTPS 默认
+### 主要变更
+- fix: 版本号回退至 v2.9.14 + 移除源码仓库中的 SHA256SUMS.txt
 
 ---
 
----
+## v3.0.0 (2026-07-20) — 安全加固版本（渗透测试 + 代码审查修复）
 
-## install.py 统一加固
+> 本版本为一次安全加固发布，随后在 v2.9.14 中被回退（版本号降回 2.x 并移除校验文件），保留记录以备查。
 
-#### 背景
-三模块（`elderly_assistant`、`server`、`family_monitor`）原本各自维护一份 `install.py`，逻辑存在差异：
-- `elderly_assistant/install.py`：未做 pip 缺失检测，错误时只 fallback 一次到 `--break-system-packages`
-- `server/install.py`：硬编码 Linux 默认加 `--break-system-packages`，其余平台不带
-- `family_monitor/install.py`：未处理 PEP 668 错误，无 `--break-system-packages` 重试
+### 概述
+相对 v2.9.13，本版本为安全加固版本：修复渗透测试与代码审查发现的问题，并添加 `v3.0.0` 的 SHA256 校验文件、更新 `SHA256SUMS.txt` 为最终发布校验值。
 
-新用户/新设备（尤其是精简 Python 镜像或全新 ARM 设备）经常遇到 `externally-managed-environment` 错误，需要手动加 `--break-system-packages`，体验不佳。
-
-#### 改造方案
-
-将三份 `install.py` 统一为同一份脚本，逻辑分四步：
-
-1. **检测 pip** — `python -m pip --version`，失败则进入自动安装
-2. **按平台自动安装 pip**（pip 缺失时）：
-   - Linux：优先 `apt-get update && apt-get install -y python3-pip`，依次尝试 `sudo` 和直接执行
-   - Windows：标准库 `urllib.request` 下载 `https://bootstrap.pypa.io/get-pip.py` 并执行
-   - 跨平台后备：`python -m ensurepip --upgrade`
-3. **正常 pip install** — 使用 `-i PIP_INDEX_URL`（默认清华源）临时指定镜像源，不修改全局 pip 配置
-4. **失败重试** — 若 `pip install` 的 stdout/stderr 包含 `--break-system-packages`（PEP 668 提示），自动追加该参数重试一次
-
-#### 兼容性
-
-- 保留 `PIP_INDEX_URL` 环境变量覆盖镜像源
-- 新增 `GET_PIP_URL` 环境变量覆盖 get-pip.py 下载地址
-- 已安装包自动跳过（先 `importlib.import_module` 再回退 `pip show`）
-- 失败重试只对 PEP 668 错误生效，其他错误（如版本不存在、No matching distribution）保持原样报错
-
-#### 验证
-
-- 三个 `install.py` 内容完全一致（`diff` 无输出）
-- 15/15 单元测试通过（覆盖 _split_pkg_name / _check_pip_available / is_package_installed / install_package 重试 / ensure_pip 三个平台路径）
-- `elderly_assistant/install.py` 端到端跑通：8 个依赖，6 新装 / 1 跳过 / 1 失败（pinpong 1.2.0 镜像无此版本，合理失败）
-- `server/install.py` 端到端跑通：15 个依赖全部成功
-- `family_monitor/install.py` 端到端跑通：8 个依赖全部成功
-
-#### 文档同步
-
-- `history.md` 追加本次 install.py 统一加固变更说明
-- `README.md` 快速开始章节的 `python install.py` 说明保持不变（用户视角体验一致，内部已加固）
+### 主要变更
+- v3.0.0: 安全加固版本 — 渗透测试修复 + 代码审查修复
+- chore: 添加 v3.0.0 SHA256 校验文件
+- chore: 更新 SHA256SUMS.txt 为最终发布版本的校验值
 
 ---
+
+## v2.9.13 (2026-07-19) — 删除 CSS 中 page-home 样式
+
+### 概述
+相对 v2.9.12，本版本升级版本号至 v2.9.13，并删除 CSS 中 `page-home` 样式。
+
+### 主要变更
+- chore: 版本号升级至 v2.9.13 + 删除 CSS 中 page-home 样式
+
+---
+
+## v2.9.12 (2026-07-19) — 统一主页字体和样式
+
+### 概述
+相对 v2.9.11，本版本升级版本号至 v2.9.12，并统一主页字体和样式。
+
+### 主要变更
+- chore: 版本号升级至 v2.9.12 + 统一主页字体和样式
+
+---
+
+## v2.9.11 (2026-07-19) — 修复注册错误显示
+
+### 概述
+相对 v2.9.10，本版本升级版本号至 v2.9.11，并修复注册错误显示。
+
+### 主要变更
+- chore: 版本号升级至 v2.9.11 + 修复注册错误显示
+
+---
+
+## v2.9.10 (2026-07-19) — 修复静态文件 PATH_PREFIX 路径匹配
+
+### 概述
+相对 v2.9.9，本版本升级版本号至 v2.9.10，并修复静态文件 `PATH_PREFIX` 路径匹配。
+
+### 主要变更
+- chore: 版本号升级至 v2.9.10 + 修复静态文件 PATH_PREFIX 路径匹配
+
+## v2.9.9 (2026-07-19) — 版本号升至 2.9.9 + 修复重定向循环
+
+### 概述
+相对 v2.9.8，本版本仅 1 个提交，升级版本号至 v2.9.9 并修复重定向循环。
+
+### 主要变更
+- chore: 版本号升级至 v2.9.9 + 修复重定向循环
+
+---
+
+## v2.9.8 (2026-07-19) — 修复 PATH_PREFIX 下 auth 重定向循环；updater 动态读版本
+
+### 概述
+相对 v2.9.7，本版本修复 `PATH_PREFIX` 模式下 `auth_middleware` 重定向循环，将 `updater.py` 版本号改为从 `VERSION` 文件动态读取，并升级版本号至 v2.9.8。
+
+### 主要变更
+- fix: 修复 PATH_PREFIX 模式下 auth_middleware 重定向循环
+- refactor: updater.py 版本号改为从 VERSION 文件动态读取
+- chore: 版本号升级至 v2.9.8
+
+---
+
+## v2.9.7 (2026-07-19) — 集成 Cloudflare Turnstile + 子女端认证重构为 JWT
+
+### 概述
+相对 v2.9.6，本版本为核心安全与认证升级：集成 Cloudflare Turnstile 人机验证，并将子女端认证重构为 JWT；修复登录后用户名显示「用户」问题（含 Turnstile 降级与路由二次校验），恢复模板兜底用户名；`.gitignore` 增加打包文件排除并清除误提交的 zip；同时修复 ASGI 内部服务器错误与静态文件 404（改用 `root_path`）。
+
+### 主要变更
+- feat: 集成 Cloudflare-free Cloudflare Turnstile 人机验证 + 重构子女端认证为 JWT
+- fix: 修复登录后用户名显示「用户」问题 + Turnstile 降级 + 路由二次校验
+- revert: 恢复模板兜底用户名为「用户」
+- chore: .gitignore 添加打包文件排除规则 + 从历史清除误提交的 zip
+- feat: 解决 ASGI 应用内部服务器错误
+- fix: static file 404 bug - use root_path instead of modifying scope[path]
+
+---
+
+## v2.9.2 (2026-07-16) — docs 页面外部资源改为本地调用
+
+### 概述
+相对 v2.9.7（上一时间节点），本版本将 docs 页面的外部资源改为本地调用（版本号置为 2.9.2）。注：该版本号在时间线上出现在 2.9.7 之后，属版本号管理波动。
+
+### 主要变更
+- feat: 将 docs 页面的外部资源改为本地调用
+
+---
+
+## v2.9.6 (2026-07-15) — 更新全部文档并升级版本至 2.9.6
+
+### 概述
+相对 v2.9.4，本版本更新全部文档并升级版本号至 2.9.6。
+
+### 主要变更
+- docs: update all documentation and bump version to 2.9.6
+
+---
+
+## v2.9.4 (2026-07-15) — 升级版本至 2.9.4 并更新 history
+
+### 概述
+相对 v2.9（2.9.0/2.9.3），本版本升级版本号至 2.9.4 并同步更新 history。
+
+### 主要变更
+- chore: bump version to 2.9.4 and update history
+
+---
+
+## v2.9 (2026-07-15) — 版本由 2.7.3 跃升至 2.9，集中修复启动/路由缺陷
+
+### 概述
+相对 v2.7.3，本版本将版本号由 2.7.3 统一跃升至 2.9（期间含 2.9.1/2.9.2/2.9.3 子版本），并集中修复多项缺陷：适配 Starlette 0.28+ 的 `TemplateResponse` 签名、reminders 保存无效、登录后 302 重定向回 `/login`、多模块 sha256 校验误匹配、无 `.env` 启动失败等。
+
+### 主要变更
+- chore: Update version from 2.7.3 to 2.9（统一版本号）
+- fix: 适配 TemplateResponse 至 Starlette 0.28+ 签名（request 首参）
+- fix: 修复 reminders 保存无效 + 版本号升级至 2.9.3
+- fix: 修复登录后被 302 重定向回 /login 的问题
+- fix: 修复多模块 sha256 校验文件误匹配问题
+- fix: 修复无 .env 启动失败 + 版本号升级至 2.9.1
+
+---
+
+## v2.7.3 (2026-07-10) — 家属端 reminders 可编辑表格 + 导航/静态资源修复
+
+### 概述
+相对 v2.7.2，本版本统一版本号至 2.7.3，进行大量界面与部署修复：reminders 页改为 Cloudflare DNS 风格可编辑表格（增删改）；统一所有页面导航栏为首页样式；添加 `favicon.ico` 与 DevTools 探测文件路由消除 404；移除 `family_monitor` CSRF 防护；首次运行自动生成 `config.json` 且 `PATH_PREFIX` 默认空解决静态文件 404；解决 git clone 后本地部署 UI 样式丢失；删除 `install.py` 自动换源并优化 pip 安装脚本；更新 README、清理无关文件。
+
+### 主要变更
+- feat: reminders 页改为 Cloudflare DNS 风格表格，支持增删改
+- ui: 统一所有页面导航栏为首页样式
+- fix: 添加 favicon.ico 和 Chrome DevTools 探测文件路由，消除浏览器 404
+- refactor: 移除 family_monitor CSRF 防护
+- fix: 首次运行自动生成 config.json，PATH_PREFIX 默认空解决静态文件 404
+- fix: 解决 git clone 后本地部署 UI 样式丢失问题
+- feat: 删除 install.py 自动 python 换源的功能；优化 pip 安装脚本
+- docs: 更新 README.md；删除无关文件
+
+---
+
+## v2.7.2 (2026-07-08) — 合并 PR #1，版本号更新到 2.7.2
+
+### 概述
+相对 v2.7.1，本版本合并 PR #1 并将版本号更新到 2.7.2。
+
+### 主要变更
+- Merge pull request #1 from diaoyunxi/trae/agent-plVUY7
+- chore: 更新版本号到 2.7.2
+
+## v2.7.0 (2026-07-08) — 吃药逻辑设定 + 修复「设备即用户」设计缺陷
+
+### 概述
+相对 v2.6.0，本版本新增吃药逻辑设定，并修复「设备即用户」设计缺陷导致的 3 个失败项，以及 `public.py` 第 332 行时区问题（标注 v2.7.1）。
+
+### 主要变更
+- feat: 吃药逻辑设定
+- fix(device): 修复「设备即用户」设计缺陷导致 3 个失败项 (v2.7.0)
+- fix(datetime): 修复 public.py 第 332 行时区问题 (v2.7.1)
+
+---
+
+## v2.6.0 (2026-07-08) — 版本号升至 2.6.0 并同步 README 与 history
+
+### 概述
+相对 v2.5.0，本版本升级版本号至 2.6.0，并同步 README 与 history。
+
+### 主要变更
+- docs: bump 版本到 2.6.0 并同步 README 与 history
+
+---
+
+## v2.5.0 (2026-07-08) — 新增删除用户 API + 修复设备离线误显示在线
+
+### 概述
+相对 v2.4.0，本版本新增删除用户 API（支持注销自己与家属删除同组老人），并修复设备离线时子女端有概率显示在线的问题。
+
+### 主要变更
+- feat(user): 新增删除用户 API 支持注销自己与家属删除同组老人
+- fix(device-status): 修复设备离线时子女端有概率显示在线的问题
+
+---
+
+## v2.4.0 (2026-07-07) — 家属端移动端导航栏优化
+
+### 概述
+相对 v2.3.0，本版本优化家属端移动端导航栏占比过大问题，改为横向滚动 + 头像下拉菜单。
+
+### 主要变更
+- feat(family_monitor): 优化移动端导航栏占比过大问题，改为横向滚动 + 头像下拉菜单
+
+---
+
+## v2.3.0 (2026-07-07) — 启用启动自动更新 + 全面代码审查
+
+### 概述
+相对 v2.2.3，本版本为 CSS 引用添加版本号参数绕过 CDN 缓存，启用启动时自动拉取更新，并进行 v2.3.0 全面代码审查与修复。
+
+### 主要变更
+- fix: 给 CSS 引用添加版本号参数绕过 CDN 缓存
+- feat: 启用启动时自动拉取更新
+- refactor: v2.3.0 全面代码审查与修复
+
+---
+
+## v2.2.3 (2026-07-07) — 移除 device_token 机制，接口仅校验 device_id
+
+### 概述
+相对 v2.2.2，本版本移除 `device_token` 机制（所有接口仅校验 `device_id`），新增家属端获取设备 token API，并修复设备注册接口 `timezone` 未导入导致 500 错误、优化设置页与状态栏显示。
+
+### 主要变更
+- refactor: 移除 device_token 机制，所有接口仅校验 device_id
+- feat: 新增家属端获取设备 token API
+- fix: 修复设备注册接口 timezone 未导入导致 500 错误
+- feat: 优化设置页和状态栏显示
+- feat: API 调用返回服务器内部错误
+
+---
+
+## v2.2.2 (2026-07-07) — 解决设备未绑定但显示在线问题
+
+### 概述
+相对 v2.2.1，本版本继续解决设备未绑定但显示在线的问题，并升级版本号至 2.2.2。
+
+### 主要变更
+- feat: 解决设备未绑定但显示在线问题
+- chore: bump version to 2.2.2
+
+---
+
+## v2.2.1 (2026-07-07) — 重构子女端 UI 为 Claude 设计系统风格
+
+### 概述
+相对 v2.2.0，本版本完全重构子女端 UI 为 Claude 设计系统风格，并继续解决设备未绑定但显示在线问题。
+
+### 主要变更
+- refactor(ui): 完全重构子女端 UI 为 Claude 设计系统风格
+- feat: 解决设备未绑定但显示在线问题
+
+---
+
+## v2.2.0 (2026-07-06) — 安全加固版本（修复 6 P0 + 4 高危 + 38 缺陷）
+
+### 概述
+相对 v2.1.0，本版本为重大安全加固：修复 6 个 P0 漏洞 + 4 个高危漏洞，修复全部 38 个缺陷（5 致命 + 9 严重 + 14 一般 + 10 优化）；新增服务端 P0 安全测试（15 例）与子女端安全测试（20 例）；补充 `ALLOWED_ORIGINS` 修复启动 `extra_forbidden` 错误；删除子女端首页虚拟数据并清理无关文件；完善 README（架构图 / API 文档 / 部署运维 / 贡献指南）。
+
+### 主要变更
+- security: 修复 6 个 P0 漏洞 + 4 个高危漏洞
+- fix: 修复全部 38 个缺陷（5 致命 + 9 严重 + 14 一般 + 10 优化）
+- test: 新增服务端 P0 安全测试（15 例）+ 子女端安全测试（20 例）
+- fix: Settings 补充 ALLOWED_ORIGINS 字段，修复启动报 extra_forbidden 错误
+- feat: v2.2.0 安全加固版本
+- chore: 删除所有测试文件、删除子女端首页虚拟数据、清理无关文件
+- docs: 完善 README（架构图 / API 文档 / 部署运维 / 贡献指南）
+
+---
+
+## v2.1.0 (2026-07-01) — 移除本地 SSL，改用 Cloudflare 隧道自动 HTTPS
+
+### 概述
+相对 v2.0.0，本版本移除本地 SSL 证书，改用 Cloudflare 隧道自动配置 HTTPS。
+
+### 主要变更
+- feat: v2.1.0 移除本地 SSL 证书，改用 Cloudflare 隧道自动配置 HTTPS
+
+---
+
+## v2.0.0 (2026-06-30) — 升级至三端智能用药管理系统
+
+### 概述
+相对 v1.0.0，本版本升级为 v2.0.0 三端（老人端 / 服务端 / 家属端）智能用药管理系统。
+
+### 主要变更
+- feat: 升级至 v2.0.0 三端智能用药管理系统
+
+---
+
+## v1.0.0 (2026-06-30) — 初始发布，内置 GitHub 自动更新检查器
+
+### 概述
+项目首个正式版本，建立基础代码基线，并内置 GitHub 自动更新检查器。
+
+### 主要变更
+- feat: initial release with GitHub auto-update checker (v1.0.0)
+- docs: Update README.md
 
 # 附录：项目通用说明（概述 / 模块说明 / 技术栈 / 文件结构 / 运行方式）
 
