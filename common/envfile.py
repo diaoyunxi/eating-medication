@@ -64,3 +64,17 @@ def write_env_text(path: PathLike, content: str) -> None:
         p.chmod(0o600)
     except Exception:
         pass
+
+
+def read_github_proxy(root_dir: PathLike = None) -> str:
+    """从根目录 .env 读取 GITHUB_PROXY 配置（install.py 与 updater.py 共用源）。
+
+    支持两种形式：
+    1. 镜像前缀（如 https://gh-proxy.com）：下载 URL 改写为 {proxy}/{原始URL}
+    2. 正向代理（如 http://127.0.0.1:7890）：通过 urllib ProxyHandler 透明转发
+    未配置或文件不存在时返回空串，走直连。
+    """
+    if root_dir is None:
+        root_dir = Path(__file__).resolve().parent.parent
+    data = read_env_dict(Path(root_dir) / ".env")
+    return data.get("GITHUB_PROXY", "")

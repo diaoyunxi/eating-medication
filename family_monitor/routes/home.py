@@ -263,6 +263,7 @@ async def add_medication_plan(request: Request):
         result = await elderly_client.set_medication_plan(**fields)
 
         if result.get("success"):
+            drug_name = fields.get('drug_name', '药品')
             return JSONResponse(content={
                 "success": True,
                 "message": f"用药计划 {drug_name} 添加成功"
@@ -325,6 +326,7 @@ async def update_medication_plan(request: Request, plan_id: int):
         result = await elderly_client.update_medication_plan(plan_id=plan_id, **fields)
 
         if result.get("success"):
+            drug_name = fields.get('drug_name', '药品')
             return JSONResponse(content={
                 "success": True,
                 "message": f"用药计划 {drug_name} 更新成功"
