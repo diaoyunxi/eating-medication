@@ -10,18 +10,12 @@ from typing import Optional
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from core import config, elderly_client
-from common.server_client import BaseServerClient
+from core import elderly_client
+from .web_helpers import require_login, unauthorized_json, user_api_request
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# 服务端 API 客户端（统一 base_url 到 /api/v1，每次请求内部使用独立 httpx.AsyncClient）
-_server_client = BaseServerClient(
-    base_url=f"{config.ELDERLY_SERVER_URL.rstrip('/')}/api/v1",
-    timeout=15.0,
-)
 
 
 def _bound_device_id() -> Optional[str]:
@@ -32,32 +26,16 @@ def _bound_device_id() -> Optional[str]:
     return None
 
 
-async def _server_request(method: str, path: str, *, token: str, params: dict = None, json_body: dict = None):
-    """以用户 JWT 调用服务端接口，返回 (status_code, json)"""
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
-    resp = await _server_client._execute(method, path, params=params, json_body=json_body, headers=headers)
-    try:
-        data = resp.json()
-    except Exception:
-        data = {"detail": resp.text}
-    return resp.status_code, data
 
-
-def _require_login(request: Request):
-    return bool(getattr(request.state, "user", None))
-
-
-def _unauthorized():
-    return JSONResponse(content={"success": False, "message": "请先登录"}, status_code=401)
 
 
 @router.get("/settings/ai-providers")
 async def ai_providers(request: Request):
     """获取 AI 厂商预设列表（供前端下拉）"""
-    if not _require_login(request):
-        return _unauthorized()
+    if not require_login(request):
+        return unauthorized_json()
     token = request.cookies.get("access_token") or ""
-    status, data = await _server_request("GET", "/ai/providers", token=token)
+    status, data = await user_api_request("GET", "/ai/providers", token=token)
     if status == 200:
         return JSONResponse(content={"success": True, "providers": data})
     return JSONResponse(content={"success": False, "message": "获取厂商列表失败"}, status_code=status)
@@ -66,12 +44,12 @@ async def ai_providers(request: Request):
 @router.get("/settings/ai-config")
 async def get_ai_config(request: Request):
     """读取当前用户（或所绑定老人设备）的 AI 配置"""
-    if not _require_login(request):
-        return _unauthorized()
+    if not require_login(request):
+        return unauthorized_json()
     token = request.cookies.get("access_token") or ""
     device_id = _bound_device_id()
     params = {"device_id": device_id} if device_id else {}
-    status, data = await _server_request("GET", "/user/ai-config", token=token, params=params)
+    status, data = await user_api_request("GET", "/user/ai-config", token=token, params=params)
     if status == 200:
         data["success"] = True
         return JSONResponse(content=data)
@@ -81,8 +59,8 @@ async def get_ai_config(request: Request):
 @router.post("/settings/ai-config")
 async def save_ai_config(request: Request):
     """保存当前用户（或所绑定老人设备）的 AI 配置"""
-    if not _require_login(request):
-        return _unauthorized()
+    if not require_login(request):
+        return unauthorized_json()
     try:
         payload = await request.json()
     except Exception:
@@ -103,7 +81,7 @@ async def save_ai_config(request: Request):
         "base_url": payload.get("base_url", ""),
         "enabled": bool(payload.get("enabled", True)),
     }
-    status, data = await _server_request("PUT", "/user/ai-config", token=token, params=params, json_body=body)
+    status, data = await user_api_request("PUT", "/user/ai-config", token=token, params=params, json_body=body)
     if status == 200:
         # 不回传 api_key 明文
         data.pop("api_key", None)
