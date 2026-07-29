@@ -101,7 +101,7 @@ def _load_root_env():
 
     .env 为扁平 key=value 格式；处于引导阶段不引入额外依赖（common.envfile 仅标准库）。
     """
-    from common.envfile import read_env_dict
+    from common.envfile import read_env_dict, write_env_text, ensure_env_template
     return read_env_dict(_CONFIG_PATH)
 
 
@@ -111,8 +111,7 @@ def _ensure_env_template():
     便于首次部署即拥有可编辑的配置骨架；已存在文件不会被覆盖。
     """
     try:
-        if not _CONFIG_PATH.is_file():
-            _CONFIG_PATH.write_text(_ENV_DEFAULT_CONTENT, encoding="utf-8")
+        if ensure_env_template(_CONFIG_PATH, _ENV_DEFAULT_CONTENT):
             logger.info(f"[更新检查] 已生成配置模板: {_CONFIG_PATH}（默认 AUTO_PULL=true，可手动编辑）")
     except Exception as e:
         logger.warning(f"[更新检查] 生成 .env 模板失败: {e}")

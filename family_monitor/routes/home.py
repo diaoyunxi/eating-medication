@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse
 from core import config, elderly_client
 from services.medication_service import validate_and_build
-from .web_helpers import templates, require_login, login_redirect, unauthorized_json
+from routes.web_helpers import templates, require_login, login_redirect, unauthorized_json
 
 logger = logging.getLogger(__name__)
 
