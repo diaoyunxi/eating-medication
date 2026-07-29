@@ -18,7 +18,7 @@
 ### 1. 安装依赖
 
 ```bash
-python ../install.py requirements.txt
+python ../common/install.py requirements.txt
 ```
 
 安装脚本行为（已与其他模块统一为同一份脚本）：
@@ -32,7 +32,7 @@ python ../install.py requirements.txt
 > ```bash
 > python -m venv venv
 > source venv/bin/activate  # Windows: venv\Scripts\activate
-> python ../install.py requirements.txt
+> python ../common/install.py requirements.txt
 > ```
 
 ### 2. 配置
@@ -159,7 +159,7 @@ family_monitor/
 | `TURNSTILE_SITE_KEY` | Cloudflare Turnstile 站点密钥（前端人机验证组件，请填入你的 Site Key） | 空 |
 | `PATH_PREFIX` | 路径前缀 | `/eating-medication/family` |
 | `DEBUG` | 调试模式 | `False` |
-| `PIP_INDEX_URL` | install.py 使用的 pip 镜像源 | 清华源 |
+| `PIP_INDEX_URL` | common/install.py 使用的 pip 镜像源 | 清华源 |
 
 ## 注意事项
 

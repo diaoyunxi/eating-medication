@@ -23,7 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 def _check_and_install_dependencies():
-    """检查关键依赖是否已安装，若缺失则调用根目录统一 install.py。"""
+    """检查关键依赖是否已安装，若缺失则调用公共安装脚本 common/install.py。"""
     import importlib
     import subprocess
 
@@ -36,8 +36,8 @@ def _check_and_install_dependencies():
             missing.append(pip)
     if missing:
         print(f"检测到缺失依赖: {missing}")
-        print("正在调用根目录 install.py 安装依赖...")
-        root_install = os.path.join(str(PROJECT_ROOT), "install.py")
+        print("正在调用common/install.py 安装依赖...")
+        root_install = os.path.join(str(PROJECT_ROOT), "common", "install.py")
         req_path = os.path.join(str(SCRIPT_DIR), "requirements.txt")
         if os.path.exists(root_install):
             try:
@@ -54,11 +54,11 @@ def _check_and_install_dependencies():
                 print(f"自动安装失败: {e}")
                 print(f"请手动运行: python {root_install} {req_path}")
         else:
-            print("未找到根目录 install.py，请手动安装依赖:")
+            print("未找到common/install.py，请手动安装依赖:")
             print(f"pip install {' '.join(missing)}")
 
 
-# 启动前检查依赖，缺失则调用根目录统一 install.py 安装
+# 启动前检查依赖，缺失则调用 common/install.py 安装
 _check_and_install_dependencies()
 
 import struct

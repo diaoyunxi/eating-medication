@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """跨端共享：扁平 .env 文件的读取与就地更新（保留注释与其它字段）。
 
-避免三端各自手写一遍 key=value 解析逻辑（install.py / updater.py /
+避免三端各自手写一遍 key=value 解析逻辑（common/install.py / updater.py /
 family_monitor/core/config.py / elderly_assistant/utils/config_loader.py 均有重复）。
 """
 from __future__ import annotations
@@ -67,7 +67,7 @@ def write_env_text(path: PathLike, content: str) -> None:
 
 
 def read_github_proxy(root_dir: PathLike = None) -> str:
-    """从根目录 .env 读取 GITHUB_PROXY 配置（install.py 与 updater.py 共用源）。
+    """从根目录 .env 读取 GITHUB_PROXY 配置（common/install.py 与 updater.py 共用源）。
 
     支持两种形式：
     1. 镜像前缀（如 https://gh-proxy.com）：下载 URL 改写为 {proxy}/{原始URL}

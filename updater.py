@@ -92,7 +92,7 @@ _ENV_DEFAULT_CONTENT = (
     "# 是否启用安全自动更新（下载完整发布包并保留配置文件与数据库）\n"
     "AUTO_PULL=true\n"
     "# GitHub 代理/镜像前缀（如 https://gh-proxy.com），留空走直连\n"
-    "# 同时供根 install.py 下载 huskylens 模块使用，统一代理出口\n"
+    "# 同时供 common/install.py 下载 huskylens 模块使用，统一代理出口\n"
     "GITHUB_PROXY=\n"
 )
 
@@ -125,7 +125,7 @@ def _ensure_env_template():
 def _load_github_proxy():
     """读取根目录 .env 的 GITHUB_PROXY 字段。
 
-    与 install.py 共用 common.envfile.read_github_proxy()，避免代理配置分散。
+    与 common/install.py 共用 common.envfile.read_github_proxy()，避免代理配置分散。
     支持两种形式：
     1. 镜像前缀（如 https://gh-proxy.com）：下载 URL 改写为 {proxy}/{原始URL}
     2. 正向代理（如 http://127.0.0.1:7890）：通过 urllib ProxyHandler 透明转发

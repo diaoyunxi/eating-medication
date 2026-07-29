@@ -6,14 +6,14 @@
 
 ```bash
 cd server
-python install.py          # 自动安装依赖（推荐）
+python common/install.py          # 自动安装依赖（推荐）
 # 或手动：
 # pip install -r requirements.txt
 cp .env.example .env  # 编辑配置
 python main.py
 ```
 
-`install.py` 行为（已与其他模块统一为同一份脚本）：
+`common/install.py` 行为（已与其他模块统一为同一份脚本）：
 
 1. 先检测 `pip` 是否存在；无则按平台自动安装（Linux 优先 `apt-get install python3-pip`，Windows 下载 `get-pip.py`，其他走 `ensurepip` 后备）。
 2. 正常 `pip install`（使用 `-i PIP_INDEX_URL` 临时指定镜像源，默认清华源，可通过环境变量覆盖，不修改全局 pip 配置）。
