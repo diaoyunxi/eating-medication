@@ -170,8 +170,11 @@ add_exception_handlers(app)
 api_prefix = settings.API_V1_PREFIX
 app.include_router(auth.router, prefix=api_prefix)
 from app.api.v1.endpoints import totp, webauthn
-app.include_router(totp.router, prefix=api_prefix)
-app.include_router(webauthn.router, prefix=api_prefix)
+# TOTP / WebAuthn 第二因子与通行密钥端点统一挂在 /auth 前缀下：
+# 与 OAuth 端点保持一致，并匹配 family_monitor 代理转发的 /auth/totp/*、/auth/webauthn/* 约定。
+# 此前漏写 /auth 段，导致 family_monitor 转发请求在 server 侧 404。
+app.include_router(totp.router, prefix=f"{api_prefix}/auth")
+app.include_router(webauthn.router, prefix=f"{api_prefix}/auth")
 app.include_router(users.router, prefix=api_prefix)
 app.include_router(medication.router, prefix=api_prefix)
 app.include_router(ai.router, prefix=api_prefix)
