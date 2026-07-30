@@ -37,8 +37,29 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
 sys.excepthook = global_exception_handler
 
 
+def _database_driver_required():
+    """根据 DATABASE_URL 方言判断是否需要 MySQL/PostgreSQL 驱动
+
+    本地 SQLite 场景无需 pymysql / psycopg2，避免误报缺失。
+    """
+    db_url = os.getenv("DATABASE_URL", "")
+    if db_url.startswith("mysql"):
+        return [("pymysql", "pymysql")]
+    if db_url.startswith("postgresql"):
+        return [("psycopg2", "psycopg2-binary")]
+    return []
+
+
 def check_and_install_dependencies():
-    """检查关键依赖是否已安装，若缺失则调用公共安装脚本 common/install.py"""
+    """检查关键依赖是否已安装，若缺失则调用公共安装脚本 common/install.py
+
+    设计要点：
+    - passlib 已废弃（与 bcrypt 4.x 不兼容，代码改用 bcrypt 原生 API），不再列为必需
+    - 数据库驱动按 DATABASE_URL 方言按需检测，SQLite 场景不要求 pymysql/psycopg2
+    - 安装在 .venv 中完成后，用 .venv 的解释器重启自身，避免重启又回到系统 Python
+      导致下一轮再次误报缺失（修复「每次启动都重装」死循环）
+    - KeyboardInterrupt 单独捕获，避免误写 crash.log
+    """
     required_modules = [
         ('fastapi', 'fastapi'),
         ('uvicorn', 'uvicorn'),
@@ -46,13 +67,11 @@ def check_and_install_dependencies():
         ('pydantic', 'pydantic'),
         ('dotenv', 'python-dotenv'),
         ('jose', 'python-jose'),
-        ('passlib', 'passlib'),
         ('httpx', 'httpx'),
         ('apscheduler', 'apscheduler'),
-        # 远程数据库驱动（仅在 DATABASE_URL 指向 MySQL/PostgreSQL 时需要）
-        ('pymysql', 'pymysql'),
-        ('psycopg2', 'psycopg2-binary'),
     ]
+    # 远程数据库驱动仅在 DATABASE_URL 指向 MySQL/PostgreSQL 时需要
+    required_modules.extend(_database_driver_required())
 
     missing = []
     for module_name, pip_name in required_modules:
@@ -61,36 +80,57 @@ def check_and_install_dependencies():
         except ImportError:
             missing.append(pip_name)
 
-    if missing:
-        print(f"检测到缺失依赖: {missing}")
-        print("正在调用common/install.py 安装依赖...")
+    if not missing:
+        return
 
-        # 根目录统一安装脚本，传入本模块 requirements.txt 路径
-        project_root = str(Path(__file__).resolve().parent.parent)
-        root_install = os.path.join(project_root, "common", "install.py")
-        req_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
-        if os.path.exists(root_install):
-            try:
-                result = subprocess.run(
-                    [sys.executable, root_install, req_path],
-                    capture_output=False,
-                    text=True,
-                    cwd=project_root,
-                )
-                if result.returncode != 0:
-                    print("依赖安装可能未完全成功，尝试继续运行...")
-                else:
-                    print("依赖安装完成")
-                    print("正在重新启动服务端...")
-                    os.execv(sys.executable, [sys.executable] + sys.argv)
-            except Exception as e:
-                print(f"自动安装失败: {e}")
-                print(f"请手动运行: python {root_install} {req_path}")
-                sys.exit(1)
-        else:
-            print("未找到common/install.py，请手动安装依赖:")
-            print(f"pip install {' '.join(missing)}")
-            sys.exit(1)
+    print(f"检测到缺失依赖: {missing}")
+    print("正在调用common/install.py 安装依赖...")
+
+    # 根目录统一安装脚本，传入本模块 requirements.txt 路径
+    project_root = str(Path(__file__).resolve().parent.parent)
+    root_install = os.path.join(project_root, "common", "install.py")
+    req_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
+    if not os.path.exists(root_install):
+        print("未找到common/install.py，请手动安装依赖:")
+        print(f"pip install {' '.join(missing)}")
+        sys.exit(1)
+
+    # 安装脚本会自动进入 .venv（不存在则创建），依赖装在 .venv 内。
+    # 但 subprocess.run 是子进程，不影响当前进程的 sys.executable；
+    # 因此安装完成后必须显式用 .venv 的解释器重启自身，否则重启又回到
+    # 系统 Python，下一轮再次误报缺失（历史死循环根因）。
+    venv_python = os.path.join(project_root, ".venv", "bin", "python")
+    if os.name == "nt":
+        venv_python = os.path.join(project_root, ".venv", "Scripts", "python.exe")
+
+    try:
+        result = subprocess.run(
+            [sys.executable, root_install, req_path],
+            capture_output=False,
+            text=True,
+            cwd=project_root,
+        )
+    except KeyboardInterrupt:
+        # 用户中断安装，不应视为崩溃；退出码 128+SIGINT(2)=130
+        print("\n安装被用户中断")
+        sys.exit(130)
+    except Exception as e:
+        print(f"自动安装失败: {e}")
+        print(f"请手动运行: python {root_install} {req_path}")
+        sys.exit(1)
+
+    if result.returncode != 0:
+        print("依赖安装可能未完全成功，尝试继续运行...")
+        return
+
+    print("依赖安装完成")
+    # 安装发生在 .venv 内；若 .venv 解释器存在则用它重启，否则维持当前解释器
+    if os.path.exists(venv_python):
+        print(f"正在使用虚拟环境重启服务端: {venv_python}")
+        os.execv(venv_python, [venv_python] + sys.argv)
+    else:
+        print("正在重新启动服务端...")
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
 def create_app_dirs():
@@ -200,8 +240,13 @@ def main():
     try:
         start_server()
     except KeyboardInterrupt:
+        # 用户主动中断（Ctrl+C），属正常退出，不应记录为崩溃
         print("\n\n服务已停止")
-    except Exception as e:
+        sys.exit(0)
+    except SystemExit:
+        # sys.exit / os.execv 等显式退出，正常传播，不视为崩溃
+        raise
+    except BaseException as e:
         print(f"\n启动失败: {e}")
         traceback.print_exc()
         sys.exit(1)
