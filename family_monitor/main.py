@@ -196,6 +196,11 @@ async def auth_middleware(request: Request, call_next):
         f"{PATH_PREFIX}/email/send-code" if PATH_PREFIX else "/email/send-code",
         # 邮箱验证码 - 登录/自动注册：本身就是登录流程的一部分，必须公开
         f"{PATH_PREFIX}/email/code-login" if PATH_PREFIX else "/email/code-login",
+        # TOTP 第二因子验证：登录流程的一环（校验动态码换取正式 JWT），必须公开
+        f"{PATH_PREFIX}/totp/verify" if PATH_PREFIX else "/totp/verify",
+        # WebAuthn 通行密钥登录：无用户名登录选项与登录断言均属登录流程，必须公开
+        f"{PATH_PREFIX}/webauthn/login/options" if PATH_PREFIX else "/webauthn/login/options",
+        f"{PATH_PREFIX}/webauthn/login" if PATH_PREFIX else "/webauthn/login",
     ]
     path = request.scope.get("path", request.url.path)
     # 静态文件与 .well-known 路径同样需拼接 PATH_PREFIX，否则子路径模式下被误判为非公开路径而触发重定向
