@@ -71,10 +71,31 @@ class TestLogin(unittest.TestCase):
         db = mock.MagicMock()
         user = mock.MagicMock()
         user.hashed_password = "hashed"
+        user.mfa_enabled = False
         db.query.return_value.filter.return_value.first.return_value = user
         with mock.patch("app.services.auth_service.verify_password", return_value=True), \
                 mock.patch("app.services.auth_service.create_access_token", return_value="tok"):
-            self.assertEqual(AuthService.login(db, "13800138000", "Passw0rd"), "tok")
+            result = AuthService.login(db, "13800138000", "Passw0rd")
+        # MFA 改造后 login 返回 dict：未开启第二因子时含 access_token
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result.get("access_token"), "tok")
+        self.assertNotIn("mfa_required", result)
+
+    def test_login_mfa_required(self):
+        # 已开启 TOTP 第二因子：密码正确但返回 MFA 短期令牌，不直接放行
+        db = mock.MagicMock()
+        user = mock.MagicMock()
+        user.hashed_password = "hashed"
+        user.mfa_enabled = True
+        db.query.return_value.filter.return_value.first.return_value = user
+        with mock.patch("app.services.auth_service.verify_password", return_value=True), \
+                mock.patch("app.services.auth_service.create_mfa_token", return_value="mfa"):
+            result = AuthService.login(db, "13800138000", "Passw0rd")
+        self.assertIsInstance(result, dict)
+        self.assertTrue(result.get("mfa_required"))
+        self.assertEqual(result.get("mfa_token"), "mfa")
+        # 未签发正式 access_token
+        self.assertNotIn("access_token", result)
 
     def test_login_wrong_password(self):
         db = mock.MagicMock()
