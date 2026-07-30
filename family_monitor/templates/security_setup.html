@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block title %}安全设置 - {{ app_name }}{% endblock %}
+{% block nav %}{% endblock %}
+{% block content %}
+    <div class="bg-gradient">
+        <div class="container" style="display:flex; align-items:flex-start; justify-content:center; min-height:100vh; padding:40px 0;">
+            <div class="auth-card animate-fade-in" style="max-width:600px; width:100%;">
+                <div class="auth-header">
+                    <div class="auth-logo">子女守护中心</div>
+                    <h1 class="auth-title">{{ app_name }}</h1>
+                    <p class="auth-subtitle">安全设置 · 绑定第二因子与通行密钥</p>
+                </div>
+
+                <div class="alert alert-info">
+                    当前账户：<strong>{{ username or phone }}</strong>
+                </div>
+
+                <!-- 通用提示容器 -->
+                <div id="jsError" class="alert alert-error" style="display:none;">
+                    <span class="alert-icon">!</span><span id="jsErrorMsg"></span>
+                </div>
+                <div id="jsSuccess" class="alert alert-success" style="display:none;">
+                    <span class="alert-icon">&#10003;</span><span id="jsSuccessMsg"></span>
+                </div>
+
+                <!-- ===== TOTP 第二因子 ===== -->
+                <section style="margin-top:18px;">
+                    <h3 style="margin-bottom:6px;">TOTP 动态验证码（登录第二因子）</h3>
+                    {% if mfa_enabled %}
+                        <p style="color:var(--text-secondary); font-size:0.9rem;">已开启：登录密码之外还需输入动态码。</p>
+                        <button class="btn btn-danger" id="totpDisableBtn" type="button">关闭两步验证</button>
+                        <div id="totpDisableBox" style="display:none; margin-top:10px;">
+                            <input class="form-input" id="totpDisableCode" placeholder="输入当前 6 位动态码" maxlength="6" inputmode="numeric">
+                            <button class="btn btn-danger" id="totpDisableConfirmBtn" type="button">确认关闭</button>
+                        </div>
+                    {% else %}
+                        <p style="color:var(--text-secondary); font-size:0.9rem;">为账户增加一层动态码保护（Google/Microsoft 验证器等）。</p>
+                        <button class="btn btn-primary" id="totpStartBtn" type="button">开启两步验证</button>
+                    {% endif %}
+
+                    <div id="totpSetupBox" style="display:none; margin-top:14px;">
+                        <p>用验证器 App 扫描二维码，或手动输入密钥：</p>
+                        <div id="totpQr" style="background:#fff; padding:8px; display:inline-block; border-radius:8px; max-width:200px;"></div>
+                        <p style="margin-top:8px;">密钥：<code id="totpSecret" style="background:#f4f4f5; padding:2px 6px; border-radius:4px;"></code></p>
+                        <div style="display:flex; gap:8px; margin-top:8px;">
+                            <input class="form-input" id="totpEnableCode" placeholder="输入 6 位动态码" maxlength="6" inputmode="numeric" style="flex:1;">
+                            <button class="btn btn-primary" id="totpEnableBtn" type="button">确认启用</button>
+                        </div>
+                    </div>
+
+                    <div id="totpBackupBox" style="display:none; margin-top:14px;">
+                        <p><strong>请妥善保存以下备用恢复码</strong>（每个仅可使用一次）：</p>
+                        <pre id="totpBackupCodes" style="background:#0a0a0a; color:#e4e4e7; padding:12px; border-radius:8px; font-size:0.95rem; letter-spacing:2px;"></pre>
+                    </div>
+                </section>
+
+                <hr style="margin:22px 0; border-color:var(--border-color);">
+
+                <!-- ===== WebAuthn / Passkey ===== -->
+                <section>
+                    <h3 style="margin-bottom:6px;">通行密钥（Passkey）登录</h3>
+                    <p style="color:var(--text-secondary); font-size:0.9rem;">
+                        绑定后可免密/无用户名一键登录，支持外接安全密钥与生物识别。
+                    </p>
+                    <button class="btn btn-primary" id="waAddBtn" type="button">添加通行密钥</button>
+
+                    <ul id="waList" style="list-style:none; padding:0; margin-top:14px;">
+                        {% for c in credentials %}
+                        <li data-id="{{ c.credential_id }}" style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border:1px solid var(--border-color); border-radius:8px; margin-bottom:8px;">
+                            <span>{{ c.nickname or '通行密钥' }} · 添加于 {{ c.created_at }}</span>
+                            <button class="btn btn-danger btn-sm wa-del" type="button">删除</button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </section>
+
+                <div class="auth-footer" style="margin-top:24px;">
+                    <a href="{{ prefix }}/" class="auth-link">返回首页</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var prefix = "{{ prefix }}";
+
+        function showErr(msg) {
+            var box = document.getElementById('jsError');
+            document.getElementById('jsErrorMsg').textContent = msg;
+            box.style.display = 'flex';
+            document.getElementById('jsSuccess').style.display = 'none';
+        }
+        function showOk(msg) {
+            var box = document.getElementById('jsSuccess');
+            document.getElementById('jsSuccessMsg').textContent = msg;
+            box.style.display = 'flex';
+            document.getElementById('jsError').style.display = 'none';
+        }
+        function hideMsg() {
+            document.getElementById('jsError').style.display = 'none';
+            document.getElementById('jsSuccess').style.display = 'none';
+        }
+
+        // ===== base64url <-> ArrayBuffer 互转（WebAuthn 必需） =====
+        function base64urlToBuffer(b64u) {
+            var padding = '='.repeat((4 - (b64u.length % 4)) % 4);
+            var b64 = (b64u + padding).replace(/-/g, '+').replace(/_/g, '/');
+            var raw = atob(b64), buf = new Uint8Array(raw.length);
+            for (var i = 0; i < raw.length; i++) { buf[i] = raw.charCodeAt(i); }
+            return buf.buffer;
+        }
+        function bufToBase64url(buf) {
+            var bytes = new Uint8Array(buf), bin = '';
+            for (var i = 0; i < bytes.length; i++) { bin += String.fromCharCode(bytes[i]); }
+            return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        // ===== TOTP 开启流程 =====
+        var totpStartBtn = document.getElementById('totpStartBtn');
+        if (totpStartBtn) {
+            totpStartBtn.addEventListener('click', function () {
+                hideMsg();
+                fetch(prefix + '/totp/setup', { method: 'POST' })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (!res.ok) { throw new Error(res.data.error || '生成密钥失败'); }
+                        document.getElementById('totpSecret').textContent = res.data.secret;
+                        document.getElementById('totpQr').innerHTML = res.data.qr_svg;
+                        document.getElementById('totpSetupBox').style.display = 'block';
+                        totpStartBtn.style.display = 'none';
+                    })
+                    .catch(function (err) { showErr(err.message || '生成密钥失败'); });
+            });
+        }
+
+        var totpEnableBtn = document.getElementById('totpEnableBtn');
+        if (totpEnableBtn) {
+            totpEnableBtn.addEventListener('click', function () {
+                hideMsg();
+                var code = (document.getElementById('totpEnableCode').value || '').trim();
+                if (!code) { showErr('请输入动态码'); return; }
+                fetch(prefix + '/totp/enable', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code })
+                })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (!res.ok) { throw new Error(res.data.error || '启用失败'); }
+                        var codes = (res.data.backup_codes || []).join('\n');
+                        document.getElementById('totpBackupCodes').textContent = codes;
+                        document.getElementById('totpBackupBox').style.display = 'block';
+                        document.getElementById('totpSetupBox').style.display = 'none';
+                        showOk('已开启两步验证，请保存备用码');
+                    })
+                    .catch(function (err) { showErr(err.message || '启用失败'); });
+            });
+        }
+
+        // ===== TOTP 关闭流程 =====
+        var totpDisableBtn = document.getElementById('totpDisableBtn');
+        if (totpDisableBtn) {
+            totpDisableBtn.addEventListener('click', function () {
+                hideMsg();
+                document.getElementById('totpDisableBox').style.display = 'block';
+            });
+        }
+        var totpDisableConfirmBtn = document.getElementById('totpDisableConfirmBtn');
+        if (totpDisableConfirmBtn) {
+            totpDisableConfirmBtn.addEventListener('click', function () {
+                hideMsg();
+                var code = (document.getElementById('totpDisableCode').value || '').trim();
+                if (!code) { showErr('请输入当前动态码'); return; }
+                fetch(prefix + '/totp/disable', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code })
+                })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (!res.ok) { throw new Error(res.data.error || '关闭失败'); }
+                        showOk('已关闭两步验证');
+                        location.reload();
+                    })
+                    .catch(function (err) { showErr(err.message || '关闭失败'); });
+            });
+        }
+
+        // ===== WebAuthn 添加通行密钥 =====
+        var waAddBtn = document.getElementById('waAddBtn');
+        if (waAddBtn) {
+            waAddBtn.addEventListener('click', function () {
+                hideMsg();
+                if (!window.PublicKeyCredential) { showErr('当前浏览器不支持通行密钥'); return; }
+                waAddBtn.disabled = true;
+                waAddBtn.textContent = '等待验证...';
+                fetch(prefix + '/webauthn/register/options', { method: 'POST' })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (!res.ok) { throw new Error(res.data.error || '获取登记选项失败'); }
+                        var opt = res.data.options;
+                        window._waRegToken = res.data.challenge_token;
+                        opt.challenge = base64urlToBuffer(opt.challenge);
+                        opt.user.id = base64urlToBuffer(opt.user.id);
+                        if (opt.excludeCredentials) {
+                            opt.excludeCredentials = opt.excludeCredentials.map(function (c) {
+                                return { type: c.type, id: base64urlToBuffer(c.id) };
+                            });
+                        }
+                        return navigator.credentials.create({ publicKey: opt });
+                    })
+                    .then(function (att) {
+                        var credential = {
+                            id: att.id,
+                            rawId: bufToBase64url(att.rawId),
+                            type: att.type,
+                            response: {
+                                clientDataJSON: bufToBase64url(att.response.clientDataJSON),
+                                attestationObject: bufToBase64url(att.response.attestationObject),
+                                transports: att.response.getTransports ? att.response.getTransports() : undefined
+                            }
+                        };
+                        var nickname = (window.prompt('为该通行密钥命名（如：我的手机 / YubiKey）') || '').trim();
+                        return fetch(prefix + '/webauthn/register', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ credential: credential, challenge_token: window._waRegToken, nickname: nickname })
+                        });
+                    })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (!res.ok) { throw new Error(res.data.error || '登记失败'); }
+                        showOk('通行密钥已添加');
+                        loadCredentials();
+                    })
+                    .catch(function (err) { showErr(err.message || '登记失败'); })
+                    .finally(function () {
+                        waAddBtn.disabled = false;
+                        waAddBtn.textContent = '添加通行密钥';
+                    });
+            });
+        }
+
+        // ===== WebAuthn 凭证列表与删除 =====
+        function loadCredentials() {
+            fetch(prefix + '/webauthn/credentials', { method: 'GET' })
+                .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                .then(function (res) {
+                    if (!res.ok) { return; }
+                    var list = document.getElementById('waList');
+                    list.innerHTML = '';
+                    (res.data || []).forEach(function (c) {
+                        var li = document.createElement('li');
+                        li.setAttribute('data-id', c.credential_id);
+                        li.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border:1px solid var(--border-color); border-radius:8px; margin-bottom:8px;';
+                        var span = document.createElement('span');
+                        span.textContent = (c.nickname || '通行密钥') + ' · 添加于 ' + c.created_at;
+                        var del = document.createElement('button');
+                        del.className = 'btn btn-danger btn-sm wa-del';
+                        del.textContent = '删除';
+                        del.addEventListener('click', function () { deleteCred(c.credential_id); });
+                        li.appendChild(span); li.appendChild(del);
+                        list.appendChild(li);
+                    });
+                })
+                .catch(function () {});
+        }
+
+        function deleteCred(id) {
+            hideMsg();
+            fetch(prefix + '/webauthn/credentials/' + id, { method: 'DELETE' })
+                .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                .then(function (res) {
+                    if (!res.ok) { throw new Error(res.data.error || '删除失败'); }
+                    showOk('已删除通行密钥');
+                    loadCredentials();
+                })
+                .catch(function (err) { showErr(err.message || '删除失败'); });
+        }
+
+        // 为服务端渲染的删除按钮绑定事件
+        Array.prototype.forEach.call(document.querySelectorAll('.wa-del'), function (btn) {
+            btn.addEventListener('click', function () {
+                var li = btn.closest('li');
+                if (li) { deleteCred(li.getAttribute('data-id')); }
+            });
+        });
+    </script>
+{% endblock %}

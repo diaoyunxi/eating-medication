@@ -138,3 +138,51 @@ def verify_oauth_pending_token(token: str) -> Optional[Dict[str, Any]]:
         return None
     return payload
 
+
+# ==================== WebAuthn / MFA 专用短期令牌 ====================
+def create_webauthn_challenge_token(challenge_b64: str) -> str:
+    """签发 WebAuthn 挑战令牌（无状态，内含待校验的 challenge，5 分钟有效）。
+
+    用于在无会话的 REST 接口中关联交易双方的 challenge，避免服务端存储。
+    """
+    return create_access_token(
+        {"type": "webauthn_challenge", "challenge": challenge_b64},
+        expires_delta=timedelta(minutes=5),
+    )
+
+
+def verify_webauthn_challenge_token(token: str) -> Optional[str]:
+    """校验 WebAuthn 挑战令牌，成功返回 base64url 编码的 challenge，失败返回 None"""
+    try:
+        payload = decode_token(token)
+    except JWTError:
+        return None
+    if not payload or payload.get("type") != "webauthn_challenge":
+        return None
+    return payload.get("challenge")
+
+
+def create_mfa_token(user_id: int) -> str:
+    """签发 MFA 二次验证令牌（含用户 ID，5 分钟有效）。
+
+    登录密码正确但已开启 TOTP 第二因子时返回，前端凭此调用 /auth/totp/verify。
+    """
+    return create_access_token(
+        {"type": "mfa", "sub": str(user_id)},
+        expires_delta=timedelta(minutes=5),
+    )
+
+
+def verify_mfa_token(token: str) -> Optional[int]:
+    """校验 MFA 令牌，成功返回用户 ID，失败返回 None"""
+    try:
+        payload = decode_token(token)
+    except JWTError:
+        return None
+    if not payload or payload.get("type") != "mfa":
+        return None
+    try:
+        return int(payload.get("sub"))
+    except (TypeError, ValueError):
+        return None
+

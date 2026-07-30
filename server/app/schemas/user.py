@@ -13,6 +13,8 @@ class UserOut(BaseModel):
     group_id: Optional[int] = None
     # 设备ID（老人绑定设备后填充，家属为 None）
     device_id: Optional[str] = None
+    # 是否已开启 TOTP 第二因子（前端据此引导动态码输入）
+    mfa_enabled: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
