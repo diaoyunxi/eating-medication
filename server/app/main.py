@@ -18,7 +18,7 @@ from fastapi.openapi.docs import (
 )
 
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, ensure_database_exists
 from updater import __version__ as __server_version__
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.exception_handler import add_exception_handlers
@@ -80,6 +80,9 @@ async def lifespan(app: FastAPI):
 
     logger.info("="*60)
 
+    # 检测不到数据库时自动建库（MySQL / PostgreSQL 等远程数据库场景）
+    ensure_database_exists()
+
     # 创建数据库表（如果不存在）
     # 优先使用 Alembic 迁移管理表结构，失败则回退 create_all（兼容现有部署）
     try:
@@ -94,9 +97,15 @@ async def lifespan(app: FastAPI):
         else:
             raise FileNotFoundError("alembic.ini 不存在")
     except Exception as e:
-        logger.warning(f" Alembic 迁移跳过（{e}），回退到 create_all")
+        logger.warning(f" Alembic 迁移跳过（{e}），回退到 create_all 建表")
         Base.metadata.create_all(bind=engine)
-        logger.info(" 数据库表检查完成（create_all）")
+        logger.info(" 数据库表已通过 create_all 创建")
+        try:
+            # 标记迁移已应用，避免每次启动重复触发回落
+            from alembic import command
+            command.stamp(alembic_cfg, "head")
+        except Exception:
+            pass
 
     # 确保新增的 user_ai_configs 表存在（兼容 Alembic 已接管、未含该表迁移的场景）
     try:

@@ -11,7 +11,7 @@ from alembic import context
 # 将项目根目录添加到 Python 路径，以便导入 app 模块
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from app.core.database import Base
+from app.core.database import Base, ensure_database_exists
 from app.core.config import settings
 # 删除不存在的 purchase_suggestion 引用
 from app.models import user, medication_plan, medication_record, ai_query_log, chat_message
@@ -44,6 +44,8 @@ def run_migrations_offline():
 
 def run_migrations_online():
     """在线模式迁移（连接数据库执行）"""
+    # 检测不到数据库时自动建库（MySQL / PostgreSQL 等远程数据库场景）
+    ensure_database_exists()
     connectable = engine_from_config(
         config.get_section(config.config_ini_section),
         prefix="sqlalchemy.",
