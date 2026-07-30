@@ -111,6 +111,7 @@ def _ensure_env_template():
     便于首次部署即拥有可编辑的配置骨架；已存在文件不会被覆盖。
     """
     try:
+        from common.envfile import ensure_env_template
         if ensure_env_template(_CONFIG_PATH, _ENV_DEFAULT_CONTENT):
             logger.info(f"[更新检查] 已生成配置模板: {_CONFIG_PATH}（默认 AUTO_PULL=true，可手动编辑）")
     except Exception as e:
@@ -199,8 +200,14 @@ _OPENER, _IS_MIRROR, _MIRROR_BASE = _configure_opener()
 
 
 def _build_url(url):
-    """若配置了镜像前缀形式的 github_proxy，将目标 URL 改写为通过镜像访问。"""
-    if _IS_MIRROR and _MIRROR_BASE:
+    """若配置了镜像前缀形式的 github_proxy，将目标 URL 改写为通过镜像访问。
+
+    注意：gh-proxy 类镜像通常只代理 github.com 的 raw/下载内容，
+    并不代理 api.github.com。若对 API 地址套用镜像前缀，镜像会返回空响应，
+    导致 json.loads 抛出「Expecting value: line 1 column 1」。
+    因此 api.github.com 请求一律走直连（正向代理仍由 opener 透明转发）。
+    """
+    if _IS_MIRROR and _MIRROR_BASE and not url.startswith("https://api.github.com/"):
         return f"{_MIRROR_BASE}/{url}"
     return url
 
@@ -223,11 +230,27 @@ from common.runtime_protection import is_protected_path as _is_protected_path
 # ============================================================
 # GitHub API 与版本比较
 # ============================================================
+def _fetch_json(url, timeout):
+    """安全获取并解析 JSON：校验 HTTP 状态、空响应、非 JSON 响应，给出可读错误。"""
+    try:
+        with _open_url(url, timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as e:
+        # 4xx/5xx：尝试读取响应体以判断原因（如 403 限流、404 无 Release）
+        raise RuntimeError(f"HTTP {e.code} 请求 {url} 失败：{e.reason}")
+    if not raw.strip():
+        raise RuntimeError(f"请求 {url} 返回空响应（可能镜像/代理不支持该地址，或网络异常）")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        snippet = raw[:200].replace("\n", " ")
+        raise RuntimeError(f"响应非 JSON（{url}）：{e}；响应片段：{snippet!r}")
+
+
 def _fetch_latest_release():
     """从 GitHub 获取最新 Release 信息（含资产列表）"""
     url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-    with _open_url(url, 10) as resp:
-        return json.loads(resp.read().decode())
+    return _fetch_json(url, 10)
 
 
 def _fetch_latest_version():
@@ -239,11 +262,10 @@ def _fetch_latest_version():
         logger.warning(f"获取 Release 失败: {e}")
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/tags"
-        with _open_url(url, 10) as resp:
-            data = json.loads(resp.read().decode())
-            if data:
-                tag = data[0].get("name")
-                return tag, f"https://github.com/{GITHUB_REPO}/releases/tag/{tag}", None
+        data = _fetch_json(url, 10)
+        if data:
+            tag = data[0].get("name")
+            return tag, f"https://github.com/{GITHUB_REPO}/releases/tag/{tag}", None
     except Exception as e:
         logger.warning(f"获取 Tags 失败: {e}")
     return None, None, None
