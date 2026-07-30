@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, ForeignKey
 from datetime import datetime, timezone
-from app.core.database import Base
+from app.core.database import Base, UTCDateTime
 
 
 def _utcnow():
-    """返回带时区的当前 UTC 时间"""
+    """返回带时区的当前 UTC 时间（写入数据库时由 UTCDateTime 统一转为 naive UTC）"""
     return datetime.now(timezone.utc)
 
 
@@ -19,4 +19,4 @@ class ChatMessage(Base):
     receiver_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     sender_name = Column(String(50), nullable=False)
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=_utcnow)
+    created_at = Column(UTCDateTime, default=_utcnow)
