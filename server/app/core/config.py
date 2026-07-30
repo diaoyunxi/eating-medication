@@ -170,6 +170,9 @@ _BACKFILL_FIELDS = [
         "# --- HTTP API 后端（Resend 兼容：POST MAIL_API_URL，Bearer MAIL_API_KEY） ---",
     ], "https://api.resend.com/emails"),
     ("MAIL_API_KEY", [], ""),
+    ("WEBAUTHN_RP_NAME", ["# WebAuthn/Passkey 依赖方展示名"], "吃饭提醒"),
+    ("WEBAUTHN_RP_ID", ["# WebAuthn RP ID（留空则从 FAMILY_WEB_URL 派生）"], ""),
+    ("WEBAUTHN_ORIGIN", ["# WebAuthn Origin（留空则从 FAMILY_WEB_URL 派生）"], ""),
 ]
 
 
@@ -286,6 +289,16 @@ class Settings(BaseSettings):
     # Gitee OAuth 回调 URL（须与 Gitee 后台 "应用回调地址" 完全一致）
     GITEE_OAUTH_CALLBACK_URL: str = "https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback"
 
+    # ===== WebAuthn / Passkey 配置 =====
+    # RP（依赖方）展示名，登录时浏览器弹窗显示
+    WEBAUTHN_RP_NAME: str = "吃饭提醒"
+    # RP ID：注册/断言校验时比对的有效域（注册表可解析域名，如 my-website.ccwu.cc）
+    # 留空时从 FAMILY_WEB_URL 自动派生
+    WEBAUTHN_RP_ID: str = ""
+    # 浏览器页面 Origin（scheme://host[:port]），必须与发起 WebAuthn 请求的页面完全一致
+    # 留空时从 FAMILY_WEB_URL 自动派生
+    WEBAUTHN_ORIGIN: str = ""
+
     # ===== 邮件发送配置（SMTP / HTTP API 双后端，可切换） =====
     # MAIL_PROVIDER: "smtp" 标准 SMTP；"api" Resend 兼容 HTTP API；留空则邮件功能禁用
     MAIL_PROVIDER: Optional[str] = None
@@ -335,6 +348,14 @@ class Settings(BaseSettings):
             self.SECRET_KEY = _generate_secret_key()
         else:
             _SECRET_KEY_IS_RANDOM = False
+
+        # WebAuthn RP 配置派生：origin / rp_id 留空时从 FAMILY_WEB_URL 推断
+        from urllib.parse import urlparse
+        if not self.WEBAUTHN_ORIGIN and self.FAMILY_WEB_URL:
+            # 去除查询串与结尾斜杠，得到标准 origin
+            self.WEBAUTHN_ORIGIN = self.FAMILY_WEB_URL.split("?")[0].rstrip("/")
+        if not self.WEBAUTHN_RP_ID and self.WEBAUTHN_ORIGIN:
+            self.WEBAUTHN_RP_ID = urlparse(self.WEBAUTHN_ORIGIN).hostname or ""
 
 
 def validate_mandatory_config():

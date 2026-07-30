@@ -311,6 +311,15 @@ async def post_login(request: Request):
 
     # 提取 JWT 并存入 HttpOnly cookie
     token_data = resp.json()
+    # 已开启 TOTP 第二因子：密码正确但需再校验动态码，返回 MFA 挑战令牌
+    if token_data.get("mfa_required"):
+        return JSONResponse(
+            {
+                "success": True,
+                "mfa_required": True,
+                "mfa_token": token_data.get("mfa_token", ""),
+            }
+        )
     access_token = token_data.get("access_token", "")
     if not access_token:
         return JSONResponse(
@@ -386,12 +395,13 @@ async def post_register(request: Request):
     token_data = resp.json()
     access_token = token_data.get("access_token", "")
     login_redirect = f"{_PATH_PREFIX}/login" if _PATH_PREFIX else "/login"
-    home_redirect = f"{_PATH_PREFIX}/" if _PATH_PREFIX else "/"
+    # 注册后引导绑定第二因子 / 通行密钥（注册时引导绑定）
+    security_redirect = f"{_PATH_PREFIX}/security-setup" if _PATH_PREFIX else "/security-setup"
     if not access_token:
         # 注册成功但未返回 token，跳转登录页手动登录
         return JSONResponse({"success": True, "redirect": login_redirect})
 
-    response = JSONResponse({"success": True, "redirect": home_redirect})
+    response = JSONResponse({"success": True, "redirect": security_redirect})
     response = _set_jwt_cookie(response, access_token)
     # OAuth 补全注册成功后清除对应平台的一次性身份 cookie，避免重复利用
     if oauth_token:
@@ -466,3 +476,207 @@ def _parse_server_error(resp: httpx.Response, default_msg: str) -> str:
         return default_msg
     except Exception:
         return default_msg
+
+
+# ==================== TOTP 第二因子 / WebAuthn Passkey 代理 ====================
+def _auth_headers(request: Request) -> dict:
+    """从 cookie 取出 JWT 并构造 Authorization 请求头（转发到 server 的需登录端点）"""
+    token = request.cookies.get("access_token", "")
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+@router.post("/totp/setup")
+async def totp_setup(request: Request):
+    """TOTP 密钥生成（需登录）：转发到 server /auth/totp/setup"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"success": False, "error": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        resp = await _server_client._execute("POST", _server_url("/auth/totp/setup"), headers=headers)
+    except httpx.RequestError:
+        return JSONResponse({"success": False, "error": "无法连接认证服务，请稍后重试"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.post("/totp/enable")
+async def totp_enable(request: Request):
+    """TOTP 启用（需登录）：转发到 server /auth/totp/enable"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"success": False, "error": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        resp = await _server_client._execute("POST", _server_url("/auth/totp/enable"), json_body=body, headers=headers)
+    except httpx.RequestError:
+        return JSONResponse({"success": False, "error": "无法连接认证服务，请稍后重试"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.post("/totp/disable")
+async def totp_disable(request: Request):
+    """TOTP 关闭（需登录）：转发到 server /auth/totp/disable"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"success": False, "error": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        resp = await _server_client._execute("POST", _server_url("/auth/totp/disable"), json_body=body, headers=headers)
+    except httpx.RequestError:
+        return JSONResponse({"success": False, "error": "无法连接认证服务，请稍后重试"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.post("/totp/verify")
+async def totp_verify(request: Request):
+    """TOTP 第二步验证（公开）：校验动态码后存 JWT cookie 并跳转"""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        resp = await _server_client._execute("POST", _server_url("/auth/totp/verify"), json_body=body)
+    except httpx.RequestError:
+        return JSONResponse({"success": False, "error": "无法连接认证服务，请稍后重试"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    if resp.status_code != 200:
+        err_msg = _parse_server_error(resp, "动态验证码错误")
+        return JSONResponse(
+            {"success": False, "error": err_msg},
+            status_code=resp.status_code if resp.status_code >= 400 else 500,
+        )
+    token_data = resp.json()
+    access_token = token_data.get("access_token", "")
+    if not access_token:
+        return JSONResponse({"success": False, "error": "认证服务返回异常"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    redirect_url = f"{_PATH_PREFIX}/" if _PATH_PREFIX else "/"
+    response = JSONResponse({"success": True, "redirect": redirect_url})
+    return _set_jwt_cookie(response, access_token)
+
+
+# ---- WebAuthn / Passkey ----
+@router.post("/webauthn/register/options")
+async def webauthn_register_options(request: Request):
+    """通行密钥登记选项（需登录）：转发到 server /auth/webauthn/register/options"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"success": False, "error": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        resp = await _server_client._execute("POST", _server_url("/auth/webauthn/register/options"), headers=headers)
+    except httpx.RequestError:
+        return JSONResponse({"success": False, "error": "无法连接认证服务，请稍后重试"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.post("/webauthn/register")
+async def webauthn_register(request: Request):
+    """通行密钥登记提交（需登录）：转发到 server /auth/webauthn/register"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"success": False, "error": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        resp = await _server_client._execute("POST", _server_url("/auth/webauthn/register"), json_body=body, headers=headers)
+    except httpx.RequestError:
+        return JSONResponse({"success": False, "error": "无法连接认证服务，请稍后重试"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.post("/webauthn/login/options")
+async def webauthn_login_options(request: Request):
+    """无用户名登录断言选项（公开）：转发到 server /auth/webauthn/login/options"""
+    try:
+        resp = await _server_client._execute("POST", _server_url("/auth/webauthn/login/options"))
+    except httpx.RequestError:
+        return JSONResponse({"success": False, "error": "无法连接认证服务，请稍后重试"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.post("/webauthn/login")
+async def webauthn_login(request: Request):
+    """无用户名通行密钥登录（公开）：校验后存 JWT cookie 并跳转"""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        resp = await _server_client._execute("POST", _server_url("/auth/webauthn/login"), json_body=body)
+    except httpx.RequestError:
+        return JSONResponse({"success": False, "error": "无法连接认证服务，请稍后重试"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    if resp.status_code != 200:
+        err_msg = _parse_server_error(resp, "通行密钥登录失败")
+        return JSONResponse(
+            {"success": False, "error": err_msg},
+            status_code=resp.status_code if resp.status_code >= 400 else 500,
+        )
+    token_data = resp.json()
+    access_token = token_data.get("access_token", "")
+    if not access_token:
+        return JSONResponse({"success": False, "error": "认证服务返回异常"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    redirect_url = f"{_PATH_PREFIX}/" if _PATH_PREFIX else "/"
+    response = JSONResponse({"success": True, "redirect": redirect_url})
+    return _set_jwt_cookie(response, access_token)
+
+
+@router.get("/webauthn/credentials")
+async def webauthn_list_credentials(request: Request):
+    """列出当前用户的通行密钥（需登录）"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"success": False, "error": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        resp = await _server_client._execute("GET", _server_url("/auth/webauthn/credentials"), headers=headers)
+    except httpx.RequestError:
+        return JSONResponse({"success": False, "error": "无法连接认证服务，请稍后重试"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.delete("/webauthn/credentials/{cred_id}")
+async def webauthn_delete_credential(cred_id: str, request: Request):
+    """删除指定通行密钥（需登录）"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"success": False, "error": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        resp = await _server_client._execute("DELETE", _server_url(f"/auth/webauthn/credentials/{cred_id}"), headers=headers)
+    except httpx.RequestError:
+        return JSONResponse({"success": False, "error": "无法连接认证服务，请稍后重试"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.get("/security-setup")
+async def security_setup_page(request: Request):
+    """安全设置页：引导绑定 TOTP 第二因子与通行密钥（需登录，由 auth_middleware 保护）"""
+    token = request.cookies.get("access_token", "")
+    context = {
+        "app_name": config.APP_NAME,
+        "mfa_enabled": False,
+        "credentials": [],
+        "username": "",
+        "phone": "",
+    }
+    if token:
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            me = await _server_client._execute("GET", _server_url("/users/me"), headers=headers)
+            if me.status_code == 200:
+                udata = me.json()
+                context["username"] = udata.get("username", "")
+                context["phone"] = udata.get("phone", "")
+                context["mfa_enabled"] = bool(udata.get("mfa_enabled", False))
+        except Exception:
+            pass
+        try:
+            creds = await _server_client._execute("GET", _server_url("/auth/webauthn/credentials"), headers=headers)
+            if creds.status_code == 200:
+                context["credentials"] = creds.json()
+        except Exception:
+            pass
+    return templates.TemplateResponse(request, "security_setup.html", context)

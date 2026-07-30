@@ -125,6 +125,26 @@
                     </button>
                 </form>
 
+                <!-- TOTP 第二因子步骤（默认隐藏，密码正确且已开启 MFA 时显示） -->
+                <form class="auth-form" id="mfaStep" style="display:none; margin-top:4px;">
+                    <div class="form-group">
+                        <label class="form-label" for="totpCode">动态验证码</label>
+                        <input type="text" class="form-input" id="totpCode" name="totpCode"
+                               placeholder="请输入 Authenticator 中的 6 位动态码" inputmode="numeric"
+                               maxlength="6" autocomplete="one-time-code">
+                    </div>
+                    <button type="button" class="btn btn-primary btn-lg w-full" id="mfaVerifyBtn">
+                        <span id="mfaVerifyBtnText">验证并登录</span>
+                    </button>
+                </form>
+
+                <!-- 通行密钥（Passkey）无用户名登录按钮 -->
+                <div class="form-group" style="margin-top:14px;">
+                    <button type="button" class="btn btn-secondary btn-lg w-full" id="passkeyLoginBtn">
+                        <span id="passkeyLoginBtnText">使用通行密钥登录</span>
+                    </button>
+                </div>
+
                 <!-- GitHub OAuth 登录分隔线与按钮（默认隐藏，后端配置后由 JS 显示） -->
                 <div id="githubDivider" class="auth-divider" style="display:none;">
                     <span class="auth-divider-text">或</span>
@@ -531,6 +551,13 @@
                     if (data.success && data.redirect) {
                         // 登录成功，跳转到后端指定地址
                         window.location.href = data.redirect;
+                    } else if (data.mfa_required) {
+                        // 已开启 TOTP 第二因子：切换至动态码步骤
+                        window._mfaToken = data.mfa_token;
+                        document.getElementById('loginForm').style.display = 'none';
+                        document.getElementById('mfaStep').style.display = 'block';
+                        document.getElementById('passkeyLoginBtn').style.display = 'none';
+                        hideJsError();
                     } else {
                         // 登录失败：显示错误信息并重置 Turnstile，要求用户重新验证
                         showJsError(data.error || '登录失败，请重试');
@@ -552,5 +579,113 @@
                     submitBtnText.textContent = originalText;
                 });
         });
+
+        // ===== base64url <-> ArrayBuffer 互转（WebAuthn 必需） =====
+        function base64urlToBuffer(base64url) {
+            var padding = '='.repeat((4 - (base64url.length % 4)) % 4);
+            var base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+            var raw = atob(base64);
+            var buf = new Uint8Array(raw.length);
+            for (var i = 0; i < raw.length; i++) { buf[i] = raw.charCodeAt(i); }
+            return buf.buffer;
+        }
+        function bufToBase64url(buf) {
+            var bytes = new Uint8Array(buf);
+            var bin = '';
+            for (var i = 0; i < bytes.length; i++) { bin += String.fromCharCode(bytes[i]); }
+            return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        // ===== 通行密钥（Passkey）无用户名登录 =====
+        var passkeyBtn = document.getElementById('passkeyLoginBtn');
+        if (passkeyBtn) {
+            passkeyBtn.addEventListener('click', function () {
+                hideJsError();
+                var btnText = document.getElementById('passkeyLoginBtnText');
+                btnText.textContent = '等待验证...';
+                passkeyBtn.disabled = true;
+                fetch(prefix + '/webauthn/login/options', { method: 'POST' })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (!res.ok) { throw new Error(res.data.error || '获取登录选项失败'); }
+                        var opt = res.data.options;
+                        window._waChallengeToken = res.data.challenge_token;
+                        opt.challenge = base64urlToBuffer(opt.challenge);
+                        if (opt.allowCredentials) {
+                            opt.allowCredentials = opt.allowCredentials.map(function (c) {
+                                return { type: c.type, id: base64urlToBuffer(c.id) };
+                            });
+                        }
+                        return navigator.credentials.get({ publicKey: opt });
+                    })
+                    .then(function (assertion) {
+                        var credential = {
+                            id: assertion.id,
+                            rawId: bufToBase64url(assertion.rawId),
+                            type: assertion.type,
+                            response: {
+                                clientDataJSON: bufToBase64url(assertion.response.clientDataJSON),
+                                authenticatorData: bufToBase64url(assertion.response.authenticatorData),
+                                signature: bufToBase64url(assertion.response.signature),
+                                userHandle: assertion.response.userHandle ? bufToBase64url(assertion.response.userHandle) : null
+                            }
+                        };
+                        return fetch(prefix + '/webauthn/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ credential: credential, challenge_token: window._waChallengeToken })
+                        });
+                    })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (res.ok && res.data.success && res.data.redirect) {
+                            window.location.href = res.data.redirect;
+                        } else {
+                            throw new Error(res.data.error || '通行密钥登录失败');
+                        }
+                    })
+                    .catch(function (err) {
+                        showJsError(err.message || '通行密钥登录失败，请重试');
+                    })
+                    .finally(function () {
+                        btnText.textContent = '使用通行密钥登录';
+                        passkeyBtn.disabled = false;
+                    });
+            });
+        }
+
+        // ===== TOTP 第二因子验证 =====
+        var mfaVerifyBtn = document.getElementById('mfaVerifyBtn');
+        if (mfaVerifyBtn) {
+            mfaVerifyBtn.addEventListener('click', function () {
+                hideJsError();
+                var code = (document.getElementById('totpCode').value || '').trim();
+                if (!code) { showJsError('请输入动态验证码'); return; }
+                if (!window._mfaToken) { showJsError('登录状态已失效，请重新登录'); return; }
+                var btnText = document.getElementById('mfaVerifyBtnText');
+                mfaVerifyBtn.disabled = true;
+                btnText.textContent = '验证中...';
+                fetch(prefix + '/totp/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mfa_token: window._mfaToken, code: code })
+                })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (res.ok && res.data.success && res.data.redirect) {
+                            window.location.href = res.data.redirect;
+                        } else {
+                            showJsError(res.data.error || '动态验证码错误');
+                            mfaVerifyBtn.disabled = false;
+                            btnText.textContent = '验证并登录';
+                        }
+                    })
+                    .catch(function () {
+                        showJsError('网络异常，请稍后重试');
+                        mfaVerifyBtn.disabled = false;
+                        btnText.textContent = '验证并登录';
+                    });
+            });
+        }
     </script>
 {% endblock %}

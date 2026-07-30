@@ -91,9 +91,13 @@ def register(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/login", response_model=TokenResp)
+@router.post("/login")
 def login(req: LoginReq, request: Request, db: Session = Depends(get_db)):
-    """用户登录（Turnstile 人机验证 + 限流）"""
+    """用户登录（Turnstile 人机验证 + 限流）
+
+    已开启 TOTP 第二因子的账号：密码校验通过后返回 {mfa_required: true, mfa_token}，
+    前端再调用 /auth/totp/verify 校验动态码获取正式 JWT。
+    """
     # Turnstile 人机验证
     if not verify_turnstile(req.cf_turnstile_token):
         raise HTTPException(status_code=400, detail="人机验证失败，请重试")
@@ -101,10 +105,12 @@ def login(req: LoginReq, request: Request, db: Session = Depends(get_db)):
     client_ip = get_client_ip(request)
     if not check_rate_limit(f"login:{client_ip}", _LOGIN_RATE_LIMIT):
         raise HTTPException(status_code=429, detail="登录请求过于频繁，请稍后再试")
-    token = AuthService.login(db, req.phone, req.password)
-    if token is None:
+    result = AuthService.login(db, req.phone, req.password)
+    if result is None:
         raise HTTPException(status_code=401, detail="手机号或密码错误")
-    return TokenResp(access_token=token, token_type="bearer")
+    if result.get("mfa_required"):
+        return {"mfa_required": True, "mfa_token": result["mfa_token"]}
+    return TokenResp(access_token=result["access_token"], token_type="bearer")
 
 
 @router.post("/email/send-code")
