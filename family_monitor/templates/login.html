@@ -62,6 +62,42 @@
         .auth-divider-text {
             padding: 0 12px;
         }
+        /* 登录方式手风琴：默认仅“激活”的方式展示详情，其余方式收起为按钮 */
+        .method-trigger {
+            display: none;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 44px;
+            padding: 8px 12px;
+            background: #ffffff;
+            color: #0A0A0A;
+            border: 1px solid #d4d4d8 !important;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s ease;
+            margin-bottom: 10px;
+        }
+        .method-trigger:hover {
+            background: #f4f4f5;
+        }
+        /* 非激活方式：显示折叠按钮，隐藏详情 */
+        .login-method:not(.is-active) .method-trigger {
+            display: flex;
+        }
+        .login-method.is-active .method-trigger {
+            display: none;
+        }
+        /* 激活方式：显示详情，隐藏折叠按钮 */
+        .method-body {
+            display: none;
+        }
+        .login-method.is-active .method-body {
+            display: block;
+        }
     </style>
 {% endblock %}
 {% block nav %}{% endblock %}
@@ -101,6 +137,10 @@
                     <span id="jsSuccessMsg"></span>
                 </div>
 
+                <!-- 手机密码登录方式（默认激活展开） -->
+                <div class="login-method is-active" data-method="phone">
+                    <button type="button" class="method-trigger" data-target="phone">手机密码登录</button>
+                    <div class="method-body">
                 <form method="POST" action="{{ prefix }}/login" class="auth-form" id="loginForm">
                     <div class="form-group">
                         <label class="form-label" for="phone">手机号</label>
@@ -137,19 +177,26 @@
                         <span id="mfaVerifyBtnText">验证并登录</span>
                     </button>
                 </form>
+                    </div>
+                </div>
 
-                <!-- 通行密钥（Passkey）无用户名登录按钮 -->
-                <div class="form-group" style="margin-top:14px;">
+                <!-- 通行密钥（Passkey）无用户名登录方式 -->
+                <div class="login-method" data-method="passkey">
+                    <button type="button" class="method-trigger" data-target="passkey">使用通行密钥登录</button>
+                    <div class="method-body">
+                <div class="form-group" style="margin-top:4px;">
                     <button type="button" class="btn btn-secondary btn-lg w-full" id="passkeyLoginBtn">
                         <span id="passkeyLoginBtnText">使用通行密钥登录</span>
                     </button>
                 </div>
-
-                <!-- GitHub OAuth 登录分隔线与按钮（默认隐藏，后端配置后由 JS 显示） -->
-                <div id="githubDivider" class="auth-divider" style="display:none;">
-                    <span class="auth-divider-text">或</span>
+                    </div>
                 </div>
-                <div id="githubLoginBox" style="display:none;">
+
+                <!-- GitHub 登录方式（默认隐藏，后端配置后由 JS 显示整块） -->
+                <div class="login-method" data-method="github" style="display:none;">
+                    <button type="button" class="method-trigger" data-target="github">使用 GitHub 登录</button>
+                    <div class="method-body">
+                <div id="githubLoginBox">
                     <div class="flex-1">
                         <button data-kumo-component="Button" type="button" id="githubLoginBtn"
                                 aria-label="使用 GitHub 登录"
@@ -164,9 +211,14 @@
                         </button>
                     </div>
                 </div>
+                    </div>
+                </div>
 
-                <!-- Gitee OAuth 登录按钮（默认隐藏，后端配置后由 JS 显示） -->
-                <div id="giteeLoginBox" style="display:none;">
+                <!-- Gitee 登录方式（默认隐藏，后端配置后由 JS 显示整块） -->
+                <div class="login-method" data-method="gitee" style="display:none;">
+                    <button type="button" class="method-trigger" data-target="gitee">使用 Gitee 登录</button>
+                    <div class="method-body">
+                <div id="giteeLoginBox">
                     <div class="flex-1">
                         <button data-kumo-component="Button" type="button" id="giteeLoginBtn"
                                 aria-label="使用 Gitee 登录"
@@ -178,11 +230,13 @@
                         </button>
                     </div>
                 </div>
-
-                <!-- 邮箱验证码登录（分隔线 + 区块） -->
-                <div id="emailDivider" class="auth-divider">
-                    <span class="auth-divider-text">或使用邮箱验证码</span>
+                    </div>
                 </div>
+
+                <!-- 邮箱验证码登录方式 -->
+                <div class="login-method" data-method="email">
+                    <button type="button" class="method-trigger" data-target="email">邮箱验证码登录</button>
+                    <div class="method-body">
                 <div id="emailLoginBox">
                     <div class="form-group">
                         <label class="form-label" for="email">邮箱</label>
@@ -203,6 +257,8 @@
                     <button type="button" class="btn btn-primary btn-lg w-full" id="emailLoginBtn">
                         <span id="emailLoginBtnText">邮箱验证码登录</span>
                     </button>
+                </div>
+                    </div>
                 </div>
 
                 <div class="auth-footer">
@@ -263,6 +319,28 @@
         }
 
         // 页面加载完成后：获取 site_key 并显式渲染 Turnstile
+        // ===== 登录方式手风琴切换 =====
+        function activateMethod(method) {
+            document.querySelectorAll('.login-method').forEach(function (el) {
+                el.classList.toggle('is-active', el.getAttribute('data-method') === method);
+            });
+            // 切回手机密码时重置 MFA 中间态，避免状态残留导致后续验证异常
+            if (method === 'phone') {
+                var lf = document.getElementById('loginForm');
+                var ms = document.getElementById('mfaStep');
+                if (lf) { lf.style.display = 'block'; }
+                if (ms) { ms.style.display = 'none'; }
+                window._mfaToken = null;
+            }
+        }
+        document.querySelectorAll('.method-trigger').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                hideJsError();
+                hideJsSuccess();
+                activateMethod(btn.getAttribute('data-target'));
+            });
+        });
+
         document.addEventListener('DOMContentLoaded', function () {
             // Turnstile JS 以 async/defer 加载，可能尚未就绪，轮询等待 window.turnstile 可用
             var tryCount = 0;
@@ -320,23 +398,13 @@
                     });
             }
 
-            // OAuth 登录按钮：后端配置后显示对应按钮，并显示分隔线
-            var anyOauthEnabled = false;
-            function maybeShowDivider() {
-                if (anyOauthEnabled) {
-                    var div = document.getElementById('githubDivider');
-                    if (div) { div.style.display = 'flex'; }
-                }
-            }
-
+            // OAuth 登录按钮：后端配置后显示对应方式的整个容器（按钮形态）
             fetch(prefix + '/oauth/github/enabled')
                 .then(function (r) { return r.json(); })
                 .then(function (d) {
                     if (d && d.enabled) {
-                        var box = document.getElementById('githubLoginBox');
-                        if (box) { box.style.display = 'block'; }
-                        anyOauthEnabled = true;
-                        maybeShowDivider();
+                        var m = document.querySelector('.login-method[data-method="github"]');
+                        if (m) { m.style.display = 'block'; }
                     }
                 })
                 .catch(function () { /* 忽略，按钮保持隐藏 */ });
@@ -345,10 +413,8 @@
                 .then(function (r) { return r.json(); })
                 .then(function (d) {
                     if (d && d.enabled) {
-                        var box = document.getElementById('giteeLoginBox');
-                        if (box) { box.style.display = 'block'; }
-                        anyOauthEnabled = true;
-                        maybeShowDivider();
+                        var m = document.querySelector('.login-method[data-method="gitee"]');
+                        if (m) { m.style.display = 'block'; }
                     }
                 })
                 .catch(function () { /* 忽略，按钮保持隐藏 */ });
@@ -556,7 +622,6 @@
                         window._mfaToken = data.mfa_token;
                         document.getElementById('loginForm').style.display = 'none';
                         document.getElementById('mfaStep').style.display = 'block';
-                        document.getElementById('passkeyLoginBtn').style.display = 'none';
                         hideJsError();
                     } else {
                         // 登录失败：显示错误信息并重置 Turnstile，要求用户重新验证
