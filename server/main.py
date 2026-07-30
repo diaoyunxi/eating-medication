@@ -7,6 +7,7 @@
 
 import sys
 import os
+import re
 import subprocess
 import importlib
 import json
@@ -37,48 +38,63 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
 sys.excepthook = global_exception_handler
 
 
-def _database_driver_required():
-    """根据 DATABASE_URL 方言判断是否需要 MySQL/PostgreSQL 驱动
+def _in_venv():
+    """判断当前解释器是否运行在虚拟环境中（venv/virtualenv 通用判据）"""
+    return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
 
-    本地 SQLite 场景无需 pymysql / psycopg2，避免误报缺失。
+
+def _venv_python_path():
+    """返回仓库根 .venv 内 python 解释器路径（按平台区分 Scripts/bin）"""
+    project_root = Path(__file__).resolve().parent.parent
+    if os.name == "nt":
+        return project_root / ".venv" / "Scripts" / "python.exe"
+    return project_root / ".venv" / "bin" / "python"
+
+
+def _clean_pkg_name(line):
+    """从 requirements.txt 单行中解析出干净的 PyPI 包名
+
+    去除行内注释、环境标记(;)、extras([...]) 与版本限定符(==/>=/等)，
+    例如 `uvicorn[standard]==0.32.0` -> `uvicorn`。
     """
-    db_url = os.getenv("DATABASE_URL", "")
-    if db_url.startswith("mysql"):
-        return [("pymysql", "pymysql")]
-    if db_url.startswith("postgresql"):
-        return [("psycopg2", "psycopg2-binary")]
-    return []
+    line = line.split("#", 1)[0].split(";", 1)[0].strip()
+    line = re.sub(r"\[.*?\]", "", line)  # 去 extras
+    for sep in ("==", ">=", "<=", "~=", "!=", ">", "<"):
+        line = line.split(sep, 1)[0]
+    return line.strip()
 
 
 def check_and_install_dependencies():
-    """检查关键依赖是否已安装，若缺失则调用公共安装脚本 common/install.py
+    """检查 requirements.txt 声明的依赖是否已安装，缺失则调用 common/install.py
 
     设计要点：
-    - passlib 已废弃（与 bcrypt 4.x 不兼容，代码改用 bcrypt 原生 API），不再列为必需
-    - 数据库驱动按 DATABASE_URL 方言按需检测，SQLite 场景不要求 pymysql/psycopg2
-    - 安装在 .venv 中完成后，用 .venv 的解释器重启自身，避免重启又回到系统 Python
-      导致下一轮再次误报缺失（修复「每次启动都重装」死循环）
+    - 依赖检测直接解析 requirements.txt：任何写入 requirements.txt 的新依赖
+      （如 pyotp/qrcode/webauthn）都会自动被检测与安装，无需维护硬编码列表
+      （硬编码列表会漏检新依赖，导致启动即 `import` 崩溃）
+    - 缺失判定复用 common.install.is_package_installed（import 优先，回退 pip show），
+      兼容 Pillow(import PIL)、pydantic-settings(import pydantic_settings) 等
+      包名与 import 名不一致的情况，避免误报缺失
+    - 安装由 common/install.py 统一完成（自动创建/进入 .venv）
+    - 安装完成后用 .venv 解释器重启自身（main 顶部也会在 .venv 存在时优先
+      re-exec），避免回到系统 Python 导致下一轮再次误报缺失
     - KeyboardInterrupt 单独捕获，避免误写 crash.log
     """
-    required_modules = [
-        ('fastapi', 'fastapi'),
-        ('uvicorn', 'uvicorn'),
-        ('sqlalchemy', 'sqlalchemy'),
-        ('pydantic', 'pydantic'),
-        ('dotenv', 'python-dotenv'),
-        ('jose', 'python-jose'),
-        ('httpx', 'httpx'),
-        ('apscheduler', 'apscheduler'),
-    ]
-    # 远程数据库驱动仅在 DATABASE_URL 指向 MySQL/PostgreSQL 时需要
-    required_modules.extend(_database_driver_required())
+    from common.install import is_package_installed
 
-    missing = []
-    for module_name, pip_name in required_modules:
-        try:
-            importlib.import_module(module_name)
-        except ImportError:
-            missing.append(pip_name)
+    req_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
+    if not os.path.exists(req_path):
+        print(f"未找到 requirements.txt: {req_path}")
+        return
+
+    # 解析出全部需检测的 PyPI 包名
+    pkg_names = []
+    with open(req_path, "r", encoding="utf-8-sig") as f:
+        for line in f:
+            name = _clean_pkg_name(line)
+            if name:
+                pkg_names.append(name)
+
+    missing = [n for n in pkg_names if not is_package_installed(n)]
 
     if not missing:
         return
@@ -89,19 +105,16 @@ def check_and_install_dependencies():
     # 根目录统一安装脚本，传入本模块 requirements.txt 路径
     project_root = str(Path(__file__).resolve().parent.parent)
     root_install = os.path.join(project_root, "common", "install.py")
-    req_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
     if not os.path.exists(root_install):
         print("未找到common/install.py，请手动安装依赖:")
-        print(f"pip install {' '.join(missing)}")
+        print(f"pip install -r {req_path}")
         sys.exit(1)
 
     # 安装脚本会自动进入 .venv（不存在则创建），依赖装在 .venv 内。
     # 但 subprocess.run 是子进程，不影响当前进程的 sys.executable；
     # 因此安装完成后必须显式用 .venv 的解释器重启自身，否则重启又回到
     # 系统 Python，下一轮再次误报缺失（历史死循环根因）。
-    venv_python = os.path.join(project_root, ".venv", "bin", "python")
-    if os.name == "nt":
-        venv_python = os.path.join(project_root, ".venv", "Scripts", "python.exe")
+    venv_python = _venv_python_path()
 
     try:
         result = subprocess.run(
@@ -124,10 +137,10 @@ def check_and_install_dependencies():
         return
 
     print("依赖安装完成")
-    # 安装发生在 .venv 内；若 .venv 解释器存在则用它重启，否则维持当前解释器
-    if os.path.exists(venv_python):
+    # 安装发生在 .venv 内；优先用 .venv 解释器重启，否则维持当前解释器
+    if venv_python.exists():
         print(f"正在使用虚拟环境重启服务端: {venv_python}")
-        os.execv(venv_python, [venv_python] + sys.argv)
+        os.execv(str(venv_python), [str(venv_python)] + sys.argv)
     else:
         print("正在重新启动服务端...")
         os.execv(sys.executable, [sys.executable] + sys.argv)
@@ -196,6 +209,21 @@ def start_server():
 
 def main():
     """主入口函数"""
+    # 若仓库根 .venv 已存在但当前未在 venv 中运行，优先用 venv 解释器重启自身，
+    # 确保依赖检测与全部导入都在 venv 内进行。
+    # 修复两类历史问题：
+    #   1) 依赖装进 .venv，服务却用系统 Python 启动，导致新依赖（pyotp/qrcode/
+    #      webauthn）检测不到、启动即 `import` 崩溃（即「没自动加载 venv 配置」）；
+    #   2) 仅当「检测缺失并安装后」才切 venv 不够——系统内已装部分包时会直接跳过，
+    #      仍用系统 Python 运行。
+    # 本步在任何副作用（更新检查/建目录/启动）之前执行，保证全程位于 venv。
+    venv_py = _venv_python_path()
+    if venv_py.exists() and not _in_venv():
+        try:
+            os.execv(str(venv_py), [str(venv_py)] + sys.argv)
+        except Exception as e:
+            print(f"切换到虚拟环境失败，继续以当前解释器运行: {e}")
+
     print("老人用药管理智能助手 - 服务端")
     print("=" * 50)
 
