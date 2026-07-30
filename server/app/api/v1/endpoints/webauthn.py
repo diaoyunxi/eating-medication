@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """WebAuthn / Passkey 端点（无用户名 passkey 登录）。
 
-- 登记（绑定）：/webauthn/register/options → /webauthn/register（需登录态）
-- 登录：/webauthn/login/options → /webauthn/login（公开，按 credential_id 反查用户）
-- 管理：/webauthn/credentials 列表与删除（需登录态）
+- 登记（绑定）：/auth/webauthn/register/options → /auth/webauthn/register（需登录态）
+- 登录：/auth/webauthn/login/options → /auth/webauthn/login（公开，按 credential_id 反查用户）
+- 管理：/auth/webauthn/credentials 列表与删除（需登录态）
 """
 import json
 from fastapi import APIRouter, Depends, HTTPException, status
