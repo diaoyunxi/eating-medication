@@ -6,7 +6,7 @@ from typing import Optional
 from datetime import datetime, timezone
 from app.models.user import User
 from app.schemas.auth import RegisterReq
-from app.core.security import hash_password, verify_password, create_access_token
+from app.core.security import hash_password, verify_password, create_access_token, create_mfa_token
 from app.utils import email_code as email_code_store
 
 logger = logging.getLogger(__name__)
@@ -128,8 +128,14 @@ class AuthService:
         return AuthService.get_by_provider(db, "github", github_id)
 
     @staticmethod
-    def login(db: Session, phone: str, password: str) -> Optional[str]:
-        """用户登录（手机号 + 密码），返回 access_token，失败返回 None"""
+    def login(db: Session, phone: str, password: str) -> Optional[dict]:
+        """用户登录（手机号 + 密码）。
+
+        返回 dict：
+          - {"access_token": <jwt>} 正常登录（未开启 TOTP 第二因子）
+          - {"mfa_required": True, "mfa_token": <短期令牌>} 已开启 TOTP，需再校验动态码
+        失败返回 None
+        """
         user = db.query(User).filter(User.phone == phone).first()
         # 防时序攻击：用户存在和不存在时均执行一次 verify_password，
         # 使两条路径耗时一致，避免通过响应时间差探测用户是否存在
@@ -141,8 +147,11 @@ class AuthService:
         # 记录最后登录时间
         user.last_login_at = datetime.now(timezone.utc)
         db.commit()
+        # 第二因子：密码正确但已开启 TOTP，签发 MFA 短期令牌，等待动态码
+        if getattr(user, "mfa_enabled", False):
+            return {"mfa_required": True, "mfa_token": create_mfa_token(user.id)}
         # sub 统一为字符串（在 create_access_token 内部转换）
-        return create_access_token(data={"sub": user.id})
+        return {"access_token": create_access_token(data={"sub": user.id})}
 
     @staticmethod
     def login_or_register_by_email(db: Session, email: str) -> str:

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, LargeBinary, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.core.database import Base, UTCDateTime
@@ -46,7 +46,47 @@ class User(Base):
     # 第三方 OAuth 返回的邮箱（如 Gitee 已授权 emails 权限），本地用户为 NULL
     email = Column(String(255), nullable=True)
 
+    # ===== TOTP 第二因子（密码后的第二因子，issue：新增登录方式） =====
+    # TOTP 共享密钥（base32），使用 crypto.encrypt_sensitive_data 加密存储，未开启时为 NULL
+    totp_secret = Column(String(255), nullable=True)
+    # 是否已开启 TOTP 第二因子（false 时登录仅需密码；true 时登录需再输入动态码）
+    mfa_enabled = Column(Boolean, default=False, nullable=False)
+    # 备用恢复码（bcrypt 哈希后的 JSON 列表，明文仅在开启时返回一次），未开启为 NULL
+    backup_codes = Column(Text, nullable=True)
+
     # 关联关系
     medication_plans = relationship("MedicationPlan", back_populates="user", cascade="all, delete-orphan")
     medication_records = relationship("MedicationRecord", back_populates="user", cascade="all, delete-orphan")
     ai_query_logs = relationship("AIQueryLog", back_populates="user", cascade="all, delete-orphan")
+    webauthn_credentials = relationship("WebAuthnCredential", back_populates="user", cascade="all, delete-orphan")
+
+
+class WebAuthnCredential(Base):
+    """WebAuthn / Passkey 凭证表
+
+    一个用户可登记多把通行密钥（平台/外接安全密钥均可）。登录时按 credential_id
+    反查用户并签发 JWT，实现无用户名（usernameless）passkey 登录。
+    """
+    __tablename__ = "webauthn_credentials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # 凭证 ID（base64url），全局唯一
+    credential_id = Column(String(512), unique=True, nullable=False, index=True)
+    # COSE 编码的公钥（字节），用于后续断言验证
+    public_key = Column(LargeBinary, nullable=False)
+    # 已记录的签名计数器，防止重放攻击
+    sign_count = Column(Integer, default=0, nullable=False)
+    # 支持的传输方式（JSON 列表，如 ["usb","ble","internal"]），可空
+    transports = Column(Text, nullable=True)
+    # 用户自定义昵称（如「我的手机」「YubiKey」），可空
+    nickname = Column(String(100), nullable=True)
+    created_at = Column(UTCDateTime, default=_utcnow, nullable=False)
+    last_used_at = Column(UTCDateTime, nullable=True)
+
+    user = relationship("User", back_populates="webauthn_credentials")

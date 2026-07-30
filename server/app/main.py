@@ -169,6 +169,9 @@ add_exception_handlers(app)
 
 api_prefix = settings.API_V1_PREFIX
 app.include_router(auth.router, prefix=api_prefix)
+from app.api.v1.endpoints import totp, webauthn
+app.include_router(totp.router, prefix=api_prefix)
+app.include_router(webauthn.router, prefix=api_prefix)
 app.include_router(users.router, prefix=api_prefix)
 app.include_router(medication.router, prefix=api_prefix)
 app.include_router(ai.router, prefix=api_prefix)
