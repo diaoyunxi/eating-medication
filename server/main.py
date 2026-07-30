@@ -49,6 +49,9 @@ def check_and_install_dependencies():
         ('passlib', 'passlib'),
         ('httpx', 'httpx'),
         ('apscheduler', 'apscheduler'),
+        # 远程数据库驱动（仅在 DATABASE_URL 指向 MySQL/PostgreSQL 时需要）
+        ('pymysql', 'pymysql'),
+        ('psycopg2', 'psycopg2-binary'),
     ]
 
     missing = []

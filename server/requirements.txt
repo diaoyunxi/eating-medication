@@ -15,3 +15,6 @@ apscheduler==3.11.0
 alembic==1.14.0
 openai>=1.40.0
 cryptography>=42.0.0
+# 远程数据库驱动（按需启用：MySQL 用 pymysql，PostgreSQL 用 psycopg2）
+pymysql>=1.1.0
+psycopg2-binary>=2.9.0

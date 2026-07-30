@@ -8,13 +8,13 @@
 - base_url: 自定义/部分厂商的 OpenAI 兼容 base_url（custom 必填）
 - enabled:  是否启用该配置
 """
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey
 from datetime import datetime, timezone
-from app.core.database import Base
+from app.core.database import Base, UTCDateTime
 
 
 def _utcnow():
-    """返回带时区的当前 UTC 时间"""
+    """返回带时区的当前 UTC 时间（写入数据库时由 UTCDateTime 统一转为 naive UTC）"""
     return datetime.now(timezone.utc)
 
 
@@ -30,5 +30,5 @@ class UserAIConfig(Base):
     # 自定义厂商或需指定 base_url 的厂商使用
     base_url = Column(Text, nullable=True)
     enabled = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=_utcnow)
-    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+    created_at = Column(UTCDateTime, default=_utcnow)
+    updated_at = Column(UTCDateTime, default=_utcnow, onupdate=_utcnow)
