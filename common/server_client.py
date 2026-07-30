@@ -72,7 +72,15 @@ class BaseServerClient:
         return {}
 
     def _url(self, path: str) -> str:
-        """拼接完整请求 URL。自动去除 base_url 末尾斜杠，path 以 '/' 开头时直接追加。"""
+        """拼接完整请求 URL。
+
+        - 若 path 已是绝对 URL（含协议，如 http://、https://），直接返回，
+          避免与 base_url 重复拼接（例如 ``_server_url`` 返回完整地址后又被追加到
+          base_url 之后，导致请求路径里嵌入整串 URL，服务端 404）。
+        - 否则自动去除 base_url 末尾斜杠，path 以 '/' 开头时直接追加。
+        """
+        if '://' in path:
+            return path
         base = self.base_url.rstrip('/')
         if path.startswith('/'):
             return f"{base}{path}"
