@@ -180,16 +180,11 @@
                     </div>
                 </div>
 
-                <!-- 通行密钥（Passkey）无用户名登录方式 -->
-                <div class="login-method" data-method="passkey">
-                    <button type="button" class="method-trigger" data-target="passkey">使用通行密钥登录</button>
-                    <div class="method-body">
-                <div class="form-group" style="margin-top:4px;">
+                <!-- 通行密钥（Passkey）无用户名登录方式：直接可点击，无需展开 -->
+                <div class="form-group" style="margin-top:14px;">
                     <button type="button" class="btn btn-secondary btn-lg w-full" id="passkeyLoginBtn">
                         <span id="passkeyLoginBtnText">使用通行密钥登录</span>
                     </button>
-                </div>
-                    </div>
                 </div>
 
                 <!-- GitHub 登录方式（默认隐藏，后端配置后由 JS 显示整块） -->
@@ -710,7 +705,13 @@
                         }
                     })
                     .catch(function (err) {
-                        showJsError(err.message || '通行密钥登录失败，请重试');
+                        // 用户取消 / 超时：WebAuthn 抛出 NotAllowedError（消息含 w3.org 隐私说明链接），
+                        // 此处替换为友好提示，避免暴露底层英文错误
+                        if (err && err.name === 'NotAllowedError') {
+                            showJsError('你已取消通行密钥验证，可再次点击重试');
+                        } else {
+                            showJsError((err && err.message) ? err.message : '通行密钥登录失败，请重试');
+                        }
                     })
                     .finally(function () {
                         btnText.textContent = '使用通行密钥登录';

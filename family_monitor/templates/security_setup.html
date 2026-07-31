@@ -233,7 +233,15 @@
                         showOk('通行密钥已添加');
                         loadCredentials();
                     })
-                    .catch(function (err) { showErr(err.message || '登记失败'); })
+                    .catch(function (err) {
+                        // 用户取消 / 超时：WebAuthn 抛出 NotAllowedError（消息含 w3.org 隐私说明链接），
+                        // 此处替换为友好提示，避免暴露底层英文错误
+                        if (err && err.name === 'NotAllowedError') {
+                            showErr('你已取消通行密钥验证，未添加新的通行密钥');
+                        } else {
+                            showErr((err && err.message) ? err.message : '登记失败');
+                        }
+                    })
                     .finally(function () {
                         waAddBtn.disabled = false;
                         waAddBtn.textContent = '添加通行密钥';
