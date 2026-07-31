@@ -19,11 +19,15 @@ jobs:
       # 判断是否为「代码类提交」，供后续步骤统一门控
       - name: 判断是否代码类提交
         id: meta
+        env:
+          # 通过环境变量注入，避免多行/含引号提交信息直接插值进 bash 脚本文本导致语法错误
+          HEAD_MSG: ${{ github.event.head_commit.message }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            MSG="${{ github.event.head_commit.message }}"
+            MSG="$HEAD_MSG"
           else
-            MSG="${{ github.event.pull_request.title }}"
+            MSG="$PR_TITLE"
           fi
           if printf '%s' "$MSG" | grep -Eq '(feat|fix|refactor|build)'; then
             echo "is_code=true" >> "$GITHUB_OUTPUT"
