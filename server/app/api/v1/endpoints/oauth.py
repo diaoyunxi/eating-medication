@@ -28,7 +28,7 @@ from fastapi_oauth20 import (
     FastAPIOAuth20,
     OAuth20AuthorizeCallbackError,
 )
-from fastapi_oauth20.errors import GetUserInfoError
+from fastapi_oauth20.errors import AccessTokenError, GetUserInfoError
 
 from app.core.dependencies import get_db
 from app.core.config import settings
@@ -45,9 +45,73 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# ===================== Gitee 兼容客户端 =====================
-class GiteeOAuth20Compat(GiteeOAuth20):
-    """Gitee 兼容子类。
+# ===================== 延长 httpx 超时（应对慢速出站链路） =====================
+# fastapi-oauth20 v0.0.3 在 get_access_token / get_userinfo 中使用 httpx.AsyncClient()
+# 而未指定超时，走 httpx 默认 5s 超时。服务器到 GitHub/Gitee 的出站链路较慢时，
+# code 换 token 或拉用户信息会触发 httpx.ReadTimeout（见服务端 nohup.out 中 github
+# callback 的 ReadTimeout: connect_tcp timeout=5.0）。下列混入/子类在构造 httpx 客户端时
+# 显式注入更宽松的超时，其余请求参数、鉴权、错误处理逻辑与上游基类、GitHub/Gitee
+# 子类完全一致（仅新增 timeout 参数）。
+OAUTH_HTTP_TIMEOUT = httpx.Timeout(connect=15, read=30, write=15, pool=15)
+
+
+class _OAuth20TimeoutMixin:
+    """为 OAuth20Base.get_access_token 注入更长 httpx 超时的混入类。
+
+    仅将 ``httpx.AsyncClient(...)`` 替换为携带 ``timeout=OAUTH_HTTP_TIMEOUT`` 的客户端，
+    请求体、鉴权、错误处理均与上游 OAuth20Base.get_access_token 保持一致。
+    """
+
+    async def get_access_token(
+        self, code: str, redirect_uri: str, code_verifier: str | None = None
+    ) -> dict[str, Any]:
+        data = {
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code",
+        }
+        auth = None
+        if not self.token_endpoint_basic_auth:
+            data.update({"client_id": self.client_id, "client_secret": self.client_secret})
+        else:
+            auth = httpx.BasicAuth(self.client_id, self.client_secret)
+        if code_verifier:
+            data.update({"code_verifier": code_verifier})
+        async with httpx.AsyncClient(auth=auth, timeout=OAUTH_HTTP_TIMEOUT) as client:
+            response = await client.post(
+                self.access_token_endpoint,
+                data=data,
+                headers=self.request_headers,
+            )
+            self.raise_httpx_oauth20_errors(response)
+            result = self.get_json_result(response, err_class=AccessTokenError)
+            return result
+
+
+class GitHubOAuth20Timeout(_OAuth20TimeoutMixin, GitHubOAuth20):
+    """GitHub 客户端：加长超时，并保留上游 get_userinfo 的邮箱回退逻辑。"""
+
+    async def get_userinfo(self, access_token: str) -> dict[str, Any]:
+        headers = {"Authorization": f"Bearer {access_token}"}
+        async with httpx.AsyncClient(headers=headers, timeout=OAUTH_HTTP_TIMEOUT) as client:
+            response = await client.get(self.userinfo_endpoint)
+            self.raise_httpx_oauth20_errors(response)
+            result = self.get_json_result(response, err_class=GetUserInfoError)
+            email = result.get("email")
+            if email is None:
+                response = await client.get(f"{self.userinfo_endpoint}/emails")
+                self.raise_httpx_oauth20_errors(response)
+                emails = self.get_json_result(response, err_class=GetUserInfoError)
+                email = next(
+                    (e["email"] for e in emails if e.get("primary")),
+                    emails[0]["email"],
+                )
+                result["email"] = email
+            return result
+
+
+class GiteeOAuth20Compat(_OAuth20TimeoutMixin, GiteeOAuth20):
+    """Gitee 兼容子类：加长超时，并保留 ``token <token>`` 鉴权头。
 
     fastapi-oauth20 基类 get_userinfo 默认使用 ``Authorization: Bearer <token>``，
     而 Gitee 开放 API 实际支持的是 ``Authorization: token <token>``（历史约定）。
@@ -56,7 +120,7 @@ class GiteeOAuth20Compat(GiteeOAuth20):
 
     async def get_userinfo(self, access_token: str) -> dict[str, Any]:
         headers = {"Authorization": f"token {access_token}"}
-        async with httpx.AsyncClient(headers=headers) as client:
+        async with httpx.AsyncClient(headers=headers, timeout=OAUTH_HTTP_TIMEOUT) as client:
             response = await client.get(self.userinfo_endpoint)
             self.raise_httpx_oauth20_errors(response)
             return self.get_json_result(response, err_class=GetUserInfoError)
@@ -70,7 +134,7 @@ def _build_oauth_clients() -> dict:
     clients: dict[str, dict] = {}
 
     if settings.GITHUB_CLIENT_ID and settings.GITHUB_CLIENT_SECRET:
-        gh_client = GitHubOAuth20(
+        gh_client = GitHubOAuth20Timeout(
             client_id=settings.GITHUB_CLIENT_ID,
             client_secret=settings.GITHUB_CLIENT_SECRET,
         )
@@ -140,7 +204,7 @@ async def _fetch_email(emails_api: str, access_token: str, auth_header: str) -> 
         "User-Agent": "eating-medication",
     }
     try:
-        resp = httpx.get(emails_api, headers=headers, timeout=10)
+        resp = httpx.get(emails_api, headers=headers, timeout=OAUTH_HTTP_TIMEOUT)
         emails = resp.json()
         if isinstance(emails, list) and emails:
             # 优先取「主邮箱且已验证」，否则取列表首个
