@@ -37,8 +37,9 @@ from app.core.security import (
     verify_oauth_state_token,
     create_oauth_pending_token,
     create_access_token,
+    decode_token,
 )
-from app.services.auth_service import AuthService
+from app.services.auth_service import AuthService, _mask_email
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -263,6 +264,46 @@ async def _authorize(provider: str) -> RedirectResponse:
     return resp
 
 
+async def _bind_authorize(provider: str, request: Request) -> RedirectResponse:
+    """绑定模式授权入口：验证 JWT 后设 oauth_bind_jwt cookie，再走正常 authorize
+
+    流程：
+    1. 从 query 参数 token 取用户 JWT（由 family_monitor 转发）
+    2. 验证 JWT 有效性（decode_token）
+    3. 设 oauth_bind_jwt cookie（10 分钟有效）
+    4. 调用 _authorize 跳转第三方授权页
+    5. 将 oauth_bind_jwt cookie 附加到 _authorize 的响应上
+    """
+    cfg = _OAUTH.get(provider)
+    family_settings = f"{settings.FAMILY_WEB_URL}/settings"
+    if cfg is None:
+        return RedirectResponse(url=f"{family_settings}?error=oauth_not_configured", status_code=302)
+
+    token = request.query_params.get("token", "")
+    if not token:
+        return RedirectResponse(url=f"{family_settings}?error=no_token", status_code=302)
+
+    # 验证 JWT
+    try:
+        payload = decode_token(token)
+        sub = payload.get("sub")
+        if sub is None:
+            raise ValueError("JWT 缺少 sub")
+    except Exception as e:
+        logger.warning(f"OAuth 绑定模式 JWT 验证失败: {e}")
+        return RedirectResponse(url=f"{family_settings}?error=invalid_token", status_code=302)
+
+    # 走正常 authorize 流程
+    resp = await _authorize(provider)
+    # 附加 bind cookie（短生命周期，10 分钟）
+    resp.set_cookie(
+        key="oauth_bind_jwt",
+        value=token,
+        **_cookie_kwargs(600),
+    )
+    return resp
+
+
 async def _callback(
     provider: str,
     code: Optional[str],
@@ -311,6 +352,50 @@ async def _callback(
     if not provider_id:
         return _clear_and_redirect(state_cookie, f"{family_login}?error=oauth_user")
 
+    # —— 绑定模式：已登录用户在设置页点击"绑定第三方" ——
+    # 通过 oauth_bind_jwt cookie 携带用户 JWT，回调时检测到该 cookie 则走绑定流程
+    bind_jwt = request.cookies.get("oauth_bind_jwt")
+    if bind_jwt:
+        family_settings = f"{settings.FAMILY_WEB_URL}/settings"
+        try:
+            payload = decode_token(bind_jwt)
+            bind_user_id = payload.get("sub")
+            if bind_user_id is None:
+                raise ValueError("JWT 缺少 sub")
+            bind_user = db.query(User).filter(User.id == int(bind_user_id)).first()
+            if not bind_user:
+                raise ValueError("用户不存在")
+            # 检查该第三方账号是否已绑定其他用户
+            already_bound = AuthService.get_by_provider(db, provider, provider_id)
+            if already_bound and already_bound.id != bind_user.id:
+                logger.warning(
+                    f"OAuth({provider}) 绑定失败: provider_id={provider_id} "
+                    f"已绑定到其他用户 {already_bound.username}"
+                )
+                resp = _clear_and_redirect(state_cookie, f"{family_settings}?error=already_bound")
+                resp.delete_cookie(key="oauth_bind_jwt", path="/")
+                return resp
+            if already_bound and already_bound.id == bind_user.id:
+                # 已绑定到当前用户，直接返回
+                resp = _clear_and_redirect(state_cookie, f"{family_settings}?info=already_bound")
+                resp.delete_cookie(key="oauth_bind_jwt", path="/")
+                return resp
+            # 绑定第三方到当前用户
+            AuthService._bind_provider(bind_user, provider, provider_id)
+            db.commit()
+            logger.info(
+                f"OAuth({provider}) 绑定成功: user={bind_user.username}, "
+                f"email={_mask_email(oauth_email)}"
+            )
+            resp = _clear_and_redirect(state_cookie, f"{family_settings}")
+            resp.delete_cookie(key="oauth_bind_jwt", path="/")
+            return resp
+        except Exception as e:
+            logger.error(f"OAuth 绑定模式失败: {e}")
+            resp = _clear_and_redirect(state_cookie, f"{family_settings}?error=bind_fail")
+            resp.delete_cookie(key="oauth_bind_jwt", path="/")
+            return resp
+
     # —— 已绑定 -> 直接登录并签发 JWT ——
     existing = AuthService.get_by_provider(db, provider, provider_id)
     if existing:
@@ -323,20 +408,8 @@ async def _callback(
         )
         return resp
 
-    # —— 首次登录 -> 签发 pending 令牌，跳转注册页补全 ——
-    pending = create_oauth_pending_token(
-        provider=provider,
-        provider_id=provider_id,
-        provider_login=info["provider_login"],
-        provider_name=info["provider_name"],
-        provider_avatar=info["provider_avatar"],
-        email=info["email"],
-    )
-    # github 沿用历史 cookie 名 oauth_pending，gitee 单独命名 oauth_pending_gitee
-    pending_cookie = "oauth_pending" if provider == "github" else f"oauth_pending_{provider}"
-
-    # 邮箱冲突检测：若 OAuth 邮箱已存在对应用户（且未绑定本 provider），提示"绑定"
-    bind_email = ""
+    # —— 首次登录 -> 自动注册（不再跳转注册页补全手机号/密码） ——
+    # 邮箱冲突检测：若 OAuth 邮箱已存在对应用户（且未绑定本 provider），合并绑定后直接登录
     oauth_email = info["email"]
     if oauth_email:
         email_user = db.query(User).filter(
@@ -346,22 +419,41 @@ async def _callback(
             (provider == "github" and email_user.github_id) or
             (provider == "gitee" and email_user.gitee_id)
         ):
-            bind_email = oauth_email
+            # 合并绑定到现有账号
+            AuthService._bind_provider(email_user, provider, provider_id)
+            db.commit()
+            logger.info(
+                f"OAuth({provider}) 邮箱 {_mask_email(oauth_email)} 已合并绑定至现有账号 {email_user.username}"
+            )
+            jwt_token = create_access_token(data={"sub": email_user.id})
+            resp = _clear_and_redirect(state_cookie, f"{settings.FAMILY_WEB_URL}/")
+            resp.set_cookie(
+                key="access_token",
+                value=jwt_token,
+                **_cookie_kwargs(settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60),
+            )
+            return resp
 
-    # 构造补全注册页 URL（与 family_monitor 的 register_page 参数对齐）
-    login_hint = quote(info["provider_login"] or "")
-    name_hint = quote(info["provider_name"] or "")
-    register_url = (
-        f"{settings.FAMILY_WEB_URL}/register"
-        f"?oauth=1&provider={provider}"
-        f"&provider_name={ 'GitHub' if provider == 'github' else 'Gitee' }"
-        f"&prefill_username={login_hint}&prefill_name={name_hint}"
-    )
-    if bind_email:
-        register_url += f"&bind_email={quote(bind_email)}"
-    resp = _clear_and_redirect(state_cookie, register_url)
-    resp.set_cookie(key=pending_cookie, value=pending, **_cookie_kwargs(900))
-    return resp
+    # 无邮箱冲突 -> 直接创建新账号
+    try:
+        user = AuthService.auto_register_oauth(
+            db,
+            provider=provider,
+            provider_id=provider_id,
+            provider_name=info["provider_name"],
+            email=oauth_email,
+        )
+        jwt_token = create_access_token(data={"sub": user.id})
+        resp = _clear_and_redirect(state_cookie, f"{settings.FAMILY_WEB_URL}/")
+        resp.set_cookie(
+            key="access_token",
+            value=jwt_token,
+            **_cookie_kwargs(settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60),
+        )
+        return resp
+    except Exception as e:
+        logger.error(f"OAuth 自动注册失败: {e}")
+        return _clear_and_redirect(state_cookie, f"{family_login}?error=oauth_fail")
 
 
 # ===================== 路由（GitHub / Gitee 成对声明） =====================
@@ -379,6 +471,16 @@ def github_enabled() -> dict:
 @router.get("/oauth/github/authorize")
 async def github_authorize() -> RedirectResponse:
     return await _authorize("github")
+
+
+@router.get("/oauth/github/bind")
+async def github_bind(request: Request) -> RedirectResponse:
+    """GitHub 绑定入口（已登录用户在设置页点击"绑定 GitHub"）
+
+    接收 query 参数 token（用户 JWT），验证后设 oauth_bind_jwt cookie，
+    然后走正常 authorize 流程；回调时检测到该 cookie 则绑定到当前用户。
+    """
+    return await _bind_authorize("github", request)
 
 
 @router.get("/oauth/github/callback")
@@ -404,6 +506,12 @@ def gitee_enabled() -> dict:
 @router.get("/oauth/gitee/authorize")
 async def gitee_authorize() -> RedirectResponse:
     return await _authorize("gitee")
+
+
+@router.get("/oauth/gitee/bind")
+async def gitee_bind(request: Request) -> RedirectResponse:
+    """Gitee 绑定入口（已登录用户在设置页点击"绑定 Gitee"）"""
+    return await _bind_authorize("gitee", request)
 
 
 @router.get("/oauth/gitee/callback")
