@@ -187,10 +187,8 @@
                     </button>
                 </div>
 
-                <!-- GitHub 登录方式（默认隐藏，后端配置后由 JS 显示整块） -->
-                <div class="login-method" data-method="github" style="display:none;">
-                    <button type="button" class="method-trigger" data-target="github">使用 GitHub 登录</button>
-                    <div class="method-body">
+                <!-- GitHub 登录（后端配置后由 JS 显示整块，单点直接跳转授权，逻辑同通行密钥） -->
+                <div id="githubLoginWrap" style="display:none; margin-top:10px;">
                 <div id="githubLoginBox">
                     <div class="flex-1">
                         <button data-kumo-component="Button" type="button" id="githubLoginBtn"
@@ -206,13 +204,10 @@
                         </button>
                     </div>
                 </div>
-                    </div>
                 </div>
 
-                <!-- Gitee 登录方式（默认隐藏，后端配置后由 JS 显示整块） -->
-                <div class="login-method" data-method="gitee" style="display:none;">
-                    <button type="button" class="method-trigger" data-target="gitee">使用 Gitee 登录</button>
-                    <div class="method-body">
+                <!-- Gitee 登录（后端配置后由 JS 显示整块，单点直接跳转授权，逻辑同通行密钥） -->
+                <div id="giteeLoginWrap" style="display:none; margin-top:10px;">
                 <div id="giteeLoginBox">
                     <div class="flex-1">
                         <button data-kumo-component="Button" type="button" id="giteeLoginBtn"
@@ -225,7 +220,6 @@
                         </button>
                     </div>
                 </div>
-                    </div>
                 </div>
 
                 <!-- 邮箱验证码登录方式 -->
@@ -398,7 +392,7 @@
                 .then(function (r) { return r.json(); })
                 .then(function (d) {
                     if (d && d.enabled) {
-                        var m = document.querySelector('.login-method[data-method="github"]');
+                        var m = document.getElementById('githubLoginWrap');
                         if (m) { m.style.display = 'block'; }
                     }
                 })
@@ -408,7 +402,7 @@
                 .then(function (r) { return r.json(); })
                 .then(function (d) {
                     if (d && d.enabled) {
-                        var m = document.querySelector('.login-method[data-method="gitee"]');
+                        var m = document.getElementById('giteeLoginWrap');
                         if (m) { m.style.display = 'block'; }
                     }
                 })
