@@ -5,8 +5,13 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.dependencies import get_db
 from app.core.security import verify_oauth_pending_token
-from app.schemas.auth import RegisterReq, LoginReq, TokenResp, EmailSendCodeReq, EmailCodeLoginReq
+from app.schemas.auth import (
+    RegisterReq, LoginReq, TokenResp, EmailSendCodeReq, EmailCodeLoginReq,
+    BindPhoneReq, BindEmailReq, BindEmailSendCodeReq,
+)
 from app.services.auth_service import AuthService
+from app.core.dependencies import get_current_user, get_db
+from app.models.user import User
 from app.utils.rate_limit import check_rate_limit
 from app.utils.request_utils import get_client_ip
 from app.utils import email_code as email_code_store
@@ -157,5 +162,126 @@ def email_code_login(req: EmailCodeLoginReq, request: Request, db: Session = Dep
     try:
         token = AuthService.login_or_register_by_email(db, req.email)
         return TokenResp(access_token=token, token_type="bearer")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ==================== 登录方式管理（绑定/解绑/查询） ====================
+
+@router.get("/login-methods")
+def get_login_methods(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """查询当前用户所有登录方式的绑定状态
+
+    返回 phone / email / github / gitee 四种登录方式的绑定状态与脱敏值。
+    """
+    return AuthService.get_login_methods(db, current_user)
+
+
+@router.post("/bind-phone")
+def bind_phone(
+    req: BindPhoneReq,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """绑定手机号（需同时设置密码，绑定后可用手机号+密码登录）"""
+    try:
+        AuthService.bind_phone(db, current_user, req.phone, req.password)
+        return {"success": True, "message": "手机号绑定成功"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/bind-email/send-code")
+def bind_email_send_code(
+    req: BindEmailSendCodeReq,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """绑定邮箱 - 发送验证码（需登录）
+
+    与 /email/send-code 不同：此端点用于已登录用户绑定新邮箱，
+    会先校验该邮箱是否已被其他账号占用。
+    """
+    email = req.email.strip().lower()
+    # 校验邮箱是否已被其他用户占用
+    existing = db.query(User).filter(User.email == email).first()
+    if existing and existing.id != current_user.id:
+        raise HTTPException(status_code=400, detail="该邮箱已被其他账号绑定")
+    if current_user.email:
+        raise HTTPException(status_code=400, detail="当前已绑定邮箱，请先解绑")
+
+    client_ip = get_client_ip(request)
+    if not check_rate_limit(f"bind_email_send:{client_ip}", _EMAIL_SEND_RATE_LIMIT):
+        raise HTTPException(status_code=429, detail="验证码请求过于频繁，请稍后再试")
+
+    ok, msg = email_code_store.send_code(email)
+    if not ok:
+        logger.warning(f"绑定邮箱发送验证码失败: {msg}")
+        raise HTTPException(status_code=400, detail="验证码发送失败，请稍后重试")
+    return {"success": True, "message": "验证码已发送，请查收邮箱"}
+
+
+@router.post("/bind-email")
+def bind_email(
+    req: BindEmailReq,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """绑定邮箱（需先通过验证码校验）"""
+    # 校验验证码
+    if not email_code_store.verify_code(req.email, req.code):
+        raise HTTPException(status_code=400, detail="验证码错误或已过期，请重新获取")
+    try:
+        AuthService.bind_email(db, current_user, req.email)
+        return {"success": True, "message": "邮箱绑定成功"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/unbind-phone")
+def unbind_phone(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """解绑手机号（至少保留一种登录方式）"""
+    try:
+        AuthService.unbind_phone(db, current_user)
+        return {"success": True, "message": "手机号已解绑"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/unbind-email")
+def unbind_email(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """解绑邮箱（至少保留一种登录方式）"""
+    try:
+        AuthService.unbind_email(db, current_user)
+        return {"success": True, "message": "邮箱已解绑"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/unbind-oauth/{provider}")
+def unbind_oauth(
+    provider: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """解绑第三方 OAuth（至少保留一种登录方式）
+
+    :param provider: "github" 或 "gitee"
+    """
+    if provider not in ("github", "gitee"):
+        raise HTTPException(status_code=400, detail="不支持的 OAuth 平台")
+    try:
+        AuthService.unbind_oauth(db, current_user, provider)
+        return {"success": True, "message": f"{provider} 已解绑"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

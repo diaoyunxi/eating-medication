@@ -46,18 +46,6 @@
                     <p class="auth-subtitle">创建新账户</p>
                 </div>
 
-                {% if oauth_mode %}
-                <div class="oauth-banner">
-                    {{ oauth_provider_name }} 账号已验证，请补全手机号与密码以完成注册
-                </div>
-                {% endif %}
-
-                {% if bind_email %}
-                <div class="oauth-banner" style="background:#fff7ed; color:#9a3412; border-color:#fed7aa;">
-                    检测到邮箱 {{ bind_email }} 已注册，提交后将把该 {{ oauth_provider_name or '第三方' }} 账号绑定到现有账户
-                </div>
-                {% endif %}
-
                 {% if error %}
                 <div class="alert alert-error">
                     <span class="alert-icon">!</span>
@@ -113,22 +101,7 @@
                     </button>
                 </form>
 
-                <!-- 注册时绑定第三方：点击后走 OAuth，回调回到本页补全手机号 -->
-                {% if not oauth_mode %}
-                <div class="auth-divider">
-                    <span class="auth-divider-text">或绑定第三方账号</span>
-                </div>
-                <div id="oauthBindBox">
-                    <div id="githubBindBox" style="display:none; margin-bottom:10px;">
-                        <button type="button" id="githubBindBtn"
-                                class="oauth-github-btn">使用 GitHub 绑定并注册</button>
-                    </div>
-                    <div id="giteeBindBox" style="display:none;">
-                        <button type="button" id="giteeBindBtn"
-                                class="oauth-gitee-btn">使用 Gitee 绑定并注册</button>
-                    </div>
-                </div>
-                {% endif %}
+                <!-- 注册时绑定第三方已移除：第三方登录请在登录页面直接使用，首次使用将自动注册 -->
 
                 <div class="auth-footer">
                     <p>已有账户？<a href="{{ prefix }}/login" class="auth-link">立即登录</a></p>
@@ -219,26 +192,7 @@
                     });
             }
 
-            // 注册页“绑定第三方”按钮：点击后走 OAuth，回调回到本页补全手机号
-            function wireOauthBind(btnId, enabledUrl, authorizeUrl, boxId) {
-                fetch(prefix + enabledUrl)
-                    .then(function (r) { return r.json(); })
-                    .then(function (d) {
-                        if (d && d.enabled) {
-                            var box = document.getElementById(boxId);
-                            if (box) { box.style.display = 'block'; }
-                            var btn = document.getElementById(btnId);
-                            if (btn) {
-                                btn.addEventListener('click', function () {
-                                    window.location.href = prefix + authorizeUrl;
-                                });
-                            }
-                        }
-                    })
-                    .catch(function () { /* 忽略，按钮保持隐藏 */ });
-            }
-            wireOauthBind('githubBindBtn', '/oauth/github/enabled', '/oauth/github/authorize', 'githubBindBox');
-            wireOauthBind('giteeBindBtn', '/oauth/gitee/enabled', '/oauth/gitee/authorize', 'giteeBindBox');
+            // 注册页已移除第三方绑定入口（第三方登录请在登录页使用）
 
             tryRender();
         });

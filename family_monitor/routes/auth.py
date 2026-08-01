@@ -168,6 +168,28 @@ async def oauth_gitee_enabled():
     return {"enabled": False}
 
 
+# ==================== OAuth 绑定入口（设置页"登录方式管理"使用） ====================
+
+@router.get("/oauth/github/bind")
+async def oauth_github_bind(request: Request):
+    """GitHub 绑定入口：携带当前用户 JWT 跳转到 server 的 bind 端点"""
+    token = request.cookies.get("access_token", "")
+    if not token:
+        return RedirectResponse(url=_PATH_PREFIX + "/login", status_code=status.HTTP_302_FOUND)
+    server_bind = _server_url(f"/auth/oauth/github/bind?token={token}")
+    return RedirectResponse(url=server_bind, status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/oauth/gitee/bind")
+async def oauth_gitee_bind(request: Request):
+    """Gitee 绑定入口：携带当前用户 JWT 跳转到 server 的 bind 端点"""
+    token = request.cookies.get("access_token", "")
+    if not token:
+        return RedirectResponse(url=_PATH_PREFIX + "/login", status_code=status.HTTP_302_FOUND)
+    server_bind = _server_url(f"/auth/oauth/gitee/bind?token={token}")
+    return RedirectResponse(url=server_bind, status_code=status.HTTP_302_FOUND)
+
+
 @router.post("/email/send-code")
 async def email_send_code(request: Request):
     """邮箱验证码 - 发送：转发到 server /auth/email/send-code
@@ -439,6 +461,123 @@ async def logout_post():
     导致返回 405 Method Not Allowed。新增 POST 处理器修复此问题。
     """
     return await _do_logout()
+
+
+# ==================== 登录方式管理（绑定/解绑/查询）代理 ====================
+
+@router.get("/auth/login-methods")
+async def get_login_methods(request: Request):
+    """查询当前用户所有登录方式的绑定状态（代理 server /auth/login-methods）"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"detail": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        resp = await _server_client._execute("GET", _server_url("/auth/login-methods"), headers=headers)
+    except httpx.RequestError:
+        return JSONResponse({"detail": "无法连接认证服务"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.post("/auth/bind-phone")
+async def bind_phone(request: Request):
+    """绑定手机号（代理 server /auth/bind-phone）"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"detail": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        resp = await _server_client._execute(
+            "POST", _server_url("/auth/bind-phone"), json_body=body, headers=headers
+        )
+    except httpx.RequestError:
+        return JSONResponse({"detail": "无法连接认证服务"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.post("/auth/bind-email/send-code")
+async def bind_email_send_code(request: Request):
+    """绑定邮箱 - 发送验证码（代理 server /auth/bind-email/send-code）"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"detail": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        resp = await _server_client._execute(
+            "POST", _server_url("/auth/bind-email/send-code"), json_body=body, headers=headers
+        )
+    except httpx.RequestError:
+        return JSONResponse({"detail": "无法连接认证服务"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.post("/auth/bind-email")
+async def bind_email(request: Request):
+    """绑定邮箱（代理 server /auth/bind-email）"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"detail": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        resp = await _server_client._execute(
+            "POST", _server_url("/auth/bind-email"), json_body=body, headers=headers
+        )
+    except httpx.RequestError:
+        return JSONResponse({"detail": "无法连接认证服务"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.delete("/auth/unbind-phone")
+async def unbind_phone(request: Request):
+    """解绑手机号（代理 server /auth/unbind-phone）"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"detail": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        resp = await _server_client._execute(
+            "DELETE", _server_url("/auth/unbind-phone"), headers=headers
+        )
+    except httpx.RequestError:
+        return JSONResponse({"detail": "无法连接认证服务"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.delete("/auth/unbind-email")
+async def unbind_email(request: Request):
+    """解绑邮箱（代理 server /auth/unbind-email）"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"detail": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        resp = await _server_client._execute(
+            "DELETE", _server_url("/auth/unbind-email"), headers=headers
+        )
+    except httpx.RequestError:
+        return JSONResponse({"detail": "无法连接认证服务"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.delete("/auth/unbind-oauth/{provider}")
+async def unbind_oauth(provider: str, request: Request):
+    """解绑第三方 OAuth（代理 server /auth/unbind-oauth/{provider}）"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"detail": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        resp = await _server_client._execute(
+            "DELETE", _server_url(f"/auth/unbind-oauth/{provider}"), headers=headers
+        )
+    except httpx.RequestError:
+        return JSONResponse({"detail": "无法连接认证服务"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
 
 
 def _parse_server_error(resp: httpx.Response, default_msg: str) -> str:

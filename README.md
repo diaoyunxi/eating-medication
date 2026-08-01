@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.22.0**
+> 当前版本：**v2.28.0**
 > 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
@@ -21,7 +21,7 @@
 
 ## 第三方 OAuth 登录配置
 
-服务端 `server/.env` 配置对应平台凭据后，家属端登录页自动显示相应登录按钮（未配置则隐藏）。GitHub 与 Gitee 共用同一套 provider 框架，流程一致：发起授权（state 防 CSRF）→ 回调换 token → 拉用户信息 → 已绑定直接登录，未绑定签名短期身份令牌跳注册页补全（邮箱权限授权后写入 `users.email`）。
+服务端 `server/.env` 配置对应平台凭据后，家属端登录页自动显示相应登录按钮（未配置则隐藏）。GitHub 与 Gitee 共用同一套 provider 框架，流程一致：发起授权（state 防 CSRF）→ 回调换 token → 拉用户信息 → 已绑定直接登录，未绑定则**自动注册**（无需补全手机号/密码，邮箱权限授权后写入 `users.email`）。用户后续可在设置页面的「登录方式管理」板块绑定/解绑手机号、邮箱、GitHub、Gitee。
 
 ### GitHub OAuth
 
@@ -43,7 +43,7 @@
 | `GITEE_CLIENT_SECRET` | Gitee OAuth 应用的 Client Secret（必填） |
 | `GITEE_OAUTH_CALLBACK_URL` | 回调地址，须与 Gitee 后台「应用回调地址」**完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback` |
 
-> 注意：Gitee 回调 URL 同样唯一。授权后服务端会调用 `/api/v5/emails` 取得主邮箱并写入 `users.email`（仅在已授权 `emails` 权限时）。首次 Gitee 登录需补全用户名与密码；已绑定账号再次登录直接写入登录态。
+> 注意：Gitee 回调 URL 同样唯一。授权后服务端会调用 `/api/v5/emails` 取得主邮箱并写入 `users.email`（仅在已授权 `emails` 权限时）。首次 Gitee 登录自动注册（无需手机号/密码），已绑定账号再次登录直接写入登录态。
 
 ### 公共配置
 

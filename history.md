@@ -3,6 +3,35 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.28.0 (2026-08-01) — 多登录方式注册与绑定管理
+
+### 概述
+相对 v2.27.1，本版本对账号注册与登录方式管理进行了重大改进：OAuth 首次登录不再跳转注册页补全手机号/密码，而是直接自动注册；注册页移除第三方绑定入口；设置页新增「登录方式管理」板块，支持绑定/解绑手机号、邮箱、GitHub、Gitee 四种登录方式。
+
+### 主要变更
+- feat(auth): OAuth 首次登录改为自动注册（`AuthService.auto_register_oauth`），不再跳转注册页要求补全手机号/密码
+- feat(auth): 新增登录方式管理端点（查询绑定状态、绑定/解绑手机号、绑定/解绑邮箱、解绑 OAuth）
+- feat(auth): 新增 OAuth 绑定流程（bind mode），已登录用户可在设置页直接绑定 GitHub/Gitee
+- feat(auth): 邮箱冲突时自动合并绑定到现有账号
+- feat(frontend): 注册页移除"或绑定第三方账号"分区及 OAuth 绑定按钮
+- feat(frontend): 设置页新增「登录方式管理」卡片，绿色显示已绑定、灰色显示未绑定，点击可绑定/解绑
+- feat(frontend): 绑定手机号弹窗（手机号+密码）、绑定邮箱弹窗（邮箱+验证码）
+- fix(auth): 解绑时至少保留一种登录方式，防止用户无法登录
+- refactor(oauth): OAuth 回调流程重构，支持 bind mode（`oauth_bind_jwt` cookie）
+- docs: 更新 README 中 OAuth 流程说明，版本号升至 v2.28.0
+
+### 涉及文件
+- `server/app/services/auth_service.py` — 新增 `auto_register_oauth`、`get_login_methods`、`bind_phone`、`bind_email`、`unbind_phone`、`unbind_email`、`unbind_oauth`、`count_bound_methods` 方法
+- `server/app/schemas/auth.py` — 新增 `BindPhoneReq`、`BindEmailReq`、`BindEmailSendCodeReq` schema
+- `server/app/api/v1/endpoints/auth.py` — 新增 `/login-methods`、`/bind-phone`、`/bind-email/send-code`、`/bind-email`、`/unbind-phone`、`/unbind-email`、`/unbind-oauth/{provider}` 端点
+- `server/app/api/v1/endpoints/oauth.py` — 新增 `_bind_authorize` 函数、`/oauth/{provider}/bind` 端点、回调中 bind mode 检测、`_mask_email` 导入修复
+- `family_monitor/templates/register.html` — 移除 OAuth 绑定分区与相关 JS
+- `family_monitor/templates/settings.html` — 新增登录方式管理卡片、绑定弹窗、CSS/JS
+- `family_monitor/routes/auth.py` — 新增登录方式管理代理路由与 OAuth 绑定入口路由
+- `VERSION`、`README.md`、`history.md`
+
+---
+
 ## v2.24.1 (2026-07-29) — 版本号升至 2.24.1（.env 注释修正）
 
 ### 概述
