@@ -2,12 +2,13 @@
 import logging
 import secrets
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from app.models.user import User
 from app.schemas.auth import RegisterReq
 from app.core.security import hash_password, verify_password, create_access_token, create_mfa_token
 from app.utils import email_code as email_code_store
+from app.utils.validators import is_valid_phone, is_valid_email
 
 logger = logging.getLogger(__name__)
 
@@ -204,3 +205,237 @@ class AuthService:
         db.refresh(user)
         logger.info(f"邮箱验证码自动注册并登录：{email}（新账号 {username}）")
         return create_access_token(data={"sub": user.id})
+
+    # ==================== OAuth 自动注册 ====================
+
+    @staticmethod
+    def auto_register_oauth(
+        db: Session,
+        provider: str,
+        provider_id,
+        provider_name: Optional[str] = None,
+        email: Optional[str] = None,
+    ) -> User:
+        """OAuth 首次登录自动注册（不要求手机号/密码）
+
+        创建一个新用户：
+        - 随机高熵密码（用户不需要知道，仅以 OAuth 登录）
+        - phone = None（未绑定手机号）
+        - email = OAuth 返回的邮箱（可能为 None）
+        - username 取自第三方昵称，冲突加后缀
+        - github_id / gitee_id 绑定对应平台
+        - oauth_provider 记录来源平台
+
+        :param db: 数据库会话
+        :param provider: "github" 或 "gitee"
+        :param provider_id: 第三方平台用户唯一 ID
+        :param provider_name: 第三方昵称（用于生成本地 username）
+        :param email: 第三方返回的邮箱（可能为 None）
+        :return: 新创建的 User 对象
+        :raises ValueError: provider_id 已绑定其他账号
+        """
+        # 双保险：确认该第三方账号尚未绑定其他本地账号
+        if AuthService.get_by_provider(db, provider, provider_id):
+            raise ValueError(f"该 {provider} 账号已绑定其他用户")
+
+        # 生成 username（取自昵称，冲突加后缀）
+        base = "".join(
+            ch for ch in (provider_name or "user") if ch.isalnum()
+        )[:18] or "user"
+        username = base
+        suffix = 1
+        while db.query(User).filter(User.username == username).first():
+            suffix += 1
+            username = f"{base}{suffix}"[:20]
+
+        random_pwd = secrets.token_urlsafe(24)
+        user = User(
+            username=username,
+            hashed_password=hash_password(random_pwd),
+            role="family",
+            phone=None,
+            group_id=None,
+            email=email.strip().lower() if email else None,
+            oauth_provider=provider,
+        )
+        if provider == "github":
+            user.github_id = provider_id
+        elif provider == "gitee":
+            user.gitee_id = provider_id
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        logger.info(
+            f"OAuth({provider}) 自动注册成功: username={username}, "
+            f"email={_mask_email(email)}"
+        )
+        return user
+
+    # ==================== 登录方式管理（绑定/解绑/查询） ====================
+
+    @staticmethod
+    def get_login_methods(db: Session, user: User) -> Dict[str, Any]:
+        """查询当前用户所有登录方式的绑定状态
+
+        :return: dict 结构:
+            {
+                "phone": {"bound": True, "value": "138****1234"} 或 {"bound": False},
+                "email": {"bound": True, "value": "a***@example.com"} 或 {"bound": False},
+                "github": {"bound": True, "value": "github_id"} 或 {"bound": False},
+                "gitee": {"bound": True, "value": "gitee_id"} 或 {"bound": False},
+            }
+        """
+        result = {}
+
+        # 手机号
+        if user.phone:
+            masked = user.phone[:3] + "****" + user.phone[-4:] if len(user.phone) >= 7 else "***"
+            result["phone"] = {"bound": True, "value": masked}
+        else:
+            result["phone"] = {"bound": False, "value": None}
+
+        # 邮箱
+        if user.email:
+            result["email"] = {"bound": True, "value": _mask_email(user.email)}
+        else:
+            result["email"] = {"bound": False, "value": None}
+
+        # GitHub
+        if user.github_id:
+            result["github"] = {"bound": True, "value": str(user.github_id)}
+        else:
+            result["github"] = {"bound": False, "value": None}
+
+        # Gitee
+        if user.gitee_id:
+            result["gitee"] = {"bound": True, "value": str(user.gitee_id)}
+        else:
+            result["gitee"] = {"bound": False, "value": None}
+
+        return result
+
+    @staticmethod
+    def count_bound_methods(user: User) -> int:
+        """统计用户已绑定的登录方式数量（用于解绑时限制至少保留一种）"""
+        count = 0
+        if user.phone:
+            count += 1
+        if user.email:
+            count += 1
+        if user.github_id:
+            count += 1
+        if user.gitee_id:
+            count += 1
+        return count
+
+    @staticmethod
+    def bind_phone(db: Session, user: User, phone: str, password: str) -> User:
+        """绑定手机号（需设置密码，绑定后可用手机号+密码登录）
+
+        :param phone: 手机号
+        :param password: 用户设置的密码
+        :return: 更新后的 User
+        :raises ValueError: 手机号已被其他用户绑定、格式错误、或当前已绑定手机号
+        """
+        if not is_valid_phone(phone):
+            raise ValueError("手机号格式不正确")
+        if user.phone:
+            raise ValueError("当前已绑定手机号，请先解绑再重新绑定")
+        # 检查手机号是否已被其他用户占用
+        existing = db.query(User).filter(User.phone == phone).first()
+        if existing and existing.id != user.id:
+            raise ValueError("该手机号已被其他账号绑定")
+        user.phone = phone
+        user.hashed_password = hash_password(password)
+        db.commit()
+        db.refresh(user)
+        logger.info(f"用户 {user.username} 绑定手机号成功")
+        return user
+
+    @staticmethod
+    def bind_email(db: Session, user: User, email: str) -> User:
+        """绑定邮箱（验证码由调用方在 endpoint 层校验后再调用本方法）
+
+        :param email: 已通过验证码校验的邮箱
+        :return: 更新后的 User
+        :raises ValueError: 邮箱已被其他用户绑定、格式错误、或当前已绑定邮箱
+        """
+        email = (email or "").strip().lower()
+        if not is_valid_email(email):
+            raise ValueError("邮箱格式不正确")
+        if user.email:
+            raise ValueError("当前已绑定邮箱，请先解绑再重新绑定")
+        existing = db.query(User).filter(User.email == email).first()
+        if existing and existing.id != user.id:
+            raise ValueError("该邮箱已被其他账号绑定")
+        user.email = email
+        db.commit()
+        db.refresh(user)
+        logger.info(f"用户 {user.username} 绑定邮箱成功: {_mask_email(email)}")
+        return user
+
+    @staticmethod
+    def unbind_phone(db: Session, user: User) -> User:
+        """解绑手机号（清空 phone 与 hashed_password）
+
+        :raises ValueError: 解绑后无可用登录方式（至少保留一种）
+        """
+        if not user.phone:
+            raise ValueError("当前未绑定手机号")
+        if AuthService.count_bound_methods(user) <= 1:
+            raise ValueError("至少保留一种登录方式，无法解绑")
+        user.phone = None
+        # 如果用户没有通过其他方式设置密码（如邮箱注册），清空密码
+        # 但如果用户还绑定了邮箱/OAuth，密码仅用于手机号登录，解绑后清除
+        user.hashed_password = None
+        db.commit()
+        db.refresh(user)
+        logger.info(f"用户 {user.username} 解绑手机号")
+        return user
+
+    @staticmethod
+    def unbind_email(db: Session, user: User) -> User:
+        """解绑邮箱
+
+        :raises ValueError: 解绑后无可用登录方式（至少保留一种）
+        """
+        if not user.email:
+            raise ValueError("当前未绑定邮箱")
+        if AuthService.count_bound_methods(user) <= 1:
+            raise ValueError("至少保留一种登录方式，无法解绑")
+        user.email = None
+        db.commit()
+        db.refresh(user)
+        logger.info(f"用户 {user.username} 解绑邮箱")
+        return user
+
+    @staticmethod
+    def unbind_oauth(db: Session, user: User, provider: str) -> User:
+        """解绑第三方 OAuth（GitHub / Gitee）
+
+        :param provider: "github" 或 "gitee"
+        :raises ValueError: 未绑定该平台、或解绑后无可用登录方式
+        """
+        if provider == "github":
+            if not user.github_id:
+                raise ValueError("当前未绑定 GitHub")
+            if AuthService.count_bound_methods(user) <= 1:
+                raise ValueError("至少保留一种登录方式，无法解绑")
+            user.github_id = None
+        elif provider == "gitee":
+            if not user.gitee_id:
+                raise ValueError("当前未绑定 Gitee")
+            if AuthService.count_bound_methods(user) <= 1:
+                raise ValueError("至少保留一种登录方式，无法解绑")
+            user.gitee_id = None
+        else:
+            raise ValueError(f"不支持的 OAuth 平台: {provider}")
+
+        # 如果两个 OAuth 都解绑了，清除 oauth_provider
+        if not user.github_id and not user.gitee_id:
+            user.oauth_provider = None
+
+        db.commit()
+        db.refresh(user)
+        logger.info(f"用户 {user.username} 解绑 {provider}")
+        return user

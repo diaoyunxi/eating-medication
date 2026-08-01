@@ -94,3 +94,50 @@ class EmailCodeLoginReq(BaseModel):
         if not is_valid_email(v):
             raise ValueError("邮箱格式不正确")
         return v
+
+
+# ==================== 登录方式绑定/解绑 ====================
+
+class BindPhoneReq(BaseModel):
+    """绑定手机号请求（需同时设置密码）"""
+    phone: str = Field(..., min_length=11, max_length=11, description="手机号")
+    password: str = Field(..., min_length=6, max_length=100, description="登录密码")
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v):
+        if not is_valid_phone(v):
+            raise ValueError("手机号格式不正确")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v):
+        if not is_valid_password(v):
+            raise ValueError("密码必须包含字母和数字，长度6-100位")
+        return v
+
+
+class BindEmailReq(BaseModel):
+    """绑定邮箱请求（需先通过验证码校验）"""
+    email: str = Field(..., description="邮箱")
+    code: str = Field(..., min_length=4, max_length=8, description="邮箱验证码")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        if not is_valid_email(v):
+            raise ValueError("邮箱格式不正确")
+        return v
+
+
+class BindEmailSendCodeReq(BaseModel):
+    """绑定邮箱 - 发送验证码请求"""
+    email: str = Field(..., description="待绑定的邮箱")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        if not is_valid_email(v):
+            raise ValueError("邮箱格式不正确")
+        return v
