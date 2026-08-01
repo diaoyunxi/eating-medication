@@ -713,7 +713,8 @@ cd server && pip install -r requirements-dev.txt
 - **[Cloudflare](https://www.cloudflare.com/)** — 提供 Cloudflare Tunnel（cloudflared）边缘隧道，承担 HTTPS 终止与子路径转发，使本地服务无需自备证书即可对外提供安全访问，提供Turnstile 小组件等其他功能。
 - **[dnshe](https://www.dnshe.com/)** — 提供免费域名，用于 Cloudflare 隧道对外接入。
 - **[CF-Workers-GitHub-Proxy](https://github.com/Geekertao/CF-Workers-GitHub-Proxy)** —基于该项目，[fork](https://github.com/diaoyunxi/CF-GitHub-Proxy)后进行部分更改后部署[github镜像站](https://gh.my-website.ccwu.cc/)，对在受限网络环境中进行推送等操作提供支持。
-- **[GitHub](https://github.com/)** — 代码托管与 Release 分发，自动更新检查通过 GitHub API 获取最新版本，提供[GitHub Actions](https://github.com/diaoyunxi/eating-medication/actions) 的 CI/CD 服务,提供GitHub登陆方式。
+- **[GitHub](https://github.com/)** — 代码托管与 Release 分发，自动更新检查通过 GitHub API 获取最新版本，提供[GitHub Actions](https://github.com/diaoyunxi/eating-medication/actions) 的 CI/CD 服务,提供GitHub登陆方式等。
+- **[gitee](https://gitee.com/)** — 提供gitee登陆方式等。
 
 ### AI 与识别服务
 
