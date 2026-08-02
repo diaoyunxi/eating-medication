@@ -10,7 +10,7 @@ from app.schemas.auth import (
     BindPhoneReq, BindEmailReq, BindEmailSendCodeReq,
 )
 from app.services.auth_service import AuthService
-from app.core.dependencies import get_current_user, get_db
+from app.core.dependencies import get_current_user, get_current_user_optional, get_db
 from app.models.user import User
 from app.utils.rate_limit import check_rate_limit
 from app.utils.request_utils import get_client_ip
@@ -170,12 +170,14 @@ def email_code_login(req: EmailCodeLoginReq, request: Request, db: Session = Dep
 
 @router.get("/login-methods")
 def get_login_methods(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
-    """查询当前用户所有登录方式的绑定状态
+    """查询登录方式状态（公开，登录前即可访问，BUG-C07 修复）
 
-    返回 phone / email / github / gitee 四种登录方式的绑定状态与脱敏值。
+    - 未携带/无效 token：返回系统级各登录方式的「启用状态」
+      （phone/email 始终启用；github/gitee 取决于 OAuth 是否配置），供登录页展示入口。
+    - 已登录：返回当前用户各登录方式的「绑定状态」与脱敏值。
     """
     return AuthService.get_login_methods(db, current_user)
 
