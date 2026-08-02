@@ -16,10 +16,12 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 # 复用根目录统一迁移的 updater.py（与 server/main.py / family_monitor/main.py 一致）
 from updater import get_update_info, check_for_update
+from app.core.dependencies import get_current_user
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -27,21 +29,27 @@ router = APIRouter()
 
 
 @router.get("/updater")
-async def updater_status():
+async def updater_status(
+    current_user: User = Depends(get_current_user),
+):
     """返回结构化更新信息，供 family 前端轮询展示版本与更新状态。
 
+    需登录（BUG-H06/M03 修复）：避免向匿名用户泄露版本号与仓库信息。
     无副作用：仅检查远端最新版本号并比对，不会下载或安装。
     """
     return get_update_info()
 
 
 @router.post("/updater")
-async def updater_trigger():
+async def updater_trigger(
+    current_user: User = Depends(get_current_user),
+):
     """触发一次更新检查与安装。
 
+    需登录（BUG-H06/M03 修复）：防止匿名用户触发自更新。
     若远端存在更新版本且根目录 .env 的 AUTO_PULL=true，则下载完整发布包、
     做 SHA256 校验并安全复制到项目根目录（保留 .env / data / logs 等保护文件）。
-    供 CI 在发布后调用，使正在运行的服务器自行拉取新版本。
+    供 CI 在发布后携带有效凭证调用，使正在运行的服务器自行拉取新版本。
     """
     # check_for_update 含网络 IO 与文件复制，置于线程池避免阻塞事件循环
     return await asyncio.to_thread(check_for_update)

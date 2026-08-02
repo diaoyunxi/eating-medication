@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from app.models.user import User
 from app.schemas.auth import RegisterReq
 from app.core.security import hash_password, verify_password, create_access_token, create_mfa_token
+from app.core.config import settings
 from app.utils import email_code as email_code_store
 from app.utils.validators import is_valid_phone, is_valid_email
 
@@ -274,43 +275,61 @@ class AuthService:
     # ==================== 登录方式管理（绑定/解绑/查询） ====================
 
     @staticmethod
-    def get_login_methods(db: Session, user: User) -> Dict[str, Any]:
-        """查询当前用户所有登录方式的绑定状态
+    def get_login_methods(db: Session, user: Optional[User] = None) -> Dict[str, Any]:
+        """查询登录方式的绑定/启用状态
+
+        兼容登录前（未认证）与登录后（已认证）两种场景（BUG-C07 修复）：
+        - user 为 None（未携带/无效 token）：返回系统级「启用状态」，
+          供登录页决定是否展示对应登录入口，不会泄露任何用户信息。
+        - user 为有效用户：返回该用户各登录方式的「绑定状态」与脱敏值。
 
         :return: dict 结构:
             {
-                "phone": {"bound": True, "value": "138****1234"} 或 {"bound": False},
-                "email": {"bound": True, "value": "a***@example.com"} 或 {"bound": False},
-                "github": {"bound": True, "value": "github_id"} 或 {"bound": False},
-                "gitee": {"bound": True, "value": "gitee_id"} 或 {"bound": False},
+                "phone":  {"enabled": bool, "bound": bool, "value": ...},
+                "email":  {"enabled": bool, "bound": bool, "value": ...},
+                "github": {"enabled": bool, "bound": bool, "value": ...},
+                "gitee":  {"enabled": bool, "bound": bool, "value": ...},
             }
         """
+        # 系统级启用状态：手机号/邮箱登录始终可用；GitHub/Gitee 取决于是否完成 OAuth 配置
+        github_enabled = bool(settings.GITHUB_CLIENT_ID and settings.GITHUB_CLIENT_SECRET)
+        gitee_enabled = bool(settings.GITEE_CLIENT_ID and settings.GITEE_CLIENT_SECRET)
+
+        # 未认证：仅返回系统级启用状态（登录页使用，不依赖用户上下文）
+        if user is None:
+            return {
+                "phone": {"enabled": True, "bound": False, "value": None},
+                "email": {"enabled": True, "bound": False, "value": None},
+                "github": {"enabled": github_enabled, "bound": False, "value": None},
+                "gitee": {"enabled": gitee_enabled, "bound": False, "value": None},
+            }
+
         result = {}
 
         # 手机号
         if user.phone:
             masked = user.phone[:3] + "****" + user.phone[-4:] if len(user.phone) >= 7 else "***"
-            result["phone"] = {"bound": True, "value": masked}
+            result["phone"] = {"enabled": True, "bound": True, "value": masked}
         else:
-            result["phone"] = {"bound": False, "value": None}
+            result["phone"] = {"enabled": True, "bound": False, "value": None}
 
         # 邮箱
         if user.email:
-            result["email"] = {"bound": True, "value": _mask_email(user.email)}
+            result["email"] = {"enabled": True, "bound": True, "value": _mask_email(user.email)}
         else:
-            result["email"] = {"bound": False, "value": None}
+            result["email"] = {"enabled": True, "bound": False, "value": None}
 
         # GitHub
         if user.github_id:
-            result["github"] = {"bound": True, "value": str(user.github_id)}
+            result["github"] = {"enabled": github_enabled, "bound": True, "value": str(user.github_id)}
         else:
-            result["github"] = {"bound": False, "value": None}
+            result["github"] = {"enabled": github_enabled, "bound": False, "value": None}
 
         # Gitee
         if user.gitee_id:
-            result["gitee"] = {"bound": True, "value": str(user.gitee_id)}
+            result["gitee"] = {"enabled": gitee_enabled, "bound": True, "value": str(user.gitee_id)}
         else:
-            result["gitee"] = {"bound": False, "value": None}
+            result["gitee"] = {"enabled": gitee_enabled, "bound": False, "value": None}
 
         return result
 
