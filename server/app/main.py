@@ -24,6 +24,9 @@ from app.middleware.logging import LoggingMiddleware
 from app.middleware.exception_handler import add_exception_handlers
 # 改用统一的 setup_cors 配置 CORS
 from app.middleware.cors import setup_cors
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.middleware.request_size_limit import RequestSizeLimitMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.api.v1.endpoints import (
     auth, users, medication, ai, vision, public, chat, oauth, ai_config
 )
@@ -159,6 +162,11 @@ setup_cors(app)
 
 # 请求日志中间件
 app.add_middleware(LoggingMiddleware)
+
+# 安全响应头（CSP / 移除废弃头）、请求体大小限制、IP 速率限制
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestSizeLimitMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
 # 移除手动 path_prefix 中间件，前缀剥离统一由 root_path 处理，避免双重处理
 

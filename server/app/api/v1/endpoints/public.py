@@ -11,7 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from app.core.dependencies import get_db
+from app.core.dependencies import get_db, get_current_user
+from app.models.user import User
 from app.core.security import mask_device_id
 from app.models.medication_plan import MedicationPlan
 from app.models.ai_query_log import AIQueryLog
@@ -200,7 +201,11 @@ async def ai_ask(
 
 
 @router.get("/device/check/{device_id}")
-async def check_device(device_id: str, db: Session = Depends(get_db)):
+async def check_device(
+    device_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """检查设备是否已注册（供子女端绑定时校验，仅返回 exists，不泄露敏感信息）
 
     查找逻辑：优先 device_id 字段，回退 username。

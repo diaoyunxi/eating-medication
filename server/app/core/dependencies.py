@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -47,3 +48,25 @@ async def get_current_user(
     if not getattr(user, "is_active", True):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户已被禁用")
     return user
+
+
+async def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """可选认证：返回当前登录用户或 None（不抛 401）。
+
+    用于登录页等公开场景：未携带/无效 token 时返回 None，由调用方决定
+    返回系统级信息（如登录方式启用状态）而非拒绝访问（BUG-C07）。
+    """
+    if credentials is None:
+        return None
+    try:
+        payload = decode_token(credentials.credentials)
+        sub = payload.get("sub")
+        if sub is None:
+            return None
+        user = db.query(User).filter(User.id == int(sub)).first()
+        return user
+    except (JWTError, ValueError, TypeError):
+        return None

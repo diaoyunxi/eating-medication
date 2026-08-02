@@ -86,5 +86,5 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             f"duration={process_time:.3f}s"
         )
 
-        response.headers["X-Process-Time"] = str(process_time)
+        # 注：不再向客户端暴露 X-Process-Time（BUG-M07，避免泄露服务器处理耗时）
         return response

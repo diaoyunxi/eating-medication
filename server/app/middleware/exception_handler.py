@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import logging
@@ -47,6 +48,19 @@ def add_exception_handlers(app: FastAPI):
         return JSONResponse(
             status_code=exc.code,
             content={"detail": exc.message},
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        """处理请求体/参数校验失败（BUG-M09 / BUG-L05）。
+
+        不回显用户输入（含 SQL 注入等敏感载荷），仅返回通用错误信息，
+        避免泄露用户提交内容及字段类型细节。
+        """
+        logger.warning(f"请求参数校验失败: path={request.url.path}")
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"detail": "请求参数格式不正确"},
         )
 
     @app.exception_handler(Exception)
