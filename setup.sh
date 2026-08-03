@@ -221,7 +221,17 @@ main() {
     printf '\n'
 
     # 透传所有参数
-    exec "$executor" "$script_path" "$@"
+    # curl|sh 模式下 stdin 是管道（已耗尽），需重定向到 /dev/tty 以支持交互式 read
+    if [ -t 0 ]; then
+        # stdin 已是终端，直接执行
+        exec "$executor" "$script_path" "$@"
+    elif [ -e /dev/tty ]; then
+        # stdin 非终端（curl|sh 模式），从 /dev/tty 读取用户输入
+        exec "$executor" "$script_path" "$@" </dev/tty
+    else
+        # 无 /dev/tty 可用（无交互环境），stdin 指向 /dev/null
+        exec "$executor" "$script_path" "$@" </dev/null
+    fi
 }
 
 # 执行主流程

@@ -80,6 +80,31 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/diaoyunxi/eating-medic
    - Windows：NSSM Windows 服务 或 计划任务
 9. **提示编辑 .env**：等待用户编辑配置后重启服务
 
+### 非交互模式（自动化部署）
+
+通过环境变量跳过交互提示，适用于 CI/CD 或批量部署：
+
+```bash
+# Linux / macOS：仅内网访问模式
+ACCESS_MODE=3 curl -fsSL https://raw.githubusercontent.com/diaoyunxi/eating-medication/main/setup.sh | sh
+
+# Cloudflare 隧道 + Token
+ACCESS_MODE=1 CF_TUNNEL_TOKEN=你的token curl -fsSL https://raw.githubusercontent.com/diaoyunxi/eating-medication/main/setup.sh | sh
+
+# DDNS + 自定义域名
+ACCESS_MODE=2 DDNS_DOMAIN=你的域名 curl -fsSL https://raw.githubusercontent.com/diaoyunxi/eating-medication/main/setup.sh | sh
+```
+
+| 环境变量 | 说明 |
+|----------|------|
+| `ACCESS_MODE` | 公网访问模式：1=Cloudflare 隧道、2=DDNS+Caddy、3=仅内网 |
+| `CF_TUNNEL_TOKEN` | Cloudflare 隧道 Token（设置后跳过 Token 输入提示） |
+| `CF_AUTH_MODE` | Cloudflare 认证方式：1=Token、2=Login |
+| `DDNS_DOMAIN` | DDNS 域名（设置后跳过域名输入提示） |
+| `DOMAIN` | 基础域名（影响 .env 中的回调 URL 等） |
+| `DEPLOY_DIR` | 部署目录（默认 Linux `/opt/eating-medication`、macOS `/usr/local/eating-medication`） |
+| `PIP_MIRROR` | pip 镜像源（默认清华源） |
+
 ### 部署目录与端口
 
 | 平台 | 部署目录 | 服务端端口 | 子女端端口 |

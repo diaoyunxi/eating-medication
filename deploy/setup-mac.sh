@@ -101,13 +101,25 @@ install_system_deps() {
 ask_access_mode() {
     log_step "[2/9] 选择公网访问模式"
 
+    # 非交互模式：通过环境变量 ACCESS_MODE 指定
+    if [ -n "${ACCESS_MODE:-}" ]; then
+        log_info "使用环境变量 ACCESS_MODE=${ACCESS_MODE}"
+        case "$ACCESS_MODE" in
+            1) log_info "已选择: Cloudflare 隧道" ;;
+            2) log_info "已选择: DDNS + Caddy" ;;
+            3) log_info "已选择: 仅内网访问" ;;
+            *) log_warn "无效选择，使用默认: Cloudflare 隧道"; ACCESS_MODE="1" ;;
+        esac
+        return 0
+    fi
+
     printf '\n'
     printf '  1) Cloudflare 隧道（cloudflared）—— 推荐，本地无需公网IP\n'
     printf '  2) 动态域名解析（DDNS + Caddy 自动 HTTPS）—— 需公网IP\n'
     printf '  3) 仅内网访问 —— 不配置公网\n'
     printf '\n'
     printf '  请选择 [1/2/3] (默认 1): '
-    read ACCESS_MODE
+    read ACCESS_MODE || true
     ACCESS_MODE="${ACCESS_MODE:-1}"
 
     case "$ACCESS_MODE" in
@@ -170,7 +182,7 @@ install_cloudflared() {
     printf '  2) Login（交互式）—— 需浏览器授权\n'
     printf '\n'
     printf '  请选择 [1/2] (默认 1): '
-    read CF_AUTH_MODE
+    read CF_AUTH_MODE || true
     CF_AUTH_MODE="${CF_AUTH_MODE:-1}"
 
     local launch_agent_dir="/Library/LaunchDaemons"
@@ -181,7 +193,7 @@ install_cloudflared() {
             # Token 方式
             printf '  请粘贴隧道 Token（从 Cloudflare Zero Trust 控制台复制）:\n'
             printf '  > '
-            read CF_TUNNEL_TOKEN
+            read CF_TUNNEL_TOKEN || true
 
             if [ -z "$CF_TUNNEL_TOKEN" ]; then
                 log_warn "Token 为空，跳过 cloudflared 服务创建"
@@ -233,7 +245,7 @@ EOF
             }
 
             printf '  请输入隧道名称 (默认 eating-medication): '
-            read CF_TUNNEL_NAME
+            read CF_TUNNEL_NAME || true
             CF_TUNNEL_NAME="${CF_TUNNEL_NAME:-eating-medication}"
 
             cloudflared tunnel create "$CF_TUNNEL_NAME" 2>/dev/null && \
@@ -263,7 +275,7 @@ setup_ddns_caddy() {
 
     # 配置 Caddyfile
     printf '\n  请输入你的域名 (默认 %s): ' "$DOMAIN"
-    read DDNS_DOMAIN
+    read DDNS_DOMAIN || true
     DDNS_DOMAIN="${DDNS_DOMAIN:-$DOMAIN}"
 
     local caddyfile="/usr/local/etc/caddy/Caddyfile"
@@ -326,7 +338,7 @@ EOF
     printf '  2) 自定义命令（支持 $ip 占位符）\n'
     printf '\n'
     printf '  请选择 [1/2] (默认 1): '
-    read DDNS_MODE
+    read DDNS_MODE || true
     DDNS_MODE="${DDNS_MODE:-1}"
 
     local ddns_script="/usr/local/bin/em-ddns-update.sh"
@@ -334,11 +346,11 @@ EOF
     case "$DDNS_MODE" in
         1)
             printf '  请输入 Cloudflare API Token: '
-            read CF_API_TOKEN
+            read CF_API_TOKEN || true
             printf '  请输入 Zone ID: '
-            read CF_ZONE_ID
+            read CF_ZONE_ID || true
             printf '  请输入 DNS 记录名 (如 eating.example.com): '
-            read CF_DNS_NAME
+            read CF_DNS_NAME || true
 
             $SUDO tee "$ddns_script" >/dev/null <<DDNSEOF
 #!/usr/bin/env zsh
@@ -395,7 +407,7 @@ DDNSEOF
         2)
             printf '  请输入自定义命令（用 $ip 表示公网IP占位符）:\n'
             printf '  > '
-            read CUSTOM_CMD
+            read CUSTOM_CMD || true
 
             $SUDO tee "$ddns_script" >/dev/null <<DDNSEOF
 #!/usr/bin/env zsh
@@ -692,9 +704,15 @@ prompt_edit_env() {
     printf '     sudo nano %s/family_monitor/.env\n' "$DEPLOY_DIR"
     printf '     关键项: SECRET_KEY(已自动生成)、TURNSTILE_SITE_KEY\n'
     printf '\n'
-    printf '  编辑完成后按 Enter 重启服务...\n'
-    printf '  （或按 Ctrl+C 跳过，稍后手动重启）\n'
-    read
+
+    # 非交互模式（stdin 非 tty）自动跳过等待
+    if [ -t 0 ]; then
+        printf '  编辑完成后按 Enter 重启服务...\n'
+        printf '  （或按 Ctrl+C 跳过，稍后手动重启）\n'
+        read || true
+    else
+        log_info "非交互模式，跳过等待用户编辑（请稍后手动编辑 .env 并重启服务）"
+    fi
 
     # 重启服务
     log_info "重启服务以加载新配置..."
