@@ -92,7 +92,7 @@ install_system_deps() {
 
     case "$PM" in
         apt)
-            $SUDO apt-get update -y
+            $SUDO apt-get update -y 2>/dev/null || log_warn "apt-get update 失败（镜像源同步中？），继续安装..."
             $SUDO apt-get install -y git python3 python3-pip python3-venv curl
             ;;
         dnf)
