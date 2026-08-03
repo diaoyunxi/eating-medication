@@ -221,17 +221,10 @@ main() {
     printf '\n'
 
     # 透传所有参数
-    # curl|sh 模式下 stdin 是管道（已耗尽），需重定向到 /dev/tty 以支持交互式 read
-    if [ -t 0 ]; then
-        # stdin 已是终端，直接执行
-        exec "$executor" "$script_path" "$@"
-    elif (exec </dev/tty) 2>/dev/null; then
-        # stdin 非终端（curl|sh 模式），但 /dev/tty 可用（真实终端环境）
-        exec "$executor" "$script_path" "$@" </dev/tty
-    else
-        # /dev/tty 不可用（沙箱/CI 等无交互环境），stdin 指向 /dev/null
-        exec "$executor" "$script_path" "$@" </dev/null
-    fi
+    # curl|sh 模式下 stdin 是管道（已耗尽），平台脚本中 read 遇到 EOF 时
+    # 通过 || true 安全处理并使用默认值，无需在此重定向 stdin。
+    # 交互模式下（先下载再执行），stdin 自然连接终端，read 正常工作。
+    exec "$executor" "$script_path" "$@"
 }
 
 # 执行主流程
