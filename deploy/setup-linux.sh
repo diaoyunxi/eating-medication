@@ -303,9 +303,10 @@ EOF
             log_info "执行 cloudflared tunnel login（需浏览器授权）..."
             log_warn "在无图形界面的服务器上，请通过 SSH 端口转发访问授权链接"
             log_warn "  ssh -L 8081:localhost:8081 user@server"
-            $SUDO cloudflared tunnel login || {
+            # cloudflared 单文件版将凭证写入 ~/.cloudflared，无需 sudo
+            cloudflared tunnel login || {
                 log_error "cloudflared tunnel login 失败"
-                log_error "请稍后手动执行: sudo cloudflared tunnel login"
+                log_error "请稍后手动执行: cloudflared tunnel login"
             }
 
             # 创建隧道
@@ -313,9 +314,9 @@ EOF
             read -r CF_TUNNEL_NAME || true
             CF_TUNNEL_NAME="${CF_TUNNEL_NAME:-eating-medication}"
 
-            $SUDO cloudflared tunnel create "$CF_TUNNEL_NAME" 2>/dev/null && \
+            cloudflared tunnel create "$CF_TUNNEL_NAME" 2>/dev/null && \
                 log_info "隧道 ${CF_TUNNEL_NAME} 创建成功" || \
-                log_warn "隧道创建失败，请手动执行: sudo cloudflared tunnel create ${CF_TUNNEL_NAME}"
+                log_warn "隧道创建失败，请手动执行: cloudflared tunnel create ${CF_TUNNEL_NAME}"
 
             log_info "请在 Zero Trust 控制台或 config.yml 中配置路由:"
             log_info "  ${SERVER_PREFIX} -> http://localhost:${SERVER_PORT}"
