@@ -113,6 +113,34 @@ ACCESS_MODE=2 DDNS_DOMAIN=你的域名 curl -fsSL https://raw.githubusercontent.
 | macOS | `/usr/local/eating-medication` | 1059 | 4430 |
 | Windows | `C:\eating-medication` | 1059 | 4430 |
 
+### 卸载
+
+部署脚本支持 `--uninstall`（Linux/macOS）或 `-Uninstall`（Windows）参数，一键回滚所有部署变更：
+
+**Linux / macOS**：
+
+```bash
+# curl 一键卸载
+curl -fsSL https://raw.githubusercontent.com/diaoyunxi/eating-medication/main/setup.sh | sh -s -- --uninstall
+
+# 或先下载再卸载
+sh setup.sh --uninstall
+
+# 已部署环境直接运行
+sudo bash /opt/eating-medication/deploy/setup-linux.sh --uninstall
+sudo zsh /usr/local/eating-medication/deploy/setup-mac.sh --uninstall
+```
+
+**Windows**（以管理员身份运行 PowerShell）：
+
+```powershell
+.\setup.ps1 -Uninstall
+```
+
+**卸载会删除**：部署目录、systemd/launchd/NSSM 服务、sudoers 规则、DDNS 脚本、Caddyfile（仅本脚本生成的）
+
+**卸载不会删除**：系统包（git/python3/curl）、cloudflared 二进制与凭证、Caddy 本体、Homebrew
+
 ### 公网访问路由
 
 Cloudflare 隧道或 Caddy 反代需配置以下路由：
