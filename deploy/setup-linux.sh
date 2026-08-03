@@ -119,13 +119,25 @@ install_system_deps() {
 ask_access_mode() {
     log_step "[2/9] 选择公网访问模式"
 
+    # 非交互模式：通过环境变量 ACCESS_MODE 指定（1=cloudflared 2=DDNS 3=仅内网）
+    if [ -n "${ACCESS_MODE:-}" ]; then
+        log_info "使用环境变量 ACCESS_MODE=${ACCESS_MODE}"
+        case "$ACCESS_MODE" in
+            1) log_info "已选择: Cloudflare 隧道" ;;
+            2) log_info "已选择: DDNS + Caddy" ;;
+            3) log_info "已选择: 仅内网访问" ;;
+            *) log_warn "无效选择，使用默认: Cloudflare 隧道"; ACCESS_MODE="1" ;;
+        esac
+        return 0
+    fi
+
     printf '\n'
     printf '  1) Cloudflare 隧道（cloudflared）—— 推荐，本地无需公网IP\n'
     printf '  2) 动态域名解析（DDNS + Caddy 自动 HTTPS）—— 需公网IP\n'
     printf '  3) 仅内网访问 —— 不配置公网\n'
     printf '\n'
     printf '  请选择 [1/2/3] (默认 1): '
-    read -r ACCESS_MODE
+    read -r ACCESS_MODE || true
     ACCESS_MODE="${ACCESS_MODE:-1}"
 
     case "$ACCESS_MODE" in
@@ -203,22 +215,32 @@ install_cloudflared() {
         fi
     fi
 
-    # 选择认证方式
-    printf '\n'
-    printf '  Cloudflare 隧道认证方式:\n'
-    printf '  1) Token（推荐）—— 在 Zero Trust 控制台创建隧道后粘贴 token\n'
-    printf '  2) Login（交互式）—— 需浏览器授权，适合有图形界面的环境\n'
-    printf '\n'
-    printf '  请选择 [1/2] (默认 1): '
-    read -r CF_AUTH_MODE
-    CF_AUTH_MODE="${CF_AUTH_MODE:-1}"
+    # 选择认证方式（非交互模式：通过 CF_AUTH_MODE / CF_TUNNEL_TOKEN 环境变量指定）
+    if [ -n "${CF_TUNNEL_TOKEN:-}" ]; then
+        # 直接提供了 Token，跳过交互
+        log_info "使用环境变量 CF_TUNNEL_TOKEN（Token 模式）"
+        CF_AUTH_MODE="1"
+    elif [ -n "${CF_AUTH_MODE:-}" ]; then
+        log_info "使用环境变量 CF_AUTH_MODE=${CF_AUTH_MODE}"
+    else
+        printf '\n'
+        printf '  Cloudflare 隧道认证方式:\n'
+        printf '  1) Token（推荐）—— 在 Zero Trust 控制台创建隧道后粘贴 token\n'
+        printf '  2) Login（交互式）—— 需浏览器授权，适合有图形界面的环境\n'
+        printf '\n'
+        printf '  请选择 [1/2] (默认 1): '
+        read -r CF_AUTH_MODE || true
+        CF_AUTH_MODE="${CF_AUTH_MODE:-1}"
+    fi
 
     case "$CF_AUTH_MODE" in
         1)
             # Token 方式
-            printf '  请粘贴隧道 Token（从 Cloudflare Zero Trust 控制台复制）:\n'
-            printf '  > '
-            read -r CF_TUNNEL_TOKEN
+            if [ -z "${CF_TUNNEL_TOKEN:-}" ]; then
+                printf '  请粘贴隧道 Token（从 Cloudflare Zero Trust 控制台复制）:\n'
+                printf '  > '
+                read -r CF_TUNNEL_TOKEN || true
+            fi
 
             if [ -z "$CF_TUNNEL_TOKEN" ]; then
                 log_warn "Token 为空，跳过 cloudflared 服务创建"
@@ -268,9 +290,9 @@ WantedBy=multi-user.target
 EOF
             fi
 
-            $SUDO systemctl daemon-reload
+            $SUDO systemctl daemon-reload 2>/dev/null || true
             $SUDO systemctl enable --now cloudflared 2>/dev/null || \
-                log_warn "cloudflared 服务启动失败，请检查 Token 是否有效"
+                log_warn "cloudflared 服务启动失败（systemd 未运行或 Token 无效），请稍后手动启动"
             log_info "Cloudflare 隧道已配置（Token 模式）"
             log_info "请在 Zero Trust 控制台添加路由:"
             log_info "  ${SERVER_PREFIX} -> http://localhost:${SERVER_PORT}"
@@ -288,7 +310,7 @@ EOF
 
             # 创建隧道
             printf '  请输入隧道名称 (默认 eating-medication): '
-            read -r CF_TUNNEL_NAME
+            read -r CF_TUNNEL_NAME || true
             CF_TUNNEL_NAME="${CF_TUNNEL_NAME:-eating-medication}"
 
             $SUDO cloudflared tunnel create "$CF_TUNNEL_NAME" 2>/dev/null && \
@@ -346,9 +368,13 @@ setup_ddns_caddy() {
     log_info "Caddy 已安装: $(caddy version 2>/dev/null || echo '已存在')"
 
     # 配置 Caddyfile（反代 + 自动 HTTPS）
-    printf '\n  请输入你的域名 (默认 %s): ' "$DOMAIN"
-    read -r DDNS_DOMAIN
-    DDNS_DOMAIN="${DDNS_DOMAIN:-$DOMAIN}"
+    if [ -n "${DDNS_DOMAIN:-}" ]; then
+        log_info "使用环境变量 DDNS_DOMAIN=${DDNS_DOMAIN}"
+    else
+        printf '\n  请输入你的域名 (默认 %s): ' "$DOMAIN"
+        read -r DDNS_DOMAIN || true
+        DDNS_DOMAIN="${DDNS_DOMAIN:-$DOMAIN}"
+    fi
 
     $SUDO tee /etc/caddy/Caddyfile >/dev/null <<EOF
 # eating-medication Caddy 反向代理配置
@@ -386,7 +412,7 @@ EOF
     printf '  2) 自定义命令（支持 $ip 占位符）\n'
     printf '\n'
     printf '  请选择 [1/2] (默认 1): '
-    read -r DDNS_MODE
+    read -r DDNS_MODE || true
     DDNS_MODE="${DDNS_MODE:-1}"
 
     # DDNS 脚本路径
@@ -398,11 +424,11 @@ EOF
         1)
             # Cloudflare API 方式
             printf '  请输入 Cloudflare API Token: '
-            read -r CF_API_TOKEN
+            read -r CF_API_TOKEN || true
             printf '  请输入 Zone ID: '
-            read -r CF_ZONE_ID
+            read -r CF_ZONE_ID || true
             printf '  请输入 DNS 记录名 (如 eating.example.com): '
-            read -r CF_DNS_NAME
+            read -r CF_DNS_NAME || true
 
             $SUDO tee "$ddns_script" >/dev/null <<DDNSEOF
 #!/usr/bin/env bash
@@ -469,7 +495,7 @@ DDNSEOF
             # 自定义命令方式
             printf '  请输入自定义命令（用 $ip 表示公网IP占位符）:\n'
             printf '  > '
-            read -r CUSTOM_CMD
+            read -r CUSTOM_CMD || true
 
             $SUDO tee "$ddns_script" >/dev/null <<DDNSEOF
 #!/usr/bin/env bash
@@ -521,7 +547,7 @@ Unit=em-ddns.service
 WantedBy=timers.target
 EOF
 
-    $SUDO systemctl daemon-reload
+    $SUDO systemctl daemon-reload 2>/dev/null || true
     $SUDO systemctl enable --now em-ddns.timer 2>/dev/null || true
     # 立即执行一次
     $SUDO systemctl start em-ddns.service 2>/dev/null || true
@@ -767,8 +793,12 @@ EnvironmentFile=-$DEPLOY_DIR/family_monitor/.env
 WantedBy=multi-user.target
 EOF
 
-    $SUDO systemctl daemon-reload
-    $SUDO systemctl enable --now eating-medication-server eating-medication-family
+    $SUDO systemctl daemon-reload 2>/dev/null || log_warn "systemctl daemon-reload 失败（非 systemd 环境？）"
+    $SUDO systemctl enable --now eating-medication-server eating-medication-family 2>/dev/null || {
+        log_warn "systemctl enable 失败，systemd 可能未运行"
+        log_warn "服务文件已写入 /etc/systemd/system/，systemd 可用后请手动执行:"
+        log_warn "  systemctl daemon-reload && systemctl enable --now eating-medication-server eating-medication-family"
+    }
 
     # 配置免密 sudoers（供 updater.py 自动更新后重启使用）
     log_info "配置 ${DEPLOY_USER} 免密重启服务（自动更新用）..."
@@ -781,7 +811,7 @@ $DEPLOY_USER ALL=(root) NOPASSWD: \\
     /bin/systemctl restart eating-medication-server eating-medication-family, \\
     /bin/systemctl status eating-medication-server eating-medication-family
 EOF
-    $SUDO chmod 440 "$sudoers_file"
+    $SUDO chmod 440 "$sudoers_file" 2>/dev/null || true
     $SUDO visudo -c -f "$sudoers_file" 2>/dev/null || log_warn "sudoers 语法校验失败，请检查"
 }
 
@@ -807,9 +837,15 @@ prompt_edit_env() {
     printf '     关键项: SECRET_KEY(已自动生成)、TURNSTILE_SITE_KEY、\n'
     printf '             ELDERLY_SERVER_URL(已自动填写)\n'
     printf '\n'
-    printf '  编辑完成后按 Enter 重启服务以加载新配置...\n'
-    printf '  （或按 Ctrl+C 跳过，稍后手动重启）\n'
-    read -r
+
+    # 非交互模式（stdin 非 tty）自动跳过等待
+    if [ -t 0 ]; then
+        printf '  编辑完成后按 Enter 重启服务以加载新配置...\n'
+        printf '  （或按 Ctrl+C 跳过，稍后手动重启）\n'
+        read -r || true
+    else
+        log_info "非交互模式，跳过等待用户编辑（请稍后手动编辑 .env 并重启服务）"
+    fi
 
     # 重启服务以加载新配置
     log_info "重启服务以加载新配置..."
