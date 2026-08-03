@@ -908,7 +908,7 @@ main() {
     $SUDO systemctl status eating-medication-family --no-pager --lines=0 2>/dev/null || true
 
     printf '\n'
-    printf '------------------------------------------------------------\n'
+    printf '%s\n' '------------------------------------------------------------'
     printf '  后续步骤:\n'
     printf '  1) 查看日志:\n'
     printf '     journalctl -u eating-medication-server -f\n'
@@ -929,7 +929,7 @@ main() {
             printf '     http://localhost:%s%s\n' "$FAMILY_PORT" "$FAMILY_PREFIX"
             ;;
     esac
-    printf '------------------------------------------------------------\n'
+    printf '%s\n' '------------------------------------------------------------'
 }
 
 main "$@"
