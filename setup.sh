@@ -225,11 +225,11 @@ main() {
     if [ -t 0 ]; then
         # stdin 已是终端，直接执行
         exec "$executor" "$script_path" "$@"
-    elif [ -e /dev/tty ]; then
-        # stdin 非终端（curl|sh 模式），从 /dev/tty 读取用户输入
+    elif (exec </dev/tty) 2>/dev/null; then
+        # stdin 非终端（curl|sh 模式），但 /dev/tty 可用（真实终端环境）
         exec "$executor" "$script_path" "$@" </dev/tty
     else
-        # 无 /dev/tty 可用（无交互环境），stdin 指向 /dev/null
+        # /dev/tty 不可用（沙箱/CI 等无交互环境），stdin 指向 /dev/null
         exec "$executor" "$script_path" "$@" </dev/null
     fi
 }
