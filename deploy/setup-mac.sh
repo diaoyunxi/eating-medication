@@ -723,6 +723,74 @@ prompt_edit_env() {
 }
 
 # ============================================================
+# 卸载：停止并删除 launchd 服务、删除部署目录
+# 保留：系统包（git/python3/curl 等）、cloudflared、Caddy、Homebrew
+# ============================================================
+uninstall() {
+    printf '\n'
+    printf '============================================================\n'
+    printf '  eating-medication 卸载\n'
+    printf '  部署目录: %s\n' "$DEPLOY_DIR"
+    printf '  运行用户: %s\n' "$DEPLOY_USER"
+    printf '============================================================\n'
+
+    # 1. 停止并卸载 launchd 服务
+    log_step "[1/5] 停止并卸载 launchd 服务"
+    $SUDO launchctl unload -w "/Library/LaunchDaemons/com.eatingmedication.server.plist" 2>/dev/null || true
+    $SUDO launchctl unload -w "/Library/LaunchDaemons/com.eatingmedication.family.plist" 2>/dev/null || true
+    log_info "launchd 服务已停止"
+
+    # 2. 删除 launchd plist 文件
+    log_step "[2/5] 删除 launchd plist 文件"
+    $SUDO rm -f /Library/LaunchDaemons/com.eatingmedication.server.plist \
+                 /Library/LaunchDaemons/com.eatingmedication.family.plist 2>/dev/null || true
+    log_info "plist 文件已删除"
+
+    # 3. 删除部署目录
+    log_step "[3/5] 删除部署目录"
+    if [ -d "$DEPLOY_DIR" ]; then
+        $SUDO rm -rf "$DEPLOY_DIR"
+        log_info "已删除部署目录: ${DEPLOY_DIR}"
+    else
+        log_info "部署目录不存在，跳过"
+    fi
+
+    # 4. 删除 DDNS 脚本与 Caddyfile
+    log_step "[4/5] 删除 DDNS 脚本与 Caddyfile"
+    $SUDO rm -f /usr/local/bin/em-ddns-update.sh 2>/dev/null || true
+    $SUDO rm -f /var/lib/em-ddns/last_ip 2>/dev/null || true
+    $SUDO rmdir /var/lib/em-ddns 2>/dev/null || true
+    if [ -f /etc/caddy/Caddyfile ] && grep -q "eating-medication" /etc/caddy/Caddyfile 2>/dev/null; then
+        $SUDO rm -f /etc/caddy/Caddyfile
+        log_info "已删除 /etc/caddy/Caddyfile（本脚本生成的配置）"
+    fi
+    log_info "DDNS 脚本与 Caddyfile 清理完成"
+
+    # 5. 删除 DDNS launchd plist（如果存在）
+    log_step "[5/5] 删除 DDNS launchd 服务"
+    $SUDO launchctl unload -w "/Library/LaunchDaemons/com.eatingmedication.ddns.plist" 2>/dev/null || true
+    $SUDO rm -f /Library/LaunchDaemons/com.eatingmedication.ddns.plist 2>/dev/null || true
+    log_info "DDNS launchd 服务已清理"
+
+    # 完成提示
+    printf '\n'
+    printf '============================================================\n'
+    printf '  卸载完成！\n'
+    printf '============================================================\n'
+    printf '\n'
+    printf '  已删除:\n'
+    printf '    - 部署目录: %s\n' "$DEPLOY_DIR"
+    printf '    - launchd 服务（server/family/ddns）\n'
+    printf '    - DDNS 脚本与 Caddyfile\n'
+    printf '\n'
+    printf '  保留（未删除）:\n'
+    printf '    - 系统包: git, python3, curl, cloudflared, caddy\n'
+    printf '    - cloudflared 凭证: ~/.cloudflared/\n'
+    printf '    - Homebrew 及其他系统配置\n'
+    printf '%s\n' '------------------------------------------------------------'
+}
+
+# ============================================================
 # 主流程
 # ============================================================
 main() {
@@ -779,5 +847,11 @@ main() {
     esac
     printf '%s\n' '------------------------------------------------------------'
 }
+
+# 入口：检测 --uninstall 参数
+if [ "${1:-}" = "--uninstall" ] || [ "${1:-}" = "-u" ]; then
+    uninstall
+    exit 0
+fi
 
 main "$@"

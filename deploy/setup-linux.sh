@@ -854,6 +854,100 @@ prompt_edit_env() {
 }
 
 # ============================================================
+# 卸载：停止并删除服务、删除部署目录、删除用户
+# 保留：系统包（git/python3/curl 等）、cloudflared 二进制、Caddy
+# ============================================================
+uninstall() {
+    printf '\n'
+    printf '============================================================\n'
+    printf '  eating-medication 卸载\n'
+    printf '  部署目录: %s\n' "$DEPLOY_DIR"
+    printf '  运行用户: %s\n' "$DEPLOY_USER"
+    printf '============================================================\n'
+
+    # 1. 停止并禁用 systemd 服务
+    log_step "[1/6] 停止并禁用 systemd 服务"
+    $SUDO systemctl stop eating-medication-server eating-medication-family 2>/dev/null || true
+    $SUDO systemctl disable eating-medication-server eating-medication-family 2>/dev/null || true
+    $SUDO systemctl stop cloudflared 2>/dev/null || true
+    $SUDO systemctl disable cloudflared 2>/dev/null || true
+    $SUDO systemctl stop em-ddns.timer em-ddns.service 2>/dev/null || true
+    $SUDO systemctl disable em-ddns.timer em-ddns.service 2>/dev/null || true
+    $SUDO systemctl daemon-reload 2>/dev/null || true
+    log_info "服务已停止并禁用"
+
+    # 2. 删除 systemd 服务文件
+    log_step "[2/6] 删除 systemd 服务文件"
+    $SUDO rm -f /etc/systemd/system/eating-medication-server.service \
+                 /etc/systemd/system/eating-medication-family.service \
+                 /etc/systemd/system/cloudflared.service \
+                 /etc/systemd/system/em-ddns.service \
+                 /etc/systemd/system/em-ddns.timer 2>/dev/null || true
+    $SUDO systemctl daemon-reload 2>/dev/null || true
+    log_info "服务文件已删除"
+
+    # 3. 删除 sudoers 规则
+    log_step "[3/6] 删除 sudoers 规则"
+    $SUDO rm -f /etc/sudoers.d/eating-medication 2>/dev/null || true
+    log_info "sudoers 规则已删除"
+
+    # 4. 删除部署目录
+    log_step "[4/6] 删除部署目录"
+    if [ -d "$DEPLOY_DIR" ]; then
+        $SUDO rm -rf "$DEPLOY_DIR"
+        log_info "已删除部署目录: ${DEPLOY_DIR}"
+    else
+        log_info "部署目录不存在，跳过"
+    fi
+
+    # 5. 删除 DDNS 脚本与 Caddyfile（仅删除本脚本生成的文件）
+    log_step "[5/6] 删除 DDNS 脚本与 Caddyfile"
+    $SUDO rm -f /usr/local/bin/em-ddns-update.sh 2>/dev/null || true
+    $SUDO rm -f /var/lib/em-ddns/last_ip 2>/dev/null || true
+    $SUDO rmdir /var/lib/em-ddns 2>/dev/null || true
+    # Caddyfile：仅当内容包含 eating-medication 标记时删除
+    if [ -f /etc/caddy/Caddyfile ] && grep -q "eating-medication" /etc/caddy/Caddyfile 2>/dev/null; then
+        $SUDO rm -f /etc/caddy/Caddyfile
+        log_info "已删除 /etc/caddy/Caddyfile（本脚本生成的配置）"
+    fi
+    log_info "DDNS 脚本与 Caddyfile 清理完成"
+
+    # 6. 删除运行用户
+    log_step "[6/6] 删除运行用户"
+    if id "$DEPLOY_USER" >/dev/null 2>&1; then
+        $SUDO userdel -r "$DEPLOY_USER" 2>/dev/null || $SUDO userdel "$DEPLOY_USER" 2>/dev/null || true
+        log_info "已删除用户: ${DEPLOY_USER}"
+    else
+        log_info "用户 ${DEPLOY_USER} 不存在，跳过"
+    fi
+
+    # 完成提示
+    printf '\n'
+    printf '============================================================\n'
+    printf '  卸载完成！\n'
+    printf '============================================================\n'
+    printf '\n'
+    printf '  已删除:\n'
+    printf '    - 部署目录: %s\n' "$DEPLOY_DIR"
+    printf '    - systemd 服务（server/family/cloudflared/ddns）\n'
+    printf '    - sudoers 规则\n'
+    printf '    - DDNS 脚本与 Caddyfile\n'
+    printf '    - 运行用户: %s\n' "$DEPLOY_USER"
+    printf '\n'
+    printf '  保留（未删除）:\n'
+    printf '    - 系统包: git, python3, curl, cloudflared, caddy\n'
+    printf '    - cloudflared 凭证: ~/.cloudflared/\n'
+    printf '    - cloudflared 配置: /etc/cloudflared/\n'
+    printf '\n'
+    printf '  如需完全清除 cloudflared:\n'
+    printf '    sudo apt remove --purge cloudflared   (或删除 /usr/local/bin/cloudflared)\n'
+    printf '    sudo rm -rf /etc/cloudflared ~/.cloudflared\n'
+    printf '  如需完全清除 Caddy:\n'
+    printf '    sudo apt remove --purge caddy\n'
+    printf '%s\n' '------------------------------------------------------------'
+}
+
+# ============================================================
 # 主流程
 # ============================================================
 main() {
@@ -932,5 +1026,11 @@ main() {
     esac
     printf '%s\n' '------------------------------------------------------------'
 }
+
+# 入口：检测 --uninstall 参数
+if [ "${1:-}" = "--uninstall" ] || [ "${1:-}" = "-u" ]; then
+    uninstall
+    exit 0
+fi
 
 main "$@"

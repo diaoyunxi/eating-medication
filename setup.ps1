@@ -35,7 +35,9 @@ param(
     # pip 镜像源
     [string]$PipMirror = "https://pypi.tuna.tsinghua.edu.cn/simple",
     # 跳过交互提示
-    [switch]$NonInteractive
+    [switch]$NonInteractive,
+    # 卸载模式
+    [switch]$Uninstall
 )
 
 # ============================================================
@@ -1089,6 +1091,116 @@ function Main {
     }
 
     Write-Host "------------------------------------------------------------"
+}
+
+# ============================================================
+# 卸载：停止并删除服务/任务、删除部署目录
+# 保留：系统包（git/python/nssm）、cloudflared、Caddy
+# ============================================================
+function Uninstall-All {
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "  eating-mediction Windows 卸载" -ForegroundColor Cyan
+    Write-Host "  部署目录: $DeployDir" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor Cyan
+
+    # 0. 检查管理员权限
+    if (-not (Test-Administrator)) {
+        Write-LogError "请以管理员身份运行 PowerShell"
+        exit 1
+    }
+
+    # 服务名称（与 Setup-Services 中一致）
+    $serverSvc = "EatingMedication-Server"
+    $familySvc = "EatingMedication-Family"
+
+    # 1. 停止并删除 NSSM 服务（如果存在）
+    Write-LogStep "[1/4] 停止并删除 Windows 服务"
+    foreach ($svc in @($serverSvc, $familySvc)) {
+        $svcExists = Get-Service -Name $svc -ErrorAction SilentlyContinue
+        if ($svcExists) {
+            Write-LogInfo "停止服务: $svc"
+            Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
+            if (Get-Command nssm -ErrorAction SilentlyContinue) {
+                nssm remove $svc confirm 2>$null
+            } else {
+                sc.exe delete $svc 2>$null | Out-Null
+            }
+            Write-LogInfo "已删除服务: $svc"
+        } else {
+            Write-LogInfo "服务 $svc 不存在，跳过"
+        }
+    }
+
+    # 也检查计划任务模式
+    foreach ($taskName in @($serverSvc, $familySvc)) {
+        $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+        if ($task) {
+            Write-LogInfo "删除计划任务: $taskName"
+            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+        }
+    }
+
+    # 2. 删除部署目录
+    Write-LogStep "[2/4] 删除部署目录"
+    if (Test-Path $DeployDir) {
+        # 先尝试删除，如果被占用则强制
+        Remove-Item -Path $DeployDir -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path $DeployDir) {
+            Write-LogWarn "目录被占用，尝试强制删除..."
+            cmd /c "rmdir /s /q `"$DeployDir`"" 2>$null
+        }
+        Write-LogInfo "已删除部署目录: $DeployDir"
+    } else {
+        Write-LogInfo "部署目录不存在，跳过"
+    }
+
+    # 3. 删除 DDNS 脚本（如果存在）
+    Write-LogStep "[3/4] 删除 DDNS 脚本"
+    $ddnsScript = "$env:ProgramFiles\eating-medication\em-ddns-update.ps1"
+    if (Test-Path $ddnsScript) {
+        Remove-Item $ddnsScript -Force -ErrorAction SilentlyContinue
+        Write-LogInfo "已删除 DDNS 脚本"
+    } else {
+        Write-LogInfo "DDNS 脚本不存在，跳过"
+    }
+
+    # 4. 删除 DDNS 计划任务（如果存在）
+    Write-LogStep "[4/4] 删除 DDNS 计划任务"
+    $ddnsTask = Get-ScheduledTask -TaskName "EatingMedication-DDNS" -ErrorAction SilentlyContinue
+    if ($ddnsTask) {
+        Unregister-ScheduledTask -TaskName "EatingMedication-DDNS" -Confirm:$false -ErrorAction SilentlyContinue
+        Write-LogInfo "已删除 DDNS 计划任务"
+    } else {
+        Write-LogInfo "DDNS 计划任务不存在，跳过"
+    }
+
+    # 完成提示
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Green
+    Write-Host "  卸载完成！" -ForegroundColor Green
+    Write-Host "============================================================"
+    Write-Host ""
+    Write-Host "  已删除:"
+    Write-Host "    - 部署目录: $DeployDir"
+    Write-Host "    - Windows 服务 / 计划任务（server/family）"
+    Write-Host "    - DDNS 脚本与计划任务"
+    Write-Host ""
+    Write-Host "  保留（未删除）:"
+    Write-Host "    - 系统包: git, python, nssm, cloudflared, caddy"
+    Write-Host "    - cloudflared 凭证: ~/.cloudflared/"
+    Write-Host ""
+    Write-Host "  如需完全清除 cloudflared:"
+    Write-Host "    winget uninstall cloudflared  (或删除 C:\Program Files\cloudflared\)"
+    Write-Host "  如需完全清除 NSSM:"
+    Write-Host "    Remove-Item 'C:\Program Files\nssm' -Recurse -Force"
+    Write-Host "------------------------------------------------------------"
+}
+
+# 入口：检测 -Uninstall 参数
+if ($Uninstall) {
+    Uninstall-All
+    exit 0
 }
 
 # 执行主流程
