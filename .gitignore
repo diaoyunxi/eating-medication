@@ -62,6 +62,9 @@ elderly_assistant/data/
 !updater.py
 # 放行根目录统一安装脚本（各模块 main.py 依赖它）
 !install.py
+# 放行跨平台一键部署脚本
+!setup.sh
+!setup.ps1
 # 放行跨端共享公共包（消除三端重复实现，仅依赖标准库）
 !common/
 !common/**/*.py

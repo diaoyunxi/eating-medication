@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.28.0**
+> 当前版本：**v2.29.0**
 > 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
@@ -303,12 +303,16 @@
 │   └── templates/                 # 9 个 Jinja2 页面模板（含 Turnstile 登录/注册）
 ├── history.md                     # 项目开发历史记录（版本基准）
 ├── VERSION                        # 当前版本号（v2.22.0）
-├── deploy/                        # 部署辅助文件（systemd 单元 + cloudflared 配置）
+├── deploy/                        # 部署辅助文件（一键脚本 + systemd 单元 + cloudflared 配置）
+│   ├── setup-linux.sh             # Linux 一键部署脚本（bash）
+│   ├── setup-mac.sh               # macOS 一键部署脚本（zsh）
 │   ├── eating-medication-server.service
 │   ├── eating-medication-family.service
 │   ├── cloudflared.service
 │   ├── cloudflared-config.yml
 │   └── README.md
+├── setup.sh                       # 跨平台一键部署引导器（POSIX sh）
+├── setup.ps1                      # Windows 一键部署脚本（PowerShell）
 └── .gitignore
 ```
 
@@ -638,7 +642,28 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 
 ## 部署与运维
 
-仓库已内置部署辅助文件，位于 [`deploy/`](./deploy) 目录，包含 systemd 服务单元与 cloudflared 隧道配置示例，详见 [`deploy/README.md`](./deploy/README.md)。
+### 一键部署（推荐）
+
+仓库提供跨平台一键部署脚本，支持 Linux（systemd）、macOS（launchd）、Windows（NSSM/计划任务），自动完成「装依赖 → 克隆代码 → 生成 .env → 安装服务并启动」。
+
+**Linux / macOS**：
+
+```bash
+# curl 一键部署（自动检测操作系统）
+curl -fsSL https://raw.githubusercontent.com/diaoyunxi/eating-medication/main/setup.sh | sh
+```
+
+**Windows**（以管理员身份运行 PowerShell）：
+
+```powershell
+irm https://raw.githubusercontent.com/diaoyunxi/eating-medication/main/setup.ps1 | iex
+```
+
+部署脚本支持三种公网访问模式：Cloudflare 隧道（推荐）、DDNS + Caddy 自动 HTTPS、仅内网访问。详见 [`deploy/README.md`](./deploy/README.md)。
+
+### 手动部署
+
+仓库已内置部署辅助文件，位于 [`deploy/`](./deploy) 目录，包含 systemd 服务单元与 cloudflared 隧道配置示例。
 
 ### Cloudflare 隧道（cloudflared）配置
 
