@@ -31,8 +31,8 @@ RAW_BASE="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BR
 
 # 镜像站列表（GitHub raw 失败时依次尝试）
 MIRRORS="
-https://gh.llkk.cc
 https://gh-proxy.com
+https://gh.my-website.ccwu.cc
 "
 
 # 平台脚本相对路径
