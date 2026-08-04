@@ -3,6 +3,27 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.10 (2026-08-04) — 登录/注册/安全设置页面 logo 由文字替换为图片
+
+### 概述
+family_monitor 三端认证页面（登录、注册、安全设置）的 `.auth-logo` 原为纯文字"子女守护中心"（`<div>` + CSS `font-size`），在有限宽度的 auth-card 中容易换行且视觉效果单调。本版本将其统一替换为用户提供的应用图标图片（`auth-logo.png`），保留原有上下浮动（bounce）动画，图片尺寸 80×80px 居中圆角显示。
+
+### 主要变更
+- feat(family): `login.html` / `register.html` / `security_setup.html` 三端认证页面的 `.auth-logo` 从 `<div>子女守护中心</div>` 替换为 `<img src=".../static/img/auth-logo.png" alt="子女守护中心">`
+- feat(family): 新增 `family_monitor/static/img/auth-logo.png` 应用图标资源
+- style(css): `.auth-logo` 样式从文本属性（`font-size` / `font-weight` / `white-space`）改为图片属性（`width: 80px` / `height: 80px` / `border-radius: 18px` / `display: block` / `margin: 0 auto`），保留 `bounce` 上下浮动动画
+
+### 涉及文件
+- `family_monitor/templates/login.html` — auth-logo 替换为 img 标签
+- `family_monitor/templates/register.html` — auth-logo 替换为 img 标签
+- `family_monitor/templates/security_setup.html` — auth-logo 替换为 img 标签
+- `family_monitor/static/css/style.css` — `.auth-logo` 样式适配图片
+- `family_monitor/static/img/auth-logo.png` — 新增应用图标
+- `VERSION` — 2.29.9 → 2.29.10
+- `history.md`
+
+---
+
 ## v2.29.9 (2026-08-04) — 修复 GitHub OAuth 回调网络超时导致 500 崩溃
 
 ### 概述
