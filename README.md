@@ -519,6 +519,13 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 | DELETE | `/public/device/medication_plan/{plan_id}` | 删除用药计划 | device_id |
 | POST | `/public/ai/ask` | 设备端 AI 提问 | 否（限流 10 次/分钟/IP） |
 
+#### 更新 `/updater`（无需鉴权）
+
+| 方法 | 路径 | 用途 | 认证 |
+|------|------|------|------|
+| GET | `/updater` | 访问即触发更新检查与安装（若 `AUTO_PULL=true` 则下载、校验、安装并重启） | 无 |
+| POST | `/updater` | 同 GET，供 CI 脚本语义化调用 | 无 |
+
 #### 根路径
 
 | 方法 | 路径 | 用途 |
@@ -622,8 +629,17 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 
 - 启动时通过 GitHub API 查询最新 Release（优先）/ Tag（回退）版本号。
 - 发现新版本时打印提示（当前版本、最新版本、下载地址），**非阻塞**，不影响主程序运行。
-- `auto_pull=True` 时若当前目录为 git 仓库，可执行 `git pull` 自动更新（默认 `False`）。
+- `AUTO_PULL=true`（根目录 `.env` 控制，缺省启用）时自动下载完整发布包、SHA256 校验后安全安装（保留 `.env` / `data/` / `logs/` 等保护文件）。
 - 网络异常或检查失败时静默/警告处理，不中断启动。
+
+### 服务端 HTTP 触发更新
+
+服务端额外提供 HTTP 端点 `/api/v1/updater`，**访问即触发更新**（无需鉴权）：
+
+- **GET** `/api/v1/updater`：直接触发一次更新检查与安装。
+- **POST** `/api/v1/updater`：行为与 GET 一致，供 CI 脚本语义化调用。
+
+两个方法行为完全相同：若远端存在更新版本且 `AUTO_PULL=true`，则下载完整发布包、做 SHA256 校验并安全复制到项目根目录，更新成功后自动重启服务。无需登录鉴权，便于 CI / 部署脚本 / 浏览器直接访问触发自更新。
 
 ### 三模块差异
 
