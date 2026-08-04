@@ -3,6 +3,23 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.7 (2026-08-04) — 修复 family 端登录页标题"子女守护中心"错误换行
+
+### 概述
+family_monitor 登录/注册/安全设置页面的 `.auth-logo` CSS 样式原为 emoji logo 设计（`font-size: 4rem`），但实际内容为 6 个汉字"子女守护中心"，在 auth-card 有限宽度（max-width: 420px, padding: 40px）下超出可用宽度导致换行（从"中"和"心"之间断开）。
+
+### 主要变更
+- fix(css): `.auth-logo` 的 `font-size` 从 `4rem` 降至 `2rem`，适配纯文本标题
+- fix(css): 添加 `white-space: nowrap` 防止标题在任何设备宽度下换行
+- fix(css): 添加 `font-weight: bold` 保持视觉层级
+
+### 涉及文件
+- `family_monitor/static/css/style.css` — `.auth-logo` 样式修正
+- `VERSION` — 2.29.6 → 2.29.7
+- `history.md`
+
+---
+
 ## v2.29.6 (2026-08-04) — 修复 updater API 返回版本号与 VERSION 文件不一致
 
 ### 概述
