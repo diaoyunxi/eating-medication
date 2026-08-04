@@ -96,7 +96,7 @@ class Display:
             self._status_text = self.gui.draw_text(
                 x=self.SCREEN_W - 10, y=self.SCREEN_H - 30,
                 text=status_str, font_size=10, color='#999999',
-                origin='top right'
+                origin='top_right'
             )
         except Exception as e:
             logger.error(f"绘制主界面失败: {e}")
@@ -267,7 +267,7 @@ class Display:
                 self._status_text = self.gui.draw_text(
                     x=self.SCREEN_W - 10, y=self.SCREEN_H - 30,
                     text=status_str, font_size=10, color='#999999',
-                    origin='top right'
+                    origin='top_right'
                 )
         except Exception as e:
             logger.error(f"更新连接状态失败: {e}")

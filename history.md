@@ -3,6 +3,27 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.5 (2026-08-04) — 修复 unihiker GUI origin 参数值错误
+
+### 概述
+验证 M10 相关依赖库（pinpong / unihiker / dfrobot_huskylensv2 / pyttsx3）的函数调用是否真实存在，发现 `core/display.py` 中 `origin='top right'`（带空格）不符合 unihiker 库 API 规范，应使用 `top_right`（带下划线）。传入错误值会导致 unihiker 静默回退到 `top_left`（左上角对齐），使底部服务器状态文本显示位置错误。
+
+### M10 依赖库 API 验证结果
+- **pinpong**（11 项 API）：全部真实存在（Board.begin / Pin.P25 / write_digital / button_a.is_pressed / buzzer.play / buzzer.BA_DING / buzzer.JUMP_UP / buzzer.Once / buzzer.stop / light）
+- **unihiker GUI**（7 项 API）：6 项真实存在，1 项**不存在**（`origin='top right'`，应为 `top_right`）
+- **dfrobot_huskylensv2**（6 项 API）：全部真实存在（HuskylensV2_I2C / HuskylensV2_UART / knock / takePhoto）
+- **pyttsx3**（6 项 API）：全部真实存在（init / setProperty / say / runAndWait / stop）
+
+### 主要变更
+- fix(display): 修复 `core/display.py` 中 2 处 `origin='top right'` → `origin='top_right'`（show_main_screen 和 show_status 方法中的底部服务器状态文本）
+
+### 涉及文件
+- `elderly_assistant/core/display.py` — 2 处 origin 参数值修正
+- `VERSION` — 2.29.4 → 2.29.5
+- `history.md`
+
+---
+
 ## v2.29.4 (2026-08-04) — updater 端点改为访问即更新且无需鉴权
 
 ### 概述
