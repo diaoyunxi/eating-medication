@@ -328,9 +328,21 @@
                 body: JSON.stringify(data)
             })
             .then(function(r) {
-                /* 防止 302 重定向到 /login 返回 HTML 导致 json() 解析失败 */
-                if (r.redirected || !r.ok) {
-                    throw new Error('会话可能已过期，请重新登录 (HTTP ' + r.status + ')');
+                /* 302 重定向到 /login 表示会话过期，返回的是 HTML 无法解析为 JSON */
+                if (r.redirected) {
+                    throw new Error('会话已过期，请重新登录');
+                }
+                /* 非 200 状态码：后端仍返回 JSON 错误体，需解析获取实际错误信息 */
+                if (!r.ok) {
+                    return r.json().then(function(errData) {
+                        throw new Error(errData.message || '操作失败 (HTTP ' + r.status + ')');
+                    }).catch(function(parseErr) {
+                        /* JSON 解析失败时回退为通用提示 */
+                        if (parseErr instanceof Error && parseErr.message) {
+                            throw parseErr;
+                        }
+                        throw new Error('操作失败 (HTTP ' + r.status + ')');
+                    });
                 }
                 return r.json();
             })
@@ -365,7 +377,12 @@
             if (!confirm('确定删除此用药提醒？')) return;
 
             fetch(PREFIX + '/medication_settings/delete/' + planId, { method: 'POST' })
-                .then(function(r) { return r.json(); })
+                .then(function(r) {
+                    if (r.redirected) {
+                        throw new Error('会话已过期，请重新登录');
+                    }
+                    return r.json();
+                })
                 .then(function(result) {
                     if (result.success) {
                         window.location.reload();
@@ -373,7 +390,7 @@
                         alert(result.message || '删除失败');
                     }
                 })
-                .catch(function(e) { alert('网络错误: ' + e.message); });
+                .catch(function(e) { alert('删除失败: ' + e.message); });
         }
 
         /* ===== 初始化 ===== */
