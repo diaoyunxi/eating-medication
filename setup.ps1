@@ -54,8 +54,8 @@ $script:NssmUrl      = "https://nssm.cc/release/nssm-$($script:NssmVersion).zip"
 
 # GitHub 镜像站列表
 $script:Mirrors = @(
-    "https://gh.llkk.cc",
-    "https://gh-proxy.com"
+    "https://gh-proxy.com",
+    "https://gh.my-website.ccwu.cc"
 )
 
 # ============================================================
