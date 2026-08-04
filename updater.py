@@ -543,16 +543,20 @@ def _restart_services():
 def get_update_info():
     """查询更新信息，返回结构化字典（供 API 端点 / 前端轮询使用）。
 
+    每次调用时动态读取 VERSION 文件获取当前版本号，避免进程启动后
+    VERSION 文件被更新（如 git pull）但进程未重启时返回旧版本号。
+
     :return: dict，包含以下字段
-        - current_version: 本地版本号
+        - current_version: 本地版本号（动态读取 VERSION 文件）
         - latest_version:  远端最新版本号（无网络时为 None）
         - update_available: bool，是否有可用更新
         - auto_pull:       当前 auto_pull 配置（bool，缺省 True）
         - release_url:     最新版本发布页 URL（无则为 None）
         - checked_at:      ISO 时间戳（本地）
     """
+    current_ver = _load_version()
     info = {
-        "current_version": __version__,
+        "current_version": current_ver,
         "latest_version": None,
         "update_available": False,
         "auto_pull": _AUTO_PULL,
@@ -563,7 +567,7 @@ def get_update_info():
         latest, release_url, _ = _fetch_latest_version()
         info["latest_version"] = latest
         info["release_url"] = release_url
-        if latest and _compare_versions(latest, __version__) > 0:
+        if latest and _compare_versions(latest, current_ver) > 0:
             info["update_available"] = True
     except Exception as e:
         logger.warning(f"[更新检查] 查询更新信息失败: {e}")
@@ -592,18 +596,20 @@ def check_for_update(auto_pull=None):
     info = get_update_info()
     latest = info["latest_version"]
     release_url = info["release_url"]
+    # 动态读取当前版本号（避免进程启动后 VERSION 更新但未重启时使用旧值）
+    current_ver = info["current_version"]
     try:
         if not latest:
             logger.warning(f"[更新检查] 无法获取最新版本（网络或 GitHub 异常），跳过检查")
             return info
 
-        if _compare_versions(latest, __version__) <= 0:
-            logger.info(f"[更新检查] 当前版本 v{__version__}，已是最新版本。")
+        if _compare_versions(latest, current_ver) <= 0:
+            logger.info(f"[更新检查] 当前版本 v{current_ver}，已是最新版本。")
             return info
 
         logger.info("=" * 50)
         logger.info("  发现新版本！")
-        logger.info(f"  当前版本: v{__version__}")
+        logger.info(f"  当前版本: v{current_ver}")
         logger.info(f"  最新版本: {latest}")
         logger.info(f"  下载地址: {release_url}")
         logger.info("=" * 50)
