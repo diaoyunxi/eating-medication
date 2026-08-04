@@ -334,6 +334,10 @@ async def _callback(
     except OAuth20AuthorizeCallbackError as e:
         logger.error(f"{provider} OAuth code 换 token 失败: {e.detail}")
         return _clear_and_redirect(state_cookie, f"{family_login}?error=oauth_fail")
+    except httpx.HTTPError as e:
+        # 网络超时/连接失败（如服务器访问 GitHub 受限）：不崩溃，优雅跳转登录页
+        logger.error(f"{provider} OAuth code 换 token 网络异常: {type(e).__name__}: {e}")
+        return _clear_and_redirect(state_cookie, f"{family_login}?error=oauth_timeout")
 
     access_token = token_data.get("access_token")
     if not access_token:
@@ -344,6 +348,9 @@ async def _callback(
     try:
         raw = await cfg["client"].get_userinfo(access_token)
         info = await _normalize_user(cfg, raw, access_token)
+    except httpx.HTTPError as e:
+        logger.error(f"{provider} OAuth 拉取用户信息网络异常: {type(e).__name__}: {e}")
+        return _clear_and_redirect(state_cookie, f"{family_login}?error=oauth_timeout")
     except Exception as e:
         logger.error(f"{provider} OAuth 拉取用户信息异常: {e}")
         return _clear_and_redirect(state_cookie, f"{family_login}?error=oauth_fail")
