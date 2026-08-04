@@ -1347,10 +1347,11 @@ img {
 }
 
 .auth-logo {
-    font-size: 2rem;
-    font-weight: bold;
-    white-space: nowrap;
-    margin-bottom: 16px;
+    display: block;
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 16px;
+    border-radius: 18px;
     animation: bounce 2s ease-in-out infinite;
 }
 
