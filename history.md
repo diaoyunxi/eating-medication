@@ -3,6 +3,23 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.6 (2026-08-04) — 修复 updater API 返回版本号与 VERSION 文件不一致
+
+### 概述
+`updater.py` 中 `__version__ = _load_version()` 在模块加载时（进程启动时）执行一次，之后不再更新。当服务运行期间 VERSION 文件被更新（如 git pull 或自动更新覆盖）但进程未重启时，`GET /api/v1/updater` 返回的 `current_version` 仍是旧版本号，导致与 `cat VERSION` 不一致。
+
+### 主要变更
+- fix(updater): `get_update_info()` 中 `current_version` 改为每次调用时动态读取 `_load_version()`，不再使用模块加载时固定的 `__version__`
+- fix(updater): `check_for_update()` 中所有版本比较与日志输出改为使用 `info["current_version"]`（动态读取值）
+- 保留 `__version__` 模块级常量供 `server/app/main.py` 和 `family_monitor/main.py` 的 `from updater import __version__` 使用（FastAPI 应用 version 参数，启动时设置）
+
+### 涉及文件
+- `updater.py` — `get_update_info()` 和 `check_for_update()` 中 `__version__` 替换为动态读取
+- `VERSION` — 2.29.5 → 2.29.6
+- `history.md`
+
+---
+
 ## v2.29.5 (2026-08-04) — 修复 unihiker GUI origin 参数值错误
 
 ### 概述
