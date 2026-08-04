@@ -3,6 +3,27 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.4 (2026-08-04) — updater 端点改为访问即更新且无需鉴权
+
+### 概述
+将服务端 `/api/v1/updater` 端点从「GET 仅返回版本信息、POST 触发更新、均需登录」改为「GET/POST 均直接触发更新检查与安装、无需鉴权」，使 CI / 部署脚本 / 浏览器直接访问即可完成自更新。
+
+### 主要变更
+- refactor(updater): GET `/updater` 从仅返回版本信息改为直接触发更新检查与安装（与 POST 行为一致）
+- refactor(updater): 移除 GET/POST 端点的 JWT 鉴权依赖（`get_current_user`），改为公开访问
+- refactor(updater): 移除不再使用的导入（`Depends`、`get_update_info`、`get_current_user`、`User`）
+- docs(readme): 新增「服务端 HTTP 触发更新」章节，说明 GET/POST 均触发更新且无需鉴权
+- docs(readme): API 文档新增 `/updater` 端点表格
+- docs(readme): 修正自动更新机制中 `auto_pull` 描述（实际由 `.env` 的 `AUTO_PULL` 控制，缺省 True）
+
+### 涉及文件
+- `server/app/api/v1/endpoints/updater.py` — GET/POST 均改为 `check_for_update()`，移除鉴权
+- `VERSION` — 2.29.3 → 2.29.4
+- `README.md` — API 文档新增 `/updater` 表格、自动更新机制章节更新
+- `history.md`
+
+---
+
 ## v2.28.0 (2026-08-01) — 多登录方式注册与绑定管理
 
 ### 概述
