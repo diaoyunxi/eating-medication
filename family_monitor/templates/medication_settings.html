@@ -329,6 +329,13 @@
                     body: JSON.stringify(payload)
                 });
 
+                /* 302 重定向到 /login 表示会话过期 */
+                if (response.redirected) {
+                    showToast('会话已过期，请重新登录', 'error');
+                    setTimeout(function() { location.href = '{{ prefix }}/login'; }, 1500);
+                    return;
+                }
+
                 const data = await response.json();
                 if (data.success) {
                     showToast(data.message || '用药计划添加成功', 'success');
@@ -351,6 +358,13 @@
                 const response = await fetch('{{ prefix }}/medication_settings/delete/' + planId, {
                     method: 'POST'
                 });
+
+                /* 302 重定向到 /login 表示会话过期 */
+                if (response.redirected) {
+                    showToast('会话已过期，请重新登录', 'error');
+                    setTimeout(function() { location.href = '{{ prefix }}/login'; }, 1500);
+                    return;
+                }
 
                 const data = await response.json();
                 if (data.success) {

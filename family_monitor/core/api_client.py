@@ -40,6 +40,32 @@ class ElderlyAPIClient(BaseServerClient):
             headers["X-Device-Token"] = self._device_token
         return headers
 
+    @staticmethod
+    def _extract_error(response) -> str:
+        """从服务端非 200 响应中提取可读错误信息
+
+        服务端 HTTPException 返回 ``{"detail": "..."}``，
+        family_monitor BFF 返回 ``{"success": false, "message": "..."}``，
+        其他情况回退为状态码。
+
+        :param response: httpx.Response 对象
+        :return: 可直返前端的错误文案
+        """
+        try:
+            body = response.json()
+            if isinstance(body, dict):
+                # FastAPI HTTPException 格式
+                detail = body.get("detail")
+                if detail:
+                    return str(detail)
+                # BFF JSONResponse 格式
+                message = body.get("message")
+                if message:
+                    return str(message)
+        except Exception:
+            pass
+        return f"服务端返回状态码: {response.status_code}"
+
     def _load_bound_device_id(self) -> Optional[str]:
         """加载已绑定的设备ID"""
         device_file = config.DATA_DIR / "bound_device.json"
@@ -179,7 +205,7 @@ class ElderlyAPIClient(BaseServerClient):
         调用 POST /api/v1/public/device/medication_plan
         """
         if not self._device_id:
-            return {"success": False, "error": "未绑定设备，请先绑定设备"}
+            return {"success": False, "error": "未绑定 M10 设备，请先在设置页面绑定设备后再添加用药计划"}
 
         # remaining_quantity 未指定时默认等于 total_quantity
         if remaining_quantity is None:
@@ -203,7 +229,7 @@ class ElderlyAPIClient(BaseServerClient):
             if response.status_code == 200:
                 return {"success": True, "data": response.json()}
             else:
-                return {"success": False, "error": f"状态码: {response.status_code}"}
+                return {"success": False, "error": self._extract_error(response)}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -219,7 +245,7 @@ class ElderlyAPIClient(BaseServerClient):
             if response.status_code == 200:
                 return {"success": True, "data": response.json()}
             else:
-                return {"success": False, "error": f"状态码: {response.status_code}"}
+                return {"success": False, "error": self._extract_error(response)}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -240,7 +266,7 @@ class ElderlyAPIClient(BaseServerClient):
         调用 PUT /api/v1/public/device/medication_plan/{plan_id}
         """
         if not self._device_id:
-            return {"success": False, "error": "未绑定设备，请先绑定设备"}
+            return {"success": False, "error": "未绑定 M10 设备，请先在设置页面绑定设备后再更新用药计划"}
 
         if remaining_quantity is None:
             remaining_quantity = total_quantity
@@ -263,7 +289,7 @@ class ElderlyAPIClient(BaseServerClient):
             if response.status_code == 200:
                 return {"success": True, "data": response.json()}
             else:
-                return {"success": False, "error": f"状态码: {response.status_code}"}
+                return {"success": False, "error": self._extract_error(response)}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

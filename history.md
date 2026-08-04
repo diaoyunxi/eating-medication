@@ -3,6 +3,35 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.11 (2026-08-04) — 修复新增用药提醒始终报"会话可能已过期"的错误提示
+
+### 概述
+family_monitor 的 `reminders.html` 在保存用药提醒时，前端 fetch 错误处理逻辑有缺陷：当后端返回 HTTP 400（如未绑定设备、设备令牌无效等业务错误）时，前端不解析 JSON 响应体中的实际错误信息，而是统一抛出"会话可能已过期，请重新登录 (HTTP 400)"，导致用户无法看到真实失败原因。同时 `api_client.py` 在服务端返回非 200 时仅透传"状态码: 403"等无意义信息，未提取响应体中的 `detail` 字段。
+
+### 根因分析
+错误链路：前端 POST → BFF `add_medication_plan` → `elderly_client.set_medication_plan` → 服务端 `POST /public/device/medication_plan`
+
+1. **未绑定 M10 设备**：`set_medication_plan` 检测 `self._device_id` 为 None，返回 `{"success": False, "error": "未绑定设备"}`
+2. **BFF 包装错误**：`home.py` 将其包装为 HTTP 400 JSON 响应 `{"success": False, "message": "添加失败: 未绑定设备..."}`
+3. **前端错误**：`reminders.html` 检查 `r.redirected || !r.ok`，遇到 400 直接抛出"会话可能已过期"，**不读取 JSON 响应体**
+
+### 主要变更
+- fix(reminders): `reminders.html` 的 `saveRow` fetch 错误处理重构——302 重定向时才提示"会话过期"，非 200 状态码时解析 JSON 响应体获取后端返回的实际错误信息
+- fix(reminders): `reminders.html` 的 `deletePlan` 同步修复 302 重定向检测
+- fix(medication_settings): `medication_settings.html` 的添加/删除操作增加 302 重定向检测，避免会话过期时 JSON 解析失败
+- fix(api_client): 新增 `_extract_error` 方法，从服务端非 200 响应中提取 `detail`（FastAPI HTTPException）或 `message`（BFF JSONResponse）字段，替代无意义的"状态码: xxx"
+- fix(api_client): `set_medication_plan` / `update_medication_plan` / `delete_medication_plan` 三个方法均接入 `_extract_error`
+- fix(api_client): 未绑定设备时的错误提示从"未绑定设备，请先绑定设备"改为"未绑定 M10 设备，请先在设置页面绑定设备后再添加用药计划"，更明确地引导用户
+
+### 涉及文件
+- `family_monitor/templates/reminders.html` — `saveRow` 和 `deletePlan` 的 fetch 错误处理重构
+- `family_monitor/templates/medication_settings.html` — 添加/删除操作增加 302 重定向检测
+- `family_monitor/core/api_client.py` — 新增 `_extract_error` 方法，三个用药计划方法接入，未绑定设备提示优化
+- `VERSION` — 2.29.10 → 2.29.11
+- `history.md`
+
+---
+
 ## v2.29.10 (2026-08-04) — 登录/注册/安全设置页面 logo 由文字替换为图片
 
 ### 概述
