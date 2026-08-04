@@ -3,6 +3,21 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.8 (2026-08-04) — 修复 security_headers 中间件 pop 方法不存在导致 500 崩溃
+
+### 概述
+`SecurityHeadersMiddleware` 中使用 `response.headers.pop(h, None)` 移除废弃响应头，但 Starlette 的 `MutableHeaders` 对象没有 `pop` 方法，导致每个请求在安全头处理阶段抛出 `AttributeError: 'MutableHeaders' object has no attribute 'pop'`，返回 500 错误。
+
+### 主要变更
+- fix(middleware): `security_headers.py` 中 `response.headers.pop(h, None)` 改为 `del response.headers[h]` + `try/except KeyError` 容错
+
+### 涉及文件
+- `server/app/middleware/security_headers.py` — 用 `del` 替代不存在的 `pop` 方法
+- `VERSION` — 2.29.7 → 2.29.8
+- `history.md`
+
+---
+
 ## v2.29.7 (2026-08-04) — 修复 family 端登录页标题"子女守护中心"错误换行
 
 ### 概述

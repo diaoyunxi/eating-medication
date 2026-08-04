@@ -30,5 +30,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         for h in _DEPRECATED_HEADERS:
-            response.headers.pop(h, None)
+            # MutableHeaders 没有 pop 方法，用 __delitem__ + 容错替代
+            try:
+                del response.headers[h]
+            except KeyError:
+                pass
         return response
