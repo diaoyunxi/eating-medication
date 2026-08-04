@@ -3,6 +3,24 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.9 (2026-08-04) — 修复 GitHub OAuth 回调网络超时导致 500 崩溃
+
+### 概述
+服务器在中国大陆访问 `github.com:443` 响应极慢，OAuth 回调换取 access_token 时触发 `httpx.ReadTimeout`（30 秒超时）。`_callback` 中仅捕获 `OAuth20AuthorizeCallbackError`，未捕获 `httpx.HTTPError`，导致未处理异常 bubbling up 返回 500 错误。同时 family_monitor 登录页未读取 `?error=` 查询参数，用户看不到任何错误提示。
+
+### 主要变更
+- fix(oauth): `_callback` 换 token 的 `try/except` 新增 `httpx.HTTPError` 捕获，网络超时时优雅跳转登录页并携带 `?error=oauth_timeout`
+- fix(oauth): `_callback` 拉取用户信息的 `try/except` 新增 `httpx.HTTPError` 捕获，区分网络超时与其他异常
+- feat(family): `login_page` 读取 `?error=` 查询参数，映射为用户可读的中文提示（`oauth_timeout` / `oauth_fail` / `oauth_state` / `oauth_code` / `oauth_token` / `oauth_user`）
+
+### 涉及文件
+- `server/app/api/v1/endpoints/oauth.py` — `_callback` 新增 `httpx.HTTPError` 异常捕获
+- `family_monitor/routes/auth.py` — `login_page` 读取 error 查询参数并映射为中文提示
+- `VERSION` — 2.29.8 → 2.29.9
+- `history.md`
+
+---
+
 ## v2.29.8 (2026-08-04) — 修复 security_headers 中间件 pop 方法不存在导致 500 崩溃
 
 ### 概述
