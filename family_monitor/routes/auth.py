@@ -78,17 +78,30 @@ async def get_turnstile_site_key():
     return {"site_key": config.TURNSTILE_SITE_KEY}
 
 
+# OAuth 回调错误码 → 用户可读提示
+_OAUTH_ERROR_MESSAGES = {
+    "oauth_fail": "第三方登录失败，请稍后重试或使用其他方式登录",
+    "oauth_timeout": "网络连接超时（服务器访问第三方可能受限），请稍后重试或使用其他方式登录",
+    "oauth_state": "登录状态校验失败，请重新尝试第三方登录",
+    "oauth_code": "授权码无效或已过期，请重新尝试第三方登录",
+    "oauth_token": "获取登录令牌失败，请稍后重试或使用其他方式登录",
+    "oauth_user": "获取用户信息失败，请稍后重试或使用其他方式登录",
+}
+
+
 @router.get("/login")
 async def login_page(request: Request):
     """登录页面：渲染 login.html 模板
 
-    补回被误删的 GET /login 路由。
+    读取 ?error= 查询参数（OAuth 回调异常跳转时携带），映射为用户可读提示。
     前端 JS 检测到 Turnstile 不可用时降级为传统表单提交（后端兜底校验）。
     """
+    error_code = request.query_params.get("error", "")
+    error_msg = _OAUTH_ERROR_MESSAGES.get(error_code, "")
     return templates.TemplateResponse(
         request,
         "login.html",
-        {"app_name": config.APP_NAME},
+        {"app_name": config.APP_NAME, "error": error_msg or None},
     )
 
 
