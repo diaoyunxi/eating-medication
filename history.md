@@ -3,6 +3,35 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.14 (2026-08-05) — 统一全站设备状态栏样式
+
+### 概述
+首页（dashboard）与其他页面的设备状态栏存在视觉不一致：左侧 status-icon 使用了多种不同元素（Unicode 圆点、SVG 图标、emoji、CSS 圆点指示器），右侧 status-badge 文字风格也各不相同（Unicode 符号、纯文字、emoji、CSS 圆点）。此外 reminders 和 records 页面缺少 status-subtitle（设备ID），且标题文字使用"老人端在线/离线"而非设备名。本次统一全站 6 个页面的状态栏。
+
+### 统一方案
+- 左侧 status-icon：统一为主页风格（Unicode 实心圆 `●` / 空心圆 `○`）
+- 右侧 status-badge：统一为 CSS 圆点 + 文字风格（`<span class="status-badge-dot"></span> 设备在线/离线`）
+- 标题/副标题：统一为主页风格（设备名 + 设备ID/未绑定设备）
+- JS 轮询：所有页面的 `refreshDeviceStatus` 函数统一使用 `innerHTML` 更新 badge，并同步更新 subtitle
+
+### 主要变更
+- style(css): 添加通用 `.status-card.online/offline .status-badge-dot` 颜色规则，确保非 page-home 页面圆点也有颜色
+- fix(dashboard): 右侧 badge 从 Unicode 符号改为 CSS 圆点 + 文字
+- fix(reminders): 右侧 badge 改为 CSS 圆点；标题从"老人端在线/离线"改为设备名；新增 status-subtitle 显示设备ID
+- fix(records): 左侧 SVG 图标改为 Unicode 圆点；右侧 badge 改为 CSS 圆点；标题从"老人端在线/离线"改为设备名；新增 status-subtitle
+- fix(settings): 右侧 badge 从 Unicode 符号改为 CSS 圆点 + 文字
+- fix(medication_settings): 左侧 emoji 改为 Unicode 圆点；右侧 badge 从 emoji 改为 CSS 圆点 + 文字
+- fix(index): 左侧 `status-indicator`（CSS 圆点指示器）改为 `status-icon`（Unicode 圆点）；JS 从 class 操作改为 innerHTML 更新
+
+### 涉及文件
+- `family_monitor/static/css/style.css` — 添加通用 status-badge-dot 颜色规则
+- `family_monitor/templates/dashboard.html` — badge HTML + JS 更新
+- `family_monitor/templates/reminders.html` — badge + 标题/副标题 + JS 更新
+- `family_monitor/templates/records.html` — 左侧图标 + badge + 标题/副标题 + JS 更新
+- `family_monitor/templates/settings.html` — badge HTML + JS 更新
+- `family_monitor/templates/medication_settings.html` — 左侧图标 + badge + JS 更新
+- `family_monitor/templates/index.html` — 左侧 status-indicator 改为 status-icon + JS 更新
+
 ## v2.29.13 (2026-08-05) — 修复消息页面 Internal Server Error
 
 ### 概述

@@ -18,16 +18,23 @@
                 </div>
                 <div class="status-text">
                     <div class="status-title">
+                        {{ device_info.device_name if device_info else "未知设备" }}
+                    </div>
+                    <div class="status-subtitle">
                         {% if device_info and device_info.device_id %}
-                            {% if device_info.connected %}老人端在线{% else %}老人端离线{% endif %}
-                        {% else %}未绑定设备{% endif %}
+                            设备ID: {{ device_info.device_id }}
+                        {% else %}
+                            未绑定设备
+                        {% endif %}
                     </div>
                 </div>
             </div>
             <div class="status-badge">
-                {% if device_info and device_info.device_id %}
-                    {% if device_info.connected %}&#10003; 连接正常{% else %}&#9888; 已断开{% endif %}
-                {% else %}&#9888; 设备离线{% endif %}
+                {% if device_info and device_info.connected %}
+                    <span class="status-badge-dot"></span> 设备在线
+                {% else %}
+                    <span class="status-badge-dot"></span> 设备离线
+                {% endif %}
             </div>
         </div>
     </div>
@@ -452,17 +459,20 @@
                     if(!card) return;
                     var badge = card.querySelector('.status-badge');
                     var title = card.querySelector('.status-title');
+                    var subtitle = card.querySelector('.status-subtitle');
                     var online = !!(data && data.connected);
                     var hasDevice = !!(data && data.device_id);
                     if(online){
                         card.classList.remove('offline'); card.classList.add('online');
                         if(title){ title.textContent = (data.device_name || '设备在线'); }
-                        if(badge){ badge.textContent = '设备在线'; }
+                        if(subtitle){ subtitle.textContent = hasDevice ? ('设备ID: ' + data.device_id) : '未绑定设备'; }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备在线'; }
                     } else {
                         card.classList.remove('online'); card.classList.add('offline');
                         if(!hasDevice){ if(title){ title.textContent = '未绑定设备'; } }
                         else { if(title){ title.textContent = (data.device_name || '设备离线'); } }
-                        if(badge){ badge.textContent = '设备离线'; }
+                        if(subtitle){ subtitle.textContent = hasDevice ? ('设备ID: ' + data.device_id) : '未绑定设备'; }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
                     }
                 })
                 .catch(function(){});

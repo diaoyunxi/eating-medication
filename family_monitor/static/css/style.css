@@ -371,6 +371,15 @@ img {
     color: #7b3a38;
 }
 
+/* 通用圆点颜色（非 page-home 页面也可正确渲染） */
+.status-card.online .status-badge-dot {
+    background: #3d5c4a;
+}
+
+.status-card.offline .status-badge-dot {
+    background: #7b3a38;
+}
+
 /* =============================================
    按钮样式
    ============================================= */
