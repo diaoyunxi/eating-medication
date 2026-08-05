@@ -99,9 +99,8 @@ async def login_page(request: Request):
     error_code = request.query_params.get("error", "")
     error_msg = _OAUTH_ERROR_MESSAGES.get(error_code, "")
     return templates.TemplateResponse(
-        request,
         "login.html",
-        {"app_name": config.APP_NAME, "error": error_msg or None},
+        {"request": request, "app_name": config.APP_NAME, "error": error_msg or None},
     )
 
 
@@ -123,9 +122,9 @@ async def register_page(request: Request):
     oauth_mode = oauth == "1"
 
     return templates.TemplateResponse(
-        request,
         "register.html",
         {
+            "request": request,
             "app_name": config.APP_NAME,
             "oauth_mode": oauth_mode,
             "oauth_provider": provider,
@@ -808,6 +807,7 @@ async def security_setup_page(request: Request):
     """安全设置页：引导绑定 TOTP 第二因子与通行密钥（需登录，由 auth_middleware 保护）"""
     token = request.cookies.get("access_token", "")
     context = {
+        "request": request,
         "app_name": config.APP_NAME,
         "mfa_enabled": False,
         "credentials": [],
@@ -831,4 +831,4 @@ async def security_setup_page(request: Request):
                 context["credentials"] = creds.json()
         except Exception:
             pass
-    return templates.TemplateResponse(request, "security_setup.html", context)
+    return templates.TemplateResponse("security_setup.html", context)

@@ -3,6 +3,32 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.17 (2026-08-05) — 修复全站 TemplateResponse API 不兼容导致 500
+
+### 概述
+v2.29.13 修复了 `chat.py` 缺少 `config` 导入的问题，但 `/chat` 仍返回 500 Internal Server Error。经深入排查，发现根因是 Starlette 0.27.0（FastAPI 0.104.1 自带）的 `TemplateResponse` 签名为 `(name, context, ...)`，而所有路由都使用了 Starlette 0.28.0+ 才支持的 `TemplateResponse(request, name, context)` 新 API，导致 `ValueError: context must include a "request" key`。此问题影响全站所有页面（首页、提醒、记录、仪表板、设置、消息、登录、注册、安全设置），不只是 /chat。
+
+### 根因分析
+- `requirements.txt` 固定 `fastapi==0.104.1`，自带 `starlette==0.27.0`
+- Starlette 0.27.0 的 `TemplateResponse(self, name, context, ...)` 不接受 `request` 作为第一个位置参数
+- 代码中 10 处调用均使用 `TemplateResponse(request, "name.html", {...})` 新 API（Starlette 0.28.0+）
+- Starlette 0.27.0 将 `request` 对象解释为模板名，将 `"name.html"` 解释为 context（字符串），触发 `ValueError`
+- auth.py 中 3 处调用的 context 还缺少 `"request": request` 键
+
+### 主要变更
+- fix(routes): `routes/chat.py` — `TemplateResponse` 调用从 `(request, name, context)` 改为 `(name, context)`（context 已包含 `"request": request`）
+- fix(routes): `routes/home.py` — 6 处 `TemplateResponse` 调用同样修复（index/reminders/records/dashboard/settings/medication_settings）
+- fix(routes): `routes/auth.py` — 3 处 `TemplateResponse` 调用修复（login/register/security_setup），并为 login、register、security_setup 的 context 补充缺失的 `"request": request` 键
+
+### 涉及文件
+- `family_monitor/routes/chat.py` — 1 处 TemplateResponse 调用修复
+- `family_monitor/routes/home.py` — 6 处 TemplateResponse 调用修复
+- `family_monitor/routes/auth.py` — 3 处 TemplateResponse 调用修复 + 3 处 context 补充 `"request"` 键
+- `VERSION` — 2.29.16 → 2.29.17
+- `history.md`
+
+---
+
 ## v2.29.16 (2026-08-05) — 修复 GitHub 登录授权阶段 ConnectTimeout 未捕获导致 500
 
 ### 概述
