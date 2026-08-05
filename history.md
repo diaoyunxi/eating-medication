@@ -16,10 +16,13 @@ v2.29.17 的 Release 发布后，服务器通过自动更新升级到 v2.29.17�
 
 ### 主要变更
 - fix(updater): 新增 `_purge_pycache()` 函数，在自动更新复制文件完成后、重启服务前，递归删除项目目录下所有 `__pycache__` 目录（跳过 `.venv`/`venv`/`.git` 内的缓存），确保 Python 重新编译所有 `.py` 文件
+- feat(reset_runtime): 新增 `_print_diagnostics()` 诊断函数，在 `--reset` 重置完成后输出诊断报告，包含版本号、关键路由文件导入完整性检查、`__pycache__` 残留检测、`.env` 保留状态、重置统计和综合结论
 - chore: VERSION 升级至 2.29.18，触发自动更新流程重新拉取完整代码并清除缓存
 
 ### 涉及文件
 - `updater.py` — 新增 `_purge_pycache()` 函数；`_perform_update()` 在文件复制完成后调用该函数
+- `reset_runtime.py` — 新增 `_print_diagnostics()` 函数和 `_CRITICAL_FILES` 检查表；`__main__` 入口调用诊断输出
+- `family_monitor/main.py` — `--reset` 模式调用 `_print_diagnostics()` 输出诊断报告
 - `VERSION` — 2.29.17 → 2.29.18
 - `history.md`
 

@@ -398,7 +398,7 @@ def main():
     # 执行并退出，删除用户密码库与老人端设备数据等本地文件，
     # 仅保留 .env / logs，使工作树接近全新 clone 状态
     if "--reset" in sys.argv:
-        from reset_runtime import reset_runtime_data, confirm_reset
+        from reset_runtime import reset_runtime_data, confirm_reset, _print_diagnostics
         print("=" * 60)
         print(" 重置运行时数据模式 (--reset)")
         if not confirm_reset():
@@ -413,8 +413,8 @@ def main():
             for p in skipped:
                 print("   !", p)
         print(" 已保留: .env / logs/")
-        print(" 工作树现已接近全新 clone 状态（仅上述两项差异）。")
-        print("=" * 60)
+        # 输出诊断报告，检查关键文件完整性和 __pycache__ 残留
+        _print_diagnostics(Path(project_root), deleted, skipped)
         sys.exit(0)
 
     # 启动期集中校验「最基本必填」配置；缺失或非法则打印提示并结束进程
