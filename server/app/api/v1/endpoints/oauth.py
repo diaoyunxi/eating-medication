@@ -392,7 +392,7 @@ async def _callback(
             db.commit()
             logger.info(
                 f"OAuth({provider}) 绑定成功: user={bind_user.username}, "
-                f"email={_mask_email(oauth_email)}"
+                f"email={_mask_email(info.get('email') or '')}"
             )
             resp = _clear_and_redirect(state_cookie, f"{family_settings}")
             resp.delete_cookie(key="oauth_bind_jwt", path="/")

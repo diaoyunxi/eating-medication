@@ -3,6 +3,27 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.12 (2026-08-05) — 修复设置页 OAuth 绑定成功却提示失败 & 手机/邮箱绑定弹窗不可见
+
+### 概述
+设置页「登录方式管理」存在两个缺陷：
+1. GitHub/Gitee 绑定实际已成功（数据库已写入），但用户看到"第三方绑定失败，请重试"——根因是 `oauth.py` 绑定成功日志中引用了未定义的 `oauth_email` 变量，触发 `NameError` 被 `except Exception` 捕获后走入了 `?error=bind_fail` 分支。
+2. 手机号/邮箱绑定按钮点击后弹窗不可见——根因是 CSS `.modal-overlay` 默认 `visibility: hidden; opacity: 0`，需添加 `.show` 类才可见，但 `openModal()` 仅设置 `display: flex` 未添加 `.show` 类。
+
+### 主要变更
+- fix(oauth): `_callback` 绑定模式成功分支中，`logger.info` 的 `oauth_email` 改为 `info.get("email")`，消除 `NameError`
+- fix(settings): `openModal()` 增加 `classList.add('show')` 使弹窗可见（配合 CSS transition 动画）
+- fix(settings): `closeModal()` 改为先移除 `.show` 类触发淡出动画，200ms 后再设 `display: none`
+- fix(settings): `openModal/closeModal` 增加元素存在性校验（`if (!el) return`）
+
+### 涉及文件
+- `server/app/api/v1/endpoints/oauth.py` — 绑定成功日志变量修复
+- `family_monitor/templates/settings.html` — `openModal/closeModal` 添加 `.show` 类逻辑
+- `VERSION` — 2.29.11 → 2.29.12
+- `history.md`
+
+---
+
 ## v2.29.11 (2026-08-04) — 修复新增用药提醒始终报"会话可能已过期"的错误提示
 
 ### 概述

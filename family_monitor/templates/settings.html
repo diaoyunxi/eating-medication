@@ -854,10 +854,19 @@
 
             // 弹窗控制
             window.openModal = function (id) {
-                document.getElementById(id).style.display = 'flex';
+                var el = document.getElementById(id);
+                if (!el) return;
+                el.style.display = 'flex';
+                /* 触发重排后添加 show 类，使 transition 动画生效 */
+                void el.offsetWidth;
+                el.classList.add('show');
             };
             window.closeModal = function (id) {
-                document.getElementById(id).style.display = 'none';
+                var el = document.getElementById(id);
+                if (!el) return;
+                el.classList.remove('show');
+                /* 动画结束后隐藏 display */
+                setTimeout(function () { el.style.display = 'none'; }, 200);
             };
 
             // 绑定手机号
