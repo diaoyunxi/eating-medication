@@ -13,7 +13,7 @@
         <div class="status-bar">
             <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
                 <div class="status-info">
-                    <div class="status-icon">{{ "✅" if device_info and device_info.connected else "❌" }}</div>
+                    <div class="status-icon">{% if device_info and device_info.connected %}&#9679;{% else %}&#9675;{% endif %}</div>
                     <div class="status-text">
                         <div class="status-title">{{ device_info.device_name if device_info else "未知设备" }}</div>
                         <div class="status-subtitle">
@@ -27,9 +27,9 @@
                 </div>
                 <div class="status-badge">
                     {% if device_info and device_info.connected %}
-                        🟢 设备在线
+                        <span class="status-badge-dot"></span> 设备在线
                     {% else %}
-                        🔴 设备离线
+                        <span class="status-badge-dot"></span> 设备离线
                     {% endif %}
                 </div>
             </div>
@@ -460,7 +460,7 @@
                     if(online){
                         card.classList.remove('offline'); card.classList.add('online');
                         if(title){ title.textContent = (data.device_name || '设备在线'); }
-                        if(badge){ badge.textContent = '设备在线'; }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备在线'; }
                     } else {
                         card.classList.remove('online'); card.classList.add('offline');
                         if(!hasDevice){
@@ -468,7 +468,7 @@
                         } else {
                             if(title){ title.textContent = (data.device_name || '设备离线'); }
                         }
-                        if(badge){ badge.textContent = '设备离线'; }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
                     }
                 })
                 .catch(function(e){
@@ -477,7 +477,7 @@
                     if(card){
                         card.classList.remove('online'); card.classList.add('offline');
                         var badge = card.querySelector('.status-badge');
-                        if(badge){ badge.textContent = '设备离线'; }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
                     }
                 });
         }

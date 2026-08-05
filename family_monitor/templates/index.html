@@ -17,7 +17,9 @@
             <div class="status-bar">
                 <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
                     <div class="status-info">
-                        <div class="status-indicator {% if device_info and device_info.connected %}dot-online{% else %}dot-offline{% endif %}"></div>
+                        <div class="status-icon">
+                            {% if device_info and device_info.connected %}&#9679;{% else %}&#9675;{% endif %}
+                        </div>
                         <div class="status-text">
                             <div class="status-title">
                                 {{ device_info.device_name if device_info else "未知设备" }}
@@ -277,7 +279,7 @@
                 .then(function(response) { return response.json(); })
                 .then(function(data) {
                     var statusCard = document.querySelector('.status-card');
-                    var statusIndicator = document.querySelector('.status-indicator');
+                    var statusIcon = document.querySelector('.status-icon');
                     var statusTitle = document.querySelector('.status-title');
                     var statusBadge = document.querySelector('.status-badge');
                     if (!statusCard) return;
@@ -285,19 +287,19 @@
                     if (!data.device_id) {
                         statusCard.classList.remove('online');
                         statusCard.classList.add('offline');
-                        if (statusIndicator) { statusIndicator.classList.remove('dot-online'); statusIndicator.classList.add('dot-offline'); }
+                        if (statusIcon) { statusIcon.innerHTML = '&#9675;'; }
                         if (statusTitle) { statusTitle.textContent = '未绑定设备'; }
                         if (statusBadge) { statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
                     } else if (data.connected) {
                         statusCard.classList.remove('offline');
                         statusCard.classList.add('online');
-                        if (statusIndicator) { statusIndicator.classList.remove('dot-offline'); statusIndicator.classList.add('dot-online'); }
+                        if (statusIcon) { statusIcon.innerHTML = '&#9679;'; }
                         if (statusTitle) { statusTitle.textContent = data.device_name || '设备在线'; }
                         if (statusBadge) { statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备在线'; }
                     } else {
                         statusCard.classList.remove('online');
                         statusCard.classList.add('offline');
-                        if (statusIndicator) { statusIndicator.classList.remove('dot-online'); statusIndicator.classList.add('dot-offline'); }
+                        if (statusIcon) { statusIcon.innerHTML = '&#9675;'; }
                         if (statusTitle) { statusTitle.textContent = data.device_name || '设备离线'; }
                         if (statusBadge) { statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
                     }
@@ -309,8 +311,8 @@
                     if (statusCard) {
                         statusCard.classList.remove('online');
                         statusCard.classList.add('offline');
-                        var statusIndicator = document.querySelector('.status-indicator');
-                        if (statusIndicator) { statusIndicator.classList.remove('dot-online'); statusIndicator.classList.add('dot-offline'); }
+                        var statusIcon = document.querySelector('.status-icon');
+                        if (statusIcon) { statusIcon.innerHTML = '&#9675;'; }
                         var statusBadge = document.querySelector('.status-badge');
                         if (statusBadge) { statusBadge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
                     }

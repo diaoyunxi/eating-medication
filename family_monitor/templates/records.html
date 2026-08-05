@@ -15,15 +15,18 @@
             <div class="status-info">
                 <div class="status-icon">
                     {% if device_info and device_info.connected %}
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        &#9679;
                     {% else %}
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                        &#9675;
                     {% endif %}
                 </div>
                 <div class="status-text">
                     <div class="status-title">
+                        {{ device_info.device_name if device_info else "未知设备" }}
+                    </div>
+                    <div class="status-subtitle">
                         {% if device_info and device_info.device_id %}
-                            {% if device_info.connected %}老人端在线{% else %}老人端离线{% endif %}
+                            设备ID: {{ device_info.device_id }}
                         {% else %}
                             未绑定设备
                         {% endif %}
@@ -31,10 +34,10 @@
                 </div>
             </div>
             <div class="status-badge">
-                {% if device_info and device_info.device_id %}
-                    {% if device_info.connected %}连接正常{% else %}已断开{% endif %}
+                {% if device_info and device_info.connected %}
+                    <span class="status-badge-dot"></span> 设备在线
                 {% else %}
-                    设备离线
+                    <span class="status-badge-dot"></span> 设备离线
                 {% endif %}
             </div>
         </div>
@@ -279,12 +282,14 @@
                     if(!card) return;
                     var badge = card.querySelector('.status-badge');
                     var title = card.querySelector('.status-title');
+                    var subtitle = card.querySelector('.status-subtitle');
                     var online = !!(data && data.connected);
                     var hasDevice = !!(data && data.device_id);
                     if(online){
                         card.classList.remove('offline'); card.classList.add('online');
                         if(title){ title.textContent = (data.device_name || '设备在线'); }
-                        if(badge){ badge.textContent = '设备在线'; }
+                        if(subtitle){ subtitle.textContent = hasDevice ? ('设备ID: ' + data.device_id) : '未绑定设备'; }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备在线'; }
                     } else {
                         card.classList.remove('online'); card.classList.add('offline');
                         if(!hasDevice){
@@ -292,7 +297,8 @@
                         } else {
                             if(title){ title.textContent = (data.device_name || '设备离线'); }
                         }
-                        if(badge){ badge.textContent = '设备离线'; }
+                        if(subtitle){ subtitle.textContent = hasDevice ? ('设备ID: ' + data.device_id) : '未绑定设备'; }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
                     }
                 })
                 .catch(function(e){
@@ -301,7 +307,7 @@
                     if(card){
                         card.classList.remove('online'); card.classList.add('offline');
                         var badge = card.querySelector('.status-badge');
-                        if(badge){ badge.textContent = '设备离线'; }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
                     }
                 });
         }
