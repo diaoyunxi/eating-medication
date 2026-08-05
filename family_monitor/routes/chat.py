@@ -6,7 +6,7 @@
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from core import elderly_client
+from core import config, elderly_client
 from routes.web_helpers import templates, require_login, login_redirect, unauthorized_json
 
 router = APIRouter()

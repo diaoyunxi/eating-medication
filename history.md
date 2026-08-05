@@ -3,6 +3,21 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.13 (2026-08-05) — 修复消息页面 Internal Server Error
+
+### 概述
+family_monitor 消息页面（`/chat`）访问时返回 500 Internal Server Error。根因是 `routes/chat.py` 中使用了 `config.APP_NAME`、`config.ELDERLY_SERVER_URL`、`config.PATH_PREFIX`，但从未导入 `config` 模块，导致 `NameError`。
+
+### 主要变更
+- fix(chat): `routes/chat.py` 导入行从 `from core import elderly_client` 改为 `from core import config, elderly_client`
+
+### 涉及文件
+- `family_monitor/routes/chat.py` — 补充 `config` 模块导入
+- `VERSION` — 2.29.12 → 2.29.13
+- `history.md`
+
+---
+
 ## v2.29.12 (2026-08-05) — 修复设置页 OAuth 绑定成功却提示失败 & 手机/邮箱绑定弹窗不可见
 
 ### 概述
