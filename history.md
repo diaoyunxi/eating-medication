@@ -3,6 +3,30 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.16 (2026-08-05) — 修复 GitHub 登录授权阶段 ConnectTimeout 未捕获导致 500
+
+### 概述
+用户点击「GitHub 登录」时，服务器在 OAuth 授权阶段（`_authorize` 函数构造授权地址）抛出 `httpx.ConnectTimeout`，该异常未被 try/except 捕获，直接 bubbling up 返回 500 Internal Server Error。此问题是 v2.29.9 修复回调阶段超时的遗留：当时仅给 `_callback` 添加了 `httpx.HTTPError` 捕获，但 `_authorize` 函数中的 `get_authorization_url` 调用同样可能触发网络超时（服务器访问 GitHub 受限），却完全没有异常处理。
+
+### 根因分析
+- `_authorize` 函数调用 `await cfg["client"].get_authorization_url(...)` 时未包裹 try/except
+- `ConnectTimeout` 属于 `httpx.HTTPError` 子类，但该函数无任何异常捕获
+- 异常直接传播到 FastAPI 路由处理器，返回 500 错误
+- `_bind_authorize` 函数通过调用 `_authorize` 间接继承同一问题
+
+### 主要变更
+- fix(oauth): `_authorize` 函数新增 `error_url` 参数，`get_authorization_url` 调用包裹 try/except，捕获 `httpx.HTTPError`（含 `ConnectTimeout`）后优雅跳转登录页并携带 `?error=oauth_timeout`；捕获 `Exception` 后跳转 `?error=oauth_fail`
+- fix(oauth): `_bind_authorize` 调用 `_authorize` 时传入 `error_url` 指向设置页（`?error=oauth_timeout`），绑定模式异常跳转设置页而非登录页
+- fix(frontend): `settings.html` URL 参数检测新增 `oauth_timeout` 分支，显示「网络连接超时，服务器访问第三方可能受限，请稍后重试」
+
+### 涉及文件
+- `server/app/api/v1/endpoints/oauth.py` — `_authorize` 新增 try/except 与 `error_url` 参数；`_bind_authorize` 传入 `error_url`
+- `family_monitor/templates/settings.html` — 新增 `oauth_timeout` 错误提示
+- `VERSION` — 2.29.15 → 2.29.16
+- `history.md`
+
+---
+
 ## v2.29.15 (2026-08-05) — 仪表盘数据可视化消除虚假数据
 
 ### 概述

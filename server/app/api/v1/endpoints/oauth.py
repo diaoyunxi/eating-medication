@@ -235,8 +235,15 @@ async def _normalize_user(cfg: dict, raw: dict, access_token: str) -> dict:
 
 
 # ===================== 通用流程实现 =====================
-async def _authorize(provider: str) -> RedirectResponse:
-    """发起第三方授权：设 state cookie 并 302 跳转授权页"""
+async def _authorize(
+    provider: str, error_url: Optional[str] = None
+) -> RedirectResponse:
+    """发起第三方授权：设 state cookie 并 302 跳转授权页
+
+    :param provider: OAuth 提供商名称（github / gitee）
+    :param error_url: 网络异常时的跳转地址。未指定时默认跳转登录页并携带
+                      ``?error=oauth_timeout``。绑定模式应传入设置页地址。
+    """
     cfg = _OAUTH.get(provider)
     if cfg is None:
         return JSONResponse(
@@ -249,12 +256,23 @@ async def _authorize(provider: str) -> RedirectResponse:
 
     # 委托 fastapi-oauth20 构造授权地址（自动拼接 client_id / redirect_uri / scope / state）
     extra = {"allow_signup": "true"} if cfg.get("allow_signup") else {}
-    auth_url = await cfg["client"].get_authorization_url(
-        redirect_uri=cfg["callback_url"],
-        state=state,
-        scope=cfg["scope"],
-        **extra,
-    )
+    try:
+        auth_url = await cfg["client"].get_authorization_url(
+            redirect_uri=cfg["callback_url"],
+            state=state,
+            scope=cfg["scope"],
+            **extra,
+        )
+    except httpx.HTTPError as e:
+        # 网络超时/连接失败（如服务器访问 GitHub 受限）：不崩溃，优雅跳转
+        logger.error(f"{provider} OAuth 构造授权地址网络异常: {type(e).__name__}: {e}")
+        target = error_url or f"{settings.FAMILY_WEB_URL}/login?error=oauth_timeout"
+        return RedirectResponse(url=target, status_code=302)
+    except Exception as e:
+        logger.error(f"{provider} OAuth 构造授权地址异常: {type(e).__name__}: {e}")
+        target = error_url or f"{settings.FAMILY_WEB_URL}/login?error=oauth_fail"
+        return RedirectResponse(url=target, status_code=302)
+
     resp = RedirectResponse(url=auth_url, status_code=302)
     resp.set_cookie(
         key=f"oauth_state_{provider}",
@@ -293,9 +311,13 @@ async def _bind_authorize(provider: str, request: Request) -> RedirectResponse:
         logger.warning(f"OAuth 绑定模式 JWT 验证失败: {e}")
         return RedirectResponse(url=f"{family_settings}?error=invalid_token", status_code=302)
 
-    # 走正常 authorize 流程
-    resp = await _authorize(provider)
+    # 走正常 authorize 流程（绑定模式异常跳转设置页而非登录页）
+    resp = await _authorize(
+        provider, error_url=f"{family_settings}?error=oauth_timeout"
+    )
     # 附加 bind cookie（短生命周期，10 分钟）
+    # 注意：若 _authorize 因网络异常返回错误跳转，此 cookie 仍会被设置，
+    # 但不会造成安全问题（10 分钟后自动过期，且不会被回调流程使用）。
     resp.set_cookie(
         key="oauth_bind_jwt",
         value=token,
