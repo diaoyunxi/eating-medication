@@ -10,7 +10,8 @@ SSL 上下文、认证头合并与 URL 拼接，消除了原先散落的重复�
 
 import json
 import os
-from datetime import datetime
+from collections import defaultdict
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 
 from core.config import config
@@ -367,19 +368,175 @@ class ElderlyAPIClient(BaseServerClient):
         return []
 
     async def get_dashboard_data(self) -> Dict[str, Any]:
-        """获取仪表板数据"""
+        """获取仪表板数据（基于真实提醒和记录计算，无虚假数据）"""
         try:
             reminders = await self.get_reminders()
             records = await self.get_medication_records()
 
+            # ---- 摘要 ----
             total_reminders = len(reminders)
             active_reminders = len([r for r in reminders if r.get('enabled', True)])
             taken_today = len([r for r in reminders if r.get('taken_today', False)])
             pending_today = active_reminders - taken_today
 
             total_records = len(records)
-            confirmed_records = len([r for r in records if r.get('confirmed', False)])
-            adherence_rate = int((confirmed_records / total_records * 100) if total_records > 0 else 0)
+            # status 字段: "taken" 表示已服药
+            taken_records = len([r for r in records if r.get('status') == 'taken'])
+            adherence_rate = int((taken_records / total_records * 100) if total_records > 0 else 0)
+
+            # ---- 药品列表（从 plans 提取） ----
+            medications = [
+                {
+                    'id': p.get('id'),
+                    'name': p.get('drug_name', '未知药品'),
+                    'dosage': p.get('dosage', ''),
+                    'frequency': p.get('frequency', ''),
+                    'schedule_times': p.get('schedule_times', []),
+                    'total_quantity': p.get('total_quantity', 0),
+                    'remaining_quantity': p.get('remaining_quantity', 0),
+                    'unit': p.get('unit', ''),
+                    'low_stock_threshold': p.get('low_stock_threshold', 0),
+                }
+                for p in reminders
+            ]
+
+            # ---- 构建 plan_id → drug_name 映射 ----
+            plan_drug_map = {p.get('id'): p.get('drug_name', '未知药品') for p in reminders}
+
+            # ---- 7天趋势：按日期分组统计 taken / missed / scheduled ----
+            today = datetime.now().date()
+            date_labels = []
+            trend_taken = []
+            trend_scheduled = []
+            trend_missed = []
+
+            for i in range(6, -1, -1):
+                d = today - timedelta(days=i)
+                date_labels.append(d.strftime('%m-%d'))
+                day_taken = 0
+                day_scheduled = 0
+                day_missed = 0
+                for r in records:
+                    scheduled_str = r.get('scheduled_time', '')
+                    if not scheduled_str:
+                        continue
+                    try:
+                        scheduled_date = datetime.fromisoformat(scheduled_str).date()
+                    except (ValueError, TypeError):
+                        continue
+                    if scheduled_date == d:
+                        day_scheduled += 1
+                        status = r.get('status', '')
+                        if status == 'taken':
+                            day_taken += 1
+                        elif status == 'missed':
+                            day_missed += 1
+                # 未记录的也计入漏服
+                day_missed += max(0, day_scheduled - day_taken - day_missed)
+                trend_taken.append(day_taken)
+                trend_scheduled.append(day_scheduled)
+                trend_missed.append(day_missed)
+
+            # ---- 按药品统计服药次数 ----
+            drug_stats = defaultdict(lambda: {'taken': 0, 'missed': 0, 'total': 0})
+            for r in records:
+                plan_id = r.get('plan_id')
+                drug_name = plan_drug_map.get(plan_id, '未知药品')
+                drug_stats[drug_name]['total'] += 1
+                if r.get('status') == 'taken':
+                    drug_stats[drug_name]['taken'] += 1
+                elif r.get('status') == 'missed':
+                    drug_stats[drug_name]['missed'] += 1
+
+            # ---- 日历热力图数据：按日期统计服药次数 ----
+            calendar_data = []
+            cal_by_date = defaultdict(int)
+            for r in records:
+                taken_str = r.get('taken_time', '')
+                if not taken_str:
+                    scheduled_str = r.get('scheduled_time', '')
+                    if scheduled_str:
+                        taken_str = scheduled_str
+                if taken_str:
+                    try:
+                        cal_date = datetime.fromisoformat(taken_str).strftime('%Y-%m-%d')
+                        if r.get('status') == 'taken':
+                            cal_by_date[cal_date] += 1
+                    except (ValueError, TypeError):
+                        continue
+            for date_str, count in cal_by_date.items():
+                calendar_data.append([date_str, count])
+
+            # ---- 药品 × 星期 热力矩阵 ----
+            weekday_labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+            drug_names_list = [m['name'] for m in medications] if medications else []
+            heat_matrix = []
+            if drug_names_list:
+                for di, dname in enumerate(drug_names_list):
+                    for wi in range(7):
+                        count = 0
+                        for r in records:
+                            if plan_drug_map.get(r.get('plan_id')) != dname:
+                                continue
+                            scheduled_str = r.get('scheduled_time', '')
+                            if not scheduled_str:
+                                continue
+                            try:
+                                scheduled_date = datetime.fromisoformat(scheduled_str)
+                            except (ValueError, TypeError):
+                                continue
+                            if scheduled_date.weekday() == wi and r.get('status') == 'taken':
+                                count += 1
+                        heat_matrix.append([di, wi, count])
+
+            # ---- 甘特图：各药品服药时段 ----
+            gantt_data = []
+            for m in medications:
+                times = m.get('schedule_times', [])
+                for t_str in times:
+                    try:
+                        hour = int(t_str.split(':')[0])
+                        gantt_data.append({
+                            'name': m['name'],
+                            'start': hour,
+                            'end': hour + 1
+                        })
+                    except (ValueError, IndexError):
+                        continue
+
+            # ---- funnel 漏斗数据 ----
+            funnel_data = [
+                {'value': total_records, 'name': '总记录'},
+                {'value': taken_records, 'name': '已服药'},
+                {'value': total_records - taken_records, 'name': '未服药'},
+            ]
+
+            # ---- 近期活动（从 records 构建） ----
+            recent_activities = []
+            for r in records[:5]:
+                drug_name = plan_drug_map.get(r.get('plan_id'), '未知药品')
+                status = r.get('status', '')
+                action = '已服用' if status == 'taken' else ('漏服' if status == 'missed' else '待服')
+                time_str = r.get('taken_time') or r.get('scheduled_time') or ''
+                recent_activities.append({
+                    'id': r.get('id'),
+                    'type': 'medication',
+                    'action': action,
+                    'name': drug_name,
+                    'time': time_str,
+                    'icon': '💊'
+                })
+
+            # ---- 即将到来的提醒 ----
+            upcoming = []
+            for p in reminders[:5]:
+                times = p.get('schedule_times', [])
+                upcoming.append({
+                    'id': p.get('id'),
+                    'name': p.get('drug_name', '未知药品'),
+                    'time': ', '.join(times) if times else p.get('frequency', ''),
+                    'status': 'pending'
+                })
 
             return {
                 'summary': {
@@ -390,17 +547,21 @@ class ElderlyAPIClient(BaseServerClient):
                     'adherence_rate': adherence_rate,
                     'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 },
-                'upcoming_reminders': [
-                    {'id': r.get('id'), 'name': r.get('name'), 'time': r.get('time'), 'status': 'pending'}
-                    for r in reminders[:5] if r.get('enabled', True)
-                ],
-                'recent_activities': [
-                    {'id': r.get('id'), 'type': 'medication', 'action': '已服用',
-                     'name': r.get('medication_name'), 'time': r.get('taken_at'), 'icon': '💊'}
-                    for r in records[:5]
-                ],
-                'chart_data': [],
-                'medications': []
+                'upcoming_reminders': upcoming,
+                'recent_activities': recent_activities,
+                'medications': medications,
+                'chart_data': {
+                    'days': date_labels,
+                    'taken': trend_taken,
+                    'scheduled': trend_scheduled,
+                    'missed': trend_missed,
+                    'drug_stats': dict(drug_stats),
+                    'calendar': calendar_data,
+                    'heat_matrix': heat_matrix,
+                    'drug_names': drug_names_list,
+                    'gantt': gantt_data,
+                    'funnel': funnel_data,
+                }
             }
         except Exception:
             pass
@@ -414,7 +575,7 @@ class ElderlyAPIClient(BaseServerClient):
             },
             'upcoming_reminders': [],
             'recent_activities': [],
-            'chart_data': [],
+            'chart_data': {},
             'medications': []
         }
 
