@@ -3,6 +3,28 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.29.18 (2026-08-05) — 修复自动更新后 __pycache__ 残留导致旧代码未生效
+
+### 概述
+v2.29.17 的 Release 发布后，服务器通过自动更新升级到 v2.29.17（VERSION 文件已更新），但 `/chat` 仍返回 500 Internal Server Error。服务器日志显示 `NameError: name 'config' is not defined`，即 `chat.py` 的 `from core import config, elderly_client` 导入未生效。
+
+### 根因分析
+- 自动更新覆盖 `.py` 文件后，旧的 `__pycache__/*.pyc` 字节码缓存未被清除
+- `__pycache__` 在 `runtime_protection.py` 的保护列表中（更新时不覆盖），但更新后也未主动删除
+- Python 在某些时序条件下（如文件系统 mtime 精度不足、NTP 时钟漂移）可能优先加载旧 `.pyc` 而非重新编译 `.py`
+- 导致 `chat.py` 源码已更新但进程仍运行旧字节码，`config` 导入缺失
+
+### 主要变更
+- fix(updater): 新增 `_purge_pycache()` 函数，在自动更新复制文件完成后、重启服务前，递归删除项目目录下所有 `__pycache__` 目录（跳过 `.venv`/`venv`/`.git` 内的缓存），确保 Python 重新编译所有 `.py` 文件
+- chore: VERSION 升级至 2.29.18，触发自动更新流程重新拉取完整代码并清除缓存
+
+### 涉及文件
+- `updater.py` — 新增 `_purge_pycache()` 函数；`_perform_update()` 在文件复制完成后调用该函数
+- `VERSION` — 2.29.17 → 2.29.18
+- `history.md`
+
+---
+
 ## v2.29.17 (2026-08-05) — 修复全站 TemplateResponse API 不兼容导致 500
 
 ### 概述
