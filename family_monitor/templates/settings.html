@@ -146,9 +146,9 @@
             </div>
             <div class="status-badge">
                 {% if device_info and device_info.connected %}
-                    &#10003; 设备在线
+                    <span class="status-badge-dot"></span> 设备在线
                 {% else %}
-                    &#9888; 设备离线
+                    <span class="status-badge-dot"></span> 设备离线
                 {% endif %}
             </div>
         </div>
@@ -622,7 +622,7 @@
                     if(online){
                         card.classList.remove('offline'); card.classList.add('online');
                         if(title){ title.textContent = (data.device_name || '设备在线'); }
-                        if(badge){ badge.textContent = '设备在线'; }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备在线'; }
                     } else {
                         card.classList.remove('online'); card.classList.add('offline');
                         if(!hasDevice){
@@ -630,7 +630,7 @@
                         } else {
                             if(title){ title.textContent = (data.device_name || '设备离线'); }
                         }
-                        if(badge){ badge.textContent = '设备离线'; }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
                     }
                 })
                 .catch(function(e){
@@ -639,7 +639,7 @@
                     if(card){
                         card.classList.remove('online'); card.classList.add('offline');
                         var badge = card.querySelector('.status-badge');
-                        if(badge){ badge.textContent = '设备离线'; }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
                     }
                 });
         }
