@@ -27,6 +27,18 @@ from pathlib import Path
 # 保留项判定复用 common 单一事实来源（is_reset_preserved_path 别名 _is_preserved）
 from common.runtime_protection import is_reset_preserved_path as _is_preserved
 
+
+# ---------------------------------------------------------------------------
+# 诊断检查项：重置后输出当前项目状态，帮助用户确认问题是否已解决
+# ---------------------------------------------------------------------------
+# 关键路由文件 → 应包含的导入片段（用于检测源码完整性）
+# 同时兼容 ``from core import config`` 和 ``from core.config import config`` 两种写法
+_CRITICAL_FILES = {
+    "family_monitor/routes/chat.py": ["from core", "import config"],
+    "family_monitor/routes/home.py": ["from core", "import config"],
+    "family_monitor/routes/auth.py": ["from core", "import config"],
+}
+
 # 保留项（.env / logs/）判定已上收至 common.runtime_protection.is_reset_preserved_path
 # 兜底显式删除的运行时数据目录（相对仓库根）
 EXPLICIT_DATA_DIRS = (
@@ -165,6 +177,132 @@ def confirm_reset():
     return ans == "YES"
 
 
+def _print_diagnostics(repo_root: Path, deleted: list, skipped: list):
+    """重置完成后输出诊断报告，帮助用户确认问题是否已解决。
+
+    检查项：
+    1. 当前 VERSION
+    2. 关键路由文件是否存在且包含必要导入（如 config）
+    3. 残留 __pycache__ / .pyc 文件数量
+    4. .env 文件是否保留
+    5. 重置统计（已删除 / 跳过）
+
+    :param repo_root: 仓库根目录
+    :param deleted: 已删除文件列表
+    :param skipped: 跳过文件列表
+    """
+    print("\n" + "=" * 60)
+    print(" 重置后诊断报告")
+    print("=" * 60)
+
+    # 1. 版本号
+    version_file = repo_root / "VERSION"
+    if version_file.is_file():
+        version = version_file.read_text(encoding="utf-8").strip()
+        print(f"\n[1] 当前版本: {version}")
+    else:
+        print(f"\n[1] ✗ VERSION 文件不存在!")
+
+    # 2. 关键文件完整性
+    print(f"\n[2] 关键路由文件检查:")
+    all_ok = True
+    for rel_path, required_imports in _CRITICAL_FILES.items():
+        fpath = repo_root / rel_path
+        if not fpath.is_file():
+            print(f"  ✗ {rel_path} — 文件不存在!")
+            all_ok = False
+            continue
+        content = fpath.read_text(encoding="utf-8")
+        missing = [imp for imp in required_imports if imp not in content]
+        if missing:
+            print(f"  ✗ {rel_path} — 缺少导入: {missing}")
+            all_ok = False
+        else:
+            print(f"  ✓ {rel_path} — 导入完整")
+    if all_ok:
+        print("  → 所有关键文件导入正常")
+
+    # 3. 残留 __pycache__
+    remaining_caches = []
+    remaining_pyc = []
+    for item in repo_root.rglob("__pycache__"):
+        if item.is_dir():
+            # 跳过 venv 目录
+            try:
+                rel = item.relative_to(repo_root)
+                if any(p in (".venv", "venv", "env", ".git") for p in rel.parts):
+                    continue
+            except ValueError:
+                continue
+            remaining_caches.append(str(item))
+            for pyc in item.glob("*.pyc"):
+                remaining_pyc.append(str(pyc))
+    for pyc in repo_root.rglob("*.pyc"):
+        if "__pycache__" not in str(pyc):
+            remaining_pyc.append(str(pyc))
+
+    print(f"\n[3] __pycache__ 清理状态:")
+    if not remaining_caches and not remaining_pyc:
+        print("  ✓ 已全部清除，无残留缓存")
+    else:
+        print(f"  ✗ 仍有 {len(remaining_caches)} 个 __pycache__ 目录残留")
+        print(f"  ✗ 仍有 {len(remaining_pyc)} 个 .pyc 文件残留")
+        if remaining_caches:
+            print(f"    残留目录示例:")
+            for c in remaining_caches[:5]:
+                print(f"      - {c}")
+        # 提示用户手动清除
+        if remaining_caches:
+            print(f"  ⚠ 请手动执行: find {repo_root} -type d -name __pycache__ "
+                  f"-not -path '*/.venv/*' -not -path '*/venv/*' -exec rm -rf {{}} +")
+
+    # 4. .env 保留状态
+    print(f"\n[4] .env 保留状态:")
+    env_files = list(repo_root.rglob(".env"))
+    if not env_files:
+        print("  ⚠ 未找到任何 .env 文件（首次运行时将由程序自动生成）")
+    else:
+        for ef in env_files:
+            try:
+                rel = ef.relative_to(repo_root)
+            except ValueError:
+                rel = ef
+            print(f"  ✓ {rel} 已保留")
+
+    # 5. 重置统计
+    print(f"\n[5] 重置统计:")
+    print(f"  已删除: {len(deleted)} 项")
+    print(f"  跳过: {len(skipped)} 项")
+    if skipped:
+        print(f"  跳过详情（前 5 项）:")
+        for s in skipped[:5]:
+            print(f"    - {s}")
+
+    # 6. 综合结论
+    print(f"\n[6] 结论:")
+    issues = []
+    if not all_ok:
+        issues.append("关键路由文件导入不完整（可能导致 500 错误）")
+    if remaining_caches or remaining_pyc:
+        issues.append("仍有 __pycache__/.pyc 残留（可能导致旧代码被加载）")
+    if not env_files:
+        issues.append(".env 文件缺失（首次运行会自动生成）")
+
+    if not issues:
+        print("  ✓ 重置完成，未发现问题。请重启服务后验证。")
+    else:
+        print("  ⚠ 仍存在以下问题:")
+        for issue in issues:
+            print(f"    - {issue}")
+        print("\n  建议操作:")
+        if remaining_caches:
+            print("    1. 手动清除 __pycache__（见上方命令）")
+        print("    2. 检查关键文件是否为最新版本（git pull 或重新下载 release）")
+        print("    3. 重启服务: systemctl restart eating-medication-family")
+
+    print("\n" + "=" * 60)
+
+
 if __name__ == "__main__":
     # 允许 `python reset_runtime.py` 直接运行（需指定仓库根目录，默认当前目录）
     root = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
@@ -172,4 +310,5 @@ if __name__ == "__main__":
         print("已取消。")
         sys.exit(0)
     d, s = reset_runtime_data(root)
-    print(f"已删除 {len(d)} 项；跳过 {len(s)} 项。")
+    # 输出重置后诊断报告
+    _print_diagnostics(Path(root).resolve(), d, s)
