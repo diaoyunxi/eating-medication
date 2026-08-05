@@ -400,6 +400,35 @@ def _copy_file_safe(src: Path, dst: Path):
         return False
 
 
+def _purge_pycache(project_dir: Path):
+    """递归删除项目目录下所有 __pycache__ 目录及其中的 .pyc/.pyo 文件。
+
+    自动更新覆盖 .py 文件后，旧的 .pyc 缓存可能因 mtime 竞态未被 Python 重新编译，
+    导致进程加载旧字节码（表现为「VERSION 已更新但行为未变」）。
+    更新后主动清除所有 __pycache__ 可彻底消除此隐患。
+
+    :param project_dir: 项目根目录路径
+    """
+    purged = 0
+    for cache_dir in project_dir.rglob("__pycache__"):
+        if not cache_dir.is_dir():
+            continue
+        # 跳过 .venv / venv 等保护目录内的缓存
+        try:
+            rel = cache_dir.relative_to(project_dir)
+        except ValueError:
+            continue
+        if any(part in (".venv", "venv", "env", ".git") for part in rel.parts):
+            continue
+        try:
+            shutil.rmtree(cache_dir, ignore_errors=True)
+            purged += 1
+        except Exception as e:
+            logger.debug(f"[更新检查] 清除 __pycache__ 失败 {cache_dir}: {e}")
+    if purged:
+        logger.info(f"[更新检查] 已清除 {purged} 个 __pycache__ 目录")
+
+
 def _perform_update(zip_path, project_dir):
     """执行安全更新：解压完整发布包到临时目录，跳过保护文件，复制到项目根目录。
 
@@ -478,6 +507,9 @@ def _perform_update(zip_path, project_dir):
         # 校验关键文件存在，确认更新完整性
         if not (project_dir / "updater.py").exists():
             raise RuntimeError("更新后 updater.py 缺失")
+
+        # 清除所有 __pycache__ 目录，防止 Python 加载旧 .pyc 缓存导致代码更新未生效
+        _purge_pycache(project_dir)
 
         logger.info(f"[更新检查] 更新完成: 复制 {updated_count} 个文件，跳过 {skipped_count} 个保护文件")
         # 更新成功，清理备份
