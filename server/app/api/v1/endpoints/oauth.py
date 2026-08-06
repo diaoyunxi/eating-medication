@@ -56,6 +56,39 @@ router = APIRouter()
 OAUTH_HTTP_TIMEOUT = httpx.Timeout(connect=15, read=30, write=15, pool=15)
 
 
+# 复用项目根目录 .env 的 GITHUB_PROXY（加速站镜像或正向代理），使 OAuth 出站请求走代理。
+# 与根目录 updater.py 共用同一份代理解析，避免配置分散、行为不一致。
+try:
+    from updater import (
+        _GITHUB_PROXY as _OAUTH_PROXY,
+        _IS_MIRROR as _OAUTH_IS_MIRROR,
+        _MIRROR_BASE as _OAUTH_MIRROR_BASE,
+    )
+except Exception:  # 代理模块不可用/未配置时退化为直连
+    _OAUTH_PROXY = None
+    _OAUTH_IS_MIRROR = False
+    _OAUTH_MIRROR_BASE = None
+
+
+def _oauth_proxy_kwargs() -> dict:
+    """为 httpx 客户端构造代理参数（仅正向代理场景；镜像前缀走 URL 改写，不在此处注入）。"""
+    if _OAUTH_IS_MIRROR or not _OAUTH_PROXY:
+        return {}
+    return {"proxy": _OAUTH_PROXY}
+
+
+def _oauth_rewrite_url(url: str) -> str:
+    """镜像前缀场景下改写 GitHub 目标 URL；覆盖 github.com 与 api.github.com
+    （当前镜像站支持 api.github.com）。Gitee 等非 GitHub 域名原样返回。
+    正向代理/无代理时原样返回。
+    """
+    if _OAUTH_IS_MIRROR and _OAUTH_MIRROR_BASE and (
+        url.startswith("https://github.com/") or url.startswith("https://api.github.com/")
+    ):
+        return f"{_OAUTH_MIRROR_BASE}/{url}"
+    return url
+
+
 class _OAuth20TimeoutMixin:
     """为 OAuth20Base.get_access_token 注入更长 httpx 超时的混入类。
 
@@ -78,9 +111,9 @@ class _OAuth20TimeoutMixin:
             auth = httpx.BasicAuth(self.client_id, self.client_secret)
         if code_verifier:
             data.update({"code_verifier": code_verifier})
-        async with httpx.AsyncClient(auth=auth, timeout=OAUTH_HTTP_TIMEOUT) as client:
+        async with httpx.AsyncClient(auth=auth, timeout=OAUTH_HTTP_TIMEOUT, **_oauth_proxy_kwargs()) as client:
             response = await client.post(
-                self.access_token_endpoint,
+                _oauth_rewrite_url(self.access_token_endpoint),
                 data=data,
                 headers=self.request_headers,
             )
@@ -94,13 +127,13 @@ class GitHubOAuth20Timeout(_OAuth20TimeoutMixin, GitHubOAuth20):
 
     async def get_userinfo(self, access_token: str) -> dict[str, Any]:
         headers = {"Authorization": f"Bearer {access_token}"}
-        async with httpx.AsyncClient(headers=headers, timeout=OAUTH_HTTP_TIMEOUT) as client:
-            response = await client.get(self.userinfo_endpoint)
+        async with httpx.AsyncClient(headers=headers, timeout=OAUTH_HTTP_TIMEOUT, **_oauth_proxy_kwargs()) as client:
+            response = await client.get(_oauth_rewrite_url(self.userinfo_endpoint))
             self.raise_httpx_oauth20_errors(response)
             result = self.get_json_result(response, err_class=GetUserInfoError)
             email = result.get("email")
             if email is None:
-                response = await client.get(f"{self.userinfo_endpoint}/emails")
+                response = await client.get(_oauth_rewrite_url(f"{self.userinfo_endpoint}/emails"))
                 self.raise_httpx_oauth20_errors(response)
                 emails = self.get_json_result(response, err_class=GetUserInfoError)
                 email = next(
@@ -205,7 +238,9 @@ async def _fetch_email(emails_api: str, access_token: str, auth_header: str) -> 
         "User-Agent": "eating-medication",
     }
     try:
-        resp = httpx.get(emails_api, headers=headers, timeout=OAUTH_HTTP_TIMEOUT)
+        # Gitee 稳定，保持直连；仅 GitHub 目标应用根目录 GITHUB_PROXY
+        _kwargs = {} if "gitee.com" in emails_api else _oauth_proxy_kwargs()
+        resp = httpx.get(_oauth_rewrite_url(emails_api), headers=headers, timeout=OAUTH_HTTP_TIMEOUT, **_kwargs)
         emails = resp.json()
         if isinstance(emails, list) and emails:
             # 优先取「主邮箱且已验证」，否则取列表首个
