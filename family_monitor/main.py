@@ -391,14 +391,14 @@ def main():
     """主函数"""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
-    # 仓库根目录（SCRIPT_DIR.parent，含 reset_runtime.py 与统一迁移的 updater.py）
+    # 仓库根目录（SCRIPT_DIR.parent，含统一迁移的 updater.py，重置逻辑已并入其中）
     project_root = str(SCRIPT_DIR.parent)
 
     # 重置运行时数据模式（--reset）：在任何副作用（校验配置 / 检查更新 / 启动）之前
     # 执行并退出，删除用户密码库与老人端设备数据等本地文件，
     # 仅保留 .env / logs，使工作树接近全新 clone 状态
     if "--reset" in sys.argv:
-        from reset_runtime import reset_runtime_data, confirm_reset, _print_diagnostics
+        from updater import reset_runtime_data, confirm_reset, _print_diagnostics
         print("=" * 60)
         print(" 重置运行时数据模式 (--reset)")
         if not confirm_reset():

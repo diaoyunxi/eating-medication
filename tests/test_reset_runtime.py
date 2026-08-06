@@ -14,12 +14,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# 仓库根目录需在 sys.path 中才能导入 reset_runtime
+# 仓库根目录需在 sys.path 中才能导入 updater（reset_runtime 已迁入）
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from reset_runtime import reset_runtime_data, _is_preserved  # noqa: E402
+from updater import reset_runtime_data, _is_preserved  # noqa: E402
 
 
 class TestIsPreserved(unittest.TestCase):
