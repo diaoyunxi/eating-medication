@@ -232,7 +232,7 @@ def main():
     # 仅保留 .env / config.json / logs，使工作树接近全新 clone 状态
     if "--reset" in sys.argv:
         _root = str(Path(__file__).resolve().parent.parent)
-        from reset_runtime import reset_runtime_data, confirm_reset
+        from updater import reset_runtime_data, confirm_reset
         print("=" * 60)
         print(" 重置运行时数据模式 (--reset)")
         if not confirm_reset():

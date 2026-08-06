@@ -37,11 +37,12 @@ import zipfile
 import tempfile
 import hashlib
 import logging
+import fnmatch
+import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 import urllib.request
 import urllib.error
-import subprocess
 
 # ============================================================
 # 版本与仓库常量
@@ -224,7 +225,7 @@ def _open_url(url, timeout, headers=None):
 # （更新 / 部署场景：不覆盖 .env、data/、logs/、*.db 等运行时数据）
 # 保留原函数名 _is_protected_path 以兼容内部调用与既有测试。
 # ============================================================
-from common.runtime_protection import is_protected_path as _is_protected_path
+from common.runtime_protection import is_protected_path as _is_protected_path, is_reset_preserved_path
 
 
 # ============================================================
@@ -429,11 +430,13 @@ def _purge_pycache(project_dir: Path):
         logger.info(f"[更新检查] 已清除 {purged} 个 __pycache__ 目录")
 
 
-def _perform_update(zip_path, project_dir):
+def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
     """执行安全更新：解压完整发布包到临时目录，跳过保护文件，复制到项目根目录。
 
     :param zip_path: 下载的 release 完整 zip 文件路径
     :param project_dir: 项目根目录路径（即本 updater.py 所在目录）
+    :param protected_check: 受保护判定函数(rel_path) -> bool，默认 is_protected_path；
+                             强制更新场景可传入「is_protected_path 或命中 .gitignore」的合并判定
     :return: (success: bool, updated_count: int, skipped_count: int)
     """
     project_dir = Path(project_dir).resolve()
@@ -479,7 +482,7 @@ def _perform_update(zip_path, project_dir):
             rel_str = str(rel_path).replace("\\", "/")
 
             # 检查是否保护（源路径视角）
-            if _is_protected_path(rel_str):
+            if protected_check(rel_str):
                 logger.debug(f"[更新检查] 跳过保护文件: {rel_str}")
                 skipped_count += 1
                 continue
@@ -493,7 +496,7 @@ def _perform_update(zip_path, project_dir):
             except ValueError:
                 continue
 
-            if _is_protected_path(str(dst_rel).replace("\\", "/")):
+            if protected_check(str(dst_rel).replace("\\", "/")):
                 logger.debug(f"[更新检查] 目标路径被保护，跳过: {dst_rel}")
                 skipped_count += 1
                 continue
@@ -604,6 +607,349 @@ def get_update_info():
     except Exception as e:
         logger.warning(f"[更新检查] 查询更新信息失败: {e}")
     return info
+
+
+# ============================================================
+# 重置运行时数据（由 reset_runtime.py 迁入，作为 updater.py 的 --reset 模式）
+# ============================================================
+# 保留项判定复用 common 单一事实来源（is_reset_preserved_path 别名 _is_preserved）
+_is_preserved = is_reset_preserved_path
+
+# 诊断检查项：重置后输出当前项目状态，帮助用户确认问题是否已解决
+_CRITICAL_FILES = {
+    "family_monitor/routes/chat.py": ["from core", "import config"],
+    "family_monitor/routes/home.py": ["from core", "import config"],
+    "family_monitor/routes/auth.py": ["from core", "import config"],
+}
+
+# 兜底显式删除的运行时数据目录（相对仓库根）
+EXPLICIT_DATA_DIRS = (
+    "server/data",
+    "family_monitor/data",
+    "elderly_assistant/data",
+)
+# 兜底显式删除的文件名 / 后缀模式（rglob 匹配）
+EXPLICIT_FILE_PATTERNS = (
+    "*.db",
+    "*.sqlite",
+    "*.sqlite3",
+    "users.json",
+    "device_id.txt",
+    "dfrobot_huskylensv2.py",
+)
+
+
+def _delete_path(path: Path, deleted: list, skipped: list):
+    """保留感知的删除：文件直接删（保留项跳过），目录递归清理后视情况删空目录。
+
+    符号链接按文件处理（不跟随、不递归其目标）。
+    """
+    if not path.exists() and not path.is_symlink():
+        return
+    try:
+        if path.is_symlink():
+            path.unlink()
+            deleted.append(str(path))
+            return
+        if path.is_file():
+            if _is_preserved(path.parts):
+                return
+            path.unlink()
+            deleted.append(str(path))
+            return
+        if path.is_dir():
+            if _is_preserved(path.parts):
+                return
+            for child in sorted(path.iterdir()):
+                _delete_path(child, deleted, skipped)
+            try:
+                if not any(path.iterdir()):
+                    path.rmdir()
+                    deleted.append(str(path))
+            except Exception:
+                pass
+            return
+    except Exception as e:  # 权限等问题不阻断其它项
+        skipped.append(f"{path} ({e})")
+
+
+def _reset_via_git(repo_root: Path, deleted: list, skipped: list) -> bool:
+    """基于 ``git status --ignored`` 枚举被忽略 / 未跟踪项并删除。成功返回 True。"""
+    try:
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "--ignored"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except Exception:
+        return False
+    if out.returncode != 0:
+        return False
+    for line in out.stdout.splitlines():
+        if len(line) < 4:
+            continue
+        code = line[:2]
+        if code not in ("??", "!!"):
+            continue
+        rel = line[3:].strip().strip('"')
+        if not rel:
+            continue
+        _delete_path(repo_root / rel, deleted, skipped)
+    return True
+
+
+def _reset_via_patterns(repo_root: Path, deleted: list, skipped: list):
+    """兜底：按显式模式删除核心运行时数据（不依赖 git）。"""
+    for d in EXPLICIT_DATA_DIRS:
+        _delete_path(repo_root / d, deleted, skipped)
+    for pattern in EXPLICIT_FILE_PATTERNS:
+        for match in repo_root.rglob(pattern):
+            _delete_path(match, deleted, skipped)
+    for cache in repo_root.rglob("__pycache__"):
+        _delete_path(cache, deleted, skipped)
+    for pyc in repo_root.rglob("*.pyc"):
+        _delete_path(pyc, deleted, skipped)
+
+
+def reset_runtime_data(repo_root_str):
+    """重置运行时数据（保留 .env / logs，删除其余运行时产物）。
+
+    :param repo_root_str: 仓库根目录路径
+    :return: (已删除列表, 跳过列表)
+    """
+    repo_root = Path(repo_root_str).resolve()
+    deleted, skipped = [], []
+    _reset_via_git(repo_root, deleted, skipped)
+    _reset_via_patterns(repo_root, deleted, skipped)
+    seen, deduped = set(), []
+    for p in deleted:
+        if p not in seen:
+            seen.add(p)
+            deduped.append(p)
+    return deduped, skipped
+
+
+def confirm_reset():
+    """交互式二次确认，避免误删运行时数据。非交互环境默认取消。"""
+    try:
+        ans = input(
+            "确认重置运行时数据？将删除用户密码库、老人端设备数据等本地数据"
+            "（保留 .env / logs）。输入 YES 继续: "
+        ).strip()
+    except (EOFError, OSError):
+        return False
+    return ans == "YES"
+
+
+def _print_diagnostics(repo_root: Path, deleted: list, skipped: list):
+    """重置完成后输出诊断报告，帮助用户确认问题是否已解决。"""
+    print("\n" + "=" * 60)
+    print(" 重置后诊断报告")
+    print("=" * 60)
+
+    version_file = repo_root / "VERSION"
+    if version_file.is_file():
+        version = version_file.read_text(encoding="utf-8").strip()
+        print(f"\n[1] 当前版本: {version}")
+    else:
+        print(f"\n[1] ✗ VERSION 文件不存在!")
+
+    print(f"\n[2] 关键路由文件检查:")
+    all_ok = True
+    for rel_path, required_imports in _CRITICAL_FILES.items():
+        fpath = repo_root / rel_path
+        if not fpath.is_file():
+            print(f"  ✗ {rel_path} — 文件不存在!")
+            all_ok = False
+            continue
+        content = fpath.read_text(encoding="utf-8")
+        missing = [imp for imp in required_imports if imp not in content]
+        if missing:
+            print(f"  ✗ {rel_path} — 缺少导入: {missing}")
+            all_ok = False
+        else:
+            print(f"  ✓ {rel_path} — 导入完整")
+    if all_ok:
+        print("  → 所有关键文件导入正常")
+
+    remaining_caches = []
+    remaining_pyc = []
+    for item in repo_root.rglob("__pycache__"):
+        if item.is_dir():
+            try:
+                rel = item.relative_to(repo_root)
+                if any(p in (".venv", "venv", "env", ".git") for p in rel.parts):
+                    continue
+            except ValueError:
+                continue
+            remaining_caches.append(str(item))
+            for pyc in item.glob("*.pyc"):
+                remaining_pyc.append(str(pyc))
+    for pyc in repo_root.rglob("*.pyc"):
+        if "__pycache__" not in str(pyc):
+            remaining_pyc.append(str(pyc))
+
+    print(f"\n[3] __pycache__ 清理状态:")
+    if not remaining_caches and not remaining_pyc:
+        print("  ✓ 已全部清除，无残留缓存")
+    else:
+        print(f"  ✗ 仍有 {len(remaining_caches)} 个 __pycache__ 目录残留")
+        print(f"  ✗ 仍有 {len(remaining_pyc)} 个 .pyc 文件残留")
+        if remaining_caches:
+            print(f"    残留目录示例:")
+            for c in remaining_caches[:5]:
+                print(f"      - {c}")
+            print(f"  ⚠ 请手动执行: find {repo_root} -type d -name __pycache__ "
+                  f"-not -path '*/.venv/*' -not -path '*/venv/*' -exec rm -rf {{}} +")
+
+    print(f"\n[4] .env 保留状态:")
+    env_files = list(repo_root.rglob(".env"))
+    if not env_files:
+        print("  ⚠ 未找到任何 .env 文件（首次运行时将由程序自动生成）")
+    else:
+        for ef in env_files:
+            try:
+                rel = ef.relative_to(repo_root)
+            except ValueError:
+                rel = ef
+            print(f"  ✓ {rel} 已保留")
+
+    print(f"\n[5] 重置统计:")
+    print(f"  已删除: {len(deleted)} 项")
+    print(f"  跳过: {len(skipped)} 项")
+    if skipped:
+        print(f"  跳过详情（前 5 项）:")
+        for s in skipped[:5]:
+            print(f"    - {s}")
+
+    print(f"\n[6] 结论:")
+    issues = []
+    if not all_ok:
+        issues.append("关键路由文件导入不完整（可能导致 500 错误）")
+    if remaining_caches or remaining_pyc:
+        issues.append("仍有 __pycache__/.pyc 残留（可能导致旧代码被加载）")
+    if not env_files:
+        issues.append(".env 文件缺失（首次运行会自动生成）")
+
+    if not issues:
+        print("  ✓ 重置完成，未发现问题。请重启服务后验证。")
+    else:
+        print("  ⚠ 仍存在以下问题:")
+        for issue in issues:
+            print(f"    - {issue}")
+        print("\n  建议操作:")
+        if remaining_caches:
+            print("    1. 手动清除 __pycache__（见上方命令）")
+        print("    2. 检查关键文件是否为最新版本（git pull 或重新下载 release）")
+        print("    3. 重启服务: systemctl restart eating-medication-family")
+
+    print("\n" + "=" * 60)
+
+
+# ============================================================
+# .gitignore 保护（强制更新时额外保护被忽略的本地文件）
+# ============================================================
+def _load_gitignore_patterns():
+    """读取仓库根目录 .gitignore，返回模式列表（忽略空行与注释）。"""
+    p = Path(__file__).resolve().parent / ".gitignore"
+    patterns = []
+    if not p.is_file():
+        return patterns
+    try:
+        for line in p.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            patterns.append(line)
+    except Exception:
+        pass
+    return patterns
+
+
+_GITIGNORE_PATTERNS = _load_gitignore_patterns()
+
+
+def _is_gitignored(rel_path: str) -> bool:
+    """判断相对路径是否被根目录 .gitignore 命中（简化实现，忽略否定/行内注释等高级语法）。
+
+    - 目录模式（以 / 结尾）：任一层级命中也视为忽略；
+    - 文件名模式：仅匹配最后一段文件名；
+    - 路径模式：尾部匹配（含前导 / 的精确相对路径）。
+    """
+    if not _GITIGNORE_PATTERNS:
+        return False
+    rel = rel_path.replace("\\", "/")
+    parts = rel.split("/")
+    for pat in _GITIGNORE_PATTERNS:
+        if pat.endswith("/"):
+            dir_name = pat.rstrip("/").lstrip("/")
+            if dir_name in parts:
+                return True
+            continue
+        p = pat.lstrip("/")
+        if fnmatch.fnmatch(parts[-1], p):
+            return True
+        if rel.endswith(p) or ("/" + p) in rel:
+            return True
+    return False
+
+
+def _force_protected(rel_path: str) -> bool:
+    """强制更新时的保护判定：运行时关键文件 + 根目录 .gitignore 命中项。"""
+    return _is_protected_path(rel_path) or _is_gitignored(rel_path)
+
+
+def force_update():
+    """强制从远程拉取并安装最新发布包，忽略版本号比较（新增 updater 功能）。
+
+    即便本地版本号 >= 远端版本号也执行（用于同版本补发修复包 / 热同步）。
+    沿用 _perform_update 的受保护机制，并额外保护根目录 .gitignore 命中项，
+    不会覆盖 .env、data/、logs/ 及任何被 .gitignore 忽略的本地文件。
+    仍需满足 SHA256 校验，缺少校验文件时拒绝（安全要求）。
+    """
+    info = get_update_info()
+    latest = info["latest_version"]
+    try:
+        if not latest:
+            logger.warning("[强制更新] 无法获取最新版本，跳过")
+            return info
+        release_data = _fetch_latest_release()
+        sha_sums = _verify_release_signature(release_data)
+        if sha_sums is None:
+            logger.error("[强制更新] 未找到 SHA256 校验文件，出于安全考虑拒绝更新")
+            return info
+        zip_asset = _find_release_zip(release_data)
+        if not zip_asset:
+            logger.error("[强制更新] 未在 Release 资产中找到完整发布包 zip")
+            return info
+        zip_url = zip_asset.get("browser_download_url")
+        zip_name = zip_asset.get("name", "update.zip")
+        tmp_zip_dir = Path(tempfile.mkdtemp(prefix="upd_zip_"))
+        tmp_zip_path = tmp_zip_dir / zip_name
+        expected_hash = sha_sums.get(zip_name)
+        if not _download_file_with_hash(zip_url, str(tmp_zip_path), expected_hash):
+            logger.error("[强制更新] 下载失败")
+            return info
+        project_dir = Path(__file__).resolve().parent
+        success, updated, skipped = _perform_update(
+            str(tmp_zip_path), str(project_dir), protected_check=_force_protected
+        )
+        if success:
+            logger.info(f"[强制更新] 成功！更新了 {updated} 个文件，保护了 {skipped} 个文件")
+            restarted = _restart_services()
+            if restarted:
+                logger.info("[强制更新] 服务正在重启以应用新版本")
+            else:
+                logger.warning("[强制更新] 文件已更新，但自动重启失败，请手动重启服务")
+        else:
+            logger.error("[强制更新] 失败，请手动更新")
+        return info
+    except Exception as e:
+        logger.warning(f"[强制更新] 失败: {e}")
+        info["error"] = str(e)
+        return info
 
 
 # ============================================================
@@ -727,6 +1073,25 @@ def check_for_update(auto_pull=None):
     return info
 
 
-if __name__ == "__main__":
+def _cli():
+    """命令行入口：支持普通检查、--force 强制更新、--reset 重置运行时数据。"""
     logging.basicConfig(level=logging.INFO)
+    args = sys.argv[1:]
+    if "--reset" in args:
+        # 重置模式：默认作用于仓库根目录（即本文件所在目录）
+        root = Path(__file__).resolve().parent
+        if not confirm_reset():
+            print("已取消。")
+            sys.exit(0)
+        d, s = reset_runtime_data(str(root))
+        _print_diagnostics(root, d, s)
+        sys.exit(0)
+    if "--force" in args:
+        # 强制更新：忽略版本号比较，仍保护 .gitignore 与运行时关键文件
+        force_update()
+        sys.exit(0)
     check_for_update()
+
+
+if __name__ == "__main__":
+    _cli()
