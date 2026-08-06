@@ -2523,6 +2523,177 @@ img {
 }
 
 /* =============================================
+   聊天页面布局（容器/头部/输入区，补齐缺失样式）
+   chat.html 使用 .chat-container/.chat-header/.chat-box/.chat-input-area 等布局类，
+   此前 style.css 仅定义了消息气泡类（.chat-msg/.chat-bubble），导致整体布局无样式。
+   ============================================= */
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 110px);
+    max-width: 880px;
+    margin: 18px auto;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+}
+
+.chat-header {
+    padding: 16px 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.chat-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.chat-header h1 {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.chat-header-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin-top: 14px;
+}
+
+.chat-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chat-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: background var(--transition-fast);
+}
+
+.chat-status-dot.connected {
+    background: var(--success-color);
+}
+
+.chat-status-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.chat-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.chat-messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--bg-primary);
+}
+
+.chat-empty {
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-muted);
+}
+
+.chat-empty-icon {
+    color: var(--text-muted);
+}
+
+.chat-empty-text {
+    font-size: 0.95rem;
+}
+
+.chat-input-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+}
+
+.chat-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    font-size: 0.95rem;
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    outline: none;
+    transition: border-color var(--transition-fast);
+}
+
+.chat-input:focus {
+    border-color: var(--primary-color);
+}
+
+.chat-send-btn {
+    padding: 12px 22px;
+    border: none;
+    border-radius: var(--radius-full);
+    background: var(--primary-color);
+    color: #ffffff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: background var(--transition-fast), opacity var(--transition-fast);
+}
+
+.chat-send-btn:hover:not(:disabled) {
+    background: var(--primary-dark);
+}
+
+.chat-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 消息体结构类名别名（兼容 chat.html JS 生成的 .chat-msg-body/.chat-msg-name/.chat-msg-time） */
+.chat-msg-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.chat-msg-name {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.chat-msg-time {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.chat-msg-time.sent {
+    text-align: right;
+}
+
+/* =============================================
    图表样式
    ============================================= */
 .chart-section {
