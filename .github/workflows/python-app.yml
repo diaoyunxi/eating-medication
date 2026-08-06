@@ -64,26 +64,30 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT }}
           PAT: ${{ secrets.PAT }}
+          # 通过环境变量注入 head commit 信息，避免多行/含引号内容直接插值进脚本导致语法错误
+          HEAD_MSG: ${{ github.event.head_commit.message }}
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           ZIP="${{ steps.package.outputs.zip }}"
           SHA="${{ steps.package.outputs.sha }}"
+          MSG="$HEAD_MSG"
           # checkout 已使用 secrets.PAT 鉴权，直接以 PAT 推送 tag（无需 insteadOf 改写）
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # 根据版本号查找 tag，不存在则创建空 tag 并推送
+          # 根据版本号查找 tag，不存在则创建「带提交信息注解的 tag」并推送
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "tag $TAG 已存在，跳过创建"
           else
-            git tag "$TAG"
+            # tag 注解直接使用本次提交信息（HEAD_MSG）
+            git tag -a "$TAG" -m "$MSG"
             git push origin "$TAG"
-            echo "已创建并推送空 tag: $TAG"
+            echo "已创建并推送带注解的 tag: $TAG"
           fi
-          # 查找 release，不存在则创建
+          # 查找 release，不存在则创建（release 说明同样使用提交信息）
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "release $TAG 已存在，上传/更新资产"
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes
+            gh release create "$TAG" --title "$TAG" -m "$MSG"
           fi
           # 上传资产文件（已存在则覆盖）
           gh release upload "$TAG" "$ZIP" "$SHA" --clobber
