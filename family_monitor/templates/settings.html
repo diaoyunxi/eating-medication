@@ -841,9 +841,35 @@
                     var resp = await fetch(prefix + '/auth/login-methods', {
                         headers: { 'Authorization': 'Bearer ' + (getCookie('access_token') || '') }
                     });
-                    if (!resp.ok) return;
+                    if (!resp.ok) {
+                        console.error('加载登录方式失败，HTTP 状态:', resp.status);
+                        // 非成功响应时恢复按钮
+                        ['phone', 'email', 'github', 'gitee'].forEach(function (method) {
+                            var item = document.querySelector('.login-method-item[data-method="' + method + '"]');
+                            if (item) {
+                                var btnEl = item.querySelector('.lm-action-btn');
+                                if (btnEl) {
+                                    btnEl.disabled = false;
+                                    btnEl.textContent = '绑定';
+                                    btnEl.style.opacity = '';
+                                }
+                            }
+                        });
+                        return;
+                    }
                     loginMethodsData = await resp.json();
                     updateLoginMethodsUI(loginMethodsData);
+                    // 成功后恢复按钮状态
+                    ['phone', 'email', 'github', 'gitee'].forEach(function (method) {
+                        var item = document.querySelector('.login-method-item[data-method="' + method + '"]');
+                        if (item) {
+                            var btnEl = item.querySelector('.lm-action-btn');
+                            if (btnEl) {
+                                btnEl.disabled = false;
+                                btnEl.style.opacity = '';
+                            }
+                        }
+                    });
                 } catch (e) {
                     console.error('加载登录方式失败:', e);
                     // 加载失败时恢复按钮
