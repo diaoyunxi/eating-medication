@@ -147,6 +147,7 @@ tests/__pycache__/
 !/src/
 !package.json
 !/.github
+!/.coderabbit.yaml
 # 仓库根级工具脚本（与 updater.py 同性质，需纳入版本控制）
 !reset_runtime.py
 
