@@ -843,16 +843,24 @@
                     });
                     if (!resp.ok) {
                         console.error('加载登录方式失败，HTTP 状态:', resp.status);
-                        // 非成功响应时恢复按钮
+                        // 非成功响应时重置数据和 UI 到未绑定状态
+                        loginMethodsData = {};
                         ['phone', 'email', 'github', 'gitee'].forEach(function (method) {
                             var item = document.querySelector('.login-method-item[data-method="' + method + '"]');
                             if (item) {
                                 var btnEl = item.querySelector('.lm-action-btn');
+                                var statusEl = item.querySelector('.lm-status');
                                 if (btnEl) {
                                     btnEl.disabled = false;
                                     btnEl.textContent = '绑定';
                                     btnEl.style.opacity = '';
+                                    btnEl.className = 'btn btn-sm lm-action-btn';
                                 }
+                                if (statusEl) {
+                                    statusEl.className = 'lm-status lm-unbound';
+                                    statusEl.textContent = '未绑定';
+                                }
+                                item.classList.remove('lm-bound');
                             }
                         });
                         return;
