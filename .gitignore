@@ -117,9 +117,11 @@ SHA256SUMS.txt
 !elderly_assistant/services/**/*.py
 !elderly_assistant/utils/**/*.py
 elderly_assistant/data/
-# 放行部署辅助目录（systemd 单元、隧道配置、一键部署脚本）
+# 放行部署辅助目录（systemd 单元、隧道配置、一键部署脚本），但敏感文件除外
 !deploy/
-!deploy/**
+!deploy/systemd/
+!deploy/tunnel/
+!deploy/scripts/
 # 放行根目录统一自动更新器（各模块 main.py 依赖它）
 !updater.py
 # 放行根目录统一安装脚本（各模块 main.py 依赖它）
@@ -130,15 +132,14 @@ elderly_assistant/data/
 # 放行跨端共享公共包（消除三端重复实现，仅依赖标准库）
 !common/
 !common/**/*.py
-# 放行根目录全局更新配置 .env（仅含 AUTO_PULL / GITHUB_PROXY，无密钥，纳入版本管理）
-# !.env 已移除：所有 .env 文件均由程序自动生成，全部忽略以防敏感信息泄露
-# 放行测试套件与 pytest 配置（CI 通过 pytest 运行，必须纳入版本管理）
+# 放行测试套件与 pytest 配置（CI 通过 pytest 运行，必须纳入版本管理），但敏感文件除外
 !tests/
-!tests/**
-# 测试缓存字节码仍需忽略
-tests/__pycache__/
+!tests/*.py
+!tests/**/*.py
 !conftest.py
 !pytest.ini
+# 测试缓存字节码仍需忽略
+tests/__pycache__/
 
 # ==== 其他文件 ====
 !/src/
