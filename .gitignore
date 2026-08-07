@@ -5,18 +5,36 @@ __pycache__/
 *.so
 *.egg-info/
 *.egg
+.Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
 # ===== 虚拟环境 =====
 venv/
 env/
 ENV/
+env.bak/
+.venv/
 
 # ===== 各模块 .env（含密钥/部署配置，部署时各自创建，忽略）=====
 server/.env
 family_monitor/.env
 elderly_assistant/.env
+.env.local
+*.env.*
 
 # ===== 数据库 =====
 *.db
@@ -28,6 +46,10 @@ family_monitor/data/
 elderly_assistant/data/captures/
 elderly_assistant/data/device_id.txt
 elderly_assistant/data/device_token.txt
+server/data/
+pan_credentials.json
+*.secret
+*.pid
 
 # ===== 日志 =====
 logs/
@@ -39,6 +61,52 @@ logs/
 *.swp
 *.swo
 *~
+
+# ===== Linting & Testing =====
+.flake8
+.isort-cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+*.cover
+.hypothesis/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== 打包文件（仅上传到 GitHub Release，不入源码仓库）=====
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.bz2
+*.xz
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+SHA256SUMS.txt
+*.SHA256SUMS.txt
+
+# ===== Build outputs =====
+*.o
+*.obj
+*.out
+*.dll
+*.a
 
 # 根目录默认忽略所有，逐项放行需纳入版本管理的文件
 /*
@@ -78,29 +146,6 @@ tests/__pycache__/
 !conftest.py
 !pytest.ini
 
-# ===== OS =====
-.DS_Store
-Thumbs.db
-
-# ===== 运行时数据与敏感文件补全 =====
-server/data/
-*.log
-*.pid
-*.sqlite*
-logs/
-pan_credentials.json
-*.secret
-
-# ===== 打包文件（仅上传到 GitHub Release，不入源码仓库）=====
-*.zip
-*.tar
-*.tar.gz
-*.tgz
-*.7z
-*.rar
-SHA256SUMS.txt
-*.SHA256SUMS.txt
-
 # ==== 其他文件 ====
 !/src/
 !package.json
@@ -110,4 +155,3 @@ SHA256SUMS.txt
 
 # install.py 自动从官方仓库下载的未发布单文件模块（运行时落地，不纳入仓库）
 elderly_assistant/dfrobot_huskylensv2.py
-.venv/
