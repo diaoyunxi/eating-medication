@@ -491,10 +491,17 @@
         async function bindDevice() {
             const deviceId = document.getElementById('deviceId').value.trim();
             const deviceName = document.getElementById('deviceName').value.trim();
+            const bindBtn = document.querySelector('button[onclick="bindDevice()"]');
 
             if (!deviceId) {
                 showToast('请输入设备标识符', 'warning');
                 return;
+            }
+            
+            if (bindBtn) {
+                bindBtn.disabled = true;
+                bindBtn.style.opacity = '0.6';
+                bindBtn.style.cursor = 'not-allowed';
             }
 
             showToast('正在校验并绑定设备...', 'info');
@@ -513,6 +520,11 @@
                     data = await response.json();
                 } catch (e) {
                     showToast('绑定失败：服务端响应异常', 'error');
+                    if (bindBtn) {
+                        bindBtn.disabled = false;
+                        bindBtn.style.opacity = '';
+                        bindBtn.style.cursor = '';
+                    }
                     return;
                 }
 
@@ -521,14 +533,31 @@
                     setTimeout(() => location.reload(), 1000);
                 } else {
                     showToast(data.message || '绑定失败', 'error');
+                    if (bindBtn) {
+                        bindBtn.disabled = false;
+                        bindBtn.style.opacity = '';
+                        bindBtn.style.cursor = '';
+                    }
                 }
             } catch (error) {
                 showToast('绑定失败：' + error.message, 'error');
+                if (bindBtn) {
+                    bindBtn.disabled = false;
+                    bindBtn.style.opacity = '';
+                    bindBtn.style.cursor = '';
+                }
             }
         }
 
         async function unbindDevice() {
+            const unbindBtn = document.querySelector('button[onclick="unbindDevice()"]');
             if (!confirm('确定要解绑当前设备吗？')) return;
+            
+            if (unbindBtn) {
+                unbindBtn.disabled = true;
+                unbindBtn.style.opacity = '0.6';
+                unbindBtn.style.cursor = 'not-allowed';
+            }
 
             showToast('正在解绑设备...', 'info');
 
@@ -543,9 +572,19 @@
                     setTimeout(() => location.reload(), 1000);
                 } else {
                     showToast('解绑失败', 'error');
+                    if (unbindBtn) {
+                        unbindBtn.disabled = false;
+                        unbindBtn.style.opacity = '';
+                        unbindBtn.style.cursor = '';
+                    }
                 }
             } catch (error) {
                 showToast('解绑失败：' + error.message, 'error');
+                if (unbindBtn) {
+                    unbindBtn.disabled = false;
+                    unbindBtn.style.opacity = '';
+                    unbindBtn.style.cursor = '';
+                }
             }
         }
 
@@ -726,6 +765,12 @@
                     showToast('请选择 AI 厂商', 'warning');
                     return;
                 }
+                var saveBtn = document.querySelector('button[onclick="saveAIConfig()"]');
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.style.opacity = '0.6';
+                    saveBtn.style.cursor = 'not-allowed';
+                }
                 var payload = {
                     provider: provider,
                     api_key: document.getElementById('aiApiKey').value,
@@ -750,8 +795,18 @@
                     } else {
                         showToast(data.message || '保存失败', 'error');
                     }
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.style.opacity = '';
+                        saveBtn.style.cursor = '';
+                    }
                 } catch (e) {
                     showToast('保存失败：' + e.message, 'error');
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.style.opacity = '';
+                        saveBtn.style.cursor = '';
+                    }
                 }
             };
 
@@ -812,29 +867,55 @@
 
             // 处理绑定/解绑操作
             window.handleLoginMethod = function (method) {
+                var item = document.querySelector('.login-method-item[data-method="' + method + '"]');
+                if (!item) return;
+                var btnEl = item.querySelector('.lm-action-btn');
+                if (btnEl && btnEl.disabled) return; // 防止重复点击
+                
                 var info = loginMethodsData[method] || {};
                 if (info.bound) {
                     // 解绑
-                    unbindMethod(method);
+                    unbindMethod(method, btnEl);
                 } else {
                     // 绑定
-                    bindMethod(method);
+                    bindMethod(method, btnEl);
                 }
             };
 
-            function bindMethod(method) {
+            function bindMethod(method, btnEl) {
+                if (btnEl) {
+                    btnEl.disabled = true;
+                    btnEl.textContent = '处理中...';
+                    btnEl.style.opacity = '0.6';
+                }
                 if (method === 'phone') {
                     openModal('bindPhoneModal');
+                    if (btnEl) {
+                        btnEl.disabled = false;
+                        btnEl.textContent = '绑定';
+                        btnEl.style.opacity = '';
+                    }
                 } else if (method === 'email') {
                     openModal('bindEmailModal');
+                    if (btnEl) {
+                        btnEl.disabled = false;
+                        btnEl.textContent = '绑定';
+                        btnEl.style.opacity = '';
+                    }
                 } else if (method === 'github' || method === 'gitee') {
                     // 跳转到 OAuth 绑定流程
                     window.location.href = prefix + '/oauth/' + method + '/bind';
                 }
             }
 
-            async function unbindMethod(method) {
-                if (!confirm('确定要解绑' + getMethodName(method) + '吗？解绑后将无法使用该方式登录。')) return;
+            async function unbindMethod(method, btnEl) {
+                if (!confirm('确定要解绑' + getMethodName(method) + '吗？解绑后将无法使用该方式登录。')) {
+                    if (btnEl) {
+                        btnEl.disabled = false;
+                        btnEl.style.opacity = '';
+                    }
+                    return;
+                }
                 var url = prefix + '/auth/unbind-' + (method === 'github' || method === 'gitee' ? 'oauth/' + method : method);
                 try {
                     var resp = await fetch(url, {
@@ -847,9 +928,17 @@
                         loadLoginMethods();
                     } else {
                         showToast(data.detail || data.message || '解绑失败', 'error');
+                        if (btnEl) {
+                            btnEl.disabled = false;
+                            btnEl.style.opacity = '';
+                        }
                     }
                 } catch (e) {
                     showToast('解绑失败：' + e.message, 'error');
+                    if (btnEl) {
+                        btnEl.disabled = false;
+                        btnEl.style.opacity = '';
+                    }
                 }
             }
 
@@ -879,6 +968,12 @@
                 var phone = document.getElementById('bindPhoneInput').value.trim();
                 var password = document.getElementById('bindPhonePassword').value;
                 if (!phone || !password) { showToast('请填写手机号和密码', 'warning'); return; }
+                var submitBtn = document.querySelector('#bindPhoneModal button[onclick="submitBindPhone()"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.style.opacity = '0.6';
+                    submitBtn.style.cursor = 'not-allowed';
+                }
                 try {
                     var resp = await fetch(prefix + '/auth/bind-phone', {
                         method: 'POST',
@@ -896,8 +991,18 @@
                     } else {
                         showToast(data.detail || data.message || '绑定失败', 'error');
                     }
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = '';
+                        submitBtn.style.cursor = '';
+                    }
                 } catch (e) {
                     showToast('绑定失败：' + e.message, 'error');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = '';
+                        submitBtn.style.cursor = '';
+                    }
                 }
             };
 
@@ -948,6 +1053,12 @@
                 var email = document.getElementById('bindEmailInput').value.trim();
                 var code = document.getElementById('bindEmailCode').value.trim();
                 if (!email || !code) { showToast('请填写邮箱和验证码', 'warning'); return; }
+                var submitBtn = document.querySelector('#bindEmailModal button[onclick="submitBindEmail()"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.style.opacity = '0.6';
+                    submitBtn.style.cursor = 'not-allowed';
+                }
                 try {
                     var resp = await fetch(prefix + '/auth/bind-email', {
                         method: 'POST',
@@ -965,8 +1076,18 @@
                     } else {
                         showToast(data.detail || data.message || '绑定失败', 'error');
                     }
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = '';
+                        submitBtn.style.cursor = '';
+                    }
                 } catch (e) {
                     showToast('绑定失败：' + e.message, 'error');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = '';
+                        submitBtn.style.cursor = '';
+                    }
                 }
             };
 
