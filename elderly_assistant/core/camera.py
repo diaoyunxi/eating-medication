@@ -1,10 +1,15 @@
 ﻿# -*- coding: utf-8 -*-
 import os
+import threading
 from datetime import datetime
 from utils.logger import setup_logger
 
 # HuskyLens 实例（模块级单例）
 _huskylens = None
+
+# HuskyLens 硬件操作锁：扫码（算法切换/读取）与拍照（takePhoto）共享同一单例
+# 句柄，加锁避免二者并发操作同一硬件导致识别失败或拍照异常
+_HUSKYLENS_OP_LOCK = threading.Lock()
 
 
 def _init_huskylens(config):
@@ -58,7 +63,9 @@ def capture_image(config):
         filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
         path = os.path.join(save_path, filename)
 
-        hl.takePhoto()
+        # 与扫码（算法切换/读取）共享 HuskyLens 单例，加锁避免并发冲突
+        with _HUSKYLENS_OP_LOCK:
+            hl.takePhoto()
         logger.info("HuskyLens 拍照指令已发送")
 
         # 拍照后检查文件是否真正生成，避免返回不存在的路径导致后续 open 失败

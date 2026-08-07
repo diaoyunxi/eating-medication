@@ -119,13 +119,17 @@ _ENV_TEMPLATE = (
 )
 
 
-def _ensure_env_template():
-    """首次运行无 .env 时自动生成完整模板（开箱即用），已存在则不覆盖。"""
+def _ensure_env_template(config_path=ENV_PATH):
+    """首次运行无 .env 时自动生成完整模板（开箱即用），已存在则不覆盖。
+
+    :param config_path: 目标 .env 路径，默认 ENV_PATH；使用自定义/临时配置文件时
+        应在同位置生成模板，避免读取 A 文件却在默认位置生成 B 文件
+    """
     try:
         # 局部导入：common 包位于仓库根目录，避免模块导入期强依赖 sys.path 顺序
         from common.envfile import ensure_env_template
 
-        if ensure_env_template(ENV_PATH, _ENV_TEMPLATE):
+        if ensure_env_template(config_path, _ENV_TEMPLATE):
             logger.info(f"首次运行：已自动生成 {ENV_PATH}（含全部默认配置项）")
     except Exception as e:
         logger.warning(f"自动生成 .env 模板失败: {e}")
@@ -150,7 +154,7 @@ def load_config(config_path=ENV_PATH):
     """
     import copy
 
-    _ensure_env_template()
+    _ensure_env_template(config_path)
     load_dotenv(config_path)
 
     config = copy.deepcopy(DEFAULT_CONFIG)

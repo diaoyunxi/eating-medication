@@ -159,6 +159,7 @@ python main.py
 > USB 通路为可选依赖：`sudo apt install -y libzbar0 && pip install opencv-python-headless pyzbar`；未安装时自动降级为仅用 HuskyLens，不影响程序运行。
 
 ### 离线运行
+
 用药计划采用「有网优先、失败回退本地、无网走本地」策略：
 - 每 `POLL_INTERVAL` 秒（默认 1200 秒 = 20 分钟）拉取一次用药计划，成功后原子写入 `data/schedules.json`。
 - 网络异常/非 200 响应时回退读取本地缓存；连本地缓存都没有时保留内存中的既有计划，绝不清空（避免网络抖动导致漏提醒）。

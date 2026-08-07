@@ -6,6 +6,7 @@
 ## v2.30.0 (2026-08-07) — 新增药品编号（product_code）与老人端扫码播报、用药计划离线回退
 
 ### 概述
+
 打通「家属端录入药品编号 → 服务端存储下发 → 老人端扫码播报用量」的完整链路：家属在网页端添加/编辑用药计划时可手输或用摄像头扫描药品条码填入药品编号（非必填）；老人点击主界面「扫码查药」触摸按钮打开摄像头扫描药盒条码，系统按编号匹配用药计划后 TTS 播报药品名与用量。同时将用药计划轮询改为 20 分钟一次，并引入「有网优先、失败回退本地、无网走本地」的离线缓存策略。
 
 ### 主要变更
@@ -40,6 +41,7 @@
 - docs: 更新根 `README.md` 功能概览、`elderly_assistant/README.md`（功能列表、按键说明表、扫码流程、离线策略、配置表）与 `requirements.txt` 可选依赖说明
 
 ### 涉及文件
+
 - `server/app/models/medication_plan.py`、`server/app/schemas/medication.py`、`server/app/api/v1/endpoints/public.py`、`server/app/services/medication_service.py`、`server/app/services/device_service.py`
 - `server/app/migrations/versions/20260807_001_add_product_code_to_medication_plans.py`（新增）
 - `family_monitor/core/api_client.py`、`family_monitor/services/medication_service.py`、`family_monitor/templates/medication_settings.html`
