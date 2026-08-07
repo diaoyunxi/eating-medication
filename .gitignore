@@ -1,10 +1,8 @@
-# ===== Python =====
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-*.egg-info/
-*.egg
 .Python
 build/
 develop-eggs/
@@ -22,9 +20,8 @@ wheels/
 .installed.cfg
 *.egg
 
-# ===== 虚拟环境 =====
+# Virtual Environments
 venv/
-env/
 ENV/
 env.bak/
 .venv/
@@ -36,10 +33,20 @@ elderly_assistant/.env
 .env.local
 *.env.*
 
-# ===== 数据库 =====
-*.db
-*.sqlite
-*.sqlite3
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Linting
+.flake8
+.isort-cache/
+.mypy_cache/
 
 # ===== 运行时数据 =====
 family_monitor/data/
@@ -61,19 +68,6 @@ logs/
 *.swp
 *.swo
 *~
-
-# ===== Linting & Testing =====
-.flake8
-.isort-cache/
-.mypy_cache/
-.pytest_cache/
-.coverage
-coverage.xml
-htmlcov/
-.tox/
-.nox/
-*.cover
-.hypothesis/
 
 # ===== OS =====
 .DS_Store
