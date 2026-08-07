@@ -52,6 +52,7 @@ from workflow.reminder import (
 from workflow.actions import (
     handle_confirm,
     handle_snooze,
+    handle_scan_medication,
     _ask_ai_and_speak,
     _capture_and_upload,
 )
@@ -198,6 +199,15 @@ def main():
     button_a, button_b = get_buttons()
     led = get_led()
 
+    # 5.1 初始化药品条码扫描器（HuskyLens 板载解码优先，回退 USB 摄像头本地解码）
+    scanner = None
+    try:
+        from core.barcode import BarcodeScanner
+        scanner = BarcodeScanner(config)
+        logger.info(f"条码扫描器已就绪，扫码源: {scanner.source}")
+    except Exception as e:
+        logger.warning(f"条码扫描器初始化失败，扫码功能降级不可用: {e}")
+
     # 6. 启动后台热点（线程）
     hotspot_cfg = config.get('hotspot', {})
     hotspot = HotspotManager(
@@ -224,11 +234,14 @@ def main():
     except Exception as e:
         logger.error(f"启动配网 Web 服务异常: {e}")
 
-    # 8. 启动用药计划轮询线程
+    # 8. 启动用药计划轮询线程（默认 20 分钟一次；断网时沿用本地缓存）
     reminder_cfg = config.get('reminder', {})
-    poll_interval = reminder_cfg.get('poll_interval', 60)
+    poll_interval = reminder_cfg.get('poll_interval', 1200)
     snooze_minutes = reminder_cfg.get('snooze_minutes', 5)
-    poller = MedicationPoller(http_client, poll_interval=poll_interval)
+    from services.schedule_cache import load_schedules
+    poller = MedicationPoller(
+        http_client, poll_interval=poll_interval, cache_loader=load_schedules
+    )
     poller.start()
     logger.info(f"用药计划轮询线程已启动，间隔 {poll_interval} 秒")
 
@@ -238,7 +251,21 @@ def main():
     heartbeat_thread.start()
     logger.info(f"独立心跳线程已启动，间隔 {heartbeat_interval} 秒")
 
-    # 9. 显示主界面
+    # 8.2 注册屏幕「扫码查药」按钮回调（点击后在后台线程扫码，避免阻塞 GUI）
+    scan_timeout = float(config.get('scan', {}).get('timeout_sec', 8.0))
+
+    def _on_scan_button():
+        import threading as _th
+        _th.Thread(
+            target=handle_scan_medication,
+            args=(scanner, poller, speech, logger),
+            kwargs={"timeout": scan_timeout},
+            daemon=True,
+        ).start()
+
+    display.set_scan_handler(_on_scan_button)
+
+    # 9. 显示主界面（含「扫码查药」触摸按钮）
     display.show_main_screen(fcc_id=fcc_id, server_url=server_url, connected=False)
 
     # 提醒状态
@@ -295,6 +322,7 @@ def main():
                 last_button_check = now.timestamp()
                 # 按钮 A：短按=确认服药；长按(>阈值)=问 AI 该药注意事项并语音播报
                 # 按钮 B：暂不提醒（5分钟后再提醒）
+                # 药品扫码由屏幕「扫码查药」触摸按钮触发，不占用物理按键
                 # 具体动作通过回调注入，保持工作流与硬件解耦、可单测
                 def _on_confirm():
                     handle_confirm(reminder_state, buzzer, display, http_client, logger, speech, config)
@@ -352,6 +380,12 @@ def main():
             buzzer.stop()
         except Exception as e:
             logger.warning(f"停止蜂鸣器失败: {e}")
+        # 释放摄像头句柄，避免退出后 USB 设备被占用
+        try:
+            if scanner:
+                scanner.close()
+        except Exception as e:
+            logger.warning(f"关闭条码扫描器失败: {e}")
         try:
             wifi_config_server.stop()
         except Exception as e:

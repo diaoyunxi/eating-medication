@@ -8,3 +8,10 @@ pinpong
 # 该包 PyPI 未发布, 不在此处安装;
 # 改由 common/install.py 自动从官方仓库下载并落地 (详见 common/install.py::install_dfrobot_huskylensv2)
 # 运行依赖 pinpong (已在上文安装)。
+#
+# ===== 可选：USB 摄像头条码识别（core/barcode.py 的本地解码通路）=====
+# 默认扫码走 HuskyLens 板载解码（无需以下依赖）；仅在使用 USB 摄像头
+# (SCAN_SOURCE=usb 或 auto 回退) 时需要，缺失时自动降级，不影响主程序运行。
+# 手动安装步骤（Debian/Ubuntu/行空板）：
+#   sudo apt install -y libzbar0
+#   pip install opencv-python-headless pyzbar

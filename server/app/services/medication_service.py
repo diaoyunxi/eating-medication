@@ -20,6 +20,7 @@ class MedicationService:
             user_id=user_id,
             drug_name=plan_data.drug_name,
             dosage=plan_data.dosage,
+            product_code=plan_data.product_code,
             frequency=plan_data.frequency,
             schedule_times=plan_data.schedule_times,
             total_quantity=plan_data.total_quantity,
@@ -49,6 +50,7 @@ class MedicationService:
 
         plan.drug_name = plan_data.drug_name
         plan.dosage = plan_data.dosage
+        plan.product_code = plan_data.product_code
         plan.frequency = plan_data.frequency
         plan.schedule_times = plan_data.schedule_times
         plan.total_quantity = plan_data.total_quantity

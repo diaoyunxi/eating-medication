@@ -3,6 +3,55 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.30.0 (2026-08-07) — 新增药品编号（product_code）与老人端扫码播报、用药计划离线回退
+
+### 概述
+打通「家属端录入药品编号 → 服务端存储下发 → 老人端扫码播报用量」的完整链路：家属在网页端添加/编辑用药计划时可手输或用摄像头扫描药品条码填入药品编号（非必填）；老人点击主界面「扫码查药」触摸按钮打开摄像头扫描药盒条码，系统按编号匹配用药计划后 TTS 播报药品名与用量。同时将用药计划轮询改为 20 分钟一次，并引入「有网优先、失败回退本地、无网走本地」的离线缓存策略。
+
+### 主要变更
+
+**服务端（server）**
+- feat(model): `medication_plans` 表新增可选字段 `product_code`（`String(64)`，可空，带索引），药品名称/剂量复用既有 `drug_name`/`dosage`，不引入独立药品主数据表
+- feat(schema): `MedicationPlanCreate` / `MedicationPlanOut` 增加 `product_code` 字段
+- feat(api): 公开接口 `FamilyMedicationPlan` 增加 `product_code`，设置/更新设备用药计划时透传落库
+- feat(service): `medication_service.create_plan` / `update_plan` 写入 `product_code`；`device_service.get_schedule` / `get_plans` 在下发数据中返回 `product_code`
+- feat(migration): 新增 Alembic 迁移 `20260807_001`，为 `medication_plans` 增加 `product_code` 列与索引
+
+**家属端（family_monitor）**
+- feat(ui): 「添加用药计划」表单新增「药品编号/条形码」可选字段与 📷 扫描按钮，扫码弹窗基于浏览器原生 `BarcodeDetector`（支持 EAN/UPC/Code39/Code128/ITF/Codabar/QR/DataMatrix/PDF417），不支持的浏览器降级为手动输入
+- feat(ui): 计划列表项展示 🔖 药品编号徽标
+- feat(api): `api_client.set_medication_plan` / `update_medication_plan` 透传 `product_code`；`medication_service.validate_and_build` 解析并规范化该字段
+
+**老人端（elderly_assistant）**
+- feat(barcode): 新增 `core/barcode.py`，提供统一扫码入口 `BarcodeScanner`，含两条互补通路——HuskyLens 板载条码（算法 17）/二维码（算法 18）识别，以及 USB 摄像头 + OpenCV/pyzbar 本地解码；依赖全部懒加载，任一通路不可用时自动降级
+- feat(ports): 新增 `BarcodeScannerPort` 协议
+- feat(workflow): 新增 `handle_scan_medication` 与 `find_plan_by_product_code`，扫码后按编号匹配计划并 TTS 播报「药品名 + 用量 + 服药时间」，未识别/未匹配均有语音提示
+- feat(display): 主界面新增「扫码查药」触摸按钮，通过 `Display.set_scan_handler()` 注入回调（界面层不依赖扫码实现），点击后台线程执行且异常隔离；清屏/提醒界面/配网界面均正确重置按钮引用，旧版 unihiker 无 `add_button` 时静默跳过
+- feat(offline): 新增 `services/schedule_cache.py`（临时文件 + 原子替换写入、读取做结构校验），`HTTPClient.get_medication_schedule` 网络成功即刷新本地缓存、失败回退本地缓存，无缓存时返回 `None` 表示结果未知
+- fix(poller): `MedicationPoller` 拉取失败不再清空内存中的用药计划（原实现会因断网返回空列表而清空，导致漏提醒）；新增 `cache_loader` 注入项，启动即载入本地缓存；抽出 `_poll_once()` 便于单测
+- feat(config): 轮询间隔默认由 60 秒改为 1200 秒（20 分钟）；新增 `SCAN_SOURCE` / `SCAN_USB_INDEX` / `SCAN_TIMEOUT_SEC` 配置项
+- fix(config): 修复 `_ensure_env_template()` 因 `ensure_env_template` 未导入而始终抛 `NameError`、导致首次运行无法自动生成 `.env` 模板的缺陷
+- feat(main): 装配条码扫描器并向 Display 注册扫码回调，退出清理时释放摄像头句柄
+- feat(ports): `DisplayPort` 增加 `set_scan_handler`，`FakeDisplay` 同步实现
+
+**测试与文档**
+- test: 新增 `tests/test_elderly_barcode.py`（26 个用例），覆盖编号匹配、扫码播报各分支、屏幕扫码按钮回调装配与异常隔离、轮询离线回退与本地缓存读写异常
+- test: `tests/test_elderly_config_loader.py` 同步断言新的轮询默认值与 `scan` 配置段
+- docs: 更新根 `README.md` 功能概览、`elderly_assistant/README.md`（功能列表、按键说明表、扫码流程、离线策略、配置表）与 `requirements.txt` 可选依赖说明
+
+### 涉及文件
+- `server/app/models/medication_plan.py`、`server/app/schemas/medication.py`、`server/app/api/v1/endpoints/public.py`、`server/app/services/medication_service.py`、`server/app/services/device_service.py`
+- `server/app/migrations/versions/20260807_001_add_product_code_to_medication_plans.py`（新增）
+- `family_monitor/core/api_client.py`、`family_monitor/services/medication_service.py`、`family_monitor/templates/medication_settings.html`
+- `elderly_assistant/core/barcode.py`（新增）、`elderly_assistant/services/schedule_cache.py`（新增）
+- `elderly_assistant/ports.py`、`elderly_assistant/main.py`、`elderly_assistant/core/display.py`、`elderly_assistant/services/http_client.py`、`elderly_assistant/workflow/actions.py`、`elderly_assistant/workflow/reminder.py`、`elderly_assistant/utils/config_loader.py`、`elderly_assistant/hardware/fakes.py`、`elderly_assistant/requirements.txt`
+- `tests/test_elderly_barcode.py`（新增）、`tests/test_elderly_config_loader.py`
+- `README.md`、`elderly_assistant/README.md`
+- `VERSION` — 2.29.24 → 2.30.0
+- `history.md`
+
+---
+
 ## v2.29.18 (2026-08-05) — 修复自动更新后 __pycache__ 残留导致旧代码未生效
 
 ### 概述

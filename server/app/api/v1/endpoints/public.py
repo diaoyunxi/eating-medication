@@ -64,6 +64,8 @@ class FamilyMedicationPlan(BaseModel):
     device_id: str
     drug_name: str
     dosage: str = "1片"
+    # 药品编号/条形码（可选，非必填）：供老人端扫码识别
+    product_code: Optional[str] = None
     frequency: str = "每日"
     schedule_times: list  # ["08:00", "12:00", "18:00"]
     total_quantity: float = 30.0
@@ -243,6 +245,7 @@ async def set_device_medication_plan(
     plan_data = MedicationPlanCreate(
         drug_name=req.drug_name,
         dosage=req.dosage,
+        product_code=req.product_code,
         frequency=req.frequency,
         schedule_times=req.schedule_times,
         total_quantity=req.total_quantity,
@@ -332,6 +335,7 @@ async def update_device_medication_plan(
     plan_data = MedicationPlanCreate(
         drug_name=req.drug_name,
         dosage=req.dosage,
+        product_code=req.product_code,
         frequency=req.frequency,
         schedule_times=req.schedule_times,
         total_quantity=req.total_quantity,
