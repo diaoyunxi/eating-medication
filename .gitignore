@@ -1,4 +1,3 @@
-```
 # Compiled and build artifacts
 *.pyc
 __pycache__/
@@ -28,10 +27,11 @@ target/
 *.swp
 *.swo
 
-# Environment
+# Environment (keep .env.example trackable)
 .env
 .env.local
 *.env.*
+!.env.example
 
 # Editors
 .vscode/
@@ -65,4 +65,3 @@ htmlcov/
 *.Z
 *.lz
 *.lzo
-```

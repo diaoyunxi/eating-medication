@@ -875,6 +875,7 @@
                 var info = loginMethodsData[method] || {};
                 if (info.bound) {
                     // 解绑
+                    if (btnEl) btnEl.disabled = true;
                     unbindMethod(method, btnEl);
                 } else {
                     // 绑定
