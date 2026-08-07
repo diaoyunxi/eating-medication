@@ -200,6 +200,7 @@ class ElderlyAPIClient(BaseServerClient):
         remaining_quantity: Optional[int] = None,
         unit: str = "片",
         low_stock_threshold: int = 5,
+        product_code: Optional[str] = None,
     ) -> Dict[str, Any]:
         """设置/添加用药计划
 
@@ -216,6 +217,7 @@ class ElderlyAPIClient(BaseServerClient):
             "device_id": self._device_id,
             "drug_name": drug_name,
             "dosage": dosage,
+            "product_code": product_code,
             "frequency": frequency,
             "schedule_times": schedule_times,
             "total_quantity": total_quantity,
@@ -261,6 +263,7 @@ class ElderlyAPIClient(BaseServerClient):
         remaining_quantity: Optional[int] = None,
         unit: str = "片",
         low_stock_threshold: int = 5,
+        product_code: Optional[str] = None,
     ) -> Dict[str, Any]:
         """更新用药计划
 
@@ -276,6 +279,7 @@ class ElderlyAPIClient(BaseServerClient):
             "device_id": self._device_id,
             "drug_name": drug_name,
             "dosage": dosage,
+            "product_code": product_code,
             "frequency": frequency,
             "schedule_times": schedule_times,
             "total_quantity": total_quantity,

@@ -61,6 +61,9 @@ class DisplayPort(Protocol):
     def clear_reminder(self) -> None:
         ...
 
+    def set_scan_handler(self, handler) -> None:
+        ...
+
 
 @runtime_checkable
 class LedPort(Protocol):
@@ -75,6 +78,21 @@ class CameraPort(Protocol):
     """摄像头（HuskyLens）：拍照并返回本地路径。"""
 
     def capture_image(self, config) -> Optional[str]:
+        ...
+
+
+@runtime_checkable
+class BarcodeScannerPort(Protocol):
+    """药品条码/二维码扫描器：在超时时间内返回识别到的编码文本。
+
+    实现方可为 HuskyLens 板载识别算法，或 USB 摄像头 + 本地解码库；
+    识别失败/超时统一返回 None，调用方据此播报提示。
+    """
+
+    def scan(self, timeout: Optional[float] = None) -> Optional[str]:
+        ...
+
+    def close(self) -> None:
         ...
 
 

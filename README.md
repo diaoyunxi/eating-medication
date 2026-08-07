@@ -2,15 +2,15 @@
 
 一套面向独居老人的智能用药管理系统。
 
-> **当前版本**：v2.29.3 | **仓库**：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> **当前版本**：v2.30.0 | **仓库**：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 
 ## 功能概览
 
 | 模块 | 定位 | 主要功能 |
 |------|------|----------|
-| elderly_assistant | 老人端 | 用药提醒、药品识别、AI 语音问答、紧急呼叫 |
-| server | 服务端 | 用户认证、用药计划管理、AI 服务、WebSocket 通信 |
-| family_monitor | 家属端 | 远程查看记录、实时聊天、健康仪表板 |
+| elderly_assistant | 老人端 | 用药提醒、药品条码扫描播报、AI 语音问答、紧急呼叫、计划离线可用 |
+| server | 服务端 | 用户认证、用药计划管理（含药品编号）、AI 服务、WebSocket 通信 |
+| family_monitor | 家属端 | 远程查看记录、用药计划与药品编号维护（支持扫码）、实时聊天、健康仪表板 |
 
 ## 快速开始
 

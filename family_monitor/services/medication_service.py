@@ -20,6 +20,8 @@ def validate_and_build(payload):
     """
     drug_name = (payload.get("drug_name") or "").strip()
     dosage = (payload.get("dosage") or "").strip()
+    # 药品编号/条形码（可选，非必填）：供老人端扫码识别
+    product_code = (payload.get("product_code") or "").strip() or None
     schedule_times = payload.get("schedule_times") or []
     frequency = (payload.get("frequency") or "daily").strip()
     total_quantity = payload.get("total_quantity", 0)
@@ -59,6 +61,7 @@ def validate_and_build(payload):
     fields = {
         "drug_name": drug_name,
         "dosage": dosage,
+        "product_code": product_code,
         "schedule_times": schedule_times,
         "frequency": frequency,
         "total_quantity": total_quantity,

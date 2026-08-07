@@ -30,8 +30,10 @@ class Display:
         self._reminder_text = None      # 当前用药提醒（大字）
         self._reminder_dosage_text = None  # 当前用药剂量
         self._hint_text = None          # 提示信息（如配网模式）
+        self._scan_button = None        # 「扫码查药」触摸按钮
         # 状态
         self._in_reminder = False       # 是否处于用药提醒界面
+        self._scan_handler = None       # 扫码回调（由 main 注入，Display 不依赖扫码实现）
         self._init_gui()
 
     def _init_gui(self):
@@ -45,6 +47,51 @@ class Display:
         except Exception as e:
             logger.error(f"GUI 初始化失败: {e}")
             self.gui = None
+
+    # ---------------- 扫码按钮 ----------------
+
+    def set_scan_handler(self, handler):
+        """注册「扫码查药」按钮的点击回调。
+
+        由 main 在装配阶段注入（内部启动后台扫码线程），Display 不直接依赖
+        摄像头与扫码实现，保持界面层与业务层解耦。传 None 表示不显示该按钮。
+
+        :param handler: 无参可调用对象；注册后主界面重绘时会生成触摸按钮
+        """
+        self._scan_handler = handler if callable(handler) else None
+
+    def _on_scan_clicked(self):
+        """扫码按钮点击处理：异常隔离，避免回调报错导致 GUI 线程中断。
+
+        :return: True 表示回调已成功触发
+        """
+        if self._scan_handler is None:
+            return False
+        try:
+            self._scan_handler()
+            return True
+        except Exception as e:
+            logger.error(f"扫码按钮回调异常: {e}")
+            return False
+
+    def _draw_scan_button(self):
+        """在主界面底部绘制「扫码查药」触摸按钮（未注册回调或无 GUI 时跳过）。"""
+        if not self.gui or self._scan_handler is None:
+            return
+        add_button = getattr(self.gui, "add_button", None)
+        if not callable(add_button):
+            # 旧版 unihiker 无 add_button，静默跳过（不影响其它功能）
+            logger.warning("当前 unihiker 版本不支持 add_button，扫码按钮不可用")
+            return
+        try:
+            self._scan_button = add_button(
+                x=self.CENTER_X, y=258, w=160, h=44,
+                text='扫码查药', origin='center',
+                onclick=self._on_scan_clicked,
+            )
+        except Exception as e:
+            logger.error(f"绘制扫码按钮失败: {e}")
+            self._scan_button = None
 
     # ---------------- 基础界面 ----------------
 
@@ -84,6 +131,9 @@ class Display:
                 text='', font_size=14, color='#2E8B57',
                 origin='center'
             )
+
+            # 「扫码查药」触摸按钮（已注册回调时才绘制）
+            self._draw_scan_button()
 
             # 底部 FCC ID（小字）
             self._fcc_text = self.gui.draw_text(
@@ -152,6 +202,8 @@ class Display:
             if not self._in_reminder:
                 self.gui.clear()
                 self._in_reminder = True
+                # 清屏会销毁主界面控件，重置扫码按钮引用避免悬空
+                self._scan_button = None
                 # 保留时间在顶部小字
                 now = datetime.now()
                 self._time_text = self.gui.draw_text(
@@ -205,6 +257,7 @@ class Display:
             self._reminder_text = None
             self._reminder_dosage_text = None
             self._hint_text = None
+            self._scan_button = None
             self._in_reminder = False
             self.show_main_screen()
         except Exception as e:
@@ -222,6 +275,7 @@ class Display:
             self._reminder_text = None
             self._reminder_dosage_text = None
             self._hint_text = None
+            self._scan_button = None
 
             self.gui.draw_text(
                 x=self.CENTER_X, y=100,
@@ -330,6 +384,7 @@ class Display:
             self._reminder_text = None
             self._reminder_dosage_text = None
             self._hint_text = None
+            self._scan_button = None
             self._in_reminder = False
         except Exception as e:
             logger.error(f"清空屏幕失败: {e}")
