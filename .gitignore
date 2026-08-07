@@ -1,113 +1,99 @@
-# ===== Python =====
+```gitignore
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-*.egg-info/
-*.egg
+.Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# ===== 虚拟环境 =====
+# Virtual Environments
 venv/
-env/
 ENV/
+env.bak/
+.venv/
 
-# ===== 各模块 .env（含密钥/部署配置，部署时各自创建，忽略）=====
-server/.env
-family_monitor/.env
-elderly_assistant/.env
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
 
-# ===== 数据库 =====
-*.db
-*.sqlite
-*.sqlite3
+# Linting
+.flake8
+.isort-cache/
+.mypy_cache/
 
-# ===== 运行时数据 =====
-family_monitor/data/
-elderly_assistant/data/captures/
-elderly_assistant/data/device_id.txt
-elderly_assistant/data/device_token.txt
-
-# ===== 日志 =====
-logs/
-*.log
-
-# ===== IDE =====
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# 根目录默认忽略所有，逐项放行需纳入版本管理的文件
-/*
-# 放行业务源码（server / family_monitor 下的 Python 源码纳入版本管理；.env 与运行时数据仍按各自规则忽略）
-!server/
-!server/app/**/*.py
-!family_monitor/
-!family_monitor/routes/**/*.py
+# Logs
+*.log
 
-# 放行老人端源码（M10 硬件程序，.py 纳入版本管理；data/ 与下载的 huskylens 库仍忽略）
-!elderly_assistant/
-!elderly_assistant/main.py
-!elderly_assistant/core/**/*.py
-!elderly_assistant/services/**/*.py
-!elderly_assistant/utils/**/*.py
-elderly_assistant/data/
-# 放行部署辅助目录（systemd 单元、隧道配置、一键部署脚本）
-!deploy/
-!deploy/**
-# 放行根目录统一自动更新器（各模块 main.py 依赖它）
-!updater.py
-# 放行根目录统一安装脚本（各模块 main.py 依赖它）
-!install.py
-# 放行跨平台一键部署脚本
-!setup.sh
-!setup.ps1
-# 放行跨端共享公共包（消除三端重复实现，仅依赖标准库）
-!common/
-!common/**/*.py
-# 放行根目录全局更新配置 .env（仅含 AUTO_PULL / GITHUB_PROXY，无密钥，纳入版本管理）
-!.env
-# 放行测试套件与 pytest 配置（CI 通过 pytest 运行，必须纳入版本管理）
-!tests/
-!tests/**
-# 测试缓存字节码仍需忽略
-tests/__pycache__/
-!conftest.py
-!pytest.ini
-
-# ===== OS =====
+# OS
 .DS_Store
 Thumbs.db
 
-# ===== 运行时数据与敏感文件补全 =====
-server/data/
-*.log
-*.pid
-*.sqlite*
-logs/
-pan_credentials.json
-*.secret
+# Environment variables
+.env
+.env.local
+*.env.*
 
-# ===== 打包文件（仅上传到 GitHub Release，不入源码仓库）=====
+# Coverage
+.coverage*
+coverage.xml
+
+# Build outputs
+*.o
+*.obj
+*.out
+*.dll
+*.so
+*.a
+
+# Compressed files
 *.zip
+*.gz
 *.tar
-*.tar.gz
 *.tgz
+*.bz2
+*.xz
 *.7z
 *.rar
-SHA256SUMS.txt
-*.SHA256SUMS.txt
-
-# ==== 其他文件 ====
-!/src/
-!package.json
-!/.github
-# 仓库根级工具脚本（与 updater.py 同性质，需纳入版本控制）
-!reset_runtime.py
-
-# install.py 自动从官方仓库下载的未发布单文件模块（运行时落地，不纳入仓库）
-elderly_assistant/dfrobot_huskylensv2.py
-.venv/
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+```

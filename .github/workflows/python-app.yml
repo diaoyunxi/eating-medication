@@ -87,7 +87,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "release $TAG 已存在，上传/更新资产"
           else
-            gh release create "$TAG" --title "$TAG" -m "$MSG"
+            gh release create "$TAG" --title "$TAG" -n "$MSG"
           fi
           # 上传资产文件（已存在则覆盖）
           gh release upload "$TAG" "$ZIP" "$SHA" --clobber
