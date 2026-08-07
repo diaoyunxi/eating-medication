@@ -561,9 +561,12 @@
     })();
     </script>
 
-    <!-- 扫码逻辑（原生 BarcodeDetector，手动降级） -->
+    <!-- 扫码逻辑（原生 BarcodeDetector，手动降级；session 令牌防止弹窗关闭后摄像头流泄漏） -->
     <script>
         let _scanStream = null;
+        // 每次打开弹窗递增的会话令牌；关闭弹窗使其失效，确保后到的 getUserMedia
+        // 结果（已获取的流）被丢弃，避免摄像头常亮/流泄漏
+        let _scanSession = 0;
 
         function openScanModal() {
             document.getElementById('scanModal').classList.add('show');
@@ -571,6 +574,8 @@
         }
 
         function closeScanModal() {
+            // 先使会话失效，再停止流，确保关闭后才返回的流立即被丢弃
+            _scanSession += 1;
             stopScan();
             document.getElementById('scanModal').classList.remove('show');
         }
@@ -583,8 +588,15 @@
                 if (msg) msg.textContent = '当前浏览器不支持自动扫码，请手动输入编号。';
                 return;
             }
+            const mySession = ++_scanSession;
             try {
-                _scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                // 会话已失效（弹窗被关闭后流才返回）：立即停止新获取的流，避免常亮
+                if (mySession !== _scanSession) {
+                    stream.getTracks().forEach(function (t) { t.stop(); });
+                    return;
+                }
+                _scanStream = stream;
                 video.srcObject = _scanStream;
                 await video.play();
                 const detector = new BarcodeDetector({
@@ -593,7 +605,8 @@
                              'qr_code', 'data_matrix', 'pdf417']
                 });
                 const tick = async () => {
-                    if (!_scanStream) return;
+                    // 会话失效或流已释放则停止轮询，避免处理过期结果
+                    if (mySession !== _scanSession || !_scanStream) return;
                     try {
                         const codes = await detector.detect(video);
                         if (codes.length > 0) {
@@ -608,7 +621,11 @@
                 };
                 tick();
             } catch (e) {
-                if (msg) msg.textContent = '无法访问摄像头：' + (e.message || e) + '，请手动输入编号。';
+                if (mySession === _scanSession) {
+                    if (msg) msg.textContent = '无法访问摄像头：' + (e.message || e) + '，请手动输入编号。';
+                    // video.play 等失败且流已绑定时，停止以释放摄像头
+                    if (_scanStream) stopScan();
+                }
             }
         }
 

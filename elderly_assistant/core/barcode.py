@@ -22,6 +22,8 @@ import logging
 import threading
 import time
 
+from core.camera import get_huskylens, _HUSKYLENS_OP_LOCK
+
 logger = logging.getLogger("ElderlyAssistant")
 
 # HuskyLens 官方算法编号；优先从驱动模块读取常量，取不到时用字面量兜底
@@ -70,7 +72,6 @@ class HuskyLensScanner:
         if self._hl is not None:
             return self._hl
         # 复用 core.camera 的连接单例，避免与拍照功能争抢 I2C/UART 句柄
-        from core.camera import get_huskylens
         import dfrobot_huskylensv2 as hl_module
 
         hl = get_huskylens(self._config)
@@ -124,17 +125,19 @@ class HuskyLensScanner:
     def scan_once(self):
         """尝试识别一次（条码优先、二维码兜底），无结果返回 None。"""
         hl = self._ensure()
-        for algo in self._algos:
-            if self._current_algo != algo:
-                try:
-                    hl.switchAlgorithm(algo)
-                except Exception as e:
-                    logger.debug(f"HuskyLens 切换算法 {algo} 失败: {e}")
-                    continue
-                self._current_algo = algo
-            codes = self._read_contents(hl, algo)
-            if codes:
-                return codes[0]
+        # 与拍照（takePhoto）共享 HuskyLens 单例句柄，加锁避免并发切换/读取冲突
+        with _HUSKYLENS_OP_LOCK:
+            for algo in self._algos:
+                if self._current_algo != algo:
+                    try:
+                        hl.switchAlgorithm(algo)
+                    except Exception as e:
+                        logger.debug(f"HuskyLens 切换算法 {algo} 失败: {e}")
+                        continue
+                    self._current_algo = algo
+                codes = self._read_contents(hl, algo)
+                if codes:
+                    return codes[0]
         return None
 
     def close(self):

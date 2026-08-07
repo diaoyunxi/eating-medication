@@ -11,7 +11,7 @@ class MedicationPlanCreate(BaseModel):
     drug_name: str = Field(..., min_length=1, max_length=100)
     dosage: str = Field(..., description="每次剂量，如 '1片'")
     # 药品编号/条形码（可选，非必填）：供老人端扫码识别
-    product_code: Optional[str] = Field(default=None, description="药品编号/条形码，可选")
+    product_code: Optional[str] = Field(default=None, max_length=64, description="药品编号/条形码，可选")
     frequency: str = Field(..., description="频率描述，如 '每日3次'")
     schedule_times: List[str] = Field(..., description="服药时间点，如 ['08:00','20:00']")
     total_quantity: float = Field(..., gt=0, description="总数量")
