@@ -169,6 +169,13 @@ class HTTPClient:
                 else:
                     logger.warning(f"用药计划响应格式异常: {type(data)}")
                     return self._fallback_schedules("响应格式异常")
+                # 校验 schedules 内部结构：必须是列表且每项均为 dict，避免下游
+                # s.get(...) 在收到 {"schedules": "invalid"} 或对象时异常
+                if not isinstance(schedules, list) or not all(
+                    isinstance(item, dict) for item in schedules
+                ):
+                    logger.warning("用药计划 schedules 字段格式异常")
+                    return self._fallback_schedules("schedules 字段格式异常")
                 # 网络拉取成功（含服务端返回空列表）即刷新本地缓存
                 save_schedules(schedules)
                 return schedules

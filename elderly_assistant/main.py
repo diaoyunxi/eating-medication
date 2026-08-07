@@ -82,6 +82,9 @@ def check_and_install_dependencies():
         ('dotenv', 'python-dotenv'),
         ('requests', 'requests'),
         ('pyttsx3', 'pyttsx3'),
+        # HuskyLens 驱动为 PyPI 未发布模块，缺失时同样触发 common/install.py --huskylens
+        # 安装，保证默认（auto 优先 HuskyLens）扫码通路可用
+        ('dfrobot_huskylensv2', 'dfrobot-huskylensv2'),
     ]
     missing = []
     for module_name, pip_name in required_modules:
@@ -254,14 +257,24 @@ def main():
     # 8.2 注册屏幕「扫码查药」按钮回调（点击后在后台线程扫码，避免阻塞 GUI）
     scan_timeout = float(config.get('scan', {}).get('timeout_sec', 8.0))
 
+    # 扫码进行中锁：屏蔽重复点击，避免多个扫码线程并发导致误报「未识别」或重复 TTS
+    _scan_task_lock = threading.Lock()
+
     def _on_scan_button():
+        if not _scan_task_lock.acquire(False):
+            logger.info("已有扫码任务进行中，忽略本次扫码请求")
+            return
+
+        def _run_scan():
+            try:
+                handle_scan_medication(
+                    scanner, poller, speech, logger, timeout=scan_timeout
+                )
+            finally:
+                _scan_task_lock.release()
+
         import threading as _th
-        _th.Thread(
-            target=handle_scan_medication,
-            args=(scanner, poller, speech, logger),
-            kwargs={"timeout": scan_timeout},
-            daemon=True,
-        ).start()
+        _th.Thread(target=_run_scan, daemon=True).start()
 
     display.set_scan_handler(_on_scan_button)
 

@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 """老人端药品扫码与离线回退纯逻辑测试（无硬件/网络依赖，使用 Fake 替身）。"""
 import json
+import os
+import shutil
 import sys
 import tempfile
 import unittest
+import unittest.mock as mock
 from pathlib import Path
 
 # 将 elderly_assistant 加入 sys.path，使其顶层包 workflow / hardware / core 可导入
@@ -16,6 +19,8 @@ from tests._helpers import load_module  # noqa: E402
 from workflow.actions import find_plan_by_product_code, handle_scan_medication  # noqa: E402
 from workflow.reminder import MedicationPoller  # noqa: E402
 from hardware.fakes import FakeBarcodeScanner, FakeSpeech  # noqa: E402
+from services.http_client import HTTPClient  # noqa: E402
+from services.schedule_cache import CACHE_PATH  # noqa: E402
 
 LOG = __import__("logging").getLogger("t")
 
@@ -245,6 +250,79 @@ class TestScheduleCache(unittest.TestCase):
         p = self._tmp()
         self.assertTrue(schedule_cache.save_schedules([{"a": 1}, None, "x"], p))
         self.assertEqual(schedule_cache.load_schedules(p), [{"a": 1}])
+
+
+class _FakeResp:
+    """最小 HTTP 响应替身：携带状态码与可解析 JSON 负载。"""
+
+    def __init__(self, status_code, data):
+        self.status_code = status_code
+        self._data = data
+
+    def json(self):
+        return self._data
+
+
+class _ValidationClient(HTTPClient):
+    """测试替身：跳过 get_device_id（避免无开发板时 pinpong Board().begin() 退出），
+    仅用于验证 get_medication_schedule 的 schedules 内部类型校验逻辑。"""
+
+    def __init__(self, base_url="http://t", timeout=5):
+        self.config = {"base_url": base_url, "timeout": timeout}
+        self.base_url = base_url
+        self.timeout = timeout
+        self.device_id = "test-device"
+        self.device_token = None
+
+
+class TestScheduleTypeValidation(unittest.TestCase):
+    """#6 校验服务端返回 schedules 的内部类型，避免下游因非预期结构崩溃。"""
+    _cache_backup: "str | None" = None
+
+    def setUp(self):
+        # 暂存/移除真实本地缓存，使回退在无缓存时确定返回 None
+        self._cache_backup = None
+        if os.path.exists(CACHE_PATH):
+            self._cache_backup = CACHE_PATH + ".bak"
+            shutil.move(CACHE_PATH, self._cache_backup)
+
+    def tearDown(self):
+        # 还原真实本地缓存状态，避免污染其它用例
+        if self._cache_backup and os.path.exists(self._cache_backup):
+            shutil.move(self._cache_backup, CACHE_PATH)
+
+    def _client(self):
+        return _ValidationClient()
+
+    def _patch_get(self, status_code, data):
+        # requests 为已安装顶层包，直接打桩 requests.get（避免替换模块属性引发的串扰）
+        patcher = mock.patch("requests.get", return_value=_FakeResp(status_code, data))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return patcher
+
+    def test_malformed_string_falls_back(self):
+        client = self._client()
+        self._patch_get(200, {"schedules": "invalid"})
+        # 内部类型非法时回退本地缓存；无缓存返回 None（结果未知），而非崩溃
+        self.assertIsNone(client.get_medication_schedule())
+
+    def test_malformed_object_falls_back(self):
+        client = self._client()
+        self._patch_get(200, {"schedules": {"a": 1}})
+        self.assertIsNone(client.get_medication_schedule())
+
+    def test_valid_list_of_dicts_returned(self):
+        client = self._client()
+        plans = [{"drug_name": "x", "product_code": "1"}]
+        self._patch_get(200, {"schedules": plans})
+        self.assertEqual(client.get_medication_schedule(), plans)
+
+    def test_top_level_list_response_returned(self):
+        client = self._client()
+        plans = [{"drug_name": "y"}]
+        self._patch_get(200, plans)
+        self.assertEqual(client.get_medication_schedule(), plans)
 
 
 if __name__ == "__main__":
