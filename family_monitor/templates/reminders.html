@@ -304,12 +304,15 @@
 
         /* ===== 保存（添加/更新） ===== */
         function saveRow(btn) {
+            /* 防止重复点击 */
+            if (btn.disabled) return;
+
             var tr = btn.closest('tr');
             var data;
             try {
                 data = collectRowData(btn);
             } catch (e) {
-                alert('收集表单数据失败: ' + e.message);
+                alert('收集表单数据失败：' + e.message);
                 return;
             }
 
@@ -328,6 +331,14 @@
                 url = PREFIX + '/medication_settings/update/' + planId;
                 method = 'POST';
             }
+
+            /* 禁用按钮防止重复提交 */
+            var allBtns = tr.querySelectorAll('.dns-action-btn');
+            allBtns.forEach(function(b) {
+                b.disabled = true;
+                b.style.opacity = '0.6';
+                b.style.cursor = 'not-allowed';
+            });
 
             fetch(url, {
                 method: method,
@@ -359,10 +370,22 @@
                     window.location.reload();
                 } else {
                     alert(result.message || '操作失败');
+                    /* 恢复按钮 */
+                    allBtns.forEach(function(b) {
+                        b.disabled = false;
+                        b.style.opacity = '';
+                        b.style.cursor = '';
+                    });
                 }
             })
             .catch(function(e) {
-                alert('保存失败: ' + e.message);
+                alert('保存失败：' + e.message);
+                /* 恢复按钮 */
+                allBtns.forEach(function(b) {
+                    b.disabled = false;
+                    b.style.opacity = '';
+                    b.style.cursor = '';
+                });
             });
         }
 

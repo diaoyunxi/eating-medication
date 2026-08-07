@@ -284,6 +284,13 @@
 
         // 提交用药计划
         async function submitPlan() {
+            const submitBtn = document.querySelector('button[onclick="submitPlan()"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.style.opacity = '0.6';
+                submitBtn.style.cursor = 'not-allowed';
+            }
+            
             const drugName = document.getElementById('drugName').value.trim();
             const dosage = document.getElementById('dosage').value.trim();
             const scheduleTimes = collectTimes();
@@ -296,14 +303,29 @@
             // 前端基础校验
             if (!drugName) {
                 showToast('请填写药品名称', 'warning');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.style.opacity = '';
+                    submitBtn.style.cursor = '';
+                }
                 return;
             }
             if (!dosage) {
                 showToast('请填写剂量', 'warning');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.style.opacity = '';
+                    submitBtn.style.cursor = '';
+                }
                 return;
             }
             if (scheduleTimes.length === 0) {
                 showToast('请至少添加一个服药时间', 'warning');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.style.opacity = '';
+                    submitBtn.style.cursor = '';
+                }
                 return;
             }
 
@@ -342,9 +364,19 @@
                     setTimeout(function() { location.reload(); }, 1000);
                 } else {
                     showToast(data.message || '添加失败', 'error');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = '';
+                        submitBtn.style.cursor = '';
+                    }
                 }
             } catch (error) {
                 showToast('添加失败：' + error.message, 'error');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.style.opacity = '';
+                    submitBtn.style.cursor = '';
+                }
             }
         }
 
