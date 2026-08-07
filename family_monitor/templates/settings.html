@@ -824,6 +824,19 @@
 
             // 加载登录方式绑定状态
             window.loadLoginMethods = async function () {
+                // 加载期间禁用所有按钮防止重复点击
+                ['phone', 'email', 'github', 'gitee'].forEach(function (method) {
+                    var item = document.querySelector('.login-method-item[data-method="' + method + '"]');
+                    if (item) {
+                        var btnEl = item.querySelector('.lm-action-btn');
+                        if (btnEl) {
+                            btnEl.disabled = true;
+                            btnEl.textContent = '加载中...';
+                            btnEl.style.opacity = '0.6';
+                        }
+                    }
+                });
+                
                 try {
                     var resp = await fetch(prefix + '/auth/login-methods', {
                         headers: { 'Authorization': 'Bearer ' + (getCookie('access_token') || '') }
@@ -833,6 +846,18 @@
                     updateLoginMethodsUI(loginMethodsData);
                 } catch (e) {
                     console.error('加载登录方式失败:', e);
+                    // 加载失败时恢复按钮
+                    ['phone', 'email', 'github', 'gitee'].forEach(function (method) {
+                        var item = document.querySelector('.login-method-item[data-method="' + method + '"]');
+                        if (item) {
+                            var btnEl = item.querySelector('.lm-action-btn');
+                            if (btnEl) {
+                                btnEl.disabled = false;
+                                btnEl.textContent = '绑定';
+                                btnEl.style.opacity = '';
+                            }
+                        }
+                    });
                 }
             };
 
