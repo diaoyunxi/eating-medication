@@ -131,7 +131,7 @@ elderly_assistant/data/
 !common/
 !common/**/*.py
 # 放行根目录全局更新配置 .env（仅含 AUTO_PULL / GITHUB_PROXY，无密钥，纳入版本管理）
-!.env
+# !.env 已移除：所有 .env 文件均由程序自动生成，全部忽略以防敏感信息泄露
 # 放行测试套件与 pytest 配置（CI 通过 pytest 运行，必须纳入版本管理）
 !tests/
 !tests/**
