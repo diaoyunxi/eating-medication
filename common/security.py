@@ -13,12 +13,12 @@ import secrets
 
 try:
     # bcrypt 的 Rust 绑定（pyo3）对畸形/损坏的哈希会触发原生 panic，
-    # 抛出的 PanicException 是 BaseException 子类，无法被 except (ValueError, TypeError) 捕获
+    # 抛出的 PanicException 是 BaseException 子类，需显式捕获
     from pyo3_runtime import PanicException as _PanicException
 except Exception:  # noqa: BLE001
-    # 纯 C 版 bcrypt 没有该异常类型，用一个永不抛出的占位类，保持 except 元组合法
-    class _PanicException(Exception):
-        pass
+    # 纯 C 版 bcrypt / pyo3_runtime 不可直接导入时，用 BaseException 兜底：
+    # pyo3 的 PanicException 是 BaseException 子类，只有 BaseException 才能兜住它
+    _PanicException = BaseException
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
