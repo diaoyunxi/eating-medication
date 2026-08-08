@@ -174,10 +174,10 @@ def main():
     # 2. 创建 GUI 显示界面
     display = Display()
 
-    # 获取设备 FCC ID
-    fcc_id = get_device_id()
+    # 获取设备 UUID
+    device_uuid = get_device_id()
     server_url = config.get('server', {}).get('base_url', '')
-    logger.info(f"设备 FCC ID: {fcc_id}")
+    logger.info(f"设备 UUID: {device_uuid}")
     logger.info(f"服务器地址: {server_url}")
 
     # 3. 初始化蜂鸣器
@@ -279,7 +279,7 @@ def main():
     display.set_scan_handler(_on_scan_button)
 
     # 9. 显示主界面（含「扫码查药」触摸按钮）
-    display.show_main_screen(fcc_id=fcc_id, server_url=server_url, connected=False)
+    display.show_main_screen(device_uuid=device_uuid, server_url=server_url, connected=False)
 
     # 提醒状态
     reminder_state = ReminderState()
@@ -318,7 +318,7 @@ def main():
                 except Exception:
                     server_connected = False
                 display.show_status(server_url, server_connected)
-                display.show_fcc_id(fcc_id)
+                display.show_device_uuid(device_uuid)
                 # 更新下一个用药提醒
                 if not reminder_state.active:
                     nxt = poller.get_next_reminder(now)

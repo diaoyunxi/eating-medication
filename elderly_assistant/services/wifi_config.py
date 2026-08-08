@@ -6,7 +6,7 @@ WiFi 配网 Web 服务模块
 用户提交后：
   1. 保存服务器地址到 .env（SERVER_BASE_URL）
   2. 使用 nmcli 命令连接指定 WiFi
-  3. 调用 device_id 获取 FCC ID，POST 注册到服务器
+  3. 调用 device_id 获取设备UUID，POST 注册到服务器
   4. 返回成功/失败状态
 """
 
@@ -147,7 +147,7 @@ class WiFiConfigManager:
 
     def register_device_to_server(self, server_url):
         """
-        获取设备 FCC ID 并注册到服务器
+        获取设备UUID并注册到服务器
         :return: (success: bool, message: str, device_id: str)
         """
         try:
@@ -156,7 +156,7 @@ class WiFiConfigManager:
             from services.http_client import HTTPClient
 
             device_id = get_device_id()
-            logger.info(f"获取设备 FCC ID: {device_id}")
+            logger.info(f"获取设备 UUID: {device_id}")
 
             # 构造临时 config，使用用户配置的 server_url
             tmp_config = load_config()
@@ -263,7 +263,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
                     })
                     return
 
-                # 3. 获取 FCC ID 并注册到服务器
+                # 3. 获取设备UUID并注册到服务器
                 reg_ok, reg_msg, device_id = self.wifi_manager.register_device_to_server(server_url)
 
                 self._send_json({
