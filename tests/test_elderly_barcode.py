@@ -22,6 +22,11 @@ from hardware.fakes import FakeBarcodeScanner, FakeSpeech  # noqa: E402
 from services.http_client import HTTPClient  # noqa: E402
 from services.schedule_cache import CACHE_PATH  # noqa: E402
 
+# 模块加载时即保存 schedule_cache 模块对象：pytest 的 prepend 导入模式可能使
+# 测试在运行期的 sys.modules 中找不到 "services.schedule_cache"（命名空间包歧义），
+# 故在导入期固化引用，供 setUp 打桩使用
+import services.schedule_cache as _schedule_cache_module  # noqa: E402
+
 LOG = __import__("logging").getLogger("t")
 
 PLANS = [
@@ -282,7 +287,9 @@ class TestScheduleTypeValidation(unittest.TestCase):
         # 使用临时目录隔离缓存路径，避免测试间相互影响或污染真实缓存
         self._cache_dir = tempfile.TemporaryDirectory()
         cache_path = os.path.join(self._cache_dir.name, "schedules.json")
-        patcher = mock.patch("services.schedule_cache.CACHE_PATH", cache_path)
+        # 直接对加载期固化的 schedule_cache 模块对象打桩，隔离缓存路径，
+        # 避免测试间相互影响或污染真实运行时缓存
+        patcher = mock.patch.object(_schedule_cache_module, "CACHE_PATH", cache_path)
         patcher.start()
         self.addCleanup(patcher.stop)
         self.addCleanup(self._cache_dir.cleanup)
