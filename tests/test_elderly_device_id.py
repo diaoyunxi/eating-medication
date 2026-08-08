@@ -18,33 +18,36 @@ device_id = load_module("elderly_services_device_id",
 
 
 class TestDeviceId(unittest.TestCase):
-    def test_fcc_id_success(self):
+    def test_pinpong_uuid_success(self):
         fake_board = unittest.mock.MagicMock()
-        fake_board.mac = "AA:BB:CC:DD:EE:FF"
-        with unittest.mock.patch("pinpong.board.Board", return_value=fake_board):
-            fcc = device_id._get_fcc_id()
-        self.assertIsNotNone(fcc)
-        self.assertTrue(fcc.startswith("FCC_"))
-        self.assertEqual(len(fcc), 4 + 12)
+        fake_board.uuid = "12345678-1234-1234-1234-123456789abc"
+        with unittest.mock.patch("pinpong.board.Board", return_value=fake_board), \
+             unittest.mock.patch("pinpong.board.gboard", fake_board):
+            did = device_id._get_pinpong_uuid()
+        self.assertIsNotNone(did)
+        self.assertEqual(did, "12345678-1234-1234-1234-123456789abc")
 
-    def test_fcc_id_none_when_no_hardware(self):
+    def test_pinpong_uuid_none_when_no_hardware(self):
         fake_board = unittest.mock.MagicMock()
         fake_board.begin.side_effect = Exception("no hardware")
         with unittest.mock.patch("pinpong.board.Board", return_value=fake_board):
-            self.assertIsNone(device_id._get_fcc_id())
+            self.assertIsNone(device_id._get_pinpong_uuid())
 
     def test_persisted_uuid_format(self):
         did = device_id._get_persisted_uuid()
-        self.assertTrue(did.startswith("DEV_"))
+        # 标准 UUID 格式：8-4-4-4-12 十六进制，含 4 个连字符，共 36 字符
+        self.assertEqual(len(did), 36)
+        self.assertEqual(did.count("-"), 4)
         # 幂等：持久化后再次调用返回相同值
         self.assertEqual(device_id._get_persisted_uuid(), did)
 
-    def test_get_device_id_uses_fcc(self):
+    def test_get_device_id_uses_uuid(self):
         fake_board = unittest.mock.MagicMock()
-        fake_board.mac = "11:22:33:44:55:66"
-        with unittest.mock.patch("pinpong.board.Board", return_value=fake_board):
+        fake_board.uuid = "12345678-1234-1234-1234-123456789abc"
+        with unittest.mock.patch("pinpong.board.Board", return_value=fake_board), \
+             unittest.mock.patch("pinpong.board.gboard", fake_board):
             did = device_id.get_device_id()
-        self.assertTrue(did.startswith("FCC_"))
+        self.assertEqual(did, "12345678-1234-1234-1234-123456789abc")
 
 
 if __name__ == "__main__":

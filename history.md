@@ -1384,17 +1384,18 @@ family_monitor 登录/注册/安全设置页面的 `.auth-logo` CSS 样式原为
 - install.py添加edge-tts和espeak-ng的安装逻辑
 - 添加系统级依赖检查（espeak-ng）
 
-### 设备ID获取优化 - 使用pinpong库获取FCC ID
+### 设备ID获取优化 - 使用pinpong库获取设备UUID
 - 修改`elderly_assistant/services/device_id.py`：
-  - 行空板M10设备标识改为通过pinpong库获取FCC ID格式（FCC_开头+12位MAC地址）
+  - 行空板M10设备标识改为通过pinpong库获取设备UUID（Board.uuid）
   - 移除Linux和Windows兼容代码，老人端仅用于M10平台
   - 添加详细的日志输出，便于调试
+  - 兜底：生成标准UUID并持久化到本地文件
 - 修改`elderly_assistant/tui/tui_app.py`：
-  - 系统设置菜单新增"设备FCC ID"显示项
-  - 选择后可语音播报FCC ID，提示用户在子女端输入此ID完成绑定
+  - 系统设置菜单新增"设备UUID"显示项
+  - 选择后可语音播报设备UUID，提示用户在子女端输入此ID完成绑定
 - 修改`family_monitor/templates/settings.html`：
-  - 设备绑定表单标签改为"设备FCC ID"
-  - 更新placeholder和提示信息，明确格式为FCC_开头后跟12位十六进制字符
+  - 设备绑定表单标签改为"设备UUID"
+  - 更新placeholder和提示信息，明确格式为标准UUID（8-4-4-4-12 十六进制，含连字符）
 
 ### 老人端WiFi配置功能 - 热点+Web配置界面
 - 新增`elderly_assistant/services/hotspot_manager.py`：
