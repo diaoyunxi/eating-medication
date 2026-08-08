@@ -1793,3 +1793,17 @@ python main.py
 ```
 
 访问 http://localhost:4430
+
+---
+
+## 变更记录
+
+### v2.30.3 (2026-08-08)
+- 修复 `elderly_assistant` 设备唯一标识来源：经行空板官方文档与真实 M10 日志双重确认，
+  pinpong 的 `Board` 类未暴露 `uuid` 属性（仅作硬件初始化入口），原 `board.uuid` 取值恒为 None。
+- 改用网卡 MAC 地址（`uuid.getnode()`）经标准 `uuid5` 确定性派生设备 UUID 作为主硬件来源：
+  每设备唯一、重启不变、删除本地 `data/device_id.txt` 也能从 MAC 重生，彻底消除
+  `pinpong Board 未提供 uuid 属性，降级到持久化 UUID` 告警。
+- pinpong 取 uuid 仅保留为未来版本兼容的兜底尝试；随机持久化 UUID 为最后兜底。
+- 同步更新 `tests/test_elderly_device_id.py` 覆盖 MAC 派生/确定性/降级路径，6 项测试通过。
+
