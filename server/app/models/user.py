@@ -47,7 +47,7 @@ class User(Base):
     email = Column(String(255), nullable=True)
 
     # ===== TOTP 第二因子（密码后的第二因子，issue：新增登录方式） =====
-    # TOTP 共享密钥（base32），使用 crypto.encrypt_sensitive_data 加密存储，未开启时为 NULL
+    # TOTP 共享密钥（base32），使用 crypto.encrypt_text 加密存储，未开启时为 NULL
     totp_secret = Column(String(255), nullable=True)
     # 是否已开启 TOTP 第二因子（false 时登录仅需密码；true 时登录需再输入动态码）
     mfa_enabled = Column(Boolean, default=False, nullable=False)
