@@ -9,6 +9,7 @@ import os
 import requests
 from datetime import datetime
 from services.device_id import get_device_id
+from services.schedule_cache import load_schedules, save_schedules
 
 logger = logging.getLogger("ElderlyAssistant")
 
@@ -131,11 +132,29 @@ class HTTPClient:
             logger.warning(f"设备下线通知异常: {e}")
             return False
 
+    @staticmethod
+    def _fallback_schedules(reason):
+        """网络路径失败时回退本地缓存。
+
+        :return: 本地缓存的计划列表；无缓存时返回 None，表示"本次拉取结果未知"，
+                 由 MedicationPoller 保留上一轮内存缓存，避免误清空导致漏提醒
+        """
+        cached = load_schedules()
+        if cached:
+            logger.info(f"网络不可用（{reason}），回退本地用药计划缓存 {len(cached)} 条")
+            return cached
+        logger.warning(f"网络不可用（{reason}）且无本地缓存，保留内存中的既有计划")
+        return None
+
     def get_medication_schedule(self):
         """
-        拉取本设备的用药计划（每分钟轮询调用）
+        拉取本设备的用药计划（由 MedicationPoller 定时调用）
         GET /api/v1/public/device/schedule/{device_id}
-        返回 schedules 列表，每项包含 drug_name, dosage, time, frequency
+        返回 schedules 列表，每项包含 plan_id, drug_name, dosage, product_code, time, frequency
+
+        有网优先走网络：请求成功后写入本地缓存；请求失败/异常时回退读取本地缓存，
+        保证断网期间提醒与扫码查询不中断。
+        :return: 计划列表；网络失败且无本地缓存时返回 None（表示结果未知）
         """
         url = f"{self.base_url}/api/v1/public/device/schedule/{self.device_id}"
         try:
@@ -144,16 +163,27 @@ class HTTPClient:
                 data = resp.json()
                 # 校验响应类型，避免非 dict 响应调用 .get 崩溃
                 if isinstance(data, dict):
-                    return data.get('schedules', []) or []
+                    schedules = data.get('schedules', []) or []
                 elif isinstance(data, list):
-                    return data
+                    schedules = data
                 else:
                     logger.warning(f"用药计划响应格式异常: {type(data)}")
-                    return []
-            return []
+                    return self._fallback_schedules("响应格式异常")
+                # 校验 schedules 内部结构：必须是列表且每项均为 dict，避免下游
+                # s.get(...) 在收到 {"schedules": "invalid"} 或对象时异常
+                if not isinstance(schedules, list) or not all(
+                    isinstance(item, dict) for item in schedules
+                ):
+                    logger.warning("用药计划 schedules 字段格式异常")
+                    return self._fallback_schedules("schedules 字段格式异常")
+                # 网络拉取成功（含服务端返回空列表）即刷新本地缓存
+                save_schedules(schedules)
+                return schedules
+            logger.warning(f"拉取用药计划失败，状态码: {resp.status_code}")
+            return self._fallback_schedules(f"HTTP {resp.status_code}")
         except Exception as e:
             logger.warning(f"拉取用药计划异常: {e}")
-            return []
+            return self._fallback_schedules(str(e))
 
     def confirm_medication(self, drug_name, dosage, taken_at=None, items=None):
         """

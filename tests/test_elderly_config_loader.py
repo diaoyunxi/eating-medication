@@ -28,8 +28,11 @@ class TestLoadSave(unittest.TestCase):
         self.assertEqual(cfg["server"]["base_url"], "http://localhost:1059")
         self.assertEqual(cfg["server"]["timeout"], 10)
         self.assertEqual(cfg["hotspot"]["web_port"], 8088)
-        self.assertEqual(cfg["reminder"]["poll_interval"], 60)
+        # 用药计划轮询默认 20 分钟（1200 秒）
+        self.assertEqual(cfg["reminder"]["poll_interval"], 1200)
         self.assertEqual(cfg["camera"]["connection"], "i2c")
+        self.assertEqual(cfg["scan"]["source"], "auto")
+        self.assertEqual(cfg["scan"]["timeout_sec"], 8.0)
 
     def test_override(self):
         _clear_env()

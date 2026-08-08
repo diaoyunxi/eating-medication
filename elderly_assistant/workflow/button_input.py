@@ -5,6 +5,9 @@
 process()，由回调 on_confirm / on_ai / on_snooze 注入具体动作。
 按钮 A 短按=确认服药；长按(>long_press_sec)=问 AI 注意事项（仅提醒激活时）。
 按钮 B=暂缓提醒（仅提醒激活时）。
+
+注：药品扫码由屏幕上的「扫码查药」触摸按钮触发（见 core/display.py），
+不占用物理按键，避免与暂缓提醒语义冲突。
 """
 import logging
 

@@ -1,6 +1,22 @@
 {% extends "base.html" %}
 {% block title %}用药设置 - {{ app_name }}{% endblock %}
 {% block content %}
+        <style>
+            .barcode-input-row { display: flex; gap: 8px; align-items: center; }
+            .barcode-input-row input { flex: 1; min-width: 0; }
+            .modal-overlay {
+                position: fixed; inset: 0; background: rgba(0,0,0,.5);
+                display: none; align-items: center; justify-content: center;
+                z-index: 1000; padding: 16px;
+            }
+            .modal-overlay.show { display: flex; }
+            .modal-box {
+                background: #fff; border-radius: 12px; padding: 16px;
+                width: 100%; max-width: 420px;
+            }
+            .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+            .modal-close { border: none; background: transparent; font-size: 1.2rem; cursor: pointer; }
+        </style>
         <!-- 页面头部 -->
         <header class="page-header">
             <div class="page-header-content">
@@ -65,6 +81,9 @@
                                     {{ plan.get('drug_name', '未知药品') }}
                                     {% if plan.get('frequency') %}
                                     <span class="time-badge">🗓️ {{ plan.get('frequency') }}</span>
+                                    {% endif %}
+                                    {% if plan.get('product_code') %}
+                                    <span class="time-badge">🔖 {{ plan.get('product_code') }}</span>
                                     {% endif %}
                                 </div>
                                 <div class="plan-meta">
@@ -134,6 +153,16 @@
                             <label for="dosage">剂量 *</label>
                             <input type="text" id="dosage" placeholder="如：1片" required>
                             <span class="form-hint-inline">每次服药的剂量</span>
+                        </div>
+
+                        <!-- 药品编号 / 条形码（可选，非必填） -->
+                        <div class="form-field">
+                            <label for="productCode">药品编号 / 条形码</label>
+                            <div class="barcode-input-row">
+                                <input type="text" id="productCode" placeholder="如：6901234567890（选填）">
+                                <button type="button" class="btn btn-outline btn-sm" onclick="openScanModal()">📷 扫描</button>
+                            </div>
+                            <span class="form-hint-inline">选填。录入后老人端扫码即可朗读药品名称与剂量</span>
                         </div>
 
                         <!-- 服药时间 -->
@@ -220,6 +249,19 @@
         </main>
     </div>
 
+    <!-- 扫码弹窗（浏览器原生 BarcodeDetector，不支持时提示手动输入） -->
+    <div id="scanModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 style="margin:0;">扫描药品条形码</h3>
+                <button type="button" class="modal-close" onclick="closeScanModal()">✕</button>
+            </div>
+            <video id="scanVideo" playsinline muted style="width:100%;background:#000;border-radius:8px;display:block;"></video>
+            <p id="scanMsg" class="form-hint-inline">将条形码对准摄像头…</p>
+            <p class="form-hint-inline">若浏览器不支持自动扫码，请关闭弹窗并在上方手动输入编号。</p>
+        </div>
+    </div>
+
     <!-- Toast通知 -->
     <div id="toast" class="toast">
         <div class="toast-icon" id="toastIcon">✅</div>
@@ -293,6 +335,7 @@
             
             const drugName = document.getElementById('drugName').value.trim();
             const dosage = document.getElementById('dosage').value.trim();
+            const productCode = document.getElementById('productCode').value.trim();
             const scheduleTimes = collectTimes();
             const frequency = document.getElementById('frequency').value;
             const unit = document.getElementById('unit').value.trim() || '片';
@@ -332,6 +375,7 @@
             const payload = {
                 drug_name: drugName,
                 dosage: dosage,
+                product_code: productCode || null,
                 schedule_times: scheduleTimes,
                 frequency: frequency,
                 unit: unit,
@@ -515,5 +559,87 @@
         }
         setInterval(refreshDeviceStatus, 15000);
     })();
+    </script>
+
+    <!-- 扫码逻辑（原生 BarcodeDetector，手动降级；session 令牌防止弹窗关闭后摄像头流泄漏） -->
+    <script>
+        let _scanStream = null;
+        // 每次打开弹窗递增的会话令牌；关闭弹窗使其失效，确保后到的 getUserMedia
+        // 结果（已获取的流）被丢弃，避免摄像头常亮/流泄漏
+        let _scanSession = 0;
+
+        function openScanModal() {
+            document.getElementById('scanModal').classList.add('show');
+            startScan();
+        }
+
+        function closeScanModal() {
+            // 先使会话失效，再停止流，确保关闭后才返回的流立即被丢弃
+            _scanSession += 1;
+            stopScan();
+            document.getElementById('scanModal').classList.remove('show');
+        }
+
+        async function startScan() {
+            const video = document.getElementById('scanVideo');
+            const msg = document.getElementById('scanMsg');
+            if (msg) msg.textContent = '正在启动摄像头...';
+            if (!('BarcodeDetector' in window)) {
+                if (msg) msg.textContent = '当前浏览器不支持自动扫码，请手动输入编号。';
+                return;
+            }
+            const mySession = ++_scanSession;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                // 会话已失效（弹窗被关闭后流才返回）：立即停止新获取的流，避免常亮
+                if (mySession !== _scanSession) {
+                    stream.getTracks().forEach(function (t) { t.stop(); });
+                    return;
+                }
+                _scanStream = stream;
+                video.srcObject = _scanStream;
+                await video.play();
+                const detector = new BarcodeDetector({
+                    formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e',
+                             'code_39', 'code_128', 'itf', 'codabar',
+                             'qr_code', 'data_matrix', 'pdf417']
+                });
+                const tick = async () => {
+                    // 会话失效或流已释放则停止轮询，避免处理过期结果
+                    if (mySession !== _scanSession || !_scanStream) return;
+                    try {
+                        const codes = await detector.detect(video);
+                        if (codes.length > 0) {
+                            document.getElementById('productCode').value = codes[0].rawValue;
+                            if (msg) msg.textContent = '已识别：' + codes[0].rawValue;
+                            showToast('已扫描到编号', 'success');
+                            closeScanModal();
+                            return;
+                        }
+                    } catch (e) { /* 单帧识别失败可忽略，继续 */ }
+                    requestAnimationFrame(tick);
+                };
+                tick();
+            } catch (e) {
+                if (mySession === _scanSession) {
+                    if (msg) msg.textContent = '无法访问摄像头：' + (e.message || e) + '，请手动输入编号。';
+                    // video.play 等失败且流已绑定时，停止以释放摄像头
+                    if (_scanStream) stopScan();
+                }
+            }
+        }
+
+        function stopScan() {
+            if (_scanStream) {
+                _scanStream.getTracks().forEach(function (t) { t.stop(); });
+                _scanStream = null;
+            }
+            // 解绑视频源，避免关闭弹窗后残留最后一帧画面
+            const video = document.getElementById('scanVideo');
+            if (video) {
+                try { video.pause(); } catch (e) { /* 忽略 */ }
+                video.srcObject = null;
+            }
+        }
     </script>
 {% endblock %}

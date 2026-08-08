@@ -13,6 +13,7 @@ server.method）与幽灵字段（paths.log_dir、speech.*）。现已统一为�
 - hotspot  : ssid / ip / web_port
 - reminder : poll_interval / snooze_minutes / buzzer_loop_interval
 - camera   : connection / uart_tty / uart_baudrate / save_path
+- scan     : source / usb_index / timeout_sec（药品条码扫描）
 
 为兼容既有代码的字典访问方式（config.get('server', {}).get('base_url')），本模块
 将扁平 .env 键组装为嵌套字典返回；同时提供 save_server_url() 供配网 Web 服务改写
@@ -44,7 +45,8 @@ DEFAULT_CONFIG = {
         "web_port": 8088,
     },
     "reminder": {
-        "poll_interval": 60,
+        # 用药计划轮询间隔：默认 20 分钟拉取一次（有网走网络，失败回退本地缓存）
+        "poll_interval": 1200,
         "snooze_minutes": 5,
         "buzzer_loop_interval": 3,
         "long_press_sec": 1.5,
@@ -54,6 +56,12 @@ DEFAULT_CONFIG = {
         "uart_tty": "/dev/ttyS1",
         "uart_baudrate": 115200,
         "save_path": "data/captures",
+    },
+    "scan": {
+        # auto=优先 HuskyLens 板载解码并回退 USB；也可显式指定 huskylens / usb
+        "source": "auto",
+        "usb_index": 0,
+        "timeout_sec": 8.0,
     },
 }
 
@@ -74,6 +82,9 @@ _ENV_LEAVES = [
     ("CAMERA_UART_TTY", "camera", "uart_tty", str),
     ("CAMERA_UART_BAUDRATE", "camera", "uart_baudrate", int),
     ("CAMERA_SAVE_PATH", "camera", "save_path", str),
+    ("SCAN_SOURCE", "scan", "source", str),
+    ("SCAN_USB_INDEX", "scan", "usb_index", int),
+    ("SCAN_TIMEOUT_SEC", "scan", "timeout_sec", float),
 ]
 
 # .env 模板（首运行自动生成）
@@ -90,7 +101,8 @@ _ENV_TEMPLATE = (
     "HOTSPOT_IP=10.0.0.1\n"
     "HOTSPOT_WEB_PORT=8088\n\n"
     "# ===== 提醒 =====\n"
-    "POLL_INTERVAL=60\n"
+    "# POLL_INTERVAL: 用药计划轮询间隔（秒），默认 1200 = 20 分钟\n"
+    "POLL_INTERVAL=1200\n"
     "SNOOZE_MINUTES=5\n"
     "BUZZER_LOOP_INTERVAL=3\n"
     "LONG_PRESS_SEC=1.5\n\n"
@@ -98,14 +110,26 @@ _ENV_TEMPLATE = (
     "CAMERA_CONNECTION=i2c\n"
     "CAMERA_UART_TTY=/dev/ttyS1\n"
     "CAMERA_UART_BAUDRATE=115200\n"
-    "CAMERA_SAVE_PATH=data/captures\n"
+    "CAMERA_SAVE_PATH=data/captures\n\n"
+    "# ===== 药品条码扫描 =====\n"
+    "# SCAN_SOURCE: auto=优先 HuskyLens 板载解码并回退 USB；可选 huskylens / usb\n"
+    "SCAN_SOURCE=auto\n"
+    "SCAN_USB_INDEX=0\n"
+    "SCAN_TIMEOUT_SEC=8\n"
 )
 
 
-def _ensure_env_template():
-    """首次运行无 .env 时自动生成完整模板（开箱即用），已存在则不覆盖。"""
+def _ensure_env_template(config_path=ENV_PATH):
+    """首次运行无 .env 时自动生成完整模板（开箱即用），已存在则不覆盖。
+
+    :param config_path: 目标 .env 路径，默认 ENV_PATH；使用自定义/临时配置文件时
+        应在同位置生成模板，避免读取 A 文件却在默认位置生成 B 文件
+    """
     try:
-        if ensure_env_template(ENV_PATH, _ENV_TEMPLATE):
+        # 局部导入：common 包位于仓库根目录，避免模块导入期强依赖 sys.path 顺序
+        from common.envfile import ensure_env_template
+
+        if ensure_env_template(config_path, _ENV_TEMPLATE):
             logger.info(f"首次运行：已自动生成 {ENV_PATH}（含全部默认配置项）")
     except Exception as e:
         logger.warning(f"自动生成 .env 模板失败: {e}")
@@ -130,7 +154,7 @@ def load_config(config_path=ENV_PATH):
     """
     import copy
 
-    _ensure_env_template()
+    _ensure_env_template(config_path)
     load_dotenv(config_path)
 
     config = copy.deepcopy(DEFAULT_CONFIG)
@@ -165,7 +189,7 @@ def save_server_url(server_url, config_path=ENV_PATH):
     """
     server_url = (server_url or "").strip()
     try:
-        from common.envfile import update_env_fields, ensure_env_template
+        from common.envfile import update_env_fields
         update_env_fields(config_path, {"SERVER_BASE_URL": server_url})
         logger.info(f"已保存服务器地址: {server_url}")
         return True
