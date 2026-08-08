@@ -71,16 +71,20 @@ class HuskyLensScanner:
         """懒加载 HuskyLens 句柄与算法常量；不可用时抛异常由调用方降级。"""
         if self._hl is not None:
             return self._hl
-        # 复用 core.camera 的连接单例，避免与拍照功能争抢 I2C/UART 句柄
-        import dfrobot_huskylensv2 as hl_module
+        # 同步 HuskyLens 单例的初始化，避免多线程首次并发使用时竞态
+        with _HUSKYLENS_OP_LOCK:
+            if self._hl is not None:
+                return self._hl
+            # 复用 core.camera 的连接单例，避免与拍照功能争抢 I2C/UART 句柄
+            import dfrobot_huskylensv2 as hl_module
 
-        hl = get_huskylens(self._config)
-        self._algos = (
-            getattr(hl_module, "ALGORITHM_BARCODE_RECOGNITION", _DEFAULT_ALGO_BARCODE),
-            getattr(hl_module, "ALGORITHM_QRCODE_RECOGNITION", _DEFAULT_ALGO_QRCODE),
-        )
-        self._hl = hl
-        return hl
+            hl = get_huskylens(self._config)
+            self._algos = (
+                getattr(hl_module, "ALGORITHM_BARCODE_RECOGNITION", _DEFAULT_ALGO_BARCODE),
+                getattr(hl_module, "ALGORITHM_QRCODE_RECOGNITION", _DEFAULT_ALGO_QRCODE),
+            )
+            self._hl = hl
+            return hl
 
     @staticmethod
     def _read_contents(hl, algo):
