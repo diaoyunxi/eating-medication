@@ -10,6 +10,15 @@
 """
 import bcrypt
 import secrets
+
+try:
+    # bcrypt 的 Rust 绑定（pyo3）对畸形/损坏的哈希会触发原生 panic，
+    # 抛出的 PanicException 是 BaseException 子类，无法被 except (ValueError, TypeError) 捕获
+    from pyo3_runtime import PanicException as _PanicException
+except Exception:  # noqa: BLE001
+    # 纯 C 版 bcrypt 没有该异常类型，用一个永不抛出的占位类，保持 except 元组合法
+    class _PanicException(Exception):
+        pass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
@@ -34,10 +43,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     try:
         return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
-    except Exception:
-        # bcrypt 的 Rust 绑定（pyo3）对畸形/损坏的哈希会触发原生 panic，
-        # 抛出的 PanicException 并非 ValueError/TypeError 子类，需统一兜底为验证失败，
-        # 否则会让校验流程崩溃而非返回 False
+    except (_PanicException, ValueError, TypeError):
+        # 畸形/损坏的哈希会让 bcrypt（pyo3 绑定）触发原生 panic 抛出 PanicException，
+        # 它并非 ValueError/TypeError 子类，统一兜底为验证失败，避免校验流程崩溃
         return False
 
 
