@@ -23,9 +23,15 @@ class MedicationPoller:
     每隔 poll_interval 秒向服务器请求用药计划，缓存到 self.schedules
     使用 threading.Lock 保护 schedules 的读写，防止跨线程迭代时被替换
     注意：心跳上报已拆分到独立的 HeartbeatThread，避免业务请求失败导致心跳丢失
+
+    离线策略（有网优先、失败回退本地、无网走本地）：
+    - 构造时通过 cache_loader 读取本地缓存作为初始计划，保证断网启动也有计划可用；
+    - http_client 返回 None 表示本次拉取结果未知（网络失败且无本地缓存），
+      此时保留上一轮内存缓存，避免网络抖动清空计划导致漏提醒。
     """
 
-    def __init__(self, http_client, poll_interval=60):
+    def __init__(self, http_client, poll_interval=60, cache_loader=None):
+        """:param cache_loader: 无参可调用对象，返回本地缓存的计划列表（可选注入，便于单测）"""
         self.http_client = http_client
         self.poll_interval = poll_interval
         self._schedules = []
@@ -33,6 +39,15 @@ class MedicationPoller:
         self.last_success = False
         self._stop_flag = threading.Event()
         self._thread = None
+        if cache_loader is not None:
+            try:
+                cached = cache_loader() or []
+                if isinstance(cached, list):
+                    self._schedules = list(cached)
+                    if cached:
+                        logger.info(f"已载入本地用药计划缓存 {len(cached)} 条")
+            except Exception as e:
+                logger.warning(f"载入本地用药计划缓存失败: {e}")
 
     @property
     def schedules(self):
@@ -47,22 +62,33 @@ class MedicationPoller:
     def stop(self):
         self._stop_flag.set()
 
-    def _run(self):
-        # 启动后立即拉取一次
-        while not self._stop_flag.is_set():
-            try:
-                if self.http_client:
-                    schedules = self.http_client.get_medication_schedule()
-                    with self._lock:
-                        self._schedules = schedules or []
-                    self.last_success = True
-                else:
-                    with self._lock:
-                        self._schedules = []
-                    self.last_success = False
-            except Exception as e:
-                logger.warning(f"拉取用药计划失败: {e}")
+    def _poll_once(self):
+        """执行一次拉取并刷新内存缓存（供 _run 循环调用，同时便于单测）。
+
+        http_client 返回 None 表示本次拉取结果未知（断网且无本地缓存），
+        此时保留既有内存缓存，避免网络抖动清空计划导致漏提醒；
+        返回空列表则表示服务端确实没有计划，按实际结果清空。
+        """
+        try:
+            if not self.http_client:
+                # 无 HTTP 客户端（初始化失败）：沿用本地缓存的既有计划
                 self.last_success = False
+                return
+            schedules = self.http_client.get_medication_schedule()
+            if schedules is None:
+                self.last_success = False
+                return
+            with self._lock:
+                self._schedules = list(schedules)
+            self.last_success = True
+        except Exception as e:
+            logger.warning(f"拉取用药计划失败: {e}")
+            self.last_success = False
+
+    def _run(self):
+        # 启动后立即拉取一次，之后按 poll_interval 周期轮询
+        while not self._stop_flag.is_set():
+            self._poll_once()
             # 等待下一次轮询（可被停止中断）
             self._stop_flag.wait(self.poll_interval)
 

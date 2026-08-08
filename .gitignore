@@ -33,6 +33,12 @@ target/
 *.env.*
 !.env.example
 
+# 老人端运行时数据（设备标识、令牌、用药计划缓存、拍照文件均含隐私，禁止入库）
+elderly_assistant/data/device_id.txt
+elderly_assistant/data/device_token.txt
+elderly_assistant/data/schedules.json
+elderly_assistant/data/captures/
+
 # Editors
 .vscode/
 .idea/
