@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.29.3**
+> 当前版本：**v2.30.0**
 > 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
@@ -166,7 +166,7 @@
 | 7 | POST | `/api/v1/public/ai/ask` | AI 问答（经服务端中转智谱 AI） | TUI 中用户输入问题 |
 | 8 | POST | `/api/upload` | 上传服药/药品照片（multipart `file`） | TUI 确认服药 / 识别药品时 |
 
-> 所有请求统一携带 `X-Device-ID` 请求头用于设备识别；公开接口仅通过 device_id 校验。
+> 设备接口通过路径/请求体中的 `device_id` 定位设备，并须携带 `X-Device-Token` 请求头进行令牌鉴权（`/device/register` 首次注册无需令牌，服务端返回 `device_token`）；`/device/check` 需 JWT 登录态（不使用设备令牌）。服务端不读取 `X-Device-ID` 请求头。
 
 #### 老人端 → 服务端（WebSocket，仅 TUI 形态）
 
@@ -302,7 +302,7 @@
 │   ├── static/css/                # 样式表
 │   └── templates/                 # 9 个 Jinja2 页面模板（含 Turnstile 登录/注册）
 ├── history.md                     # 项目开发历史记录（版本基准）
-├── VERSION                        # 当前版本号（v2.22.0）
+├── VERSION                        # 当前版本号（v2.30.0）
 ├── deploy/                        # 部署辅助文件（一键脚本 + systemd 单元 + cloudflared 配置）
 │   ├── setup-linux.sh             # Linux 一键部署脚本（bash）
 │   ├── setup-mac.sh               # macOS 一键部署脚本（zsh）
@@ -391,12 +391,12 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 
 > **注意**：`.env`、数据库（`*.db`）、`users.json`、`bound_device.json`、`device_token.txt` 等敏感文件已通过 `.gitignore` 排除，不会上传至仓库，部署时需自行配置。生产模式（`DEBUG=False`）下：
 > - 服务端与子女端若未配置 `SECRET_KEY`（或为已知弱值）将**拒绝启动**
-> - 服务端若未配置 `TURNSTILE_SECRET_KEY` 将**拒绝所有认证请求**（登录/注册）
+> - 服务端若未配置 `TURNSTILE_SECRET_KEY` 将**降级跳过人机验证**（登录/注册仍可正常进行，仅记录 warning）
 > - `/openapi.json`、`/docs`、`/redoc` 在生产环境**返回 404**，仅开发环境可用
 
 > **Turnstile 两把密钥（易错点）**：Cloudflare Turnstile 需要**两把**密钥，分别放在不同服务：
 > - **站点密钥（Site Key）** → 前端渲染验证小组件，配置在 `family_monitor/.env` 的 `TURNSTILE_SITE_KEY`（已配则小组件正常显示）。
-> - **密钥（Secret Key）** → 后端调用 Cloudflare `siteverify` 校验令牌，配置在 `server/.env` 的 `TURNSTILE_SECRET_KEY`（**必填**，缺失则生产环境拒绝所有登录/注册）。
+> - **密钥（Secret Key）** → 后端调用 Cloudflare `siteverify` 校验令牌，配置在 `server/.env` 的 `TURNSTILE_SECRET_KEY`（未配置则生产环境降级跳过人机验证，登录/注册仍可用）。
 >
 > 若登录/注册报「人机验证失败，请重试」，且 `server` 日志出现 `生产环境未配置 TURNSTILE_SECRET_KEY` 或 `Turnstile 校验未通过`，请按以下顺序排查：
 > 1. 确认 `server/.env` 的 `TURNSTILE_SECRET_KEY` 已填入真实 Secret Key 并**重启 server**（server 启动日志会打印 Turnstile 配置状态）；
