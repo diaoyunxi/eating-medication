@@ -354,7 +354,7 @@ class DeviceService:
                 plan_id = int(it.get("plan_id"))
                 sched_raw = it.get("scheduled_time") or data.get("taken_at")
                 if isinstance(sched_raw, str) and len(sched_raw) <= 5 and ":" in sched_raw:
-                    sched_dt = _hhmm_to_today(sched_raw, taken_dt)
+                    sched_dt = hhmm_to_today(sched_raw, taken_dt)
                 else:
                     sched_dt = _parse_dt(sched_raw)
                 if sched_dt is None:

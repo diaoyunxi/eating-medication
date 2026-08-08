@@ -231,7 +231,7 @@ class HTTPClient:
         try:
             resp = requests.post(
                 url,
-                json={"image_base64": b64},
+                json={"device_id": self.device_id, "image_base64": b64},
                 timeout=self.timeout,
                 headers=self._headers(),
             )

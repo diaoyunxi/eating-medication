@@ -243,7 +243,8 @@ class ElderlyAPIClient(BaseServerClient):
         """
         try:
             response = await self._execute(
-                "DELETE", f"/api/v1/public/device/medication_plan/{plan_id}"
+                "DELETE", f"/api/v1/public/device/medication_plan/{plan_id}",
+                params={"device_id": self._device_id},
             )
             if response.status_code == 200:
                 return {"success": True, "data": response.json()}

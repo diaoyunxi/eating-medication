@@ -49,7 +49,7 @@ async def get_ai_config(request: Request):
     token = request.cookies.get("access_token") or ""
     device_id = _bound_device_id()
     params = {"device_id": device_id} if device_id else {}
-    status, data = await user_api_request("GET", "/user/ai-config", token=token, params=params)
+    status, data = await user_api_request("GET", "/ai/user/ai-config", token=token, params=params)
     if status == 200:
         data["success"] = True
         return JSONResponse(content=data)
@@ -81,7 +81,7 @@ async def save_ai_config(request: Request):
         "base_url": payload.get("base_url", ""),
         "enabled": bool(payload.get("enabled", True)),
     }
-    status, data = await user_api_request("PUT", "/user/ai-config", token=token, params=params, json_body=body)
+    status, data = await user_api_request("PUT", "/ai/user/ai-config", token=token, params=params, json_body=body)
     if status == 200:
         # 不回传 api_key 明文
         data.pop("api_key", None)
