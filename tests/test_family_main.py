@@ -10,6 +10,47 @@ import unittest
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+
+
+class _NoRedirectClient:
+    """兼容新旧 starlette 的 TestClient 包装：请求级统一不跟随重定向。
+
+    新版 starlette（>=0.28）TestClient 构造器支持 follow_redirects 且默认 True；
+    旧版构造器不接受该参数。本包装在请求级透传 follow_redirects=False，
+    使两个版本下行为一致，避免带 PATH_PREFIX 的 302 被本地独立 app 误判为 404。
+    """
+
+    def __init__(self, app):
+        self.app = app
+        self._client = TestClient(app)
+
+    def _call(self, method, *args, **kwargs):
+        kwargs.setdefault("follow_redirects", False)
+        return getattr(self._client, method)(*args, **kwargs)
+
+    def get(self, *args, **kwargs):
+        return self._call("get", *args, **kwargs)
+
+    def post(self, *args, **kwargs):
+        return self._call("post", *args, **kwargs)
+
+    def put(self, *args, **kwargs):
+        return self._call("put", *args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        return self._call("delete", *args, **kwargs)
+
+    def request(self, *args, **kwargs):
+        return self._call("request", *args, **kwargs)
+
+    def __enter__(self):
+        self._client.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return self._client.__exit__(exc_type, exc, tb)
+
+
 from common.server_client import _ResponseAdapter
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -49,7 +90,7 @@ class TestMainApp(unittest.TestCase):
         self.assertIn(resp.status_code, (404,))
 
     def test_protected_redirect_when_unauthenticated(self):
-        with TestClient(self.app, follow_redirects=False) as client:
+        with _NoRedirectClient(self.app) as client:
             resp = client.get("/")
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(resp.headers["location"].endswith("/login"))
@@ -58,7 +99,7 @@ class TestMainApp(unittest.TestCase):
         # 在隧道子路径模式下以带前缀路径访问登录页，验证 path_prefix 中间件的前缀剥离
         prefix = main.PATH_PREFIX
         path = f"{prefix}/login" if prefix else "/login"
-        with TestClient(self.app, follow_redirects=False) as client:
+        with _NoRedirectClient(self.app) as client:
             resp = client.get(path)
         self.assertEqual(resp.status_code, 200)
         self.assertIn(main.config.APP_NAME, resp.text)
