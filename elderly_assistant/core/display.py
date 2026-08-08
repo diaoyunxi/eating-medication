@@ -24,7 +24,7 @@ class Display:
         # 控件引用
         self._time_text = None          # 主时间显示
         self._date_text = None          # 日期显示
-        self._fcc_text = None           # FCC ID 底部小字
+        self._uuid_text = None          # 设备UUID 底部小字
         self._status_text = None        # 服务器连接状态底部小字
         self._next_reminder_text = None # 下一个用药提醒
         self._reminder_text = None      # 当前用药提醒（大字）
@@ -95,12 +95,12 @@ class Display:
 
     # ---------------- 基础界面 ----------------
 
-    def show_main_screen(self, fcc_id="", server_url="", connected=False):
+    def show_main_screen(self, device_uuid="", server_url="", connected=False):
         """
         绘制主界面框架：
         - 顶部：当前时间（大字体居中）
         - 中部：下一个用药提醒（如有）
-        - 底部：FCC ID、服务器连接状态（小字）
+        - 底部：设备UUID、服务器连接状态（小字）
         """
         if not self.gui:
             return
@@ -135,10 +135,10 @@ class Display:
             # 「扫码查药」触摸按钮（已注册回调时才绘制）
             self._draw_scan_button()
 
-            # 底部 FCC ID（小字）
-            self._fcc_text = self.gui.draw_text(
+            # 底部设备UUID（小字）
+            self._uuid_text = self.gui.draw_text(
                 x=10, y=self.SCREEN_H - 30,
-                text=f'FCC: {fcc_id}' if fcc_id else 'FCC: --',
+                text=f'UUID: {device_uuid}' if device_uuid else 'UUID: --',
                 font_size=10, color='#999999'
             )
             # 底部服务器连接状态
@@ -326,24 +326,24 @@ class Display:
         except Exception as e:
             logger.error(f"更新连接状态失败: {e}")
 
-    def show_fcc_id(self, fcc_id):
-        """更新底部 FCC ID 显示"""
+    def show_device_uuid(self, device_uuid):
+        """更新底部设备UUID显示"""
         if not self.gui:
             return
         try:
-            text = f'FCC: {fcc_id}' if fcc_id else 'FCC: --'
-            if self._fcc_text is not None:
+            text = f'UUID: {device_uuid}' if device_uuid else 'UUID: --'
+            if self._uuid_text is not None:
                 try:
-                    self._fcc_text.config(text=text)
+                    self._uuid_text.config(text=text)
                 except Exception:
                     pass
             else:
-                self._fcc_text = self.gui.draw_text(
+                self._uuid_text = self.gui.draw_text(
                     x=10, y=self.SCREEN_H - 30,
                     text=text, font_size=10, color='#999999'
                 )
         except Exception as e:
-            logger.error(f"更新 FCC ID 显示失败: {e}")
+            logger.error(f"更新设备UUID显示失败: {e}")
 
     def show_next_reminder(self, schedule):
         """
@@ -378,7 +378,7 @@ class Display:
             self.gui.clear()
             self._time_text = None
             self._date_text = None
-            self._fcc_text = None
+            self._uuid_text = None
             self._status_text = None
             self._next_reminder_text = None
             self._reminder_text = None

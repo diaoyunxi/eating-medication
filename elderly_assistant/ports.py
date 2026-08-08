@@ -46,13 +46,13 @@ class DisplayPort(Protocol):
     def show_status(self, url: str, connected: bool) -> None:
         ...
 
-    def show_fcc_id(self, fcc_id: str) -> None:
+    def show_device_uuid(self, device_uuid: str) -> None:
         ...
 
     def show_next_reminder(self, reminder) -> None:
         ...
 
-    def show_main_screen(self, fcc_id: str, server_url: str, connected: bool) -> None:
+    def show_main_screen(self, device_uuid: str, server_url: str, connected: bool) -> None:
         ...
 
     def show_reminder(self, drug: str, dosage: str) -> None:
