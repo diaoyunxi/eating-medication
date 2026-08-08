@@ -1073,10 +1073,58 @@ def check_for_update(auto_pull=None):
     return info
 
 
+def _print_help():
+    """打印命令行帮助，并解释 updater 是否会更新自身。"""
+    help_text = """\
+eating-medication 自动更新器 (updater.py) 使用说明
+=================================================
+普通运行（检查并应用更新）:
+    python updater.py
+        比较本地 VERSION 与 GitHub Release 版本号；若有更新，下载发布包
+        （必须配套 <包名>.sha256 校验文件，否则出于安全拒绝更新），
+        校验通过后解压并覆盖项目文件，最后清理 __pycache__ 并重启业务服务。
+
+强制更新（忽略版本号）:
+    python updater.py --force
+        即便本地版本号 >= 远端也执行更新（用于同版本补发包 / 热同步）。
+        仍受 SHA256 校验与受保护机制约束，不会覆盖 .env、data/、logs/
+        及任何被 .gitignore 忽略的本地文件。
+
+重置运行时数据:
+    python updater.py --reset
+        交互确认后清空运行时数据（保留 .env 与 logs/），并打印诊断信息。
+        作用于本 updater.py 所在目录（即仓库根）。
+
+帮助:
+    python updater.py -h | --help
+        显示本帮助。
+
+updater 是否会更新自己？
+-------------------------------------------------
+会。updater.py 本身位于仓库根目录、已被 git 追踪且未被 .gitignore 忽略，
+因此会被打进发布包（标准打包: git archive HEAD -- . ':!.env'）。
+更新时 updater.py 不在受保护名单中（受保护的是 .env / data/ / logs/ /
+*.db 等运行时与用户数据），普通更新与 --force 都会用新版本的 updater.py
+覆盖旧文件，即「自更新」。
+
+安全性说明:
+  - Python 在启动时就已把 updater.py 整个载入内存，更新过程中覆盖磁盘上的
+    脚本文件不会影响【当前正在运行】的更新进程；新版本在下一次运行时生效。
+  - 更新成功后自动清除全部 __pycache__，避免旧 .pyc 缓存导致更新未生效；
+    并重启业务服务（server / family_monitor 等），但 updater 自身进程
+    执行完毕即退出，无需也不自我重启。
+  - 更新前会对整个项目目录做临时备份（<项目>.bak.<时间戳>），失败可回滚。
+"""
+    print(help_text)
+
+
 def _cli():
-    """命令行入口：支持普通检查、--force 强制更新、--reset 重置运行时数据。"""
+    """命令行入口：支持普通检查、--force 强制更新、--reset 重置运行时数据、--help 帮助。"""
     logging.basicConfig(level=logging.INFO)
     args = sys.argv[1:]
+    if "--help" in args or "-h" in args:
+        _print_help()
+        sys.exit(0)
     if "--reset" in args:
         # 重置模式：默认作用于仓库根目录（即本文件所在目录）
         root = Path(__file__).resolve().parent
