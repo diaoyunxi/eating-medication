@@ -206,12 +206,17 @@ async def ai_ask(
 async def check_device(
     device_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
     """检查设备是否已注册（供子女端绑定时校验，仅返回 exists，不泄露敏感信息）
 
+    与设备公开接口一致读取 X-Device-Token 头；仅做存在性查询、不强制校验令牌——
+    绑定流程发生在绑定前，调用方此时可能尚未持有可校验的令牌，且本端点只返回
+    exists 布尔、不泄露敏感信息。登录态由 family_monitor 的 Web 路由层 require_login 保证。
+
     查找逻辑：优先 device_id 字段，回退 username。
     """
+    # device_token 与设备公开接口保持请求契约一致；本端点不强制校验
     DeviceService.get_device_user(db, device_id)  # 未注册则抛 404
     return {"exists": True}
 
