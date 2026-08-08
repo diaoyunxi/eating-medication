@@ -15,6 +15,46 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
+
+class _NoRedirectClient:
+    """兼容新旧 starlette 的 TestClient 包装：请求级统一不跟随重定向。
+
+    新版 starlette（>=0.28）TestClient 构造器支持 follow_redirects 且默认 True；
+    旧版构造器不接受该参数。本包装在请求级透传 follow_redirects=False，
+    使两个版本下行为一致，避免带 PATH_PREFIX 的 302 被本地独立 app 误判为 404。
+    """
+
+    def __init__(self, app):
+        self.app = app
+        self._client = TestClient(app)
+
+    def _call(self, method, *args, **kwargs):
+        kwargs.setdefault("follow_redirects", False)
+        return getattr(self._client, method)(*args, **kwargs)
+
+    def get(self, *args, **kwargs):
+        return self._call("get", *args, **kwargs)
+
+    def post(self, *args, **kwargs):
+        return self._call("post", *args, **kwargs)
+
+    def put(self, *args, **kwargs):
+        return self._call("put", *args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        return self._call("delete", *args, **kwargs)
+
+    def request(self, *args, **kwargs):
+        return self._call("request", *args, **kwargs)
+
+    def __enter__(self):
+        self._client.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return self._client.__exit__(exc_type, exc, tb)
+
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _HAS = all(importlib.util.find_spec(m) is not None
            for m in ("fastapi", "httpx", "dotenv", "itsdangerous"))
@@ -122,7 +162,7 @@ class TestAuthPages(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
         app.include_router(auth.router)
-        self.client = TestClient(app, follow_redirects=False)
+        self.client = _NoRedirectClient(app)
         self._orig = auth._server_client._execute
         auth._server_client._execute = _FakeExecutor().execute
 
@@ -219,7 +259,7 @@ class TestLoginRegister(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
         app.include_router(auth.router)
-        self.client = TestClient(app, follow_redirects=False)
+        self.client = _NoRedirectClient(app)
         self.exe = _FakeExecutor()
         self._orig = auth._server_client._execute
         auth._server_client._execute = self.exe.execute
@@ -343,7 +383,7 @@ class TestEmailAndMfa(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
         app.include_router(auth.router)
-        self.client = TestClient(app, follow_redirects=False)
+        self.client = _NoRedirectClient(app)
         self.exe = _FakeExecutor()
         self._orig = auth._server_client._execute
         auth._server_client._execute = self.exe.execute
@@ -417,7 +457,7 @@ class TestAuthRequiredProxies(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
         app.include_router(auth.router)
-        self.client = TestClient(app, follow_redirects=False)
+        self.client = _NoRedirectClient(app)
         self.exe = _FakeExecutor()
         self._orig = auth._server_client._execute
         auth._server_client._execute = self.exe.execute
