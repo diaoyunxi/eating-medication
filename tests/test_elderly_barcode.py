@@ -277,19 +277,15 @@ class _ValidationClient(HTTPClient):
 
 class TestScheduleTypeValidation(unittest.TestCase):
     """#6 校验服务端返回 schedules 的内部类型，避免下游因非预期结构崩溃。"""
-    _cache_backup: "str | None" = None
 
     def setUp(self):
-        # 暂存/移除真实本地缓存，使回退在无缓存时确定返回 None
-        self._cache_backup = None
-        if os.path.exists(CACHE_PATH):
-            self._cache_backup = CACHE_PATH + ".bak"
-            shutil.move(CACHE_PATH, self._cache_backup)
-
-    def tearDown(self):
-        # 还原真实本地缓存状态，避免污染其它用例
-        if self._cache_backup and os.path.exists(self._cache_backup):
-            shutil.move(self._cache_backup, CACHE_PATH)
+        # 使用临时目录隔离缓存路径，避免测试间相互影响或污染真实缓存
+        self._cache_dir = tempfile.TemporaryDirectory()
+        cache_path = os.path.join(self._cache_dir.name, "schedules.json")
+        patcher = mock.patch("services.schedule_cache.CACHE_PATH", cache_path)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(self._cache_dir.cleanup)
 
     def _client(self):
         return _ValidationClient()
