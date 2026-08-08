@@ -50,7 +50,7 @@ def totp_setup(
     account = current_user.phone or current_user.username or str(current_user.id)
     uri = mfa_service.totp_provisioning_uri(secret, account)
     qr_svg = mfa_service.generate_totp_qr_svg(uri)
-    current_user.totp_secret = encrypt_sensitive_data(secret)
+    current_user.totp_secret = encrypt_text(secret)
     db.add(current_user)
     db.commit()
     return TOTPSetupOut(secret=secret, otpauth_uri=uri, qr_svg=qr_svg)
@@ -67,7 +67,7 @@ def totp_enable(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="TOTP 第二因子已开启")
     if not current_user.totp_secret:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请先调用 /totp/setup 生成密钥")
-    secret = decrypt_sensitive_data(current_user.totp_secret)
+    secret = decrypt_text(current_user.totp_secret)
     if not mfa_service.verify_totp_code(secret, in_.code):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="动态验证码错误")
     codes = mfa_service.generate_backup_codes()
@@ -87,7 +87,7 @@ def totp_disable(
     """关闭 TOTP（需提供动态码或备用码以确认身份）。"""
     if not current_user.mfa_enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="TOTP 第二因子未开启")
-    secret = decrypt_sensitive_data(current_user.totp_secret) if current_user.totp_secret else None
+    secret = decrypt_text(current_user.totp_secret) if current_user.totp_secret else None
     ok = (secret and mfa_service.verify_totp_code(secret, in_.code)) or mfa_service.verify_backup_code(
         current_user.backup_codes, in_.code
     )
@@ -110,7 +110,7 @@ def totp_verify(in_: TOTPVerifyIn, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不存在或已禁用")
-    secret = decrypt_sensitive_data(user.totp_secret) if user.totp_secret else None
+    secret = decrypt_text(user.totp_secret) if user.totp_secret else None
     ok = (secret and mfa_service.verify_totp_code(secret, in_.code)) or mfa_service.verify_backup_code(
         user.backup_codes, in_.code
     )
