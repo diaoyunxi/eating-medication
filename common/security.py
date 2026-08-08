@@ -34,7 +34,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     try:
         return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
-    except (ValueError, TypeError):
+    except Exception:
+        # bcrypt 的 Rust 绑定（pyo3）对畸形/损坏的哈希会触发原生 panic，
+        # 抛出的 PanicException 并非 ValueError/TypeError 子类，需统一兜底为验证失败，
+        # 否则会让校验流程崩溃而非返回 False
         return False
 
 
