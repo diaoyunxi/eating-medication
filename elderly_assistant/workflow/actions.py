@@ -76,7 +76,8 @@ def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=
 def find_plan_by_product_code(schedules, code):
     """在用药计划中按药品编号（product_code）查找匹配项。
 
-    比对时忽略首尾空白与大小写，兼容条码字符串前导零缺失以外的常见差异。
+    比对时仅忽略首尾空白，保留药品编号的原始大小写语义，避免大小写不同的
+    真实药品被误判为同一计划（误服风险）。
 
     :param schedules: 用药计划列表（每项为 dict）
     :param code: 扫码/手输得到的药品编号
@@ -84,13 +85,13 @@ def find_plan_by_product_code(schedules, code):
     """
     if not code:
         return None
-    target = str(code).strip().lower()
+    target = str(code).strip()
     if not target:
         return None
     for item in schedules or []:
         if not isinstance(item, dict):
             continue
-        product_code = str(item.get("product_code") or "").strip().lower()
+        product_code = str(item.get("product_code") or "").strip()
         if product_code and product_code == target:
             return item
     return None

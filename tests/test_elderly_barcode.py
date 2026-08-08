@@ -52,9 +52,15 @@ class TestFindPlanByProductCode(unittest.TestCase):
         self.assertIsNotNone(plan)
         self.assertEqual(plan["drug_name"], "阿司匹林")
 
-    def test_match_ignores_case_and_space(self):
+    def test_match_ignores_space(self):
+        # 仅清理首尾空白，大小写保持原始语义
         plans = [{"drug_name": "药", "dosage": "1片", "product_code": " AbC123 "}]
-        self.assertIsNotNone(find_plan_by_product_code(plans, "abc123"))
+        self.assertIsNotNone(find_plan_by_product_code(plans, "AbC123"))
+
+    def test_match_distinguishes_case(self):
+        # 大小写不同的真实药品编号必须不匹配，避免误服
+        plans = [{"drug_name": "药", "dosage": "1片", "product_code": "AbC123"}]
+        self.assertIsNone(find_plan_by_product_code(plans, "abc123"))
 
     def test_no_match_returns_none(self):
         self.assertIsNone(find_plan_by_product_code(PLANS, "0000000000000"))
