@@ -17,6 +17,8 @@ class MedicationPlan(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     drug_name = Column(String(128), nullable=False)
     dosage = Column(String(64), nullable=False)           # 每次剂量，如 "1片"
+    # 药品编号/条形码（可选）：家属端录入，老人端扫码后据此匹配药品名称与剂量
+    product_code = Column(String(64), nullable=True, index=True)
     frequency = Column(String(64), nullable=False)        # 频率描述，如 "每日3次"
     schedule_times = Column(JSON, nullable=False)         # 服药时间点列表 ["08:00", "12:00", "18:00"]
     total_quantity = Column(Float, nullable=False)        # 总数量（盒/瓶）

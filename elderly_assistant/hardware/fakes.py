@@ -57,6 +57,7 @@ class FakeDisplay:
     def __init__(self):
         self.reminder_shown = None
         self.reminder_count = 0
+        self.scan_handler = None
 
     def show_time(self, now) -> None:
         pass
@@ -79,6 +80,36 @@ class FakeDisplay:
 
     def clear_reminder(self) -> None:
         self.reminder_shown = None
+
+    def set_scan_handler(self, handler) -> None:
+        self.scan_handler = handler
+
+
+class FakeBarcodeScanner:
+    """条码扫描器替身，按预设队列依次返回扫码结果，满足 BarcodeScannerPort 接口。"""
+
+    def __init__(self, codes=None):
+        # 预设的扫码结果队列，耗尽后返回 None（模拟超时未识别）
+        self.codes = list(codes or [])
+        self.scan_calls = 0
+        self.closed = False
+
+    def scan(self, timeout=None):
+        self.scan_calls += 1
+        return self.codes.pop(0) if self.codes else None
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class FakeSpeech:
+    """TTS 替身，记录全部播报文本，便于断言播报内容。"""
+
+    def __init__(self):
+        self.spoken = []
+
+    def speak(self, text, volume=None) -> None:
+        self.spoken.append(text)
 
 
 class FakeHttpClient:
