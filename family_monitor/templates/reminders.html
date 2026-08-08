@@ -211,6 +211,8 @@
             var tr = document.createElement('tr');
             tr.className = 'dns-edit-row';
             if (isEdit) tr.dataset.planId = plan.id;
+            /* 保留原有条形码（product_code），编辑保存时不覆盖清空 */
+            tr.dataset.productCode = (plan && plan.product_code) ? plan.product_code : '';
 
             tr.innerHTML =
                 '<td><input class="dns-input" type="text" name="drug_name" placeholder="药品名称" value="' + (plan.drug_name || '') + '"></td>' +
@@ -262,6 +264,7 @@
             return {
                 drug_name: tr.querySelector('[name="drug_name"]') ? tr.querySelector('[name="drug_name"]').value.trim() : '',
                 dosage: tr.querySelector('[name="dosage"]') ? tr.querySelector('[name="dosage"]').value.trim() : '',
+                product_code: tr.dataset.productCode || '',
                 schedule_times: times,
                 frequency: tr.querySelector('[name="frequency"]') ? tr.querySelector('[name="frequency"]').value : 'daily',
                 remaining_quantity: parseInt((tr.querySelector('[name="remaining_quantity"]') || {}).value) || 0,
