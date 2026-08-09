@@ -305,5 +305,88 @@ class TestConfigureOpener(unittest.TestCase):
         self.assertIsNone(base)
 
 
+class TestLoadPostUpdateCmd(unittest.TestCase):
+    """测试 _load_post_update_cmd：由根目录 .env 的 POST_UPDATE_CMD 字段读取一条命令。"""
+
+    def _call_with_config(self, payload):
+        """临时改写根目录 .env（重定向 _CONFIG_PATH 到临时文件）并调用 _load_post_update_cmd。"""
+        import tempfile
+        _fd, tmp_str = tempfile.mkstemp(suffix=".env")
+        os.close(_fd)
+        tmp = Path(tmp_str)
+        orig = updater._CONFIG_PATH
+        updater._CONFIG_PATH = tmp
+        try:
+            if payload is not None:
+                tmp.write_text(payload, encoding="utf-8")
+            return updater._load_post_update_cmd()
+        finally:
+            updater._CONFIG_PATH = orig
+            if tmp.exists():
+                tmp.unlink()
+
+    def test_none_when_missing(self):
+        self.assertIsNone(self._call_with_config(None))
+
+    def test_none_when_blank(self):
+        self.assertIsNone(self._call_with_config("POST_UPDATE_CMD="))
+
+    def test_strip_whitespace(self):
+        self.assertEqual(
+            self._call_with_config("POST_UPDATE_CMD=  python -m alembic upgrade head  "),
+            "python -m alembic upgrade head",
+        )
+
+
+class TestRunPostUpdateCmd(unittest.TestCase):
+    """测试 _run_post_update_cmd：更新成功后以 shell 执行 POST_UPDATE_CMD。"""
+
+    def _call_with(self, cmd, mock_run):
+        orig_cmd = updater._POST_UPDATE_CMD
+        orig_run = updater.subprocess.run
+        updater._POST_UPDATE_CMD = cmd
+        updater.subprocess.run = mock_run
+        try:
+            updater._run_post_update_cmd()
+        finally:
+            updater._POST_UPDATE_CMD = orig_cmd
+            updater.subprocess.run = orig_run
+
+    def test_noop_when_none(self):
+        called = {"n": 0}
+
+        def fake_run(*a, **k):
+            called["n"] += 1
+            return None
+        self._call_with(None, fake_run)
+        self.assertEqual(called["n"], 0)
+
+    def test_runs_command_with_cwd_and_shell(self):
+        captured = {}
+
+        class _Result:
+            returncode = 0
+            stderr = ""
+        def fake_run(*a, **k):
+            captured.update({"cmd": a[0], "shell": k.get("shell"), "cwd": k.get("cwd"),
+                              "timeout": k.get("timeout")})
+            return _Result()
+        self._call_with("python -m alembic upgrade head", fake_run)
+        self.assertEqual(captured["cmd"], "python -m alembic upgrade head")
+        self.assertTrue(captured["shell"])
+        self.assertIsNotNone(captured["cwd"])
+        self.assertEqual(captured["timeout"], 300)
+
+    def test_nonzero_returncode_is_warning_only(self):
+        # 非零返回码不应抛异常，仅告警；此处验证能正常返回
+        class _Result:
+            returncode = 3
+            stderr = "boom\n"
+        def fake_run(*a, **k):
+            return _Result()
+        # 不抛异常即通过
+        self._call_with("false", fake_run)
+
+
 if __name__ == "__main__":
     unittest.main()
