@@ -9,6 +9,7 @@
 """
 import base64
 import os
+import secrets
 import tempfile
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -278,3 +279,39 @@ def test_save_upload_rejects_non_image():
                 assert False, "应抛 400"
             except HTTPException as e:
                 assert e.status_code == 400
+
+
+def test_save_upload_uses_exclusive_create_and_retries_on_collision():
+    """O_EXCL 排他创建：首次文件名冲突时自动重试，原文件内容保持不变。
+
+    对应 CodeRabbit 评审意见——使用排他创建模式防止并发上传覆盖既有照片。
+    此处固定时间戳和首次 token，使首次文件名与已有文件冲突，验证最终写入使用新文件名。
+    """
+    db = _make_session()
+    user = _make_user(db)
+    frozen = datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+    # 每次调用返回不同 token，确保重试时生成新文件名
+    fake_token = MagicMock(side_effect=["aabbccdd", "11223344", "55667788"])
+
+    with tempfile.TemporaryDirectory() as tmp:
+        user_dir = os.path.join(tmp, str(user.id))
+        os.makedirs(user_dir, exist_ok=True)
+        # 预先写入一个"既有照片"，内容与原文件不同
+        existing_fname = "20240601_120000_000000_aabbccdd.jpg"
+        existing_path = os.path.join(user_dir, existing_fname)
+        with open(existing_path, "wb") as f:
+            f.write(b"EXISTING_PHOTO_CONTENT")
+
+        fake_dt = MagicMock(now=MagicMock(return_value=frozen))
+        with patch.object(device_service, "_UPLOAD_ROOT", tmp), \
+             patch.object(device_service, "datetime", fake_dt), \
+             patch.object(device_service.secrets, "token_hex", fake_token):
+            path = DeviceService.save_upload(db, user, _fake_jpeg())
+
+        # 首次调用应因 FileExistsError 重试，第二次使用新 token 生成新文件名
+        assert fake_token.call_count == 2
+        # 原文件内容保持不变
+        with open(existing_path, "rb") as f:
+            assert f.read() == b"EXISTING_PHOTO_CONTENT"
+        # 新文件已落盘
+        assert os.path.isfile(os.path.join(user_dir, os.path.basename(path.split("/")[-1])))
