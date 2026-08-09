@@ -140,12 +140,13 @@ def email_send_code(req: EmailSendCodeReq, request: Request, db: Session = Depen
     return {"success": True, "message": "验证码已发送，请查收邮箱"}
 
 
-@router.post("/email/code-login", response_model=TokenResp)
+@router.post("/email/code-login")
 def email_code_login(req: EmailCodeLoginReq, request: Request, db: Session = Depends(get_db)):
     """邮箱验证码 - 登录 / 自动注册（Turnstile 人机验证 + 限流）
 
     - 验证码校验通过但邮箱未注册：自动创建账号并登录。
     - 验证码错误或过期：返回 400（不区分是否已注册，避免泄露账号存在性）。
+    - 用户已开启 TOTP 第二因子：返回 MFA 挑战令牌，前端再调用 /auth/totp/verify。
     """
     # Turnstile 人机验证
     if not verify_turnstile(req.cf_turnstile_token):
@@ -160,8 +161,10 @@ def email_code_login(req: EmailCodeLoginReq, request: Request, db: Session = Dep
         raise HTTPException(status_code=400, detail="验证码错误或已过期，请重新获取")
 
     try:
-        token = AuthService.login_or_register_by_email(db, req.email)
-        return TokenResp(access_token=token, token_type="bearer")
+        token_data = AuthService.login_or_register_by_email(db, req.email)
+        if token_data.get("mfa_required"):
+            return {"mfa_required": True, "mfa_token": token_data["mfa_token"]}
+        return TokenResp(access_token=token_data["access_token"], token_type="bearer")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -157,7 +157,7 @@ class AuthService:
 
     @staticmethod
     def login_or_register_by_email(db: Session, email: str) -> Optional[dict]:
-        """邮箱验证码登录 / 自动注册，返回 access_token 或 MFA 挑战令牌。
+        """邮箱验证码登录 / 自动注册，返回认证响应 dict。
 
         流程：调用方须先通过 `email_code.verify_code` 校验验证码（本方法不再二次校验），
         因此只要进入本方法即代表验证码已通过。
@@ -172,6 +172,7 @@ class AuthService:
         失败返回 None
 
         :param email: 已通过验证码校验的用户邮箱（会归一化为小写）
+        :return: 认证响应 dict
         :raises ValueError: 邮箱格式异常（理论上已由 schema 拦截）
         """
         email = (email or "").strip().lower()
@@ -184,7 +185,7 @@ class AuthService:
             user.last_login_at = datetime.now(timezone.utc)
             db.commit()
             logger.info(f"邮箱验证码登录成功：{email}（账号 {user.username}）")
-            # 第二因子：已开启 TOTP，签发 MFA 短期令牌，等待动态码
+            # 第二因子：密码正确但已开启 TOTP，签发 MFA 短期令牌，等待动态码
             if getattr(user, "mfa_enabled", False):
                 return {"mfa_required": True, "mfa_token": create_mfa_token(user.id)}
             return {"access_token": create_access_token(data={"sub": user.id})}
@@ -212,7 +213,6 @@ class AuthService:
         db.commit()
         db.refresh(user)
         logger.info(f"邮箱验证码自动注册并登录：{email}（新账号 {username}）")
-        # 新注册用户默认未开启 TOTP，直接返回 JWT
         return {"access_token": create_access_token(data={"sub": user.id})}
 
     # ==================== OAuth 自动注册 ====================
@@ -297,7 +297,6 @@ class AuthService:
                 "email":  {"enabled": bool, "bound": bool, "value": ...},
                 "github": {"enabled": bool, "bound": bool, "value": ...},
                 "gitee":  {"enabled": bool, "bound": bool, "value": ...},
-                "totp":   {"enabled": bool, "bound": bool},
             }
         """
         # 系统级启用状态：手机号/邮箱登录始终可用；GitHub/Gitee 取决于是否完成 OAuth 配置
@@ -311,7 +310,7 @@ class AuthService:
                 "email": {"enabled": True, "bound": False, "value": None},
                 "github": {"enabled": github_enabled, "bound": False, "value": None},
                 "gitee": {"enabled": gitee_enabled, "bound": False, "value": None},
-                "totp": {"enabled": True, "bound": False},
+                "totp": {"enabled": True, "bound": False, "value": None},
             }
 
         result = {}
@@ -341,10 +340,11 @@ class AuthService:
         else:
             result["gitee"] = {"enabled": gitee_enabled, "bound": False, "value": None}
 
-        # TOTP 第二因子
+        # TOTP 第二因子（动态码）
         result["totp"] = {
             "enabled": True,
-            "bound": bool(user.mfa_enabled),
+            "bound": bool(getattr(user, "mfa_enabled", False)),
+            "value": None,
         }
 
         return result

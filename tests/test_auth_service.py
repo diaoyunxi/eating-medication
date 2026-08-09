@@ -118,10 +118,13 @@ class TestLoginOrRegisterByEmail(unittest.TestCase):
     def test_existing_email_logs_in(self):
         db = mock.MagicMock()
         user = mock.MagicMock()
+        user.mfa_enabled = False
         db.query.return_value.filter.return_value.first.return_value = user
         with mock.patch("app.services.auth_service.create_access_token", return_value="tok"):
-            token = AuthService.login_or_register_by_email(db, "Existing@Example.com")
-        self.assertEqual(token, "tok")
+            result = AuthService.login_or_register_by_email(db, "Existing@Example.com")
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result.get("access_token"), "tok")
+        self.assertNotIn("mfa_required", result)
         # 已注册：不新建账号，仅提交最后登录时间
         db.add.assert_not_called()
         db.commit.assert_called()
@@ -132,13 +135,28 @@ class TestLoginOrRegisterByEmail(unittest.TestCase):
         db.query.return_value.filter.return_value.first.return_value = None
         with mock.patch("app.services.auth_service.create_access_token", return_value="tok"), \
                 mock.patch("app.services.auth_service.hash_password", return_value="hashed"):
-            token = AuthService.login_or_register_by_email(db, "New@Example.com")
-        self.assertEqual(token, "tok")
+            result = AuthService.login_or_register_by_email(db, "New@Example.com")
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result.get("access_token"), "tok")
         db.add.assert_called_once()
         created = db.add.call_args.args[0]
         # 邮箱归一化为小写；未注册自动建号默认角色 family
         self.assertEqual(created.email, "new@example.com")
         self.assertEqual(created.role, "family")
+
+    def test_existing_email_mfa_required(self):
+        # 已开启 TOTP 第二因子：返回 MFA 短期令牌，不直接放行
+        db = mock.MagicMock()
+        user = mock.MagicMock()
+        user.mfa_enabled = True
+        db.query.return_value.filter.return_value.first.return_value = user
+        with mock.patch("app.services.auth_service.create_mfa_token", return_value="mfa"):
+            result = AuthService.login_or_register_by_email(db, "Existing@Example.com")
+        self.assertIsInstance(result, dict)
+        self.assertTrue(result.get("mfa_required"))
+        self.assertEqual(result.get("mfa_token"), "mfa")
+        # 未签发正式 access_token
+        self.assertNotIn("access_token", result)
 
 
 if __name__ == "__main__":

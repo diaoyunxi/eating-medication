@@ -436,40 +436,34 @@
 
             <!-- TOTP 绑定弹窗 -->
             <div id="totpSetupModal" class="modal-overlay" style="display:none;">
-                <div class="modal-content" style="max-width:480px;">
+                <div class="modal-content">
                     <div class="modal-header">
                         <h3>绑定 TOTP 动态码</h3>
                         <button class="modal-close" onclick="closeModal('totpSetupModal')">&times;</button>
                     </div>
-                    <div class="modal-body">
-                        <div id="totpSetupStep1">
-                            <p style="color:var(--text-secondary); margin-bottom:12px; font-size:14px;">
-                                请使用 Authenticator 应用（如 Google Authenticator、Microsoft Authenticator）扫描下方二维码：
-                            </p>
-                            <div id="totpQrCode" style="text-align:center; margin:16px 0;">
-                                <img id="totpQrImg" src="" alt="TOTP 二维码" style="max-width:200px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                    <div class="modal-body" id="totpSetupStep1">
+                        <p class="form-hint">使用 Authenticator 应用扫描下方二维码或手动输入密钥，然后输入动态码完成绑定。</p>
+                        <div id="totpQr" style="text-align:center; margin:12px 0;"></div>
+                        <div class="form-group">
+                            <label class="form-label">密钥</label>
+                            <div style="display:flex; gap:8px;">
+                                <input type="text" class="form-input" id="totpSecret" readonly
+                                       style="flex:1; font-family:monospace;">
+                                <button type="button" class="btn btn-secondary" onclick="copyTotpSecret()">复制</button>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label">或手动输入密钥</label>
-                                <div style="display:flex; gap:8px; align-items:center;">
-                                    <input type="text" class="form-input" id="totpSecretInput" readonly
-                                           style="font-family:monospace; letter-spacing:2px; background:var(--bg-secondary);">
-                                    <button type="button" class="btn btn-secondary" onclick="copyTotpSecret()">复制</button>
-                                </div>
-                            </div>
-                            <button class="btn btn-primary btn-lg w-full" onclick="submitTotpSetup()">我已扫码，继续验证</button>
                         </div>
-                        <div id="totpSetupStep2" style="display:none;">
-                            <p style="color:var(--text-secondary); margin-bottom:12px; font-size:14px;">
-                                请在 Authenticator 应用中查看 6 位动态码：
-                            </p>
-                            <div class="form-group">
-                                <label class="form-label">动态验证码</label>
-                                <input type="text" class="form-input" id="totpVerifyCode"
-                                       placeholder="请输入 6 位动态码" inputmode="numeric" maxlength="6">
-                            </div>
-                            <button class="btn btn-primary btn-lg w-full" onclick="submitTotpVerify()">验证并启用</button>
+                        <div class="form-group">
+                            <label class="form-label">动态验证码</label>
+                            <input type="text" class="form-input" id="totpCodeInput"
+                                   placeholder="6 位动态码" maxlength="6" inputmode="numeric">
                         </div>
+                        <button class="btn btn-primary btn-lg w-full" onclick="submitTotpSetup()">验证并绑定</button>
+                    </div>
+                    <div class="modal-body" id="totpSetupStep2" style="display:none;">
+                        <p class="form-hint">TOTP 已绑定成功，请妥善保存以下备用恢复码（仅显示一次）：</p>
+                        <div id="totpBackupCodes" class="backup-codes-box"
+                             style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:12px 0;"></div>
+                        <button class="btn btn-primary btn-lg w-full" onclick="closeTotpSetup()">完成</button>
                     </div>
                 </div>
             </div>
@@ -884,7 +878,7 @@
                         }
                     }
                 });
-
+                
                 try {
                     var resp = await fetch(prefix + '/auth/login-methods', {
                         headers: { 'Authorization': 'Bearer ' + (getCookie('access_token') || '') }
@@ -1014,14 +1008,7 @@
                     // 跳转到 OAuth 绑定流程
                     window.location.href = prefix + '/oauth/' + method + '/bind';
                 } else if (method === 'totp') {
-                    // 打开 TOTP 绑定弹窗并获取二维码
-                    openModal('totpSetupModal');
                     setupTotp();
-                    if (btnEl) {
-                        btnEl.disabled = false;
-                        btnEl.textContent = '绑定';
-                        btnEl.style.opacity = '';
-                    }
                 }
             }
 
@@ -1061,6 +1048,83 @@
 
             function getMethodName(method) {
                 return { phone: '手机号', email: '邮箱', github: 'GitHub', gitee: 'Gitee', totp: 'TOTP 动态码' }[method] || method;
+            }
+
+            // TOTP 绑定流程
+            async function setupTotp() {
+                openModal('totpSetupModal');
+                document.getElementById('totpSetupStep1').style.display = 'block';
+                document.getElementById('totpSetupStep2').style.display = 'none';
+                document.getElementById('totpQr').innerHTML = '加载中...';
+                try {
+                    var resp = await fetch(prefix + '/totp/setup', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
+                    });
+                    var data = await resp.json();
+                    if (!resp.ok) {
+                        showToast(data.detail || data.message || '获取 TOTP 配置失败', 'error');
+                        closeModal('totpSetupModal');
+                        return;
+                    }
+                    document.getElementById('totpSecret').value = data.secret || '';
+                    document.getElementById('totpQr').innerHTML = data.qr_svg || '二维码生成失败';
+                } catch (e) {
+                    showToast('获取 TOTP 配置失败：' + e.message, 'error');
+                    closeModal('totpSetupModal');
+                }
+            }
+
+            function copyTotpSecret() {
+                var secret = document.getElementById('totpSecret').value;
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(secret).then(function () {
+                        showToast('密钥已复制', 'success');
+                    });
+                }
+            }
+
+            window.submitTotpSetup = async function () {
+                var code = document.getElementById('totpCodeInput').value.trim();
+                if (!code) { showToast('请输入动态验证码', 'warning'); return; }
+                var btn = document.querySelector('#totpSetupModal button[onclick="submitTotpSetup()"]');
+                if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+                try {
+                    var resp = await fetch(prefix + '/totp/enable', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getCookie('access_token')
+                        },
+                        body: JSON.stringify({ code: code })
+                    });
+                    var data = await resp.json();
+                    if (resp.ok && data.backup_codes) {
+                        document.getElementById('totpSetupStep1').style.display = 'none';
+                        document.getElementById('totpSetupStep2').style.display = 'block';
+                        var box = document.getElementById('totpBackupCodes');
+                        box.innerHTML = '';
+                        (data.backup_codes || []).forEach(function (c) {
+                            var d = document.createElement('div');
+                            d.className = 'backup-code-item';
+                            d.style.cssText = 'padding:6px 10px; background:#f3f4f6; border-radius:6px; font-family:monospace; text-align:center;';
+                            d.textContent = c;
+                            box.appendChild(d);
+                        });
+                        loadLoginMethods();
+                    } else {
+                        showToast(data.detail || data.message || '绑定失败', 'error');
+                    }
+                } catch (e) {
+                    showToast('绑定失败：' + e.message, 'error');
+                } finally {
+                    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+                }
+            };
+
+            function closeTotpSetup() {
+                closeModal('totpSetupModal');
+                loadLoginMethods();
             }
 
             // 弹窗控制
@@ -1205,84 +1269,6 @@
                         submitBtn.style.opacity = '';
                         submitBtn.style.cursor = '';
                     }
-                }
-            };
-
-            // TOTP 绑定相关变量
-            var _totpSetupToken = null;
-            var _totpSecret = null;
-
-            // 打开 TOTP 绑定弹窗，获取二维码
-            window.setupTotp = async function () {
-                try {
-                    var resp = await fetch(prefix + '/totp/setup', {
-                        method: 'POST',
-                        headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
-                    });
-                    var data = await resp.json();
-                    if (resp.ok && data.success) {
-                        _totpSetupToken = data.setup_token;
-                        _totpSecret = data.secret;
-                        document.getElementById('totpQrImg').src = data.qr_code_url || '';
-                        document.getElementById('totpSecretInput').value = data.secret || '';
-                        document.getElementById('totpSetupStep1').style.display = 'block';
-                        document.getElementById('totpSetupStep2').style.display = 'none';
-                    } else {
-                        showToast(data.detail || '获取 TOTP 配置失败', 'error');
-                    }
-                } catch (e) {
-                    showToast('获取 TOTP 配置失败：' + e.message, 'error');
-                }
-            };
-
-            // 复制 TOTP 密钥
-            window.copyTotpSecret = function () {
-                var input = document.getElementById('totpSecretInput');
-                if (input.value) {
-                    navigator.clipboard.writeText(input.value).then(function () {
-                        showToast('密钥已复制', 'success');
-                    }).catch(function () {
-                        showToast('复制失败，请手动复制', 'error');
-                    });
-                }
-            };
-
-            // 提交 TOTP 设置（进入验证步骤）
-            window.submitTotpSetup = function () {
-                document.getElementById('totpSetupStep1').style.display = 'none';
-                document.getElementById('totpSetupStep2').style.display = 'block';
-            };
-
-            // 提交 TOTP 验证
-            window.submitTotpVerify = async function () {
-                var code = (document.getElementById('totpVerifyCode').value || '').trim();
-                if (!code || code.length !== 6) {
-                    showToast('请输入 6 位动态码', 'warning');
-                    return;
-                }
-                if (!_totpSetupToken) {
-                    showToast('会话已过期，请重新绑定', 'error');
-                    return;
-                }
-                try {
-                    var resp = await fetch(prefix + '/totp/enable', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + getCookie('access_token')
-                        },
-                        body: JSON.stringify({ setup_token: _totpSetupToken, code: code })
-                    });
-                    var data = await resp.json();
-                    if (resp.ok && data.success) {
-                        showToast('TOTP 绑定成功！', 'success');
-                        closeModal('totpSetupModal');
-                        loadLoginMethods();
-                    } else {
-                        showToast(data.detail || '验证失败，请检查动态码', 'error');
-                    }
-                } catch (e) {
-                    showToast('验证失败：' + e.message, 'error');
                 }
             };
 
