@@ -98,7 +98,8 @@ class HotspotManager:
         except Exception:
             return False
 
-    def is_online(self, timeout=3.0):
+    @staticmethod
+    def is_online(timeout=3.0) -> bool:
         """检测设备当前是否已联网（可访问外网）。
 
         通过尝试与公共 DNS（8.8.8.8 / 1.1.1.1 / 114.114.114.114）建立短连接
