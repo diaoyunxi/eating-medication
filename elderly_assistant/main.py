@@ -86,7 +86,7 @@ def _install_linux_system_deps():
     """
     if os.name != "posix" or shutil.which("apt-get") is None:
         return
-    deps = ["espeak", "libzbar0"]
+    deps = ["espeak", "libzbar0", "mbrola", "mbrola-cn1", "mpg123"]
     try:
         print(f"正在尝试安装系统依赖（需 root/网络）: {', '.join(deps)}")
         subprocess.run(["apt-get", "update"], capture_output=True, text=True, timeout=300)
@@ -104,6 +104,7 @@ def check_and_install_dependencies():
         ('requests', 'requests'),
         ('pyttsx3', 'pyttsx3'),
         ('pyzbar', 'pyzbar'),
+        ('edge_tts', 'edge-tts'),
         # HuskyLens 驱动为 PyPI 未发布模块，缺失时同样触发 common/install.py --huskylens
         # 安装，保证默认（auto 优先 HuskyLens）扫码通路可用
         ('dfrobot_huskylensv2', 'dfrobot-huskylensv2'),
