@@ -68,7 +68,7 @@ class HTTPClient:
             resp = requests.get(f"{self.base_url}/health", timeout=3, headers=self._headers())
             return resp.status_code == 200
         except Exception as e:
-            logger.debug(f"健康检查失败: {e}")
+            logger.warning(f"健康检查失败（服务端不可达）: {e}")
             return False
 
     def register_device(self, device_name=""):
