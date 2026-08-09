@@ -4,6 +4,7 @@
 
 提供用户管理、家庭组绑定、设备-老人关联等核心业务逻辑。
 """
+import json
 import logging
 from sqlalchemy.orm import Session
 from typing import Optional, List
@@ -12,7 +13,7 @@ from app.models.medication_plan import MedicationPlan
 from app.models.medication_record import MedicationRecord
 from app.models.ai_query_log import AIQueryLog
 from app.models.chat_message import ChatMessage
-from app.schemas.user import UserUpdate
+from app.schemas.user import UserUpdate, NotificationSettings
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,16 @@ class UserService:
             user.username = update_data.username
         if update_data.phone is not None:
             user.phone = update_data.phone
+
+        # 通知偏好设置：合并默认值后整体保存为 JSON 字符串（白名单内的布尔键）
+        if update_data.notification_settings is not None:
+            ns = update_data.notification_settings
+            if not isinstance(ns, dict):
+                raise ValueError("notification_settings 必须是对象")
+            merged = NotificationSettings(
+                **{k: bool(v) for k, v in ns.items() if k in NotificationSettings.model_fields}
+            )
+            user.notification_settings = json.dumps(merged.model_dump(), ensure_ascii=False)
 
         db.commit()
         db.refresh(user)

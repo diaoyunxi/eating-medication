@@ -216,7 +216,7 @@
                                 <div class="toggle-desc">当老人需要服药时发送提醒</div>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" checked>
+                                <input type="checkbox" id="medicationReminder" checked>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -227,7 +227,7 @@
                                 <div class="toggle-desc">当老人漏服药物时发送提醒</div>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" checked>
+                                <input type="checkbox" id="missedReminder" checked>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -238,7 +238,7 @@
                                 <div class="toggle-desc">当老人端设备离线时发送提醒</div>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" checked>
+                                <input type="checkbox" id="offlineReminder" checked>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -260,7 +260,7 @@
                                 <div class="toggle-desc">收到通知时播放提示音</div>
                             </div>
                             <label class="toggle-switch">
-                                <input type="checkbox" checked>
+                                <input type="checkbox" id="soundAlert" checked>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -631,7 +631,61 @@
         }
 
         function saveNotificationSettings() {
-            showToast('通知设置已保存', 'success');
+            var payload = {
+                notification_settings: {
+                    medication_reminder: document.getElementById('medicationReminder').checked,
+                    missed_reminder: document.getElementById('missedReminder').checked,
+                    offline_reminder: document.getElementById('offlineReminder').checked,
+                    browser_notification: document.getElementById('browserNotifications').checked,
+                    sound_alert: document.getElementById('soundAlert').checked
+                }
+            };
+            fetch(prefix + '/auth/profile', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + getCookie('access_token')
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); })
+            .then(function (r) {
+                if (r.ok && (r.data.notification_settings || r.data.success !== false)) {
+                    showToast('通知设置已保存', 'success');
+                } else {
+                    showToast(r.data.detail || r.data.message || '保存失败', 'error');
+                }
+            })
+            .catch(function (e) {
+                showToast('保存失败：' + e.message, 'error');
+            });
+        }
+
+        // 页面加载时拉取用户资料并还原通知开关状态
+        function loadNotificationSettings() {
+            fetch(prefix + '/auth/profile', {
+                headers: { 'Authorization': 'Bearer ' + (getCookie('access_token') || '') }
+            })
+            .then(function (resp) { return resp.json(); })
+            .then(function (data) {
+                var ns = data.notification_settings || {};
+                var defaults = {
+                    medication_reminder: true,
+                    missed_reminder: true,
+                    offline_reminder: true,
+                    browser_notification: false,
+                    sound_alert: true
+                };
+                var merged = Object.assign({}, defaults, ns);
+                document.getElementById('medicationReminder').checked = !!merged.medication_reminder;
+                document.getElementById('missedReminder').checked = !!merged.missed_reminder;
+                document.getElementById('offlineReminder').checked = !!merged.offline_reminder;
+                document.getElementById('browserNotifications').checked = !!merged.browser_notification;
+                document.getElementById('soundAlert').checked = !!merged.sound_alert;
+            })
+            .catch(function (e) {
+                console.error('加载通知设置失败:', e);
+            });
         }
 
         document.getElementById('browserNotifications').addEventListener('change', async function() {
@@ -1274,6 +1328,8 @@
 
             // 页面加载时获取登录方式状态
             loadLoginMethods();
+            // 页面加载时还原通知设置开关
+            loadNotificationSettings();
 
             // 检查 URL 参数中的绑定结果消息
             var params = new URLSearchParams(window.location.search);
