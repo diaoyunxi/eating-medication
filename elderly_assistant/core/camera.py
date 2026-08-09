@@ -4,6 +4,7 @@ import os
 import shutil
 import threading
 from datetime import datetime
+from uuid import uuid4
 from utils.logger import setup_logger
 
 # HuskyLens 实例（模块级单例）
@@ -135,7 +136,10 @@ def _fetch_huskylens_photo(remote_name, save_path, cam_config, logger):
         # 递归查找与文件名同名的文件（二哈照片通常在 SD 卡根目录或子目录）
         pattern = os.path.join(root, "**", os.path.basename(remote_name))
         for src in glob.glob(pattern, recursive=True):
-            dst = os.path.join(save_path, f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+            dst = os.path.join(
+                save_path,
+                f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{uuid4().hex}.jpg",
+            )
             try:
                 shutil.copy2(src, dst)
                 logger.info("已从二哈 SD 卡取回照片: %s -> %s", src, dst)
