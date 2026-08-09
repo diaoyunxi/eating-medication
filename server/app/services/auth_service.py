@@ -156,8 +156,8 @@ class AuthService:
         return {"access_token": create_access_token(data={"sub": user.id})}
 
     @staticmethod
-    def login_or_register_by_email(db: Session, email: str) -> str:
-        """邮箱验证码登录 / 自动注册，返回 access_token。
+    def login_or_register_by_email(db: Session, email: str) -> Optional[dict]:
+        """邮箱验证码登录 / 自动注册，返回认证响应 dict。
 
         流程：调用方须先通过 `email_code.verify_code` 校验验证码（本方法不再二次校验），
         因此只要进入本方法即代表验证码已通过。
@@ -166,8 +166,13 @@ class AuthService:
         - 邮箱未注册：自动创建账号（随机强密码，仅通过验证码登录；默认角色 family 子女端），
           用户名取自邮箱 @ 前段，冲突自动加数字后缀。
 
+        返回 dict：
+          - {"access_token": <jwt>} 正常登录（未开启 TOTP 第二因子）
+          - {"mfa_required": True, "mfa_token": <短期令牌>} 已开启 TOTP，需再校验动态码
+        失败返回 None
+
         :param email: 已通过验证码校验的用户邮箱（会归一化为小写）
-        :return: access_token
+        :return: 认证响应 dict
         :raises ValueError: 邮箱格式异常（理论上已由 schema 拦截）
         """
         email = (email or "").strip().lower()
@@ -180,7 +185,10 @@ class AuthService:
             user.last_login_at = datetime.now(timezone.utc)
             db.commit()
             logger.info(f"邮箱验证码登录成功：{email}（账号 {user.username}）")
-            return create_access_token(data={"sub": user.id})
+            # 第二因子：密码正确但已开启 TOTP，签发 MFA 短期令牌，等待动态码
+            if getattr(user, "mfa_enabled", False):
+                return {"mfa_required": True, "mfa_token": create_mfa_token(user.id)}
+            return {"access_token": create_access_token(data={"sub": user.id})}
 
         # 未注册 -> 自动建号（随机强密码，仅用于占位，用户仅以验证码登录）
         local = email.split("@")[0] or "user"
@@ -205,7 +213,7 @@ class AuthService:
         db.commit()
         db.refresh(user)
         logger.info(f"邮箱验证码自动注册并登录：{email}（新账号 {username}）")
-        return create_access_token(data={"sub": user.id})
+        return {"access_token": create_access_token(data={"sub": user.id})}
 
     # ==================== OAuth 自动注册 ====================
 
@@ -302,6 +310,7 @@ class AuthService:
                 "email": {"enabled": True, "bound": False, "value": None},
                 "github": {"enabled": github_enabled, "bound": False, "value": None},
                 "gitee": {"enabled": gitee_enabled, "bound": False, "value": None},
+                "totp": {"enabled": True, "bound": False, "value": None},
             }
 
         result = {}
@@ -330,6 +339,13 @@ class AuthService:
             result["gitee"] = {"enabled": gitee_enabled, "bound": True, "value": str(user.gitee_id)}
         else:
             result["gitee"] = {"enabled": gitee_enabled, "bound": False, "value": None}
+
+        # TOTP 第二因子（动态码）
+        result["totp"] = {
+            "enabled": True,
+            "bound": bool(getattr(user, "mfa_enabled", False)),
+            "value": None,
+        }
 
         return result
 

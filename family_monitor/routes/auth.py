@@ -288,6 +288,15 @@ async def email_code_login(request: Request):
         )
 
     token_data = resp.json()
+    # 已开启 TOTP 第二因子：密码正确但需再校验动态码，返回 MFA 挑战令牌
+    if token_data.get("mfa_required"):
+        return JSONResponse(
+            {
+                "success": True,
+                "mfa_required": True,
+                "mfa_token": token_data.get("mfa_token", ""),
+            }
+        )
     access_token = token_data.get("access_token", "")
     if not access_token:
         return JSONResponse(

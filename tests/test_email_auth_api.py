@@ -128,7 +128,7 @@ class TestEmailAuthAPI(unittest.TestCase):
     def test_code_login_existing_user_no_duplicate(self):
         db = self.SessionLocal()
         db.add(User(username="exists", hashed_password="x",
-                    email="existing@x.com", role="family"))
+                    email="existing@x.com", role="family", mfa_enabled=False))
         db.commit()
         db.close()
         with mock.patch.object(email_code, "verify_code", return_value=True):
@@ -141,6 +141,23 @@ class TestEmailAuthAPI(unittest.TestCase):
         cnt = db.query(User).filter(User.email == "existing@x.com").count()
         db.close()
         self.assertEqual(cnt, 1)  # 不重复建号
+
+    def test_code_login_mfa_required(self):
+        # 已开启 TOTP 第二因子：返回 MFA 挑战令牌，不签发正式 JWT
+        db = self.SessionLocal()
+        db.add(User(username="mfa", hashed_password="x",
+                    email="mfa@x.com", role="family", mfa_enabled=True))
+        db.commit()
+        db.close()
+        with mock.patch.object(email_code, "verify_code", return_value=True):
+            resp = self.client.post("/auth/email/code-login",
+                                     json={"email": "mfa@x.com", "code": "123456",
+                                           "cf_turnstile_token": "t"})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data.get("mfa_required"))
+        self.assertTrue(data.get("mfa_token"))
+        self.assertNotIn("access_token", data)
 
     def test_code_login_wrong_code(self):
         with mock.patch.object(email_code, "verify_code", return_value=False):
