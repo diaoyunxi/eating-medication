@@ -70,7 +70,9 @@ def get_huskylens(config=None):
 
 
 # 二哈（HuskyLens V2）拍照后照片保存在自身 SD 卡，M10 需能从挂载点读到该文件。
-# 下列为常见 Linux / 行空板 M10 的 SD 卡挂载候选根目录，可由 camera.sd_search_paths 覆盖。
+# 二哈 V2 通过 USB 接入主控板后会作为 U 盘出现，内部目录为 Huskylens/storage/photo。
+# 下列为常见 Linux / 行空板 M10 的 SD 卡挂载候选根目录，可由 camera.sd_search_paths
+# 覆盖；代码同时会自动探测二哈 U 盘目录，通常无需手动配置。
 _DEFAULT_SD_SEARCH_ROOTS = ["/media", "/mnt", "/run/media"]
 
 
@@ -84,15 +86,50 @@ def _normalize_sd_search_paths(cam_config):
     return list(raw)
 
 
+def _discover_huskylens_storage(cam_config):
+    """自动发现二哈 V2 U 盘上的照片目录，免去手动配置挂载点。
+
+    二哈 V2 通过 USB 接入主控板后作为 U 盘出现，内部目录结构为
+    <挂载点>/Huskylens/storage/photo（拍照）与 .../storage/screenshot（截屏）。
+    这里在各候选挂载根下查找名为 Huskylens（大小写不敏感）的目录，返回其
+    storage/photo 子目录，作为额外的照片搜索根。
+    """
+    found = []
+    for base in _normalize_sd_search_paths(cam_config):
+        if not os.path.isdir(base):
+            continue
+        # 先取一层挂载卷（如 /media/root/<VOL>），再在其内部递归查找 Huskylens 目录
+        for mount in glob.glob(os.path.join(base, "*")):
+            if not os.path.isdir(mount):
+                continue
+            for name in ("Huskylens", "huskylens", "HUSKYLENS"):
+                for husk in glob.glob(os.path.join(mount, "**", name), recursive=True):
+                    photo_dir = os.path.join(husk, "storage", "photo")
+                    if os.path.isdir(photo_dir):
+                        found.append(photo_dir)
+    return found
+
+
 def _fetch_huskylens_photo(remote_name, save_path, cam_config, logger):
     """将二哈 SD 卡上的照片复制到本地 save_path，返回本地路径；找不到返回 None。
 
     二哈 over I2C/UART 拍照后仅返回文件名（官方库 dfrobot_huskylensv2 不提供回传
     字节的接口），因此照片必须位于 M10 可访问的挂载点上。候选根目录可由
-    camera.sd_search_paths 配置覆盖（逗号分隔字符串或列表）。
+    camera.sd_search_paths 配置覆盖（逗号分隔字符串或列表）；同时会自动探测
+    二哈 V2 通过 USB 接入后作为 U 盘出现的 Huskylens/storage/photo 目录。
     """
-    roots = _normalize_sd_search_paths(cam_config)
+    # 配置指定的根 + 自动探测到的二哈 U 盘照片目录
+    try:
+        roots = _normalize_sd_search_paths(cam_config) + _discover_huskylens_storage(cam_config)
+    except Exception as e:
+        logger.debug("自动探测二哈 U 盘目录失败（将仅使用配置路径）: %s", e)
+        roots = _normalize_sd_search_paths(cam_config)
+
+    seen = set()
     for root in roots:
+        if not root or root in seen:
+            continue
+        seen.add(root)
         if not os.path.isdir(root):
             continue
         # 递归查找与文件名同名的文件（二哈照片通常在 SD 卡根目录或子目录）

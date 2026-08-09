@@ -63,6 +63,20 @@ class TestFetchHuskylensPhoto(unittest.TestCase):
         out = camera._fetch_huskylens_photo("x.jpg", self.save_dir, {}, self.logger)
         self.assertIsNone(out)
 
+    def test_auto_discovers_huskylens_udisk(self):
+        """自动发现二哈 V2 U 盘目录（Huskylens/storage/photo）并取回照片。"""
+        # 模拟二哈 U 盘结构：<根>/<卷>/Huskylens/storage/photo/<文件>
+        volume = Path(self.sd_dir) / "HUSKYLENS"
+        photo_dir = volume / "Huskylens" / "storage" / "photo"
+        photo_dir.mkdir(parents=True)
+        name = "PHOTO_0001.jpg"
+        (photo_dir / name).write_bytes(b"\xff\xd8\xff\xe0PHOTO")
+        # 仅配置父根，依赖自动探测找到 Huskylens/storage/photo
+        cfg = {"sd_search_paths": [self.sd_dir]}
+        out = camera._fetch_huskylens_photo(name, self.save_dir, cfg, self.logger)
+        self.assertTrue(out)
+        self.assertEqual(os.path.dirname(out), self.save_dir)
+
 
 if __name__ == "__main__":
     unittest.main()
