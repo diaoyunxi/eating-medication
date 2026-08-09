@@ -499,6 +499,38 @@ async def get_login_methods(request: Request):
     return JSONResponse(resp.json(), status_code=resp.status_code)
 
 
+@router.get("/profile")
+async def get_profile(request: Request):
+    """获取当前用户资料（含通知偏好，代理 server /users/me）"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"detail": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        resp = await _server_client._execute("GET", _server_url("/users/me"), headers=headers)
+    except httpx.RequestError:
+        return JSONResponse({"detail": "无法连接认证服务"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
+@router.put("/profile")
+async def update_profile(request: Request):
+    """更新当前用户资料（代理 server /users/me，支持保存通知偏好）"""
+    headers = _auth_headers(request)
+    if not headers:
+        return JSONResponse({"detail": "未登录"}, status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        resp = await _server_client._execute(
+            "PUT", _server_url("/users/me"), json_body=body, headers=headers
+        )
+    except httpx.RequestError:
+        return JSONResponse({"detail": "无法连接认证服务"}, status_code=status.HTTP_502_BAD_GATEWAY)
+    return JSONResponse(resp.json(), status_code=resp.status_code)
+
+
 @router.post("/auth/bind-phone")
 async def bind_phone(request: Request):
     """绑定手机号（代理 server /auth/bind-phone）"""

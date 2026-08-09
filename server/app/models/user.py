@@ -53,6 +53,9 @@ class User(Base):
     mfa_enabled = Column(Boolean, default=False, nullable=False)
     # 备用恢复码（bcrypt 哈希后的 JSON 列表，明文仅在开启时返回一次），未开启为 NULL
     backup_codes = Column(Text, nullable=True)
+    # 通知偏好设置（JSON 字符串，记录各通知开关：用药提醒/漏服提醒/设备离线/浏览器通知/声音）
+    # 允许为 NULL（未设置时前端按默认全部开启处理）
+    notification_settings = Column(Text, nullable=True)
 
     # 关联关系
     medication_plans = relationship("MedicationPlan", back_populates="user", cascade="all, delete-orphan")
