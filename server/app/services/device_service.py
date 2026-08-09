@@ -319,10 +319,20 @@ class DeviceService:
             raise HTTPException(status_code=400, detail="仅支持 JPEG/PNG 图片")
         user_dir = os.path.join(_UPLOAD_ROOT, str(user.id))
         os.makedirs(user_dir, exist_ok=True)
-        fname = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}_{secrets.token_hex(4)}.jpg"
-        fpath = os.path.join(user_dir, fname)
-        with open(fpath, "wb") as f:
-            f.write(raw)
+        # 使用排他创建模式（O_EXCL），防止并发上传时覆盖既有照片
+        for _ in range(3):  # 最多重试 3 次，应对极端碰撞
+            fname = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}_{secrets.token_hex(4)}.jpg"
+            fpath = os.path.join(user_dir, fname)
+            try:
+                fd = os.open(fpath, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+                with os.fdopen(fd, "wb") as f:
+                    f.write(raw)
+                break
+            except FileExistsError:
+                logger.warning(f"文件名冲突，重试: {fname}")
+                continue
+        else:
+            raise HTTPException(status_code=500, detail="上传图片失败：文件名碰撞次数过多")
         logger.info(f"设备上传图片已保存: {fpath}")
         return f"uploads/{user.id}/{fname}"
 
