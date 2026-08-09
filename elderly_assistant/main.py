@@ -238,8 +238,8 @@ def main():
         logger.warning(f"条码扫描器初始化失败，扫码功能降级不可用: {e}")
 
     # 6. 联网检测：已联网则无需启动热点配网（配网仅在离线/首启时通过热点进行）
-    # hotspot 尚未实例化，调用 HotspotManager.is_online() 类方法探测联网状态；
-    # 在线则 hotspot 保持 None（不启动 AP），离线时下方才会实例化 HotspotManager 并开热点
+    # hotspot 尚未实例化, 调用 HotspotManager.is_online() 类方法探测联网状态;
+    # 在线则 hotspot 保持 None(不启动 AP), 离线时下方才会实例化 HotspotManager 并开热点
     hotspot = None
     wifi_config_server = None
     online = False
