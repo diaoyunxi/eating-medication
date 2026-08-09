@@ -56,6 +56,10 @@ DEFAULT_CONFIG = {
         "uart_tty": "/dev/ttyS1",
         "uart_baudrate": 115200,
         "save_path": "data/captures",
+        # 拍照分辨率：default/640x480/1280x720/1920x1080（官方库 takePhoto 必填）
+        "photo_resolution": "default",
+        # 二哈 SD 卡在 M10 上的挂载根目录候选（逗号分隔字符串或列表）；留空用内置默认
+        "sd_search_paths": "",
     },
     "scan": {
         # auto=优先 HuskyLens 板载解码并回退 USB；也可显式指定 huskylens / usb
@@ -82,6 +86,8 @@ _ENV_LEAVES = [
     ("CAMERA_UART_TTY", "camera", "uart_tty", str),
     ("CAMERA_UART_BAUDRATE", "camera", "uart_baudrate", int),
     ("CAMERA_SAVE_PATH", "camera", "save_path", str),
+    ("CAMERA_PHOTO_RESOLUTION", "camera", "photo_resolution", str),
+    ("CAMERA_SD_SEARCH_PATHS", "camera", "sd_search_paths", str),
     ("SCAN_SOURCE", "scan", "source", str),
     ("SCAN_USB_INDEX", "scan", "usb_index", int),
     ("SCAN_TIMEOUT_SEC", "scan", "timeout_sec", float),
@@ -110,7 +116,11 @@ _ENV_TEMPLATE = (
     "CAMERA_CONNECTION=i2c\n"
     "CAMERA_UART_TTY=/dev/ttyS1\n"
     "CAMERA_UART_BAUDRATE=115200\n"
-    "CAMERA_SAVE_PATH=data/captures\n\n"
+    "CAMERA_SAVE_PATH=data/captures\n"
+    "# CAMERA_PHOTO_RESOLUTION: 拍照分辨率 default/640x480/1280x720/1920x1080（二哈 takePhoto 必填）\n"
+    "CAMERA_PHOTO_RESOLUTION=default\n"
+    "# CAMERA_SD_SEARCH_PATHS: 二哈 SD 卡挂载根目录候选，逗号分隔；留空用内置默认 /media,/mnt,/run/media\n"
+    "CAMERA_SD_SEARCH_PATHS=\n\n"
     "# ===== 药品条码扫描 =====\n"
     "# SCAN_SOURCE: auto=优先 HuskyLens 板载解码并回退 USB；可选 huskylens / usb\n"
     "SCAN_SOURCE=auto\n"
