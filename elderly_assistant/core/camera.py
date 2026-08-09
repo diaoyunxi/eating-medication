@@ -1,7 +1,10 @@
 ﻿# -*- coding: utf-8 -*-
+import glob
 import os
+import shutil
 import threading
 from datetime import datetime
+from uuid import uuid4
 from utils.logger import setup_logger
 
 # HuskyLens 实例（模块级单例）
@@ -67,29 +70,126 @@ def get_huskylens(config=None):
         return _huskylens
 
 
+# 二哈（HuskyLens V2）拍照后照片保存在自身 SD 卡，M10 需能从挂载点读到该文件。
+# 二哈 V2 通过 USB 接入主控板后会作为 U 盘出现，内部目录为 Huskylens/storage/photo。
+# 下列为常见 Linux / 行空板 M10 的 SD 卡挂载候选根目录，可由 camera.sd_search_paths
+# 覆盖；代码同时会自动探测二哈 U 盘目录，通常无需手动配置。
+_DEFAULT_SD_SEARCH_ROOTS = ["/media", "/mnt", "/run/media"]
+
+
+def _normalize_sd_search_paths(cam_config):
+    """将 camera.sd_search_paths 归一化为根目录列表（兼容字符串/列表/空值）。"""
+    raw = cam_config.get('sd_search_paths')
+    if not raw:
+        return list(_DEFAULT_SD_SEARCH_ROOTS)
+    if isinstance(raw, str):
+        return [p.strip() for p in raw.split(',') if p.strip()]
+    return list(raw)
+
+
+def _discover_huskylens_storage(cam_config):
+    """自动发现二哈 V2 U 盘上的照片目录，免去手动配置挂载点。
+
+    二哈 V2 通过 USB 接入主控板后作为 U 盘出现，内部目录结构为
+    <挂载点>/Huskylens/storage/photo（拍照）与 .../storage/screenshot（截屏）。
+    这里在各候选挂载根下查找名为 Huskylens（大小写不敏感）的目录，返回其
+    storage/photo 子目录，作为额外的照片搜索根。
+    """
+    found = []
+    for base in _normalize_sd_search_paths(cam_config):
+        if not os.path.isdir(base):
+            continue
+        # 先取一层挂载卷（如 /media/root/<VOL>），再在其内部递归查找 Huskylens 目录
+        for mount in glob.glob(os.path.join(base, "*")):
+            if not os.path.isdir(mount):
+                continue
+            for name in ("Huskylens", "huskylens", "HUSKYLENS"):
+                for husk in glob.glob(os.path.join(mount, "**", name), recursive=True):
+                    photo_dir = os.path.join(husk, "storage", "photo")
+                    if os.path.isdir(photo_dir):
+                        found.append(photo_dir)
+    return found
+
+
+def _fetch_huskylens_photo(remote_name, save_path, cam_config, logger):
+    """将二哈 SD 卡上的照片复制到本地 save_path，返回本地路径；找不到返回 None。
+
+    二哈 over I2C/UART 拍照后仅返回文件名（官方库 dfrobot_huskylensv2 不提供回传
+    字节的接口），因此照片必须位于 M10 可访问的挂载点上。候选根目录可由
+    camera.sd_search_paths 配置覆盖（逗号分隔字符串或列表）；同时会自动探测
+    二哈 V2 通过 USB 接入后作为 U 盘出现的 Huskylens/storage/photo 目录。
+    """
+    # 配置指定的根 + 自动探测到的二哈 U 盘照片目录
+    try:
+        roots = _normalize_sd_search_paths(cam_config) + _discover_huskylens_storage(cam_config)
+    except Exception as e:
+        logger.debug("自动探测二哈 U 盘目录失败（将仅使用配置路径）: %s", e)
+        roots = _normalize_sd_search_paths(cam_config)
+
+    seen = set()
+    for root in roots:
+        if not root or root in seen:
+            continue
+        seen.add(root)
+        if not os.path.isdir(root):
+            continue
+        # 递归查找与文件名同名的文件（二哈照片通常在 SD 卡根目录或子目录）
+        pattern = os.path.join(root, "**", os.path.basename(remote_name))
+        for src in glob.glob(pattern, recursive=True):
+            dst = os.path.join(
+                save_path,
+                f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{uuid4().hex}.jpg",
+            )
+            try:
+                shutil.copy2(src, dst)
+                logger.info("已从二哈 SD 卡取回照片: %s -> %s", src, dst)
+                return dst
+            except Exception as e:
+                logger.warning("复制二哈照片失败 %s: %s", src, e)
+                continue
+    return None
+
+
 def capture_image(config):
-    """使用 HuskyLens 拍照并保存"""
+    """使用 HuskyLens 拍照并取回本地路径。
+
+    修复点（对照官方 dfrobot_huskylensv2 库源码）：
+    1. takePhoto 必须传入 resolution 参数（default/640x480/1280x720/1920x1080），
+       否则函数直接返回空串（原代码无参调用会在运行时抛 TypeError）；
+    2. takePhoto 返回的是二哈 SD 卡上的文件名（库不提供回传字节的接口），
+       拍照后需在 M10 可访问的挂载点找到该文件并复制到本地 save_path，
+       原代码却去检查本地 data/captures/<时间戳>.jpg（二哈不会写入），导致永远返回 None。
+    """
     logger = setup_logger()
     cam_config = config.get('camera', {})
     try:
         save_path = cam_config.get('save_path', 'data/captures')
         os.makedirs(save_path, exist_ok=True)
-        filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-        path = os.path.join(save_path, filename)
 
-        # 与扫码(算法切换/读取)共享 HuskyLens 单例: 初始化与拍照均在操作锁内,
-        # 避免首次并发使用时竞争 I2C/UART 句柄导致初始化或拍照失败
+        # 1) 拍照：必须传入 resolution（官方库 takePhoto(self, resolution) 必填）
+        resolution = cam_config.get('photo_resolution', 'default')
         with _HUSKYLENS_OP_LOCK:
             hl = get_huskylens(config)
-            hl.takePhoto()
-        logger.info("HuskyLens 拍照指令已发送")
+            remote_name = hl.takePhoto(resolution)
+        logger.info("HuskyLens 拍照指令已发送，返回文件名: %r", remote_name)
 
-        # 拍照后检查文件是否真正生成，避免返回不存在的路径导致后续 open 失败
-        if not os.path.exists(path):
-            logger.error(f"拍照后文件不存在: {path}，HuskyLens可能未回传图片")
+        if not remote_name:
+            logger.error(
+                "HuskyLens 拍照失败（takePhoto 未返回文件名），请检查 resolution=%r 与摄像头连接",
+                resolution,
+            )
             return None
-        logger.info(f"拍照成功: {path}")
-        return path
+
+        # 2) 从二哈 SD 卡挂载点取回照片到本地
+        local_path = _fetch_huskylens_photo(remote_name, save_path, cam_config, logger)
+        if not local_path:
+            logger.error(
+                "拍照后未找到二哈 SD 卡上的照片 %s（SD 卡需挂载到 M10 且 camera.sd_search_paths 配置正确）",
+                remote_name,
+            )
+            return None
+        logger.info("拍照成功: %s", local_path)
+        return local_path
     except ImportError:
         logger.error("未安装 dfrobot_huskylensv2 库")
         return None
