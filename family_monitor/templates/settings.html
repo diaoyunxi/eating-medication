@@ -186,12 +186,15 @@
                     {% else %}
                     <div class="form-group">
                         <label class="form-label">设备UUID</label>
-                        <input type="text" class="form-input" id="deviceId" placeholder="输入行空板M10的设备UUID（如 12345678-1234-1234-1234-123456789abc）">
+                        <input type="text" class="form-input" id="deviceId" name="device-uuid"
+                               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                               placeholder="输入行空板M10的设备UUID（如 12345678-1234-1234-1234-123456789abc）">
                         <p class="form-hint">在老人端设备上查看设备UUID，格式为标准 UUID（8-4-4-4-12 十六进制，含连字符）</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label">设备名称（可选）</label>
-                        <input type="text" class="form-input" id="deviceName" placeholder="如：父亲的M10">
+                        <input type="text" class="form-input" id="deviceName" name="device-name"
+                               autocomplete="off" placeholder="如：父亲的M10">
                     </div>
                     <button class="btn btn-primary btn-lg w-full mt-3" onclick="bindDevice()">
                         <span>绑定设备</span>
@@ -293,19 +296,23 @@
 
                     <div class="form-group">
                         <label class="form-label">API 密钥</label>
-                        <input type="password" class="form-input" id="aiApiKey" placeholder="粘贴厂商 API Key（留空则不修改已保存的密钥）" autocomplete="off">
+                        <input type="password" class="form-input" id="aiApiKey" name="ai-api-key-new"
+                               autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false"
+                               placeholder="粘贴厂商 API Key（留空则不修改已保存的密钥）">
                         <p class="form-hint" id="aiKeyStatus">未配置</p>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">模型名称</label>
-                        <input type="text" class="form-input" id="aiModel" placeholder="如 glm-4.7-flash">
+                        <input type="text" class="form-input" id="aiModel" name="ai-model"
+                               autocomplete="off" placeholder="如 glm-4.7-flash">
                         <p class="form-hint">部分厂商可留空以使用默认模型</p>
                     </div>
 
                     <div class="form-group" id="aiBaseUrlGroup" style="display:none;">
                         <label class="form-label">Base URL（OpenAI 兼容地址）</label>
-                        <input type="text" class="form-input" id="aiBaseUrl" placeholder="https://your-endpoint/v1">
+                        <input type="text" class="form-input" id="aiBaseUrl" name="ai-base-url"
+                               autocomplete="off" placeholder="https://your-endpoint/v1">
                         <p class="form-hint">自定义或指定厂商需填写兼容 OpenAI 的接口地址</p>
                     </div>
 
@@ -508,6 +515,15 @@
     </div>
 
     <script>
+        // 路径前缀（Jinja2 全局变量注入，可能为空字符串）
+        // 与 getCookie 在此定义后供 settings.html 所有 script 块共用（含通知设置保存/加载），
+        // 避免此前 saveNotificationSettings 引用未定义的 getCookie/prefix 导致 ReferenceError 保存失败
+        var prefix = '{{ prefix }}';
+        function getCookie(name) {
+            var m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+            return m ? m.pop() : '';
+        }
+
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
             const toastIcon = document.getElementById('toastIcon');
@@ -915,7 +931,6 @@
             if (window.__loginMethodsInit) return;
             window.__loginMethodsInit = true;
 
-            var prefix = '{{ prefix }}';
             var loginMethodsData = {};
 
             // 加载登录方式绑定状态
@@ -990,11 +1005,6 @@
                     });
                 }
             };
-
-            function getCookie(name) {
-                var m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-                return m ? m.pop() : '';
-            }
 
             function updateLoginMethodsUI(data) {
                 ['phone', 'email', 'github', 'gitee', 'totp'].forEach(function (method) {
