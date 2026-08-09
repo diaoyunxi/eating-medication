@@ -23,6 +23,7 @@ import json
 import logging
 import importlib
 import subprocess
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -76,12 +77,33 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
+def _install_linux_system_deps():
+    """最佳努力安装 M10 所需的系统级原生依赖（pip 无法提供的库）。
+
+    - espeak   : pyttsx3 离线 TTS 引擎的后端（缺则语音播报降级）
+    - libzbar0 : pyzbar 条码解码所需原生库（缺则 USB 扫码通路降级）
+    仅在 Linux 且存在 apt-get 时尝试；失败不影响主流程（对应功能已优雅降级）。
+    """
+    if os.name != "posix" or shutil.which("apt-get") is None:
+        return
+    deps = ["espeak", "libzbar0"]
+    try:
+        print(f"正在尝试安装系统依赖（需 root/网络）: {', '.join(deps)}")
+        subprocess.run(["apt-get", "update"], capture_output=True, text=True, timeout=300)
+        subprocess.run(["apt-get", "install", "-y"] + deps,
+                       capture_output=True, text=True, timeout=600)
+        logger.info("已尝试安装系统依赖: " + ", ".join(deps))
+    except Exception as e:
+        logger.warning(f"系统依赖安装失败（已忽略，相关功能降级）: {e}")
+
+
 def check_and_install_dependencies():
     """检查关键依赖是否已安装，若缺失则调用公共安装脚本 common/install.py（含 huskylens）。"""
     required_modules = [
         ('dotenv', 'python-dotenv'),
         ('requests', 'requests'),
         ('pyttsx3', 'pyttsx3'),
+        ('pyzbar', 'pyzbar'),
         # HuskyLens 驱动为 PyPI 未发布模块，缺失时同样触发 common/install.py --huskylens
         # 安装，保证默认（auto 优先 HuskyLens）扫码通路可用
         ('dfrobot_huskylensv2', 'dfrobot-huskylensv2'),
@@ -101,6 +123,9 @@ def check_and_install_dependencies():
         req_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
         if os.path.exists(root_install):
             try:
+                # pyzbar / pyttsx3 依赖系统原生库（libzbar0 / espeak），pip 安装后
+                # 再最佳努力补装系统级依赖，避免运行时 ImportError / TTS 初始化失败
+                _install_linux_system_deps()
                 result = subprocess.run(
                     [sys.executable, root_install, req_path, "--huskylens"],
                     capture_output=False, text=True, cwd=project_root,
@@ -211,31 +236,43 @@ def main():
     except Exception as e:
         logger.warning(f"条码扫描器初始化失败，扫码功能降级不可用: {e}")
 
-    # 6. 启动后台热点（线程）
-    hotspot_cfg = config.get('hotspot', {})
-    hotspot = HotspotManager(
-        ssid=hotspot_cfg.get('ssid', 'M10-Config'),
-        ip=hotspot_cfg.get('ip', '10.0.0.1'),
-        web_port=hotspot_cfg.get('web_port', 8088)
-    )
+    # 6. 联网检测：已联网则无需启动热点配网（配网仅在离线/首启时通过热点进行）
+    online = False
     try:
-        if hotspot.start_hotspot():
-            logger.info("后台热点已启动")
-        else:
-            logger.error("后台热点启动失败")
+        online = hotspot.is_online()
     except Exception as e:
-        logger.error(f"启动热点异常: {e}")
+        logger.warning(f"联网状态检测失败，按离线处理并启动热点: {e}")
 
-    # 7. 启动配网 Web 服务（线程）
-    web_port = hotspot_cfg.get('web_port', 8088)
-    wifi_config_server = WiFiConfigServer(port=web_port)
-    try:
-        if wifi_config_server.start():
-            logger.info(f"配网 Web 服务已启动，端口 {web_port}")
-        else:
-            logger.error("配网 Web 服务启动失败")
-    except Exception as e:
-        logger.error(f"启动配网 Web 服务异常: {e}")
+    hotspot = None
+    wifi_config_server = None
+    if online:
+        logger.info("检测到已联网，跳过热点配网（如需重新配网请离线启动设备）")
+    else:
+        # 6.1 启动后台热点（线程）
+        hotspot_cfg = config.get('hotspot', {})
+        hotspot = HotspotManager(
+            ssid=hotspot_cfg.get('ssid', 'M10-Config'),
+            ip=hotspot_cfg.get('ip', '10.0.0.1'),
+            web_port=hotspot_cfg.get('web_port', 8088)
+        )
+        try:
+            if hotspot.start_hotspot():
+                logger.info("后台热点已启动")
+            else:
+                logger.error("后台热点启动失败")
+        except Exception as e:
+            logger.error(f"启动热点异常: {e}")
+
+        # 7. 启动配网 Web 服务（线程）
+        web_port = hotspot_cfg.get('web_port', 8088)
+        wifi_config_server = WiFiConfigServer(port=web_port)
+        try:
+            if wifi_config_server.start():
+                logger.info(f"配网 Web 服务已启动，端口 {web_port}")
+            else:
+                logger.error("配网 Web 服务启动失败")
+        except Exception as e:
+            logger.error(f"启动配网 Web 服务异常: {e}")
 
     # 8. 启动用药计划轮询线程（默认 20 分钟一次；断网时沿用本地缓存）
     reminder_cfg = config.get('reminder', {})
@@ -400,11 +437,13 @@ def main():
         except Exception as e:
             logger.warning(f"关闭条码扫描器失败: {e}")
         try:
-            wifi_config_server.stop()
+            if wifi_config_server:
+                wifi_config_server.stop()
         except Exception as e:
             logger.warning(f"停止配网服务失败: {e}")
         try:
-            hotspot.stop_hotspot()
+            if hotspot:
+                hotspot.stop_hotspot()
         except Exception as e:
             logger.warning(f"停止热点失败: {e}")
         # 关闭 LED（亮着则熄灭）

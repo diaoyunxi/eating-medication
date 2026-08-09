@@ -1807,3 +1807,18 @@ python main.py
 - pinpong 取 uuid 仅保留为未来版本兼容的兜底尝试；随机持久化 UUID 为最后兜底。
 - 同步更新 `tests/test_elderly_device_id.py` 覆盖 MAC 派生/确定性/降级路径，6 项测试通过。
 
+### v2.31.0 (2026-08-09)
+- 依赖自动安装补全：老人端 `main.py` 依赖检测新增 `pyzbar`（USB 摄像头扫码通路所需）；
+  缺失依赖时除调用 `common/install.py` 安装 Python 包外，额外最佳努力 `apt-get install`
+  M10 系统级原生库 `espeak`（pyttsx3 离线 TTS 后端）、`libzbar0`（pyzbar 解码后端），
+  避免运行时 `No module named 'pyzbar'` / 语音初始化失败（失败不影响主流程，对应功能已降级）。
+- 配网热点改为「检测是否已联网」：启动时调用 `HotspotManager.is_online()`（探测公共 DNS
+  8.8.8.8 / 1.1.1.1 / 114.114.114.114）判断是否联网；已联网则跳过热点与配网 Web 服务，
+  仅离线/首启时才启动热点供手机配网（WiFi 配网入口仍在热点页面，逻辑不变）。`finally`
+  清理增加空值保护。
+- 默认服务端地址改为部署域名固定路径 `https://my-website.ccwu.cc/eating-medication/server`
+  （原 `http://localhost:1059`），同步更新 `config_loader.DEFAULT_CONFIG` 与 `.env` 模板。
+- 新增 `tests/test_elderly_hotspot_online.py` 覆盖联网检测（在线/离线/返回布尔）；
+  `tests/test_elderly_config_loader.py` 默认地址断言同步更新。
+
+
