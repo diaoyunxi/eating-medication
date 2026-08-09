@@ -78,9 +78,23 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         process_time = time.time() - start_time
 
-        # 记录响应
-        status_emoji = "✅" if 200 <= response.status_code < 300 else "⚠️" if 400 <= response.status_code < 500 else "❌"
-        logger.info(
+        # 按状态码分级记录响应：4xx/5xx 为 ERROR，3xx 为 WARNING，2xx 为 INFO
+        # 便于在生产日志中快速定位客户端错误（如 404/405/401）与服务端异常
+        sc = response.status_code
+        if sc >= 500:
+            level = logging.ERROR
+            status_emoji = "❌"
+        elif sc >= 400:
+            level = logging.ERROR
+            status_emoji = "⚠️"
+        elif sc >= 300:
+            level = logging.WARNING
+            status_emoji = "↪️"
+        else:
+            level = logging.INFO
+            status_emoji = "✅"
+        logger.log(
+            level,
             f"{status_emoji} 响应完成 - {request.method} {request.url.path} "
             f"status={response.status_code} "
             f"duration={process_time:.3f}s"
