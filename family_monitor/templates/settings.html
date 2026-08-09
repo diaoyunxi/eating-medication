@@ -646,7 +646,36 @@
             }
         }
 
+        // 会话过期统一处理：401 时提示并跳转登录页（auth 中间件对 AJAX 返回 401 JSON）
+        function _handleAuthFailure(resp) {
+            if (resp.status === 401) {
+                showToast('登录已过期，正在跳转登录页...', 'warning');
+                setTimeout(function () {
+                    window.location.href = prefix + '/login';
+                }, 800);
+                return true;
+            }
+            // 防御：若响应被 302 重定向到登录页（HTML），同样按会话过期处理
+            if (resp.redirected && /\/login(\?|$)/.test(resp.url)) {
+                showToast('登录已过期，正在跳转登录页...', 'warning');
+                setTimeout(function () {
+                    window.location.href = prefix + '/login';
+                }, 800);
+                return true;
+            }
+            return false;
+        }
+
+        // 安全解析 JSON：响应体非 JSON 时返回 null，避免 .json() 抛异常被吞
+        function _safeJson(resp) {
+            var ct = resp.headers.get('content-type') || '';
+            if (ct.indexOf('application/json') === -1) return null;
+            return resp.json().catch(function () { return null; });
+        }
+
         function saveNotificationSettings() {
+            var saveBtn = document.querySelector('button[onclick="saveNotificationSettings()"]');
+            if (saveBtn) { saveBtn.disabled = true; saveBtn.style.opacity = '0.6'; saveBtn.style.cursor = 'not-allowed'; }
             var payload = {
                 notification_settings: {
                     medication_reminder: document.getElementById('medicationReminder').checked,
@@ -660,12 +689,17 @@
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + getCookie('access_token')
+                    'Accept': 'application/json',
+                    'Authorization': 'Bearer ' + (getCookie('access_token') || '')
                 },
                 body: JSON.stringify(payload)
             })
-            .then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); })
+            .then(function (resp) {
+                if (_handleAuthFailure(resp)) return { ok: false, auth_fail: true };
+                return _safeJson(resp).then(function (d) { return { ok: resp.ok, data: d || {} }; });
+            })
             .then(function (r) {
+                if (r.auth_fail) return; // 已跳转登录页
                 if (r.ok && (r.data.notification_settings || r.data.success !== false)) {
                     showToast('通知设置已保存', 'success');
                 } else {
@@ -674,16 +708,26 @@
             })
             .catch(function (e) {
                 showToast('保存失败：' + e.message, 'error');
+            })
+            .finally(function () {
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; saveBtn.style.cursor = ''; }
             });
         }
 
         // 页面加载时拉取用户资料并还原通知开关状态
         function loadNotificationSettings() {
             fetch(prefix + '/auth/profile', {
-                headers: { 'Authorization': 'Bearer ' + (getCookie('access_token') || '') }
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': 'Bearer ' + (getCookie('access_token') || '')
+                }
             })
-            .then(function (resp) { return resp.json(); })
+            .then(function (resp) {
+                if (_handleAuthFailure(resp)) return null;
+                return _safeJson(resp);
+            })
             .then(function (data) {
+                if (!data) return; // 会话过期已跳转
                 var ns = data.notification_settings || {};
                 var defaults = {
                     medication_reminder: true,
