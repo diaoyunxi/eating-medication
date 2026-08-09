@@ -34,7 +34,7 @@ ENV_PATH = BASE_DIR / ".env"
 # 默认配置（嵌套结构，分组与历史 config.yaml 兼容的访问路径）
 DEFAULT_CONFIG = {
     "server": {
-        "base_url": "http://localhost:1059",
+        "base_url": "https://my-website.ccwu.cc/eating-medication/server",
         "upload_endpoint": "/api/v1/public/device/upload",
         "timeout": 10,
         "heartbeat_interval": 30,
@@ -92,7 +92,7 @@ _ENV_TEMPLATE = (
     "# 老人端配置（扁平 .env，与 server / family_monitor 统一）\n"
     "# 首次运行自动生成，可手动修改；修改后重启生效\n\n"
     "# ===== 服务端地址 =====\n"
-    "SERVER_BASE_URL=http://localhost:1059\n"
+    "SERVER_BASE_URL=https://my-website.ccwu.cc/eating-medication/server\n"
     "SERVER_UPLOAD_ENDPOINT=/api/v1/public/device/upload\n"
     "SERVER_TIMEOUT=10\n"
     "HEARTBEAT_INTERVAL=30\n\n"
