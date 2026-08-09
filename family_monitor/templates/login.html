@@ -248,7 +248,7 @@
                     </button>
                 </div>
 
-                <!-- TOTP 第二因子步骤（邮箱登录，默认隐藏，验证码正确且已开启 MFA 时显示） -->
+                <!-- 邮箱登录 TOTP 第二因子步骤（默认隐藏，邮箱登录且已开启 MFA 时显示） -->
                 <form class="auth-form" id="emailMfaStep" style="display:none; margin-top:4px;">
                     <div class="form-group">
                         <label class="form-label" for="emailTotpCode">动态验证码</label>
@@ -334,12 +334,10 @@
                 if (ms) { ms.style.display = 'none'; }
                 window._mfaToken = null;
             }
-            // 切回邮箱登录时重置 MFA 中间态
-            if (method === 'email') {
-                var elb = document.getElementById('emailLoginBox');
-                var ems = document.getElementById('emailMfaStep');
-                if (elb) { elb.style.display = 'block'; }
-                if (ems) { ems.style.display = 'none'; }
+            // 切换登录方式时重置邮箱 MFA 状态
+            if (method !== 'email') {
+                var efs = document.getElementById('emailMfaStep');
+                if (efs) { efs.style.display = 'none'; }
                 window._emailMfaToken = null;
             }
         }
@@ -556,14 +554,14 @@
                         })
                         .then(function (result) {
                             var data = result.data || {};
-                            if (data.mfa_required) {
+                            if (data.success && data.redirect) {
+                                window.location.href = data.redirect;
+                            } else if (data.mfa_required) {
                                 // 已开启 TOTP 第二因子：切换至动态码步骤
                                 window._emailMfaToken = data.mfa_token;
                                 document.getElementById('emailLoginBox').style.display = 'none';
                                 document.getElementById('emailMfaStep').style.display = 'block';
                                 hideJsError();
-                            } else if (data.success && data.redirect) {
-                                window.location.href = data.redirect;
                             } else {
                                 showJsError(data.error || data.detail || '登录失败，请重试');
                                 if (emailTurnstileAvailable && emailWidgetId) {
