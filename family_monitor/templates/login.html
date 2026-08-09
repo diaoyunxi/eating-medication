@@ -247,6 +247,19 @@
                         <span id="emailLoginBtnText">邮箱验证码登录</span>
                     </button>
                 </div>
+
+                <!-- TOTP 第二因子步骤（邮箱登录，默认隐藏，验证码正确且已开启 MFA 时显示） -->
+                <form class="auth-form" id="emailMfaStep" style="display:none; margin-top:4px;">
+                    <div class="form-group">
+                        <label class="form-label" for="emailTotpCode">动态验证码</label>
+                        <input type="text" class="form-input" id="emailTotpCode" name="emailTotpCode"
+                               placeholder="请输入 Authenticator 中的 6 位动态码" inputmode="numeric"
+                               maxlength="6" autocomplete="one-time-code">
+                    </div>
+                    <button type="button" class="btn btn-primary btn-lg w-full" id="emailMfaVerifyBtn">
+                        <span id="emailMfaVerifyBtnText">验证并登录</span>
+                    </button>
+                </form>
                     </div>
                 </div>
 
@@ -320,6 +333,14 @@
                 if (lf) { lf.style.display = 'block'; }
                 if (ms) { ms.style.display = 'none'; }
                 window._mfaToken = null;
+            }
+            // 切回邮箱登录时重置 MFA 中间态
+            if (method === 'email') {
+                var elb = document.getElementById('emailLoginBox');
+                var ems = document.getElementById('emailMfaStep');
+                if (elb) { elb.style.display = 'block'; }
+                if (ems) { ems.style.display = 'none'; }
+                window._emailMfaToken = null;
             }
         }
         document.querySelectorAll('.method-trigger').forEach(function (btn) {
@@ -535,7 +556,13 @@
                         })
                         .then(function (result) {
                             var data = result.data || {};
-                            if (data.success && data.redirect) {
+                            if (data.mfa_required) {
+                                // 已开启 TOTP 第二因子：切换至动态码步骤
+                                window._emailMfaToken = data.mfa_token;
+                                document.getElementById('emailLoginBox').style.display = 'none';
+                                document.getElementById('emailMfaStep').style.display = 'block';
+                                hideJsError();
+                            } else if (data.success && data.redirect) {
                                 window.location.href = data.redirect;
                             } else {
                                 showJsError(data.error || data.detail || '登录失败，请重试');
@@ -714,7 +741,7 @@
             });
         }
 
-        // ===== TOTP 第二因子验证 =====
+        // ===== TOTP 第二因子验证（手机密码登录） =====
         var mfaVerifyBtn = document.getElementById('mfaVerifyBtn');
         if (mfaVerifyBtn) {
             mfaVerifyBtn.addEventListener('click', function () {
@@ -743,6 +770,40 @@
                     .catch(function () {
                         showJsError('网络异常，请稍后重试');
                         mfaVerifyBtn.disabled = false;
+                        btnText.textContent = '验证并登录';
+                    });
+            });
+        }
+
+        // ===== TOTP 第二因子验证（邮箱验证码登录） =====
+        var emailMfaVerifyBtn = document.getElementById('emailMfaVerifyBtn');
+        if (emailMfaVerifyBtn) {
+            emailMfaVerifyBtn.addEventListener('click', function () {
+                hideJsError();
+                var code = (document.getElementById('emailTotpCode').value || '').trim();
+                if (!code) { showJsError('请输入动态验证码'); return; }
+                if (!window._emailMfaToken) { showJsError('登录状态已失效，请重新登录'); return; }
+                var btnText = document.getElementById('emailMfaVerifyBtnText');
+                emailMfaVerifyBtn.disabled = true;
+                btnText.textContent = '验证中...';
+                fetch(prefix + '/totp/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mfa_token: window._emailMfaToken, code: code })
+                })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (res.ok && res.data.success && res.data.redirect) {
+                            window.location.href = res.data.redirect;
+                        } else {
+                            showJsError(res.data.error || '动态验证码错误');
+                            emailMfaVerifyBtn.disabled = false;
+                            btnText.textContent = '验证并登录';
+                        }
+                    })
+                    .catch(function () {
+                        showJsError('网络异常，请稍后重试');
+                        emailMfaVerifyBtn.disabled = false;
                         btnText.textContent = '验证并登录';
                     });
             });

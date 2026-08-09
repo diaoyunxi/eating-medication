@@ -288,6 +288,18 @@ async def email_code_login(request: Request):
         )
 
     token_data = resp.json()
+
+    # 检查是否需要 MFA 第二因子（用户已开启 TOTP）
+    if token_data.get("mfa_required"):
+        mfa_token = token_data.get("mfa_token", "")
+        if not mfa_token:
+            return JSONResponse(
+                {"success": False, "error": "认证服务返回异常"},
+                status_code=status.HTTP_502_BAD_GATEWAY,
+            )
+        # 返回 MFA 令牌，前端需再调用 /totp/verify
+        return JSONResponse({"mfa_required": True, "mfa_token": mfa_token})
+
     access_token = token_data.get("access_token", "")
     if not access_token:
         return JSONResponse(
