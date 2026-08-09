@@ -1821,4 +1821,18 @@ python main.py
 - 新增 `tests/test_elderly_hotspot_online.py` 覆盖联网检测（在线/离线/返回布尔）；
   `tests/test_elderly_config_loader.py` 默认地址断言同步更新。
 
+### v2.32.0 (2026-08-09)
+- TTS 引擎改为「联网优先 edge-tts，失败/无网走 pyttsx3」双引擎架构（`services/speech.py` 重写）：
+  - edge-tts（中文神经语音 zh-CN-XiaoxiaoNeural）联网时优先播报，产出 MP3 由系统播放器
+    （mpg123/ffplay/mpv/play，按序探测）播放；无网或请求失败自动降级。
+  - pyttsx3 作为离线兜底，优先选用 `mbrola-cn1` 中文语音（缺失则退回默认语音）。
+  - 两引擎初始化期均尝试加载，运行时按优先级选择；全部不可用仅禁用语音，不影响主流程。
+- 依赖/系统包自动安装补全（`main.py` + `requirements.txt`）：
+  - Python 包新增 `edge-tts`（加入依赖检测与 requirements.txt）。
+  - 修正此前 pyzbar 自动安装无效的问题：`pyzbar` / `opencv-python-headless` 实际写入
+    requirements.txt，确保缺失时能被 `common/install.py` 真正安装（此前仅为注释）。
+  - 系统级原生包 `apt-get install` 列表新增 `mbrola mbrola-cn1`（pyttsx3 中文语音）
+    与 `mpg123`（edge-tts 的 MP3 播放器），与既有安装逻辑一致、失败不影响主流程。
+
+
 

@@ -1,8 +1,35 @@
 # -*- coding: utf-8 -*-
+"""语音播报服务（老人端 M10）。
+
+TTS 引擎优先级：
+1. edge-tts（联网优先）：中文神经语音，音质明显优于本地 espeak；
+   产出 MP3 后由系统播放器（mpg123/ffplay/mpv/play）播放，无网或请求失败时降级。
+2. pyttsx3（离线兜底）：本地 espeak 引擎，优先选用 mbrola-cn1 中文语音包
+   （需 `apt install mbrola mbrola-cn1`，由 main.py 自动安装）；缺失则退回默认语音。
+
+两个引擎均在初始化期尝试加载，运行时按优先级选择；任一失败自动切换到另一引擎，
+全部不可用时禁用语音（不影响主流程）。
+"""
+import asyncio
+import os
 import queue
+import shutil
+import subprocess
+import tempfile
 import threading
 import time
 from utils.logger import setup_logger
+
+
+# edge-tts 使用的中文神经语音
+EDGE_TTS_VOICE = "zh-CN-XiaoxiaoNeural"
+# MP3 播放器探测顺序（按优先级）；mpg123 由 main.py 自动 apt 安装
+_PLAYER_ARGS = {
+    "mpg123": ["-q"],
+    "ffplay": ["-nodisp", "-autoexit"],
+    "mpv": ["--no-terminal", "--force-window=no"],
+    "play": [],
+}
 
 
 class Speech:
@@ -12,26 +39,59 @@ class Speech:
         self.config = {}
         self._speak_queue = queue.Queue(maxsize=20)  # 有界队列，避免无界增长
         self._stop_event = threading.Event()
-        self._engine = None
+        self._edge_tts = None
+        self._edge_available = False
+        self._pyttsx_engine = None
 
-        self._init_engine()
+        self._init_engines()
 
-        if self._engine:
+        if self._edge_available or self._pyttsx_engine:
             self._worker_thread = threading.Thread(target=self._speak_worker, daemon=True)
             self._worker_thread.start()
+        else:
+            self.logger.warning("语音引擎全部不可用，语音播报已禁用")
 
-    def _init_engine(self):
+    def _init_engines(self):
+        """初始化两套引擎：edge-tts（联网优先）+ pyttsx3（离线兜底）。"""
+        # 1. edge-tts：仅检测模块是否可导入（联网在播报时实时校验）
+        try:
+            import edge_tts
+            self._edge_tts = edge_tts
+            self._edge_available = True
+            self.logger.info("edge-tts 可用（联网时优先用于语音播报）")
+        except Exception as e:
+            self._edge_available = False
+            self.logger.info(f"edge-tts 不可用，将使用 pyttsx3 离线播报: {e}")
+
+        # 2. pyttsx3 离线兜底（优先 mbrola-cn1 中文语音）
         try:
             import pyttsx3
-            self._engine = pyttsx3.init()
-            self._engine.setProperty('volume', 50 / 100)
-            self._engine.setProperty('rate', 200)
-            self.logger.info("pyttsx3 TTS engine initialized")
-            return True
+            eng = pyttsx3.init()
+            eng.setProperty('volume', 0.9)
+            eng.setProperty('rate', 150)
+            self._select_mbrola_voice(eng)
+            self._pyttsx_engine = eng
+            self.logger.info("pyttsx3 TTS 引擎初始化成功（离线兜底）")
         except Exception as e:
-            self.logger.error(f"pyttsx3 init failed: {e}")
-            self._engine = None
-            return False
+            self._pyttsx_engine = None
+            self.logger.warning(f"pyttsx3 初始化失败: {e}")
+
+    def _select_mbrola_voice(self, eng):
+        """在 pyttsx3 语音列表中优先选用 mbrola 中文语音（mbrola-cn1）。
+
+        espeak 启用 mbrola 后，语音 id 形如 `mbrola/cn1`；缺失时退回默认语音。
+        """
+        try:
+            voices = eng.getProperty('voices') or []
+            for v in voices:
+                vid = (getattr(v, 'id', '') or '').lower()
+                if 'mbrola' in vid and 'cn' in vid:
+                    eng.setProperty('voice', v.id)
+                    self.logger.info(f"已选用 mbrola 中文语音: {vid}")
+                    return
+            self.logger.info("未找到 mbrola-cn1 语音，pyttsx3 使用默认语音")
+        except Exception as e:
+            self.logger.warning(f"选择 mbrola 语音失败（使用默认）: {e}")
 
     def _speak_worker(self):
         while not self._stop_event.is_set():
@@ -39,29 +99,69 @@ class Speech:
                 text = self._speak_queue.get(timeout=1)
                 if text is None:
                     break
-
-                try:
-                    self._engine.say(text)
-                    self._engine.runAndWait()
-                except Exception as e:
-                    self.logger.error(f"Speech failed '{text[:50]}...': {e}")
-                    try:
-                        self._init_engine()
-                    except Exception:
-                        pass
-
+                self._speak(text)
             except queue.Empty:
                 continue
             except Exception as e:
-                self.logger.error(f"Speech worker error: {e}")
+                self.logger.error(f"语音 worker 异常: {e}")
                 time.sleep(1)
 
-    def speak(self, text, volume=None):
-        if not self._engine:
-            if not self._init_engine():
-                self.logger.warning("Speech synthesis unavailable")
+    def _speak(self, text):
+        """按优先级播报：先 edge-tts，失败或无网则 pyttsx3。"""
+        if self._edge_available:
+            try:
+                self._speak_edge(text)
                 return
+            except Exception as e:
+                self.logger.warning(f"edge-tts 播报失败，转 pyttsx3: {e}")
+        if self._pyttsx_engine:
+            try:
+                self._pyttsx_engine.say(text)
+                self._pyttsx_engine.runAndWait()
+                return
+            except Exception as e:
+                self.logger.error(f"pyttsx3 播报失败: {e}")
+                try:
+                    self._init_engines()
+                except Exception:
+                    pass
 
+    def _speak_edge(self, text):
+        """使用 edge-tts 合成并播放（需联网）。"""
+        tmp_path = None
+        try:
+            fd, tmp_path = tempfile.mkstemp(suffix=".mp3")
+            os.close(fd)
+            communicate = self._edge_tts.Communicate(text, voice=EDGE_TTS_VOICE)
+            asyncio.run(communicate.save(tmp_path))
+            self._play_mp3(tmp_path)
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+
+    def _play_mp3(self, path):
+        """用系统中可用的播放器播放 MP3；无可用播放器则抛错触发 pyttsx3 兜底。"""
+        for player, extra in _PLAYER_ARGS.items():
+            exe = shutil.which(player)
+            if exe:
+                try:
+                    subprocess.run(
+                        [exe] + extra + [path],
+                        capture_output=True, text=True, timeout=30,
+                    )
+                    return
+                except Exception as e:
+                    self.logger.warning(f"播放器 {player} 执行失败: {e}")
+                    continue
+        raise RuntimeError("无可用音频播放器（需 mpg123/ffplay/mpv/play 之一）")
+
+    def speak(self, text, volume=None):
+        if not (self._edge_available or self._pyttsx_engine):
+            self.logger.warning("语音合成不可用")
+            return
         # 队列有界，满时丢弃并告警，避免无界增长导致内存溢出
         try:
             self._speak_queue.put_nowait(text)
@@ -79,11 +179,13 @@ class Speech:
         if hasattr(self, '_worker_thread') and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=2)
 
-        if self._engine:
+        if self._pyttsx_engine:
             try:
-                self._engine.stop()
+                self._pyttsx_engine.stop()
             except Exception:
                 pass
-            self._engine = None
+            self._pyttsx_engine = None
+        self._edge_tts = None
+        self._edge_available = False
 
-        self.logger.info("Speech service stopped")
+        self.logger.info("语音服务已停止")

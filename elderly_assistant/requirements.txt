@@ -12,6 +12,11 @@ pinpong
 # ===== 可选：USB 摄像头条码识别（core/barcode.py 的本地解码通路）=====
 # 默认扫码走 HuskyLens 板载解码（无需以下依赖）；仅在使用 USB 摄像头
 # (SCAN_SOURCE=usb 或 auto 回退) 时需要，缺失时自动降级，不影响主程序运行。
-# 手动安装步骤（Debian/Ubuntu/行空板）：
-#   sudo apt install -y libzbar0
-#   pip install opencv-python-headless pyzbar
+# 系统级原生依赖（main.py 自动 apt 安装）：libzbar0
+pyzbar
+opencv-python-headless
+
+# ===== 联网优先 TTS：edge-tts（中文神经语音，质量优于本地 espeak）=====
+# 运行时需联网；无网或失败时由 pyttsx3 离线兜底。
+# 播放 edge-tts 产出的 MP3 需要系统播放器（main.py 自动 apt 安装 mpg123）。
+edge-tts
