@@ -181,3 +181,82 @@ def _build_engine():
 engine = _build_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+
+# ---------------------------------------------------------------------------
+# 模式自愈：补齐模型声明但数据库缺失的列
+# ---------------------------------------------------------------------------
+def _safe_add_column(conn, table_name, column, dialect):
+    """向已存在表追加单列，跨方言构造 DDL 并容忍已存在/不支持。
+
+    不依赖 inspector 的 batch_alter_table，直接用文本 DDL，兼容 SQLite/MySQL/PG。
+    仅做「列不存在时添加」，存在则跳过；遇到任何异常记录后继续，不中断启动。
+    """
+    from sqlalchemy import text
+    try:
+        sqltype = str(column.type.compile(dialect=dialect))
+        # SQLite 不支持 AFTER，其他方言忽略列位置即可；统一不加 AFTER
+        col_default = ""
+        if column.default is not None and column.default.arg is not None:
+            arg = column.default.arg
+            if isinstance(arg, bool):
+                col_default = f" DEFAULT {'1' if arg else '0'}"
+            elif isinstance(arg, (int, float)):
+                col_default = f" DEFAULT {arg}"
+            elif isinstance(arg, str):
+                col_default = f" DEFAULT '{arg}'"
+        nullable = "" if column.nullable else " NOT NULL"
+        stmt = text(
+            f'ALTER TABLE "{table_name}" ADD COLUMN "{column.name}" {sqltype}{col_default}{nullable}'
+        )
+        conn.execute(stmt)
+        conn.commit()
+        logger.info(f"  自愈补列: {table_name}.{column.name} {sqltype}")
+        return True
+    except Exception as e:  # noqa: BLE001
+        # 列已存在（重复添加）或其他错误：仅记录，不中断
+        logger.debug(f"  补列跳过 {table_name}.{column.name}: {e}")
+        # 回滚可能因 ALTER 失败而开启的事务
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return False
+
+
+def sync_schema_with_models():
+    """启动期模式自愈：检测并补齐 ORM 模型声明、但数据库缺失的列。
+
+    背景：生产曾出现 alembic_version 已 stamp 到 head、但 users 表实际缺少
+    notification_settings 列，导致任意 User 查询抛 OperationalError。原因是
+    历史上某次 create_all 回退建表后 stamp("head")，跳过了真正的迁移。
+    此函数在 alembic upgrade 之后兜底，按列级别对齐，保证「代码声明 → DB 必有列」。
+
+    仅追加缺失列，不删除多余列、不修改已有列类型，安全可重复。
+    """
+    from sqlalchemy import inspect
+    try:
+        inspector = inspect(engine)
+        conn = engine.connect()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"模式自愈：连接数据库失败，跳过: {e}")
+        return
+    try:
+        dialect = engine.dialect
+        existing_tables = set(inspector.get_table_names())
+        added = 0
+        for mapper in Base.registry.mappers:
+            table = mapper.local_table
+            table_name = table.name
+            if table_name not in existing_tables:
+                continue  # 表不存在交由 create_all 处理
+            existing_cols = {c["name"] for c in inspector.get_columns(table_name)}
+            for column in table.columns:
+                if column.name in existing_cols:
+                    continue
+                if _safe_add_column(conn, table_name, column, dialect):
+                    added += 1
+        if added:
+            logger.info(f"模式自愈完成：共补齐 {added} 个缺失列")
+    finally:
+        conn.close()
