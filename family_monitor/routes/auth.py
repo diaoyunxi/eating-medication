@@ -499,7 +499,7 @@ async def get_login_methods(request: Request):
     return JSONResponse(resp.json(), status_code=resp.status_code)
 
 
-@router.get("/profile")
+@router.get("/auth/profile")
 async def get_profile(request: Request):
     """获取当前用户资料（含通知偏好，代理 server /users/me）"""
     headers = _auth_headers(request)
@@ -512,7 +512,7 @@ async def get_profile(request: Request):
     return JSONResponse(resp.json(), status_code=resp.status_code)
 
 
-@router.put("/profile")
+@router.put("/auth/profile")
 async def update_profile(request: Request):
     """更新当前用户资料（代理 server /users/me，支持保存通知偏好）"""
     headers = _auth_headers(request)
