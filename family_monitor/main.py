@@ -152,6 +152,38 @@ async def path_prefix_middleware(request: Request, call_next):
 
 
 @app.middleware("http")
+async def access_log_middleware(request: Request, call_next):
+    """访问日志中间件：按状态码分级记录每个请求。
+
+    替代 uvicorn 默认 access log（默认全量 INFO），实现：
+    - 2xx -> INFO
+    - 3xx -> WARNING
+    - 4xx / 5xx -> ERROR（便于在生产日志快速定位客户端错误与服务端异常）
+    """
+    start = time.time()
+    response = await call_next(request)
+    duration = time.time() - start
+    path = request.scope.get("path", request.url.path)
+    method = request.method
+    sc = response.status_code
+
+    if sc >= 500:
+        level = logging.ERROR
+    elif sc >= 400:
+        level = logging.ERROR
+    elif sc >= 300:
+        level = logging.WARNING
+    else:
+        level = logging.INFO
+    client_ip = request.client.host if request.client else "unknown"
+    logger.log(
+        level,
+        f'{client_ip} - "{method} {request.scope.get("root_path", "")}{path} HTTP/1.1" {sc} {duration:.3f}s',
+    )
+    return response
+
+
+@app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     """安全响应头中间件：为每个响应添加安全相关的 HTTP 头"""
     response = await call_next(request)
@@ -225,7 +257,33 @@ async def auth_middleware(request: Request, call_next):
     # 重定向 URL 显式拼接 PATH_PREFIX
     login_url = f"{PATH_PREFIX}/login" if PATH_PREFIX else "/login"
 
+    # AJAX 请求判定：fetch AJAX 调用在未登录/会话过期时若被 302 重定向到 /login，
+    # 浏览器会带着原方法（如 PUT）跟随跳转，最终命中 /login 的 405（/login 仅接受
+    # GET/POST），产生误导性的 405 日志且前端无法拿到可解析的 JSON。
+    # 因此对 AJAX 请求返回 401 JSON，由前端 JS 统一处理（提示会话过期并跳转登录）。
+    accept = request.headers.get("accept", "")
+    content_type = request.headers.get("content-type", "")
+    is_ajax = (
+        "application/json" in accept.lower()
+        or "application/json" in content_type.lower()
+        or bool(request.headers.get("x-requested-with"))
+        or request.method in ("PUT", "PATCH", "DELETE")
+    )
+
+    def _unauth_json(detail: str) -> JSONResponse:
+        """构造 401 JSON 响应（AJAX 专用），不删除 cookie（由前端跳转登录页时清理）"""
+        resp = JSONResponse(
+            {"detail": detail, "requires_login": True},
+            status_code=401,
+        )
+        # 会话过期/无效时一并清除失效 cookie，避免后续请求仍带失效 token
+        resp.delete_cookie(key="access_token", path="/")
+        return resp
+
     if not access_token:
+        if is_ajax:
+            logger.info(f"AJAX 未登录访问 {path}，返回 401 JSON（无 access_token cookie）")
+            return _unauth_json("未登录或会话已过期，请重新登录")
         logger.info(f"未登录访问 {path}，重定向到登录页（无 access_token cookie）")
         return RedirectResponse(url=login_url, status_code=302)
 
@@ -233,8 +291,10 @@ async def auth_middleware(request: Request, call_next):
     # 返回 (username, user_id) 元组：前端聊天页面需要 user_id 判断消息归属方向
     result = await _verify_jwt_via_server(access_token)
     if not result:
-        # JWT 无效或过期，清除 cookie 并重定向登录页
-        logger.warning(f"JWT 无效或过期，清除 cookie 并重定向登录页: path={path}")
+        # JWT 无效或过期
+        logger.warning(f"JWT 无效或过期: path={path}")
+        if is_ajax:
+            return _unauth_json("登录已过期，请重新登录")
         response = RedirectResponse(url=login_url, status_code=302)
         response.delete_cookie(key="access_token", path="/")
         return response
@@ -437,11 +497,14 @@ def main():
         logger.warning(f"更新检查失败: {e}")
 
     # 本地纯 HTTP 监听，HTTPS 由 Cloudflare 隧道边缘处理
+    # 关闭 uvicorn 默认 access_log，改由上方 access_log_middleware 按状态码分级记录
+    # （默认全量 INFO 会把 4xx 也记成 INFO，淹没真实错误）
     uvicorn.run(
         "main:app",
         host=config.SERVER_HOST,
         port=config.SERVER_PORT,
         reload=False,
+        access_log=False,
     )
 
 
