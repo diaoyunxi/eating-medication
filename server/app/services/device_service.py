@@ -319,7 +319,7 @@ class DeviceService:
             raise HTTPException(status_code=400, detail="仅支持 JPEG/PNG 图片")
         user_dir = os.path.join(_UPLOAD_ROOT, str(user.id))
         os.makedirs(user_dir, exist_ok=True)
-        fname = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.jpg"
+        fname = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}_{secrets.token_hex(4)}.jpg"
         fpath = os.path.join(user_dir, fname)
         with open(fpath, "wb") as f:
             f.write(raw)
