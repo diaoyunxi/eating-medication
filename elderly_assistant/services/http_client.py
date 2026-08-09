@@ -63,13 +63,48 @@ class HTTPClient:
         return headers
 
     def check_connection(self):
-        """检查服务器连接状态"""
+        """检查服务器连接状态。
+
+        仅在连接状态（通/断）发生变化时记录日志，避免持续离线时主循环每 10 秒
+        重复刷屏；恢复联网时记录「已恢复」便于运维确认。各类异常分别给出可读原因，
+        非 requests 异常保留完整堆栈。
+        """
         try:
             resp = requests.get(f"{self.base_url}/health", timeout=3, headers=self._headers())
-            return resp.status_code == 200
+            connected = resp.status_code == 200
+            err = None
+            is_request_err = False
+        except (requests.ConnectionError, requests.Timeout) as e:
+            connected = False
+            err = f"服务端不可达: {e}"
+            is_request_err = True
+        except requests.RequestException as e:
+            connected = False
+            err = f"健康检查请求异常: {e}"
+            is_request_err = True
         except Exception as e:
-            logger.debug(f"健康检查失败: {e}")
-            return False
+            connected = False
+            err = str(e)
+            is_request_err = False
+
+        # 仅在状态变化时记录，避免离线期间重复告警；首次检测记录初始状态
+        last = getattr(self, "_last_connected", None)
+        if connected != last:
+            if last is None:
+                if connected:
+                    logger.info("服务端连接正常")
+                elif is_request_err:
+                    logger.warning("服务端连接失败: %s", err)
+                else:
+                    logger.warning("服务端连接失败（非请求类异常）: %s", err, exc_info=True)
+            elif connected:
+                logger.info("服务端连接已恢复")
+            elif is_request_err:
+                logger.warning("服务端连接失败: %s", err)
+            else:
+                logger.warning("服务端连接失败（非请求类异常）: %s", err, exc_info=True)
+            self._last_connected = connected
+        return connected
 
     def register_device(self, device_name=""):
         """向服务端注册本设备
