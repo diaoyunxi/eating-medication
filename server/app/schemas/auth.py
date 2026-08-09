@@ -69,6 +69,16 @@ class TokenResp(BaseModel):
     token_type: str = "bearer"
 
 
+class MfaTokenResp(BaseModel):
+    """MFA 第二因子挑战响应
+
+    当用户已开启 TOTP 第二因子时，登录接口返回此响应，
+    前端需携带 mfa_token 调用 /auth/totp/verify 完成验证。
+    """
+    mfa_required: bool = True
+    mfa_token: str
+
+
 class EmailSendCodeReq(BaseModel):
     """邮箱验证码 - 发送验证码请求"""
     email: str = Field(..., description="收件邮箱")
