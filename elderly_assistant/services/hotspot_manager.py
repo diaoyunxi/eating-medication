@@ -97,3 +97,21 @@ class HotspotManager:
             return self.ssid in result.stdout
         except Exception:
             return False
+
+    def is_online(self, timeout=3.0):
+        """检测设备当前是否已联网（可访问外网）。
+
+        通过尝试与公共 DNS（8.8.8.8 / 1.1.1.1 / 114.114.114.114）建立短连接
+        判断是否联网；全部失败（离线）返回 False。用于决定是否启动配网热点：
+        已联网则无需配网，离线/首启时才启动热点供用户在手机上配置。
+        """
+        import socket
+        probes = [("8.8.8.8", 53), ("1.1.1.1", 53), ("114.114.114.114", 53)]
+        for host, port in probes:
+            try:
+                sock = socket.create_connection((host, port), timeout=timeout)
+                sock.close()
+                return True
+            except OSError:
+                continue
+        return False

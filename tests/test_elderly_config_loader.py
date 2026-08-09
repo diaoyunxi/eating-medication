@@ -25,7 +25,7 @@ class TestLoadSave(unittest.TestCase):
         p = Path(tempfile.mkdtemp()) / ".env"
         p.write_text("", encoding="utf-8")
         cfg = config_loader.load_config(p)
-        self.assertEqual(cfg["server"]["base_url"], "http://localhost:1059")
+        self.assertEqual(cfg["server"]["base_url"], "https://my-website.ccwu.cc/eating-medication/server")
         self.assertEqual(cfg["server"]["timeout"], 10)
         self.assertEqual(cfg["hotspot"]["web_port"], 8088)
         # 用药计划轮询默认 20 分钟（1200 秒）
