@@ -117,6 +117,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f" 确保 user_ai_configs 表存在失败（可忽略）: {e}")
 
+    # 模式自愈：兜底补齐 alembic 漏迁导致缺失的列（如 users.notification_settings）
+    # 背景：生产出现 alembic_version 已 stamp 到 head 但表实际缺列，User 查询直接
+    # OperationalError；此步骤按列级别对齐 ORM 模型与 DB，保证启动即可恢复
+    try:
+        from app.core.database import sync_schema_with_models
+        sync_schema_with_models()
+    except Exception as e:
+        logger.warning(f" 模式自愈检查失败（可忽略）: {e}")
+
     # 启动后台定时任务（低库存检查等）
     logger.info(" 启动后台定时任务...")
     start_scheduler()
