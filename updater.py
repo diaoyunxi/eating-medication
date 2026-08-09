@@ -20,6 +20,7 @@
 4. 保护文件：.env、data/、logs/、*.db、*.sqlite* 等运行时数据
 5. 更新失败时自动回滚到备份
 6. 更新成功后自动重启相关 systemd 服务（详见 _restart_services：普通部署用户经免密 sudoers 调用 systemctl restart，由 systemd 接管完成 server+family 重启）
+7. 若根目录 .env 配置了 POST_UPDATE_CMD，则在重启服务「之前」执行该命令（如数据库迁移）；失败仅告警、命令原文不写入日志（详见 _run_post_update_cmd）
 
 【保护文件清单】
 - .env（含 server/.env、family_monitor/.env、elderly_assistant/.env 等嵌套路径）
@@ -94,6 +95,9 @@ _ENV_DEFAULT_CONTENT = (
     "# GitHub 代理/镜像前缀（如 https://gh-proxy.com），留空走直连\n"
     "# 同时供 common/install.py 下载 huskylens 模块使用，统一代理出口\n"
     "GITHUB_PROXY=\n"
+    "# 更新成功后执行的一条命令（shell）。留空则不执行。典型用途：数据库迁移\n"
+    "# 如 alembic upgrade head。失败仅告警、不影响更新结果，命令原文不写入日志。\n"
+    "POST_UPDATE_CMD=\n"
 )
 
 
@@ -163,6 +167,25 @@ def _load_auto_pull():
 
 
 _AUTO_PULL = _load_auto_pull()
+
+
+# ============================================================
+# 更新成功后自定义命令：读取根目录 .env 的 POST_UPDATE_CMD 字段
+# ============================================================
+def _load_post_update_cmd():
+    """读取根目录 .env 的 POST_UPDATE_CMD 字段（更新成功后执行的一条命令）。
+
+    - 为空 / 未配置 / 解析失败返回 None。
+    - 该命令以 shell 执行，仅应在可信的本地 .env 中配置（等同执行本地脚本）。
+    """
+    data = _load_root_env()
+    val = data.get("POST_UPDATE_CMD", "")
+    if isinstance(val, str) and val.strip():
+        return val.strip()
+    return None
+
+
+_POST_UPDATE_CMD = _load_post_update_cmd()
 
 
 def _configure_opener():
@@ -575,6 +598,43 @@ def _restart_services():
         return False
 
 
+def _run_post_update_cmd():
+    """更新成功后执行根目录 .env 的 POST_UPDATE_CMD 命令（一条 shell 命令）。
+
+    设计要点：
+    - 仅在更新文件落盘 + __pycache__ 清理成功、且重启业务服务「之前」调用，
+      典型用途如执行数据库迁移（alembic upgrade head），确保新版本代码对应的
+      数据表结构在新进程启动前就绪。
+    - 以 shell 方式执行，工作目录固定为仓库根目录（与 updater.py 同目录），
+      便于相对路径引用（如 `python -m alembic upgrade head`）。
+    - 失败仅告警、不影响本次更新结果（更新已视为成功）；超时 / 异常均被捕获。
+    - 出于安全考虑，日志中「不回显」命令原文，避免 .env 中的密钥随日志泄露。
+    - 未配置 POST_UPDATE_CMD（_POST_UPDATE_CMD 为 None）时直接返回，零开销。
+    """
+    if not _POST_UPDATE_CMD:
+        return
+    logger.info("[更新] 准备执行更新后命令 (POST_UPDATE_CMD)")
+    try:
+        proc = subprocess.run(
+            _POST_UPDATE_CMD,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=str(Path(__file__).resolve().parent),
+        )
+        if proc.returncode != 0:
+            # 仅输出返回码与错误摘要，不回显命令内容、不打印 stdout（可能含敏感信息）
+            err_tail = (proc.stderr or "").strip().splitlines()[-1:] or [""]
+            logger.warning(f"[更新] POST_UPDATE_CMD 返回非0({proc.returncode})，末行错误: {err_tail[0]}")
+        else:
+            logger.info("[更新] POST_UPDATE_CMD 执行完成")
+    except subprocess.TimeoutExpired:
+        logger.warning("[更新] POST_UPDATE_CMD 执行超时（300s），已中止")
+    except Exception as e:
+        logger.warning(f"[更新] POST_UPDATE_CMD 执行异常: {e}")
+
+
 def get_update_info():
     """查询更新信息，返回结构化字典（供 API 端点 / 前端轮询使用）。
 
@@ -938,6 +998,7 @@ def force_update():
         )
         if success:
             logger.info(f"[强制更新] 成功！更新了 {updated} 个文件，保护了 {skipped} 个文件")
+            _run_post_update_cmd()
             restarted = _restart_services()
             if restarted:
                 logger.info("[强制更新] 服务正在重启以应用新版本")
@@ -1047,6 +1108,7 @@ def check_for_update(auto_pull=None):
 
             if success:
                 logger.info(f"[更新检查] 自动更新成功！更新了 {updated} 个文件，保护了 {skipped} 个文件")
+                _run_post_update_cmd()
                 restarted = _restart_services()
 
                 if restarted:
@@ -1106,6 +1168,14 @@ updater 是否会更新自己？
 更新时 updater.py 不在受保护名单中（受保护的是 .env / data/ / logs/ /
 *.db 等运行时与用户数据），普通更新与 --force 都会用新版本的 updater.py
 覆盖旧文件，即「自更新」。
+
+更新后自定义命令（POST_UPDATE_CMD）:
+-------------------------------------------------
+若根目录 .env 配置了 POST_UPDATE_CMD（一条 shell 命令），则在更新文件落盘、
+清理 __pycache__ 成功之后、重启业务服务「之前」自动执行。典型用途：执行
+数据库迁移（如 `python -m alembic upgrade head`），确保新版本代码对应的
+表结构在新进程启动前就绪。该命令失败仅告警、不影响更新结果；出于安全考虑，
+命令原文不会写入日志（避免 .env 中密钥随日志泄露）。留空则不执行。
 
 安全性说明:
   - Python 在启动时就已把 updater.py 整个载入内存，更新过程中覆盖磁盘上的
