@@ -32,8 +32,8 @@ param(
     [string]$AccessMode = "",
     # 服务管理模式：nssm / task
     [string]$ServiceMode = "",
-    # pip 镜像源
-    [string]$PipMirror = "https://pypi.tuna.tsinghua.edu.cn/simple",
+    # pip 镜像源（默认空 = 系统/官方源；非空时优先使用，失败回退官方 PyPI 源）
+    [string]$PipMirror = "",
     # 跳过交互提示
     [switch]$NonInteractive,
     # 卸载模式
@@ -653,23 +653,27 @@ function Setup-PythonEnv {
     if ($PipMirror) {
         $pipArgs += @("-i", $PipMirror)
     }
+    $pipFallback = @("-i", "https://pypi.org/simple")
 
     Write-LogInfo "升级 pip ..."
     & $venvPython -m pip install --upgrade pip @pipArgs 2>$null
     if ($LASTEXITCODE -ne 0) {
-        & $venvPython -m pip install --upgrade pip
+        & $venvPython -m pip install --upgrade pip @pipFallback 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            & $venvPython -m pip install --upgrade pip
+        }
     }
 
     Write-LogInfo "安装 server 依赖 ..."
     & $venvPython -m pip install -r "$DeployDir\server\requirements.txt" @pipArgs 2>$null
     if ($LASTEXITCODE -ne 0) {
-        & $venvPython -m pip install -r "$DeployDir\server\requirements.txt"
+        & $venvPython -m pip install -r "$DeployDir\server\requirements.txt" @pipFallback
     }
 
     Write-LogInfo "安装 family_monitor 依赖 ..."
     & $venvPython -m pip install -r "$DeployDir\family_monitor\requirements.txt" @pipArgs 2>$null
     if ($LASTEXITCODE -ne 0) {
-        & $venvPython -m pip install -r "$DeployDir\family_monitor\requirements.txt"
+        & $venvPython -m pip install -r "$DeployDir\family_monitor\requirements.txt" @pipFallback
     }
 
     Write-LogInfo "Python 依赖安装完成"

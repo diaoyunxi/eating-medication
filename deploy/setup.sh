@@ -82,10 +82,12 @@ else
 fi
 
 # ===== 4. 创建虚拟环境并安装 Python 依赖（避免 PEP 668 / 系统 pip 污染）=====
-# 可选：通过环境变量 PIP_MIRROR 指定 pip 镜像（默认清华源，国内更快）。
-PIP_MIRROR="${PIP_MIRROR:-https://pypi.tuna.tsinghua.edu.cn/simple}"
+# 可选：通过环境变量 PIP_MIRROR 指定 pip 首选镜像；默认空（走系统/官方源），
+# 任意源失败时自动回退到官方 PyPI 源。
+PIP_MIRROR="${PIP_MIRROR:-}"
 PIP_EXTRA=""
 if [ -n "$PIP_MIRROR" ]; then PIP_EXTRA="-i $PIP_MIRROR"; fi
+PIP_FALLBACK="-i https://pypi.org/simple"
 VENV="$DEPLOY_DIR/venv"
 if [ ! -x "$VENV/bin/python" ]; then
   echo "==> [4/7] 创建虚拟环境 $VENV ..."
@@ -93,13 +95,14 @@ if [ ! -x "$VENV/bin/python" ]; then
 fi
 echo "==> [4/7] 升级 venv pip ..."
 $SUDO "$VENV/bin/python" -m pip install --upgrade pip $PIP_EXTRA || \
+  $SUDO "$VENV/bin/python" -m pip install --upgrade pip $PIP_FALLBACK || \
   $SUDO "$VENV/bin/python" -m pip install --upgrade pip
 echo "==> [4/7] 安装 server 依赖 ..."
 $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt" $PIP_EXTRA || \
-  $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt"
+  $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt" $PIP_FALLBACK
 echo "==> [4/7] 安装 family_monitor 依赖 ..."
 $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt" $PIP_EXTRA || \
-  $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt"
+  $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt" $PIP_FALLBACK
 # venv 运行时只需被 deploy 读取/执行，归属 deploy 以免权限问题
 $SUDO chown -R "$DEPLOY_USER:$DEPLOY_USER" "$VENV"
 

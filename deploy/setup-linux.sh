@@ -608,9 +608,10 @@ setup_python_env() {
     fi
 
     # 创建虚拟环境
-    PIP_MIRROR="${PIP_MIRROR:-https://pypi.tuna.tsinghua.edu.cn/simple}"
+    PIP_MIRROR="${PIP_MIRROR:-}"
     PIP_EXTRA=""
     [ -n "$PIP_MIRROR" ] && PIP_EXTRA="-i $PIP_MIRROR"
+    PIP_FALLBACK="-i https://pypi.org/simple"
 
     VENV="$DEPLOY_DIR/venv"
     if [ ! -x "$VENV/bin/python" ]; then
@@ -620,15 +621,16 @@ setup_python_env() {
 
     log_info "升级 pip ..."
     $SUDO "$VENV/bin/python" -m pip install --upgrade pip $PIP_EXTRA 2>/dev/null || \
+        $SUDO "$VENV/bin/python" -m pip install --upgrade pip $PIP_FALLBACK 2>/dev/null || \
         $SUDO "$VENV/bin/python" -m pip install --upgrade pip
 
     log_info "安装 server 依赖 ..."
     $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt" $PIP_EXTRA 2>/dev/null || \
-        $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt"
+        $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt" $PIP_FALLBACK
 
     log_info "安装 family_monitor 依赖 ..."
     $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt" $PIP_EXTRA 2>/dev/null || \
-        $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt"
+        $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt" $PIP_FALLBACK
 
     $SUDO chown -R "$DEPLOY_USER:$DEPLOY_USER" "$VENV"
 }
