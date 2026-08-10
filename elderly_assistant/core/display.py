@@ -193,7 +193,7 @@ class Display:
     def show_reminder(self, drug_name, dosage):
         """
         显示用药提醒（覆盖主界面中部，大字提示）
-        屏幕显示"该吃XX药了，剂量：X片"
+        屏幕显示"该用药了：XX药，剂量：X片"
         """
         if not self.gui:
             return
@@ -216,12 +216,12 @@ class Display:
             if self._reminder_text is None:
                 self._reminder_text = self.gui.draw_text(
                     x=self.CENTER_X, y=120,
-                    text=f'该吃 {drug_name} 了',
+                    text=f'该用药了：{drug_name}',
                     font_size=22, color='#FF0000', origin='center'
                 )
             else:
                 try:
-                    self._reminder_text.config(text=f'该吃 {drug_name} 了')
+                    self._reminder_text.config(text=f'该用药了：{drug_name}')
                 except Exception:
                     pass
 

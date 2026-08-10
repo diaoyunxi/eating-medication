@@ -170,7 +170,7 @@ _BACKFILL_FIELDS = [
         "# --- HTTP API 后端（Resend 兼容：POST MAIL_API_URL，Bearer MAIL_API_KEY） ---",
     ], "https://api.resend.com/emails"),
     ("MAIL_API_KEY", [], ""),
-    ("WEBAUTHN_RP_NAME", ["# WebAuthn/Passkey 依赖方展示名"], "吃饭提醒"),
+    ("WEBAUTHN_RP_NAME", ["# WebAuthn/Passkey 依赖方展示名"], "用药提醒"),
     ("WEBAUTHN_RP_ID", ["# WebAuthn RP ID（留空则从 FAMILY_WEB_URL 派生）"], ""),
     ("WEBAUTHN_ORIGIN", ["# WebAuthn Origin（留空则从 FAMILY_WEB_URL 派生）"], ""),
 ]
@@ -291,7 +291,7 @@ class Settings(BaseSettings):
 
     # ===== WebAuthn / Passkey 配置 =====
     # RP（依赖方）展示名，登录时浏览器弹窗显示
-    WEBAUTHN_RP_NAME: str = "吃饭提醒"
+    WEBAUTHN_RP_NAME: str = "用药提醒"
     # RP ID：注册/断言校验时比对的有效域（注册表可解析域名，如 my-website.ccwu.cc）
     # 留空时从 FAMILY_WEB_URL 自动派生
     WEBAUTHN_RP_ID: str = ""
