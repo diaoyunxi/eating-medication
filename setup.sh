@@ -8,6 +8,12 @@
 #   - macOS  → deploy/setup-mac.sh（zsh）
 #   - Windows → 提示使用 setup.ps1
 #
+# 说明：本引导器只负责「下载并执行」平台脚本。具体安装内容
+#   （老人端 elderly_assistant / 服务端 server + 子女端 family_monitor）
+#   由 deploy/setup-linux.sh 自动判定：检测到 aarch64/arm64 + Debian 10
+#   (buster) 即视为老人端（行空板 M10），仅安装老人端依赖与系统工具；
+#   其余环境走完整服务端流程。
+#
 # 用法（curl 一键部署）：
 #   curl -fsSL https://raw.githubusercontent.com/diaoyunxi/eating-medication/main/setup.sh | sh
 #
