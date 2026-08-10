@@ -498,9 +498,10 @@ clone_repo() {
 setup_python_env() {
     log_step "[5/9] 创建虚拟环境并安装 Python 依赖"
 
-    PIP_MIRROR="${PIP_MIRROR:-https://pypi.tuna.tsinghua.edu.cn/simple}"
+    PIP_MIRROR="${PIP_MIRROR:-}"
     PIP_EXTRA=""
     [ -n "$PIP_MIRROR" ] && PIP_EXTRA="-i $PIP_MIRROR"
+    PIP_FALLBACK="-i https://pypi.org/simple"
 
     VENV="$DEPLOY_DIR/venv"
     if [ ! -x "$VENV/bin/python" ]; then
@@ -510,15 +511,16 @@ setup_python_env() {
 
     log_info "升级 pip ..."
     "$VENV/bin/python" -m pip install --upgrade pip $PIP_EXTRA 2>/dev/null || \
+        "$VENV/bin/python" -m pip install --upgrade pip $PIP_FALLBACK 2>/dev/null || \
         "$VENV/bin/python" -m pip install --upgrade pip
 
     log_info "安装 server 依赖 ..."
     "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt" $PIP_EXTRA 2>/dev/null || \
-        "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt"
+        "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt" $PIP_FALLBACK
 
     log_info "安装 family_monitor 依赖 ..."
     "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt" $PIP_EXTRA 2>/dev/null || \
-        "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt"
+        "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt" $PIP_FALLBACK
 }
 
 # ============================================================

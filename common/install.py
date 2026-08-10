@@ -41,9 +41,12 @@ import importlib
 import urllib.request
 from pathlib import Path
 
-# pip 镜像源：默认清华源，可用环境变量 PIP_INDEX_URL 覆盖
-# （install.py 多处使用，未定义会触发 NameError 导致依赖安装崩溃）
-PIP_INDEX_URL = os.getenv("PIP_INDEX_URL", "https://pypi.tuna.tsinghua.edu.cn/simple")
+# pip 镜像源策略：默认不使用任何镜像源（走系统/官方默认源），
+# 若安装失败则自动回退到官方 PyPI 源 PIP_FALLBACK_URL 重试一次。
+# 可用环境变量 PIP_INDEX_URL 强制指定首选源（非空时优先使用，失败仍回退官方源）。
+PIP_INDEX_URL = os.getenv("PIP_INDEX_URL", "")
+# 回退官方源：系统默认源安装失败时使用
+PIP_FALLBACK_URL = "https://pypi.org/simple"
 
 # get-pip.py 下载地址（Windows pip 引导安装用）
 GET_PIP_URL = os.environ.get(
@@ -453,9 +456,11 @@ def _run_pip(cmd):
 def install_package(pkg):
     """安装单个包
 
-    若 pip 输出 (stdout+stderr) 包含 --break-system-packages
-    (典型 PEP 668 / externally-managed-environment 错误),
-    自动追加该参数重试一次。
+    安装策略（优先系统默认源，失败回退官方源）：
+      1. 优先使用系统默认源（不指定 -i），除非 PIP_INDEX_URL 非空时优先用它；
+      2. 若 pip 输出包含 --break-system-packages (PEP 668) 错误，自动追加该参数重试；
+      3. 若首选源安装失败，自动回退到官方 PyPI 源 PIP_FALLBACK_URL 重试一次
+         （同样兼容 --break-system-packages）。
     """
     pkg_name = _split_pkg_name(pkg)
     if not pkg_name:
@@ -466,34 +471,43 @@ def install_package(pkg):
         return True
 
     print("  正在安装", pkg_name, "...")
-    base_cmd = [
-        sys.executable, "-m", "pip", "install", pkg, "-i", PIP_INDEX_URL,
-    ]
 
-    code, out, err = _run_pip(base_cmd)
-    if code == 0:
-        print("  ", pkg_name, "安装完成")
-        return True
+    # 首选源：PIP_INDEX_URL 非空时优先使用，否则走系统默认源（不加 -i）
+    primary_extra = ["-i", PIP_INDEX_URL] if PIP_INDEX_URL else []
 
-    combined = out + "\n" + err
-    if "--break-system-packages" in combined:
-        print(f"  {pkg_name} 需要 --break-system-packages, 重新安装 ...")
-        retry_code, retry_out, retry_err = _run_pip(
-            base_cmd + ["--break-system-packages"]
-        )
-        if retry_code == 0:
-            print("  ", pkg_name, "安装完成")
+    def _try(cmd_base):
+        code, out, err = _run_pip(cmd_base)
+        if code == 0:
             return True
-        print(f"  安装失败 {pkg_name} 返回码: {retry_code}")
-        tail = (retry_out + "\n" + retry_err)[-1000:]
+        combined = out + "\n" + err
+        if "--break-system-packages" in combined:
+            print(f"  {pkg_name} 需要 --break-system-packages, 重新安装 ...")
+            rc, ro, re = _run_pip(cmd_base + ["--break-system-packages"])
+            if rc == 0:
+                return True
+            print(f"  安装失败 {pkg_name} 返回码: {rc}")
+            tail = (ro + "\n" + re)[-1000:]
+            if tail.strip():
+                print("  --- 错误尾部 ---\n" + tail)
+            return False
+        print(f"  安装失败 {pkg_name} 返回码: {code}")
+        tail = combined[-1000:]
         if tail.strip():
             print("  --- 错误尾部 ---\n" + tail)
         return False
 
-    print(f"  安装失败 {pkg_name} 返回码: {code}")
-    tail = combined[-1000:]
-    if tail.strip():
-        print("  --- 错误尾部 ---\n" + tail)
+    base_cmd = [sys.executable, "-m", "pip", "install", pkg] + primary_extra
+    if _try(base_cmd):
+        print("  ", pkg_name, "安装完成")
+        return True
+
+    # 回退：官方 PyPI 源
+    print(f"  首选源失败，回退官方源 {PIP_FALLBACK_URL} ...")
+    fallback_cmd = [sys.executable, "-m", "pip", "install", pkg, "-i", PIP_FALLBACK_URL]
+    if _try(fallback_cmd):
+        print("  ", pkg_name, "安装完成")
+        return True
+
     print("  提示: 建议使用虚拟环境安装依赖 (本脚本可自动创建 .venv):")
     print("    python -m venv .venv")
     print("    source .venv/bin/activate  # Linux/macOS")
@@ -517,7 +531,8 @@ def install_requirements(requirements_path):
         print("错误: 找不到", req_path)
         return False
     print("=" * 50)
-    print(f"正在安装依赖 ({req_path}) 镜像源: {PIP_INDEX_URL}")
+    src = PIP_INDEX_URL if PIP_INDEX_URL else "系统默认源"
+    print(f"正在安装依赖 ({req_path}) 首选源: {src}（失败回退官方源 {PIP_FALLBACK_URL}）")
     print("=" * 50)
     packages = []
     # utf-8-sig: 兼容 Windows 记事本等写入的带 BOM 文件, 避免首包名混入 \ufeff
