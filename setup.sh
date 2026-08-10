@@ -65,21 +65,43 @@ trap 'rm -rf "/tmp/em_setup_$$" 2>/dev/null' EXIT INT TERM
 
 # ============================================================
 # 日志函数（POSIX 兼容，不依赖 echo -e）
+#   颜色：stdout 为终端且 TERM 非 dumb 时启用，否则自动降级为无色
 # ============================================================
+# 是否启用颜色：仅当标准输出是 TTY 且终端类型不是 dumb
+if [ -t 1 ] && [ "${TERM:-dumb}" != "dumb" ]; then
+    _USE_COLOR=1
+else
+    _USE_COLOR=0
+fi
+if [ "$_USE_COLOR" -eq 1 ]; then
+    C_RESET='\033[0m'
+    C_BOLD='\033[1m'
+    C_GREEN='\033[32m'
+    C_YELLOW='\033[33m'
+    C_RED='\033[31m'
+    C_CYAN='\033[36m'
+else
+    C_RESET=''; C_BOLD=''; C_GREEN=''; C_YELLOW=''; C_RED=''; C_CYAN=''
+fi
+
 log_info() {
-    printf '[INFO] %s\n' "$1"
+    printf "${C_GREEN}[INFO]${C_RESET} %s\n" "$1"
 }
 
 log_warn() {
-    printf '[WARN] %s\n' "$1" >&2
+    printf "${C_YELLOW}[WARN]${C_RESET} %s\n" "$1" >&2
 }
 
 log_error() {
-    printf '[ERROR] %s\n' "$1" >&2
+    printf "${C_RED}[ERROR]${C_RESET} %s\n" "$1" >&2
+}
+
+log_step() {
+    printf "\n${C_CYAN}${C_BOLD}==> %s${C_RESET}\n" "$1"
 }
 
 log_separator() {
-    printf '============================================================\n'
+    printf "${C_BOLD}============================================================${C_RESET}\n"
 }
 
 # ============================================================
@@ -197,7 +219,7 @@ download_file() {
 # ============================================================
 main() {
     log_separator
-    printf '  eating-medication 一键部署引导器\n'
+    printf "${C_BOLD}${C_CYAN}  eating-medication 一键部署引导器${C_RESET}\n"
     log_separator
     printf '\n'
 
