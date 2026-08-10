@@ -654,7 +654,10 @@ setup_python_env() {
         if command -v "$cand" >/dev/null 2>&1; then
             ver="$("$cand" -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null)"
             if [ "$(printf '%s\n%s\n' 3.8 "$ver" | sort -V | head -n1)" = "3.8" ]; then
-                PY_BIN="$(command -v "$cand")"
+                # 解析为真实可执行文件的绝对路径（readlink -f），避免 sudo
+                # env_reset 时 pyenv shim 失效而误用系统低版本 python 创建 venv
+                PY_BIN="$(readlink -f "$(command -v "$cand")" 2>/dev/null)"
+                [ -z "$PY_BIN" ] && PY_BIN="$(command -v "$cand")"
                 break
             fi
         fi
@@ -665,9 +668,29 @@ setup_python_env() {
     fi
     log_info "将使用 ${PY_BIN}（$( "$PY_BIN" -c 'import sys;print("%d.%d"%sys.version_info[:2])' )）创建虚拟环境"
 
-    if [ ! -x "$VENV/bin/python" ]; then
+    # 若虚拟环境已存在，但其中的 Python 版本低于 3.8（例如早期用系统 3.7
+    # 创建的遗留 venv），则删除并重建，避免依赖因解释器版本过低而安装失败。
+    _need_rebuild=0
+    if [ -x "$VENV/bin/python" ]; then
+        _venv_ver="$("$VENV/bin/python" -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null)"
+        if [ -z "$_venv_ver" ] || [ "$(printf '%s\n%s\n' 3.8 "$_venv_ver" | sort -V | head -n1)" != "3.8" ]; then
+            log_warn "已有虚拟环境 Python 版本为 ${_venv_ver:-未知}，低于 3.8，将删除重建"
+            _need_rebuild=1
+        fi
+    else
+        _need_rebuild=1
+    fi
+
+    if [ "$_need_rebuild" -eq 1 ]; then
+        if [ -d "$VENV" ]; then
+            $SUDO rm -rf "$VENV" || { log_error "无法删除旧虚拟环境 ${VENV}"; return 1; }
+        fi
         log_info "创建虚拟环境 ${VENV} ..."
-        $SUDO "$PY_BIN" -m venv "$VENV"
+        $SUDO "$PY_BIN" -m venv "$VENV" || { log_error "创建虚拟环境失败"; return 1; }
+        _new_ver="$("$VENV/bin/python" -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null)"
+        log_info "虚拟环境 Python 版本: ${_new_ver:-未知}"
+    else
+        log_info "复用已有虚拟环境（Python ${_venv_ver}）"
     fi
 
     log_info "升级 pip ..."
