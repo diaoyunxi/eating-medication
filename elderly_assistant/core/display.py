@@ -31,9 +31,14 @@ class Display:
         self._reminder_dosage_text = None  # 当前用药剂量
         self._hint_text = None          # 提示信息（如配网模式）
         self._scan_button = None        # 「扫码查药」触摸按钮
+        # 提醒界面「确认/问AI/暂缓」三个屏幕触摸按钮（替代原物理按键 A/B）
+        self._confirm_button = None
+        self._ai_button = None
+        self._snooze_button = None
         # 状态
         self._in_reminder = False       # 是否处于用药提醒界面
         self._scan_handler = None       # 扫码回调（由 main 注入，Display 不依赖扫码实现）
+        self._action_handlers = None    # 提醒界面三个屏幕按钮回调（dict: confirm/ask_ai/snooze）
         self._init_gui()
 
     def _init_gui(self):
@@ -59,6 +64,38 @@ class Display:
         :param handler: 无参可调用对象；注册后主界面重绘时会生成触摸按钮
         """
         self._scan_handler = handler if callable(handler) else None
+
+    def set_action_handlers(self, handlers):
+        """注入提醒界面三个屏幕按钮回调，替代原物理按键 A/B。
+
+        :param handlers: dict，可选键 confirm / ask_ai / snooze，对应可调用对象；
+                         缺失的键视为空操作。
+        """
+        if not isinstance(handlers, dict):
+            handlers = {}
+        self._action_handlers = {
+            "confirm": handlers.get("confirm"),
+            "ask_ai": handlers.get("ask_ai"),
+            "snooze": handlers.get("snooze"),
+        }
+
+    def _on_action_clicked(self, key):
+        """屏幕动作按钮点击处理：异常隔离，避免回调报错导致 GUI 线程中断。
+
+        :param key: 动作键名（confirm / ask_ai / snooze）
+        :return: True 表示回调已成功触发
+        """
+        if not isinstance(self._action_handlers, dict):
+            return False
+        handler = self._action_handlers.get(key)
+        if not callable(handler):
+            return False
+        try:
+            handler()
+            return True
+        except Exception as e:
+            logger.error(f"屏幕按钮[{key}]回调异常: {e}")
+            return False
 
     def _on_scan_clicked(self):
         """扫码按钮点击处理：异常隔离，避免回调报错导致 GUI 线程中断。
@@ -241,12 +278,49 @@ class Display:
             # 操作提示
             if self._hint_text is None:
                 self._hint_text = self.gui.draw_text(
-                    x=self.CENTER_X, y=230,
-                    text='按A确认服药  按B稍后提醒',
+                    x=self.CENTER_X, y=200,
+                    text='请点击下方按钮操作',
                     font_size=14, color='#333333', origin='center'
                 )
+
+            # 用屏幕触摸按钮替代原物理按键 A/B：确认服药 / 问AI注意事项 / 稍后提醒
+            self._draw_action_buttons()
         except Exception as e:
             logger.error(f"显示用药提醒失败: {e}")
+
+    def _draw_action_buttons(self):
+        """绘制提醒界面的三个屏幕触摸按钮（替代物理按键 A/B）。
+
+        横屏 240x320，下方纵向紧凑排列三枚大按钮，便于老人在屏幕上点按。
+        """
+        if not self.gui:
+            return
+        # 按钮尺寸：宽 200 居中，高 26、间隔 5，起始 y=222（提示文字在 y=200）
+        btn_w, btn_h, gap = 200, 26, 5
+        start_y = 222
+        specs = [
+            ("confirm", "确认服药", '#2E8B57'),   # 海绿色：确认（积极动作）
+            ("ask_ai", "问AI注意事项", '#1E90FF'),  # 道奇蓝：AI 咨询
+            ("snooze", "稍后提醒", '#FF8C00'),       # 深橙色：暂缓
+        ]
+        for idx, (key, label, color) in enumerate(specs):
+            y = start_y + idx * (btn_h + gap)
+            x = self.CENTER_X - btn_w // 2
+            btn = self.gui.draw_button(
+                x=x, y=y, w=btn_w, h=btn_h,
+                text=label, origin='top_left', color=color,
+                state='normal', on_click=self._make_action_callback(key)
+            )
+            if key == "confirm":
+                self._confirm_button = btn
+            elif key == "ask_ai":
+                self._ai_button = btn
+            else:
+                self._snooze_button = btn
+
+    def _make_action_callback(self, key):
+        """生成绑定到指定动作键的按钮回调（闭包捕获 key）。"""
+        return lambda: self._on_action_clicked(key)
 
     def clear_reminder(self):
         """清除用药提醒界面，返回主界面"""
@@ -258,6 +332,9 @@ class Display:
             self._reminder_dosage_text = None
             self._hint_text = None
             self._scan_button = None
+            self._confirm_button = None
+            self._ai_button = None
+            self._snooze_button = None
             self._in_reminder = False
             self.show_main_screen()
         except Exception as e:
@@ -276,6 +353,9 @@ class Display:
             self._reminder_dosage_text = None
             self._hint_text = None
             self._scan_button = None
+            self._confirm_button = None
+            self._ai_button = None
+            self._snooze_button = None
 
             self.gui.draw_text(
                 x=self.CENTER_X, y=100,
@@ -385,6 +465,9 @@ class Display:
             self._reminder_dosage_text = None
             self._hint_text = None
             self._scan_button = None
+            self._confirm_button = None
+            self._ai_button = None
+            self._snooze_button = None
             self._in_reminder = False
         except Exception as e:
             logger.error(f"清空屏幕失败: {e}")
