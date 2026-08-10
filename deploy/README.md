@@ -103,7 +103,7 @@ ACCESS_MODE=2 DDNS_DOMAIN=你的域名 curl -fsSL https://raw.githubusercontent.
 | `DDNS_DOMAIN` | DDNS 域名（设置后跳过域名输入提示） |
 | `DOMAIN` | 基础域名（影响 .env 中的回调 URL 等） |
 | `DEPLOY_DIR` | 部署目录（默认 Linux `/opt/eating-medication`、macOS `/usr/local/eating-medication`） |
-| `PIP_MIRROR` | pip 镜像源（默认清华源） |
+| `PIP_MIRROR` | pip 首选镜像源（默认空=系统/官方源，失败回退官方 PyPI 源，可环境变量指定） |
 
 ### 部署目录与端口
 

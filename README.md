@@ -350,9 +350,9 @@
 
 > 三模块的 `install.py` 内容已统一为同一份脚本，行为：
 > 1. 先检测 `pip` 是否存在，无则按平台自动安装（Linux 优先 `apt-get install python3-pip`、Windows 用 `get-pip.py`、其他走 `ensurepip` 后备）；
-> 2. 正常 `pip install`（使用 `-i PIP_INDEX_URL` 临时指定镜像源，默认清华源，可通过环境变量覆盖）；
+> 2. 正常 `pip install`：**默认不使用任何镜像源（走系统/官方默认源）**，若首选源安装失败则自动回退到官方 PyPI 源 `https://pypi.org/simple` 重试。可通过环境变量 `PIP_INDEX_URL` 指定首选源（仍会回退官方源）；
 > 3. 若输出包含 `--break-system-packages`（PEP 668 错误），自动加该参数重试。
-> 已安装的包自动跳过，无需重复安装。可通过 `PIP_INDEX_URL` 环境变量切换镜像源。
+> 已安装的包自动跳过，无需重复安装。
 
 ### 根目录一键启动（推荐用于直接运行文件）
 
