@@ -85,6 +85,32 @@ detect_system() {
 }
 
 # ============================================================
+# 老人端探测（与根目录 main.py detect_unihiker() 标准对齐）
+#   aarch64/arm64 架构 + Debian 10 (buster) 发行版 -> 老人端（行空板）
+# 返回 0=老人端 1=非老人端（供 if 使用，不会触发 set -e）
+# ============================================================
+is_elderly_device() {
+    local _arch _is_arm _is_buster _id _ver
+    _arch="$(uname -m 2>/dev/null)"
+    _is_arm=0
+    case "$_arch" in
+        aarch64|arm64|armv7l|armhf|arm) _is_arm=1 ;;
+    esac
+    _is_buster=0
+    if [ -r /etc/os-release ]; then
+        # 在子 shell 中 source，避免污染外层变量
+        eval "$(. /etc/os-release 2>/dev/null; printf '_id=%s;_ver=%s' "${ID:-}" "${VERSION_ID:-}")"
+        if [ "$_id" = "debian" ] && [ "$_ver" = "10" ]; then
+            _is_buster=1
+        fi
+    fi
+    if [ "$_is_arm" -eq 1 ] && [ "$_is_buster" -eq 1 ]; then
+        return 0
+    fi
+    return 1
+}
+
+# ============================================================
 # 包管理器更新 + 安装系统依赖
 # ============================================================
 install_system_deps() {
@@ -94,6 +120,11 @@ install_system_deps() {
         apt)
             $SUDO apt-get update -y 2>/dev/null || log_warn "apt-get update 失败（镜像源同步中？），继续安装..."
             $SUDO apt-get install -y git python3 python3-pip python3-venv curl
+            # 老人端专属系统工具：TTS 语音（espeak/mbrola）、条码识别（libzbar0）、音频播放（mpg123）
+            if [ "${ELDERLY_MODE:-0}" = "1" ]; then
+                $SUDO apt-get install -y espeak libzbar0 mbrola mbrola-cn1 mpg123 2>/dev/null || \
+                    log_warn "老人端系统工具安装失败（espeak/libzbar0/mbrola/mpg123），运行时 main.py 会自动重试"
+            fi
             ;;
         dnf)
             $SUDO dnf install -y git python3 python3-pip curl
@@ -644,13 +675,21 @@ setup_python_env() {
         $SUDO "$VENV/bin/python" -m pip install --upgrade pip $PIP_FALLBACK 2>/dev/null || \
         $SUDO "$VENV/bin/python" -m pip install --upgrade pip
 
-    log_info "安装 server 依赖 ..."
-    $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt" $PIP_EXTRA 2>/dev/null || \
-        $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt" $PIP_FALLBACK
+    if [ "${ELDERLY_MODE:-0}" = "1" ]; then
+        # 老人端：仅安装 elderly_assistant 依赖，不安装 server / family_monitor
+        log_info "安装 elderly_assistant 依赖（老人端）..."
+        $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/elderly_assistant/requirements.txt" $PIP_EXTRA 2>/dev/null || \
+            $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/elderly_assistant/requirements.txt" $PIP_FALLBACK
+    else
+        # 服务端 + 子女看护端：安装 server 与 family_monitor 依赖
+        log_info "安装 server 依赖 ..."
+        $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt" $PIP_EXTRA 2>/dev/null || \
+            $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/server/requirements.txt" $PIP_FALLBACK
 
-    log_info "安装 family_monitor 依赖 ..."
-    $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt" $PIP_EXTRA 2>/dev/null || \
-        $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt" $PIP_FALLBACK
+        log_info "安装 family_monitor 依赖 ..."
+        $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt" $PIP_EXTRA 2>/dev/null || \
+            $SUDO "$VENV/bin/python" -m pip install -r "$DEPLOY_DIR/family_monitor/requirements.txt" $PIP_FALLBACK
+    fi
 
     $SUDO chown -R "$DEPLOY_USER:$DEPLOY_USER" "$VENV"
 }
@@ -661,6 +700,14 @@ setup_python_env() {
 gen_key() { "${PY_BIN:-python3}" -c "import secrets; print(secrets.token_urlsafe(32))"; }
 
 generate_env_files() {
+    # 老人端配置由 elderly_assistant/config.yaml 管理（结构化配置，main.py 自动处理默认），
+    # 不在此生成简单 .env，避免字段缺失导致运行报错。
+    if [ "${ELDERLY_MODE:-0}" = "1" ]; then
+        log_step "[6/9] 生成生产环境 .env（老人端跳过）"
+        log_info "老人端配置请编辑: ${DEPLOY_DIR}/elderly_assistant/config.yaml（缺失时使用程序内置默认值）"
+        return 0
+    fi
+
     log_step "[6/9] 生成生产环境 .env（server / family_monitor）"
 
     local server_env="$DEPLOY_DIR/server/.env"
@@ -735,6 +782,14 @@ EOF
 setup_runtime_dirs() {
     log_step "[7/9] 创建运行时目录并修正权限"
 
+    if [ "${ELDERLY_MODE:-0}" = "1" ]; then
+        $SUDO mkdir -p \
+            "$DEPLOY_DIR/elderly_assistant/data" "$DEPLOY_DIR/elderly_assistant/logs"
+        $SUDO chown -R "$DEPLOY_USER:$DEPLOY_USER" \
+            "$DEPLOY_DIR/elderly_assistant/data" "$DEPLOY_DIR/elderly_assistant/logs"
+        return 0
+    fi
+
     $SUDO mkdir -p \
         "$DEPLOY_DIR/server/data" "$DEPLOY_DIR/server/logs" \
         "$DEPLOY_DIR/family_monitor/data" "$DEPLOY_DIR/family_monitor/logs"
@@ -754,6 +809,58 @@ setup_runtime_dirs() {
 # ============================================================
 setup_systemd_services() {
     log_step "[8/9] 安装 systemd 服务并启动"
+
+    # 老人端：仅安装 elderly_assistant 服务
+    if [ "${ELDERLY_MODE:-0}" = "1" ]; then
+        $SUDO tee /etc/systemd/system/eating-medication-elderly.service >/dev/null <<EOF
+[Unit]
+Description=Eating Medication Elderly Assistant (Unihiker M10)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$DEPLOY_USER
+Group=$DEPLOY_USER
+WorkingDirectory=$DEPLOY_DIR/elderly_assistant
+ExecStart=$VENV/bin/python main.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+Environment=DISPLAY=:0
+NoNewPrivileges=true
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=$DEPLOY_DIR
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+        $SUDO systemctl daemon-reload 2>/dev/null || log_warn "systemctl daemon-reload 失败（非 systemd 环境？）"
+        $SUDO systemctl enable --now eating-medication-elderly 2>/dev/null || {
+            log_warn "systemctl enable 失败，systemd 可能未运行"
+            log_warn "服务文件已写入 /etc/systemd/system/，systemd 可用后请手动执行:"
+            log_warn "  systemctl daemon-reload && systemctl enable --now eating-medication-elderly"
+        }
+
+        # 老人端免密 sudoers（自动更新重启用）
+        log_info "配置 ${DEPLOY_USER} 免密重启老人端服务（自动更新用）..."
+        local sudoers_file="/etc/sudoers.d/eating-medication"
+        $SUDO tee "$sudoers_file" >/dev/null <<EOF
+# eating-medication: 允许 $DEPLOY_USER 免密重启/查看老人端服务
+$DEPLOY_USER ALL=(root) NOPASSWD: \\
+    /usr/bin/systemctl restart eating-medication-elderly, \\
+    /usr/bin/systemctl status eating-medication-elderly, \\
+    /bin/systemctl restart eating-medication-elderly, \\
+    /bin/systemctl status eating-medication-elderly
+EOF
+        $SUDO chmod 440 "$sudoers_file" 2>/dev/null || true
+        $SUDO visudo -c -f "$sudoers_file" 2>/dev/null || log_warn "sudoers 语法校验失败，请检查"
+        return 0
+    fi
 
     # 更新 service 文件中的路径（确保与 DEPLOY_DIR 一致）
     local svc_dir="$DEPLOY_DIR/deploy"
@@ -842,6 +949,32 @@ EOF
 # 提示编辑 .env 并等待确认
 # ============================================================
 prompt_edit_env() {
+    # 老人端：提示配置文件路径不同，重启对应服务
+    if [ "${ELDERLY_MODE:-0}" = "1" ]; then
+        log_step "[9/9] 提示编辑配置文件"
+        sleep 2
+        printf '\n'
+        printf '============================================================\n'
+        printf '  老人端部署即将完成！请编辑配置文件后按 Enter 继续：\n'
+        printf '============================================================\n'
+        printf '\n'
+        printf '  老人端配置:\n'
+        printf '     sudo nano %s/elderly_assistant/config.yaml\n' "$DEPLOY_DIR"
+        printf '     关键项: server_url(服务端地址)、device_id、硬件引脚等\n'
+        printf '     （缺失时使用程序内置默认值）\n'
+        printf '\n'
+        if [ -t 0 ]; then
+            printf '  编辑完成后按 Enter 重启服务以加载新配置...\n'
+            printf '  （或按 Ctrl+C 跳过，稍后手动重启）\n'
+            read -r || true
+        else
+            log_info "非交互模式，跳过等待用户编辑"
+        fi
+        log_info "重启老人端服务以加载新配置..."
+        $SUDO systemctl restart eating-medication-elderly 2>/dev/null || true
+        return 0
+    fi
+
     log_step "[9/9] 提示编辑配置文件"
 
     sleep 2
@@ -887,10 +1020,10 @@ uninstall() {
     printf '  运行用户: %s\n' "$DEPLOY_USER"
     printf '============================================================\n'
 
-    # 1. 停止并禁用 systemd 服务
+    # 1. 停止并禁用 systemd 服务（同时兼容老人端 / 服务端两种部署）
     log_step "[1/6] 停止并禁用 systemd 服务"
-    $SUDO systemctl stop eating-medication-server eating-medication-family 2>/dev/null || true
-    $SUDO systemctl disable eating-medication-server eating-medication-family 2>/dev/null || true
+    $SUDO systemctl stop eating-medication-server eating-medication-family eating-medication-elderly 2>/dev/null || true
+    $SUDO systemctl disable eating-medication-server eating-medication-family eating-medication-elderly 2>/dev/null || true
     $SUDO systemctl stop cloudflared 2>/dev/null || true
     $SUDO systemctl disable cloudflared 2>/dev/null || true
     $SUDO systemctl stop em-ddns.timer em-ddns.service 2>/dev/null || true
@@ -902,6 +1035,7 @@ uninstall() {
     log_step "[2/6] 删除 systemd 服务文件"
     $SUDO rm -f /etc/systemd/system/eating-medication-server.service \
                  /etc/systemd/system/eating-medication-family.service \
+                 /etc/systemd/system/eating-medication-elderly.service \
                  /etc/systemd/system/cloudflared.service \
                  /etc/systemd/system/em-ddns.service \
                  /etc/systemd/system/em-ddns.timer 2>/dev/null || true
@@ -981,21 +1115,33 @@ main() {
     printf '  域名:     %s\n' "$DOMAIN"
     printf '============================================================\n'
 
+    # 0. 探测是否为老人端（行空板 M10）
+    if is_elderly_device; then
+        ELDERLY_MODE=1
+        log_info "检测到老人端设备（行空板 M10）：仅安装 elderly_assistant + 系统工具"
+    else
+        ELDERLY_MODE=0
+        log_info "非老人端设备：安装 server + family_monitor"
+    fi
+
     # 1. 检测系统
     detect_system
 
     # 2. 安装系统依赖
     install_system_deps
 
-    # 3. 询问访问模式
-    ask_access_mode
-
-    # 4. 按选择配置网络访问
-    case "$ACCESS_MODE" in
-        1) install_cloudflared ;;
-        2) setup_ddns_caddy ;;
-        3) log_info "跳过公网访问配置" ;;
-    esac
+    # 3. 询问访问模式（老人端为纯局域网终端，跳过公网配置）
+    if [ "${ELDERLY_MODE:-0}" = "1" ]; then
+        log_info "老人端为内网设备，跳过公网访问配置"
+    else
+        ask_access_mode
+        # 4. 按选择配置网络访问
+        case "$ACCESS_MODE" in
+            1) install_cloudflared ;;
+            2) setup_ddns_caddy ;;
+            3) log_info "跳过公网访问配置" ;;
+        esac
+    fi
 
     # 5. 克隆仓库
     clone_repo
@@ -1021,32 +1167,41 @@ main() {
     printf '============================================================\n'
     printf '  部署完成！服务状态：\n'
     printf '============================================================\n'
-    $SUDO systemctl status eating-medication-server --no-pager --lines=0 2>/dev/null || true
-    $SUDO systemctl status eating-medication-family --no-pager --lines=0 2>/dev/null || true
-
-    printf '\n'
-    printf '%s\n' '------------------------------------------------------------'
-    printf '  后续步骤:\n'
-    printf '  1) 查看日志:\n'
-    printf '     journalctl -u eating-medication-server -f\n'
-    printf '     journalctl -u eating-medication-family -f\n'
-    printf '  2) 更新代码: sudo bash %s/deploy/setup-linux.sh\n' "$DEPLOY_DIR"
-    case "$ACCESS_MODE" in
-        1)
-            printf '  3) Cloudflare 隧道路由:\n'
-            printf '     %s -> http://localhost:%s\n' "$SERVER_PREFIX" "$SERVER_PORT"
-            printf '     %s -> http://localhost:%s\n' "$FAMILY_PREFIX" "$FAMILY_PORT"
-            ;;
-        2)
-            printf '  3) Caddy 反代已配置，访问: https://%s\n' "$DOMAIN"
-            ;;
-        3)
-            printf '  3) 内网访问:\n'
-            printf '     http://localhost:%s%s\n' "$SERVER_PORT" "$SERVER_PREFIX"
-            printf '     http://localhost:%s%s\n' "$FAMILY_PORT" "$FAMILY_PREFIX"
-            ;;
-    esac
-    printf '%s\n' '------------------------------------------------------------'
+    if [ "${ELDERLY_MODE:-0}" = "1" ]; then
+        $SUDO systemctl status eating-medication-elderly --no-pager --lines=0 2>/dev/null || true
+        printf '\n'
+        printf '%s\n' '------------------------------------------------------------'
+        printf '  后续步骤（老人端）:\n'
+        printf '  1) 查看日志: journalctl -u eating-medication-elderly -f\n'
+        printf '  2) 更新代码: sudo bash %s/deploy/setup-linux.sh\n' "$DEPLOY_DIR"
+        printf '%s\n' '------------------------------------------------------------'
+    else
+        $SUDO systemctl status eating-medication-server --no-pager --lines=0 2>/dev/null || true
+        $SUDO systemctl status eating-medication-family --no-pager --lines=0 2>/dev/null || true
+        printf '\n'
+        printf '%s\n' '------------------------------------------------------------'
+        printf '  后续步骤:\n'
+        printf '  1) 查看日志:\n'
+        printf '     journalctl -u eating-medication-server -f\n'
+        printf '     journalctl -u eating-medication-family -f\n'
+        printf '  2) 更新代码: sudo bash %s/deploy/setup-linux.sh\n' "$DEPLOY_DIR"
+        case "$ACCESS_MODE" in
+            1)
+                printf '  3) Cloudflare 隧道路由:\n'
+                printf '     %s -> http://localhost:%s\n' "$SERVER_PREFIX" "$SERVER_PORT"
+                printf '     %s -> http://localhost:%s\n' "$FAMILY_PREFIX" "$FAMILY_PORT"
+                ;;
+            2)
+                printf '  3) Caddy 反代已配置，访问: https://%s\n' "$DOMAIN"
+                ;;
+            3)
+                printf '  3) 内网访问:\n'
+                printf '     http://localhost:%s%s\n' "$SERVER_PORT" "$SERVER_PREFIX"
+                printf '     http://localhost:%s%s\n' "$FAMILY_PORT" "$FAMILY_PREFIX"
+                ;;
+        esac
+        printf '%s\n' '------------------------------------------------------------'
+    fi
 }
 
 # 入口：检测 --uninstall 参数
