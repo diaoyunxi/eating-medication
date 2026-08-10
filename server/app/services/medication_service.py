@@ -133,7 +133,7 @@ class MedicationService:
                 .values(remaining_quantity=MedicationPlan.remaining_quantity - 1)
             )
             if result.rowcount == 0:
-                # 库存不足（如已吃到最后一片）时仍保留服药记录，仅记录告警
+                # 库存不足（如已用到最后一片）时仍保留服药记录，仅记录告警
                 logger.warning(
                     "服药已确认(plan=%s)但库存扣减失败(库存为0或计划不存在)，"
                     "保留服药记录、未扣减库存", req.plan_id

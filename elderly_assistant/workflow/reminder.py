@@ -274,7 +274,7 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooz
             # 语音播报提醒（TTS，缺失时静默降级）
             if speech:
                 try:
-                    speech.speak(f"该吃药了，{drug_name}")
+                    speech.speak(f"该用药了，{drug_name}")
                 except Exception:
                     pass
             logger.info(f"触发用药提醒: {drug_name} {dosage} @ {now_hm} (共 {len(matched_reminders)} 个)")
