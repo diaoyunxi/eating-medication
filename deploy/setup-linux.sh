@@ -195,7 +195,7 @@ install_cloudflared() {
             local cf_bin="/usr/local/bin/cloudflared"
             local downloaded=false
             for url in "$cf_url" \
-                       "https://gh.llkk.cc/$cf_url" \
+                       "https://gh.my-website.ccwu.cc/$cf_url" \
                        "https://gh-proxy.com/$cf_url"; do
                 log_info "尝试下载: ${url}"
                 if curl -fsSL --connect-timeout 15 --max-time 120 "$url" -o /tmp/cloudflared 2>/dev/null; then
@@ -353,7 +353,7 @@ setup_ddns_caddy() {
             *)     caddy_url="https://github.com/caddyserver/caddy/releases/latest/download/caddy_${ARCH_NORM}_linux" ;;
         esac
         local downloaded=false
-        for url in "$caddy_url" "https://gh.llkk.cc/$caddy_url" "https://gh-proxy.com/$caddy_url"; do
+        for url in "$caddy_url" "https://gh.my-website.ccwu.cc/$caddy_url" "https://gh-proxy.com/$caddy_url"; do
             if curl -fsSL "$url" -o /tmp/caddy 2>/dev/null; then
                 downloaded=true; break
             fi
