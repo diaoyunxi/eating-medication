@@ -32,8 +32,9 @@ RAW_BASE="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BR
 # 镜像站列表（GitHub raw 失败时依次尝试）
 # 注意：每个镜像站会将完整 raw URL 拼接到其后，如
 #   https://gh.my-website.ccwu.cc/https://raw.githubusercontent.com/...
-# 列表元素必须为单行、无首尾空格，否则会被拼成畸形 URL（如 "/https://..."）。
-MIRRORS="https://gh.my-website.ccwu.cc https://gh-proxy.com"
+# 用空格分隔的字符串；下载时由 download_file 逐词读取（兼容 bash/zsh/dash，
+# 不依赖未加引号变量的默认单词拆分，因为 zsh 默认不开启 SH_WORD_SPLIT）。
+MIRROR_LIST="https://gh.my-website.ccwu.cc https://gh-proxy.com"
 
 # 平台脚本相对路径
 LINUX_SCRIPT="deploy/setup-linux.sh"
@@ -118,27 +119,27 @@ download_file() {
     # 构建下载源列表（GitHub raw 在前，镜像站在后）
     # 镜像站拼接规则：<mirror>/<完整 raw URL>，例如
     #   https://gh.my-website.ccwu.cc/https://raw.githubusercontent.com/...
-    # 用 IFS 安全拆分 MIRRORS，跳过空元素，避免拼出畸形 URL。
-    urls="${RAW_BASE}/${rel_path}"
-    # 用空格拆分 MIRRORS（for 在循环开始前一次性展开列表）
-    IFS=' '
-    for mirror in $MIRRORS; do
-        # 跳过空镜像（防御性，避免拼出 "/https://..." 畸形 URL）
-        [ -z "$mirror" ] && continue
-        # 去掉镜像末尾可能存在的斜杠，统一用单个 "/" 拼接
-        mirror_trim="${mirror%/}"
-        urls="${urls}
-${mirror_trim}/https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BRANCH}/${rel_path}"
-    done
-    unset IFS
+    # 兼容说明：zsh 默认不按空格拆分未加引号的变量，故不能写 "$VAR" 后靠 for 拆分。
+    # 这里用「逐行写入临时文件 + while read 逐行读取」的方式，bash/zsh/dash 行为完全一致。
+
+    # 生成镜像 URL 列表文件（每行一个完整 URL）
+    : > "${TMP_DIR}/_mirror_urls.tmp"
+    # 用 tr 将空格转为换行（外部命令，不依赖 shell 的单词拆分规则，
+    # 因此 bash / zsh / dash 下行为完全一致），再逐行读取。
+    echo "$MIRROR_LIST" | tr ' ' '\n' | while IFS= read -r _mirror; do
+        [ -z "$_mirror" ] && continue
+        _mirror_trim="${_mirror%/}"
+        echo "${_mirror_trim}/https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BRANCH}/${rel_path}"
+    done >> "${TMP_DIR}/_mirror_urls.tmp" 2>/dev/null || true
+
+    # 组合完整 URL 列表：raw 直连在前，镜像在后
+    : > "${TMP_DIR}/_all_urls.tmp"
+    echo "${RAW_BASE}/${rel_path}" >> "${TMP_DIR}/_all_urls.tmp"
+    [ -s "${TMP_DIR}/_mirror_urls.tmp" ] && cat "${TMP_DIR}/_mirror_urls.tmp" >> "${TMP_DIR}/_all_urls.tmp"
 
     # 尝试下载工具：curl 优先，wget 后备
-    # 用换行拆分 urls 列表
-    IFS='
-'
-    for url in $urls; do
-        unset IFS
-        # 跳过空行
+    # 用 while read 逐行读取 URL（避免 zsh 对未加引号变量的拆分差异）
+    while IFS= read -r url; do
         [ -z "$url" ] && continue
         log_info "尝试下载: ${url}"
         if command -v curl >/dev/null 2>&1; then
