@@ -605,56 +605,22 @@ clone_repo() {
 
     # 检查目标目录是否已存在且非空
     if [ -d "$DEPLOY_DIR" ] && [ -n "$(ls -A "$DEPLOY_DIR" 2>/dev/null)" ]; then
-        # 目录已存在且非空，检查是否已经是 git 仓库
-        if [ -d "$DEPLOY_DIR/.git" ]; then
-            log_info "仓库已存在，拉取最新代码..."
-            $SUDO git -C "$DEPLOY_DIR" pull --ff-only 2>/dev/null || \
-                $SUDO git -C "$DEPLOY_DIR" pull 2>/dev/null || \
-                log_warn "git pull 失败，继续使用现有代码"
-        else
-            # 目录已存在但不是 git 仓库，克隆到子目录
-            log_warn "部署目录 ${DEPLOY_DIR} 已存在且非空，将克隆到子目录"
-            local sub_dir="${DEPLOY_DIR}/eating-medication"
-            if [ -d "$sub_dir/.git" ]; then
-                log_info "子目录仓库已存在，拉取最新代码..."
-                $SUDO git -C "$sub_dir" pull --ff-only 2>/dev/null || \
-                    $SUDO git -C "$sub_dir" pull 2>/dev/null || \
-                    log_warn "git pull 失败，继续使用现有代码"
-            else
-                log_info "尝试从 GitHub 克隆到 ${sub_dir}..."
-                if $SUDO git clone --depth 1 "$REPO_GITHUB" "$sub_dir" 2>&1; then
-                    log_info "GitHub 克隆成功"
-                else
-                    log_warn "GitHub 克隆失败，尝试 Gitee 镜像..."
-                    log_info "尝试从 Gitee 克隆: ${REPO_GITEE}"
-                    if $SUDO git clone --depth 1 "$REPO_GITEE" "$sub_dir" 2>&1; then
-                        log_info "Gitee 克隆成功"
-                    else
-                        log_error "GitHub 和 Gitee 均克隆失败"
-                        log_error "请检查网络或手动克隆仓库到 ${sub_dir}"
-                        exit 1
-                    fi
-                fi
-            fi
-            # 更新 DEPLOY_DIR 为子目录，确保后续步骤使用正确路径
-            DEPLOY_DIR="$sub_dir"
-            log_info "部署目录已调整为: ${DEPLOY_DIR}"
-        fi
+        log_warn "部署目录 ${DEPLOY_DIR} 已存在且非空，将删除后重新克隆"
+        $SUDO rm -rf "$DEPLOY_DIR"
+    fi
+    # 目录不存在或已清空，直接克隆
+    log_info "尝试从 GitHub 克隆: ${REPO_GITHUB}"
+    if $SUDO git clone --depth 1 "$REPO_GITHUB" "$DEPLOY_DIR" 2>&1; then
+        log_info "GitHub 克隆成功"
     else
-        # 目录不存在或为空，直接克隆
-        log_info "尝试从 GitHub 克隆: ${REPO_GITHUB}"
-        if $SUDO git clone --depth 1 "$REPO_GITHUB" "$DEPLOY_DIR" 2>&1; then
-            log_info "GitHub 克隆成功"
+        log_warn "GitHub 克隆失败（超时或网络问题），尝试 Gitee 镜像..."
+        log_info "尝试从 Gitee 克隆: ${REPO_GITEE}"
+        if $SUDO git clone --depth 1 "$REPO_GITEE" "$DEPLOY_DIR" 2>&1; then
+            log_info "Gitee 克隆成功"
         else
-            log_warn "GitHub 克隆失败（超时或网络问题），尝试 Gitee 镜像..."
-            log_info "尝试从 Gitee 克隆: ${REPO_GITEE}"
-            if $SUDO git clone --depth 1 "$REPO_GITEE" "$DEPLOY_DIR" 2>&1; then
-                log_info "Gitee 克隆成功"
-            else
-                log_error "GitHub 和 Gitee 均克隆失败"
-                log_error "请检查网络或手动克隆仓库到 ${DEPLOY_DIR}"
-                exit 1
-            fi
+            log_error "GitHub 和 Gitee 均克隆失败"
+            log_error "请检查网络或手动克隆仓库到 ${DEPLOY_DIR}"
+            exit 1
         fi
     fi
 }
