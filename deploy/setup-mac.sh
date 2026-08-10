@@ -155,7 +155,7 @@ install_cloudflared() {
 
             # 下载（GitHub 直连 → 镜像回退）
             local downloaded=false
-            for url in "$cf_url" "https://gh.llkk.cc/$cf_url" "https://gh-proxy.com/$cf_url"; do
+            for url in "$cf_url" "https://gh.my-website.ccwu.cc/$cf_url" "https://gh-proxy.com/$cf_url"; do
                 log_info "尝试下载: ${url}"
                 if curl -fsSL --connect-timeout 15 --max-time 120 "$url" -o /tmp/cloudflared.tgz 2>/dev/null; then
                     downloaded=true
