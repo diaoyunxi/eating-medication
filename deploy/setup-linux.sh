@@ -603,6 +603,15 @@ EOF
 clone_repo() {
     log_step "[4/9] 克隆仓库"
 
+    # 安全检查：禁止删除系统关键目录
+    case "$DEPLOY_DIR" in
+        /|/root|/home|/home/*|/etc|/usr|/var|/bin|/sbin|/lib|/lib64|/opt|/tmp)
+            log_error "危险操作：禁止删除系统关键目录 ${DEPLOY_DIR}"
+            log_error "请修改 DEPLOY_DIR 环境变量，使用其他目录（如 /opt/eating-medication）"
+            exit 1
+            ;;
+    esac
+
     # 检查目标目录是否已存在且非空
     if [ -d "$DEPLOY_DIR" ] && [ -n "$(ls -A "$DEPLOY_DIR" 2>/dev/null)" ]; then
         log_warn "部署目录 ${DEPLOY_DIR} 已存在且非空，将删除后重新克隆"
@@ -1047,11 +1056,11 @@ prompt_edit_env() {
 # 保留：系统包（git/python3/curl 等）、cloudflared 二进制、Caddy
 # ============================================================
 uninstall() {
-    # 卸载前先按设备类型确定真实部署目录（与安装一致：老人端为 /root）
+    # 卸载前先按设备类型确定真实部署目录（与安装一致：老人端为 /root/eating-medication）
     if is_elderly_device; then
         ELDERLY_MODE=1
         if [ "${DEPLOY_DIR}" = "/opt/eating-medication" ]; then
-            DEPLOY_DIR="/root"
+            DEPLOY_DIR="/root/eating-medication"
         fi
     else
         ELDERLY_MODE=0
@@ -1200,11 +1209,11 @@ main() {
         log_info "非老人端设备：安装 server + family_monitor"
     fi
 
-    # 老人端默认部署到 /root（root 用户家目录，行空板纯文件运行模式，便于直接打开）；
+    # 老人端默认部署到 /root/eating-medication（root 用户家目录下的子目录，行空板纯文件运行模式，便于直接打开）；
     # 服务端/子女端保持系统标准目录 /opt/eating-medication。用户显式指定 DEPLOY_DIR 时优先。
     if [ "${ELDERLY_MODE:-0}" = "1" ] && [ "${DEPLOY_DIR}" = "/opt/eating-medication" ]; then
-        DEPLOY_DIR="/root"
-        log_info "老人端部署目录调整为 root 家目录: ${DEPLOY_DIR}（行空板纯文件运行模式）"
+        DEPLOY_DIR="/root/eating-medication"
+        log_info "老人端部署目录调整为 root 家目录子目录: ${DEPLOY_DIR}（行空板纯文件运行模式）"
     fi
 
     # 1. 检测系统
