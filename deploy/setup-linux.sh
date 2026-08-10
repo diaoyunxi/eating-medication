@@ -12,6 +12,9 @@
 # 用法：
 #   sudo bash deploy/setup-linux.sh                 # 默认域名 my-website.ccwu.cc
 #   sudo DOMAIN=你的域名 bash deploy/setup-linux.sh  # 自定义域名
+#   sudo bash deploy/setup-linux.sh --uninstall     # 完全卸载（或 -u）
+#       （停止并删除所有服务、sudoers、部署目录、DDNS/Caddy、运行用户；
+#        未检测到安装时直接提示无需卸载，不报错）
 #
 # 幂等：可重复执行（更新代码 + 重装依赖 + 重启服务）。
 #       .env 仅在不存在时生成，已存在则保留你的配置。
@@ -1090,12 +1093,39 @@ prompt_edit_env() {
 # 保留：系统包（git/python3/curl 等）、cloudflared 二进制、Caddy
 # ============================================================
 uninstall() {
+    # 卸载前先按设备类型确定真实部署目录（与安装一致：老人端为 /eating-medication）
+    if is_elderly_device; then
+        ELDERLY_MODE=1
+        if [ "${DEPLOY_DIR}" = "/opt/eating-medication" ]; then
+            DEPLOY_DIR="/eating-medication"
+        fi
+    else
+        ELDERLY_MODE=0
+    fi
+
+    # 安装检测：明确告知用户是否已安装（满足「如果已存在直接告诉我」）
+    local _installed=0
+    [ -d "$DEPLOY_DIR" ] && _installed=1
+    for _svc in eating-medication-server.service eating-medication-family.service \
+                eating-medication-elderly.service; do
+        [ -f "/etc/systemd/system/$_svc" ] && _installed=1
+    done
+    id "$DEPLOY_USER" >/dev/null 2>&1 && _installed=1
+
     printf '\n'
     printf '============================================================\n'
     printf '  eating-medication 卸载\n'
     printf '  部署目录: %s\n' "$DEPLOY_DIR"
     printf '  运行用户: %s\n' "$DEPLOY_USER"
     printf '============================================================\n'
+
+    if [ "$_installed" -eq 0 ]; then
+        log_info "未检测到已安装痕迹（部署目录/服务/用户均不存在），无需卸载。"
+        log_info "如需清理残留的系统包（cloudflared/caddy），请手动执行对应 apt remove 命令。"
+        printf '\n'
+        return 0
+    fi
+    log_info "已检测到安装，将执行完全卸载（停止服务→删除服务文件→删除配置→删除目录→删除用户）"
 
     # 1. 停止并禁用 systemd 服务（同时兼容老人端 / 服务端两种部署）
     log_step "[1/6] 停止并禁用 systemd 服务"
