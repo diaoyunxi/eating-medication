@@ -40,6 +40,7 @@ elderly_assistant/data/device_id.txt
 elderly_assistant/data/device_token.txt
 elderly_assistant/data/schedules.json
 elderly_assistant/data/captures/
+*.db
 
 # Editors
 .vscode/
