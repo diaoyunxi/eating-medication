@@ -49,33 +49,6 @@ def init_pinpong_board():
     return False
 
 
-def get_button_a():
-    """获取按钮 A 句柄，非 M10 环境返回 None。"""
-    try:
-        from pinpong.extension.unihiker import button_a
-        return button_a
-    except ImportError:
-        return None
-    except Exception:
-        return None
-
-
-def get_button_b():
-    """获取按钮 B 句柄，非 M10 环境返回 None。"""
-    try:
-        from pinpong.extension.unihiker import button_b
-        return button_b
-    except ImportError:
-        return None
-    except Exception:
-        return None
-
-
-def get_buttons():
-    """获取按钮 A/B 句柄（查询式），非 M10 环境返回 (None, None)。"""
-    return get_button_a(), get_button_b()
-
-
 def get_led():
     """获取 LED 句柄（P25），非 M10 环境返回 None。"""
     try:
