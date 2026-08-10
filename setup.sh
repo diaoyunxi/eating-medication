@@ -30,10 +30,10 @@ REPO_BRANCH="main"
 RAW_BASE="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BRANCH}"
 
 # 镜像站列表（GitHub raw 失败时依次尝试）
-MIRRORS="
-https://gh-proxy.com
-https://gh.my-website.ccwu.cc
-"
+# 注意：每个镜像站会将完整 raw URL 拼接到其后，如
+#   https://gh.my-website.ccwu.cc/https://raw.githubusercontent.com/...
+# 列表元素必须为单行、无首尾空格，否则会被拼成畸形 URL（如 "/https://..."）。
+MIRRORS="https://gh.my-website.ccwu.cc https://gh-proxy.com"
 
 # 平台脚本相对路径
 LINUX_SCRIPT="deploy/setup-linux.sh"
@@ -116,14 +116,30 @@ download_file() {
     save_path="$2"
 
     # 构建下载源列表（GitHub raw 在前，镜像站在后）
+    # 镜像站拼接规则：<mirror>/<完整 raw URL>，例如
+    #   https://gh.my-website.ccwu.cc/https://raw.githubusercontent.com/...
+    # 用 IFS 安全拆分 MIRRORS，跳过空元素，避免拼出畸形 URL。
     urls="${RAW_BASE}/${rel_path}"
+    # 用空格拆分 MIRRORS（for 在循环开始前一次性展开列表）
+    IFS=' '
     for mirror in $MIRRORS; do
+        # 跳过空镜像（防御性，避免拼出 "/https://..." 畸形 URL）
+        [ -z "$mirror" ] && continue
+        # 去掉镜像末尾可能存在的斜杠，统一用单个 "/" 拼接
+        mirror_trim="${mirror%/}"
         urls="${urls}
-${mirror}/https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BRANCH}/${rel_path}"
+${mirror_trim}/https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BRANCH}/${rel_path}"
     done
+    unset IFS
 
     # 尝试下载工具：curl 优先，wget 后备
+    # 用换行拆分 urls 列表
+    IFS='
+'
     for url in $urls; do
+        unset IFS
+        # 跳过空行
+        [ -z "$url" ] && continue
         log_info "尝试下载: ${url}"
         if command -v curl >/dev/null 2>&1; then
             if curl -fsSL --connect-timeout 15 --max-time 60 "$url" -o "$save_path" 2>/dev/null; then
