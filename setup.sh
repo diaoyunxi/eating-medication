@@ -41,8 +41,21 @@ LINUX_SCRIPT="deploy/setup-linux.sh"
 MAC_SCRIPT="deploy/setup-mac.sh"
 
 # 临时目录
-TMP_DIR=$(mktemp -d 2>/dev/null || /tmp/em_setup_$$)
-trap 'rm -rf "$TMP_DIR" 2>/dev/null' EXIT INT TERM
+# 注意：mktemp 在部分 busybox/dash 环境下可能返回空或不可写路径，
+# 这里改用「显式 mkdir + 回退路径」，确保目录一定存在且可写。
+TMP_DIR=""
+if command -v mktemp >/dev/null 2>&1; then
+    TMP_DIR=$(mktemp -d 2>/dev/null)
+fi
+if [ -z "$TMP_DIR" ] || [ ! -d "$TMP_DIR" ] || [ ! -w "$TMP_DIR" ]; then
+    TMP_DIR="/tmp/em_setup_$$"
+    mkdir -p "$TMP_DIR" 2>/dev/null || true
+fi
+# 兜底：若仍无效，则直接用 /tmp（绝不放空，避免写到当前目录或根）
+if [ -z "$TMP_DIR" ] || [ ! -d "$TMP_DIR" ] || [ ! -w "$TMP_DIR" ]; then
+    TMP_DIR="/tmp"
+fi
+trap 'rm -rf "/tmp/em_setup_$$" 2>/dev/null' EXIT INT TERM
 
 # ============================================================
 # 日志函数（POSIX 兼容，不依赖 echo -e）
@@ -137,6 +150,19 @@ download_file() {
     echo "${RAW_BASE}/${rel_path}" >> "${TMP_DIR}/_all_urls.tmp"
     [ -s "${TMP_DIR}/_mirror_urls.tmp" ] && cat "${TMP_DIR}/_mirror_urls.tmp" >> "${TMP_DIR}/_all_urls.tmp"
 
+    # 防御：URL 列表文件无效时明确报错，避免静默走到「所有源失败」造成误判
+    if [ ! -s "${TMP_DIR}/_all_urls.tmp" ]; then
+        log_error "下载源列表为空（临时目录不可写？TMP_DIR=${TMP_DIR}），无法继续"
+        return 1
+    fi
+
+    # 调试：打印本次将尝试的所有下载源，便于网络排查
+    log_info "本次候选下载源："
+    while IFS= read -r _dbg_url; do
+        [ -z "$_dbg_url" ] && continue
+        printf '    - %s\n' "$_dbg_url"
+    done < "${TMP_DIR}/_all_urls.tmp"
+
     # 尝试下载工具：curl 优先，wget 后备
     # 用 while read 逐行读取 URL（避免 zsh 对未加引号变量的拆分差异）
     while IFS= read -r url; do
@@ -154,7 +180,7 @@ download_file() {
             fi
         fi
         log_warn "下载失败，尝试下一个源..."
-    done
+    done < "${TMP_DIR}/_all_urls.tmp"
 
     log_error "所有下载源均失败: ${rel_path}"
     return 1
