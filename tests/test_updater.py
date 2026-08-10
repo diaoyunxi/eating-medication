@@ -275,32 +275,32 @@ class TestConfigureOpener(unittest.TestCase):
 
     def test_mirror_domain_no_port(self):
         # 普通域名（无端口）应判定为镜像前缀，而非正向代理
-        _, is_mirror, base = self._call_with_proxy("https://gh.my-website.ccwu.cc")
+        _, is_mirror, base, _host = self._call_with_proxy("https://gh.my-website.ccwu.cc")
         self.assertTrue(is_mirror)
         self.assertEqual(base, "https://gh.my-website.ccwu.cc")
 
     def test_mirror_gh_proxy_example(self):
-        _, is_mirror, base = self._call_with_proxy("https://gh-proxy.com")
+        _, is_mirror, base, _host = self._call_with_proxy("https://gh-proxy.com")
         self.assertTrue(is_mirror)
         self.assertEqual(base, "https://gh-proxy.com")
 
     def test_forward_localhost_port(self):
-        _, is_mirror, base = self._call_with_proxy("http://127.0.0.1:7890")
+        _, is_mirror, base, _host = self._call_with_proxy("http://127.0.0.1:7890")
         self.assertFalse(is_mirror)
         self.assertIsNone(base)
 
     def test_forward_socks_with_port(self):
-        _, is_mirror, base = self._call_with_proxy("socks5://proxy.example:1080")
+        _, is_mirror, base, _host = self._call_with_proxy("socks5://proxy.example:1080")
         self.assertFalse(is_mirror)
         self.assertIsNone(base)
 
     def test_empty_proxy_direct(self):
-        _, is_mirror, base = self._call_with_proxy("")
+        _, is_mirror, base, _host = self._call_with_proxy("")
         self.assertFalse(is_mirror)
         self.assertIsNone(base)
 
     def test_illegal_proxy_fallback_direct(self):
-        _, is_mirror, base = self._call_with_proxy("not-a-url")
+        _, is_mirror, base, _host = self._call_with_proxy("not-a-url")
         self.assertFalse(is_mirror)
         self.assertIsNone(base)
 

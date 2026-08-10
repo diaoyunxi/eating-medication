@@ -189,7 +189,7 @@ _POST_UPDATE_CMD = _load_post_update_cmd()
 
 
 def _configure_opener():
-    """根据 github_proxy 构建 urllib opener，返回 (opener, is_mirror, mirror_base)。
+    """根据 github_proxy 构建 urllib opener，返回 (opener, is_mirror, mirror_base, mirror_host)。
 
     代理类型判定（仅靠 URL 无法 100% 区分，按常用约定识别）：
     - 正向代理（CONNECT 隧道）：netloc 含显式端口，或指向本机
@@ -201,12 +201,12 @@ def _configure_opener():
     """
     proxy = _GITHUB_PROXY
     if not proxy:
-        return urllib.request.build_opener(), False, None
+        return urllib.request.build_opener(), False, None, None
     parsed = urlparse(proxy)
     if not parsed.scheme or not parsed.netloc:
         # 非法代理配置，回退直连
         logger.warning(f"[更新检查] github_proxy 配置非法（{proxy}），回退直连")
-        return urllib.request.build_opener(), False, None
+        return urllib.request.build_opener(), False, None, None
     # 是否为正向代理：含显式端口或本机地址
     hostname = (parsed.hostname or "").lower()
     netloc_no_user = parsed.netloc.split("@")[-1]
@@ -214,13 +214,18 @@ def _configure_opener():
     is_forward = has_port or hostname in ("127.0.0.1", "localhost", "::1")
     if is_forward:
         handler = urllib.request.ProxyHandler({parsed.scheme: proxy})
-        return urllib.request.build_opener(handler), False, None
+        return urllib.request.build_opener(handler), False, None, None
     # 镜像前缀形式（如 https://gh-proxy.com）
     base = proxy.rstrip("/")
-    return urllib.request.build_opener(), True, base
+    return urllib.request.build_opener(), True, base, hostname
 
 
-_OPENER, _IS_MIRROR, _MIRROR_BASE = _configure_opener()
+_OPENER, _IS_MIRROR, _MIRROR_BASE, _MIRROR_HOST = _configure_opener()
+
+
+# 完整镜像白名单：这些镜像同时代理 api.github.com，可对其 API 地址也套用镜像前缀。
+# 通用 gh-proxy 类镜像仅代理 raw/下载内容，对 API 套前缀会返回空响应，故不在名单内。
+_API_MIRROR_HOSTS = ("gh.my-website.ccwu.cc",)
 
 
 def _build_url(url):
@@ -229,9 +234,12 @@ def _build_url(url):
     注意：gh-proxy 类镜像通常只代理 github.com 的 raw/下载内容，
     并不代理 api.github.com。若对 API 地址套用镜像前缀，镜像会返回空响应，
     导致 json.loads 抛出「Expecting value: line 1 column 1」。
-    因此 api.github.com 请求一律走直连（正向代理仍由 opener 透明转发）。
+    因此 api.github.com 请求默认走直连（正向代理仍由 opener 透明转发），
+    仅当镜像 host 在 _API_MIRROR_HOSTS 白名单内（即完整镜像）时才对 API 套用前缀。
     """
-    if _IS_MIRROR and _MIRROR_BASE and not url.startswith("https://api.github.com/"):
+    if _IS_MIRROR and _MIRROR_BASE:
+        if url.startswith("https://api.github.com/") and _MIRROR_HOST not in _API_MIRROR_HOSTS:
+            return url
         return f"{_MIRROR_BASE}/{url}"
     return url
 
