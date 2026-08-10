@@ -135,6 +135,56 @@ clone_repo() {
 }
 
 # ============================================================
+# 创建 Python 虚拟环境并安装依赖
+# ============================================================
+setup_venv() {
+    log_step "配置 Python 虚拟环境"
+
+    # 检测 Python 版本（需 >= 3.8）
+    local py_ver py_major py_minor
+    py_ver="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo 0)"
+    py_major="${py_ver%%.*}"
+    py_minor="${py_ver#*.}"
+    if [ "$py_major" -lt 3 ] || { [ "$py_major" -eq 3 ] && [ "$py_minor" -lt 8 ]; }; then
+        log_error "Python 版本过低: ${py_ver}，需要 >= 3.8"
+        exit 1
+    fi
+    log_info "Python 版本: ${py_ver}"
+
+    # 若已有 venv 且 Python 版本不符，删除重建
+    if [ -d "$DEPLOY_DIR/venv" ]; then
+        local old_py
+        old_py="$("$DEPLOY_DIR/venv/bin/python" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo 0)"
+        if [ "$old_py" != "$py_ver" ]; then
+            log_warn "已有 venv (Python ${old_py}) 与当前版本不符，重建..."
+            $SUDO rm -rf "$DEPLOY_DIR/venv"
+        fi
+    fi
+
+    # 创建虚拟环境
+    if [ ! -d "$DEPLOY_DIR/venv" ]; then
+        log_info "创建虚拟环境..."
+        $SUDO python3 -m venv "$DEPLOY_DIR/venv"
+    fi
+
+    # 升级 pip
+    log_info "升级 pip..."
+    $SUDO "$DEPLOY_DIR/venv/bin/pip" install --upgrade pip -q
+
+    # 安装各模块依赖
+    log_info "安装 server 依赖..."
+    $SUDO "$DEPLOY_DIR/venv/bin/pip" install -r "$DEPLOY_DIR/server/requirements.txt" -q
+
+    log_info "安装 family_monitor 依赖..."
+    $SUDO "$DEPLOY_DIR/venv/bin/pip" install -r "$DEPLOY_DIR/family_monitor/requirements.txt" -q
+
+    log_info "安装 elderly_assistant 依赖..."
+    $SUDO "$DEPLOY_DIR/venv/bin/pip" install -r "$DEPLOY_DIR/elderly_assistant/requirements.txt" -q
+
+    log_info "虚拟环境配置完成: ${DEPLOY_DIR/venv}"
+}
+
+# ============================================================
 # 卸载：删除部署目录
 # 保留：系统包（git/python3/curl 等）
 # ============================================================
@@ -187,6 +237,9 @@ main() {
     # 3. 克隆仓库
     clone_repo
 
+    # 4. 配置 Python 虚拟环境
+    setup_venv
+
     # 完成
     sleep 1
     printf '\n'
@@ -196,17 +249,11 @@ main() {
     printf '\n'
     printf '%s\n' '------------------------------------------------------------'
     printf '  后续步骤:\n'
-    printf '  1) 配置 Python 虚拟环境:\n'
-    printf '     cd %s && python3 -m venv venv\n' "$DEPLOY_DIR"
-    printf '     source %s/venv/bin/activate\n' "$DEPLOY_DIR"
-    printf '     pip install -r server/requirements.txt\n'
-    printf '     pip install -r family_monitor/requirements.txt\n'
-    printf '     pip install -r elderly_assistant/requirements.txt\n'
-    printf '  2) 启动服务:\n'
-    printf '     cd %s && python main.py\n' "$DEPLOY_DIR"
-    printf '  3) 更新代码（安全自动更新，保留 .env/data）:\n'
-    printf '     cd %s && python updater.py\n' "$DEPLOY_DIR"
-    printf '     或强制更新: cd %s && python updater.py --force\n' "$DEPLOY_DIR"
+    printf '  1) 启动服务:\n'
+    printf '     cd %s && ./venv/bin/python main.py\n' "$DEPLOY_DIR"
+    printf '  2) 更新代码（安全自动更新，保留 .env/data）:\n'
+    printf '     cd %s && ./venv/bin/python updater.py\n' "$DEPLOY_DIR"
+    printf '     或强制更新: cd %s && ./venv/bin/python updater.py --force\n' "$DEPLOY_DIR"
     printf '     注: 应用启动时也会自动检查更新（AUTO_PULL，默认开启）\n'
     printf '%s\n' '------------------------------------------------------------'
     printf '\n'
