@@ -1048,11 +1048,11 @@ prompt_edit_env() {
 # 保留：系统包（git/python3/curl 等）、cloudflared 二进制、Caddy
 # ============================================================
 uninstall() {
-    # 卸载前先按设备类型确定真实部署目录（与安装一致：老人端为 /eating-medication）
+    # 卸载前先按设备类型确定真实部署目录（与安装一致：老人端为 /root）
     if is_elderly_device; then
         ELDERLY_MODE=1
         if [ "${DEPLOY_DIR}" = "/opt/eating-medication" ]; then
-            DEPLOY_DIR="/eating-medication"
+            DEPLOY_DIR="/root"
         fi
     else
         ELDERLY_MODE=0
@@ -1201,11 +1201,11 @@ main() {
         log_info "非老人端设备：安装 server + family_monitor"
     fi
 
-    # 老人端默认部署到根目录下的 /eating-medication（行空板文件管理器根视图可见、便于直接打开）；
+    # 老人端默认部署到 /root（root 用户家目录，行空板纯文件运行模式，便于直接打开）；
     # 服务端/子女端保持系统标准目录 /opt/eating-medication。用户显式指定 DEPLOY_DIR 时优先。
     if [ "${ELDERLY_MODE:-0}" = "1" ] && [ "${DEPLOY_DIR}" = "/opt/eating-medication" ]; then
-        DEPLOY_DIR="/eating-medication"
-        log_info "老人端部署目录调整为根目录下: ${DEPLOY_DIR}（行空板文件管理器可见）"
+        DEPLOY_DIR="/root"
+        log_info "老人端部署目录调整为 root 家目录: ${DEPLOY_DIR}（行空板纯文件运行模式）"
     fi
 
     # 1. 检测系统
