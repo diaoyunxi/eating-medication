@@ -26,6 +26,8 @@ target/
 *.tmp
 *.swp
 *.swo
+# 根目录 main.py 后台启动模式的运行日志（server.out / family.out）
+logs/
 
 # Environment (keep .env.example trackable)
 .env
