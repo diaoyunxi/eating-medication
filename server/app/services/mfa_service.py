@@ -47,7 +47,7 @@ def generate_totp_secret() -> str:
     return pyotp.random_base32()
 
 
-def totp_provisioning_uri(secret: str, account: str, issuer: str = "吃饭提醒") -> str:
+def totp_provisioning_uri(secret: str, account: str, issuer: str = "用药提醒") -> str:
     """生成 otpauth:// URI，用于 Authenticator 应用扫码绑定"""
     return pyotp.TOTP(secret).provisioning_uri(name=account, issuer_name=issuer)
 
