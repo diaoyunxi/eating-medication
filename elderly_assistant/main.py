@@ -31,7 +31,7 @@ from pathlib import Path
 # main() 内部会通过 global logger 覆盖为 setup_logger() 返回的实例
 logger = logging.getLogger(__name__)
 
-# 确保以本文件所在目录为工作目录（便于读取 config.yaml / data/）
+# 确保以本文件所在目录为工作目录（便于读取 .env / data/）
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 

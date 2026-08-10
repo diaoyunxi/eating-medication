@@ -70,6 +70,34 @@ def write_env_text(path: PathLike, content: str) -> None:
         pass
 
 
+def ensure_env_fields(path: PathLike, defaults: Dict[str, str]) -> bool:
+    """补齐全 .env 中缺失的字段（仅追加，不动已存在的字段，保留注释与用户修改）。
+
+    用于配置向后兼容：模板升级新增字段、或用户手删某键后，启动时自动补齐
+    缺失字段的默认值，避免 load_config 因缺键回退到代码内默认值而「悄悄」不一致。
+
+    :param path: 目标 .env 路径
+    :param defaults: {字段名: 默认值}（仅对 .env 中不存在的键生效）
+    :return: True 表示本次实际补全了至少一个字段
+    """
+    p = Path(path)
+    if not p.is_file():
+        # 整文件都不存在时交给 ensure_env_template 处理，这里不负责创建
+        return False
+    present = read_env_dict(p)
+    missing = {k: v for k, v in defaults.items() if k not in present}
+    if not missing:
+        return False
+    try:
+        with p.open("a", encoding="utf-8") as f:
+            f.write("\n# 以下字段由程序自动补全（模板升级/缺失）\n")
+            for k, v in missing.items():
+                f.write(f"{k}={v}\n")
+        return True
+    except Exception:
+        return False
+
+
 def ensure_env_template(path: PathLike, template_text: str) -> bool:
     """若 .env 模板不存在则写入（含 600 权限），已存在则跳过。
 

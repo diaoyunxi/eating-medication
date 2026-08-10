@@ -165,6 +165,17 @@ def load_config(config_path=ENV_PATH):
     import copy
 
     _ensure_env_template(config_path)
+    # 自动补全 .env 中缺失的字段（仅追加，不动已有配置），保证启动即字段齐全
+    try:
+        from common.envfile import ensure_env_fields
+        _defaults = {
+            env_key: str(DEFAULT_CONFIG[g][k])
+            for (env_key, g, k, _t) in _ENV_LEAVES
+        }
+        if ensure_env_fields(config_path, _defaults):
+            logger.info(f"已自动补全 {config_path} 缺失的配置字段（默认值）")
+    except Exception as e:
+        logger.warning(f"自动补全配置字段失败: {e}")
     load_dotenv(config_path)
 
     config = copy.deepcopy(DEFAULT_CONFIG)
