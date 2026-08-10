@@ -1187,7 +1187,6 @@ main() {
     printf '\n'
     printf '============================================================\n'
     printf '  eating-medication Linux 一键部署\n'
-    printf '  部署目录: %s\n' "$DEPLOY_DIR"
     printf '  运行用户: %s\n' "$DEPLOY_USER"
     printf '  域名:     %s\n' "$DOMAIN"
     printf '============================================================\n'
@@ -1199,6 +1198,13 @@ main() {
     else
         ELDERLY_MODE=0
         log_info "非老人端设备：安装 server + family_monitor"
+    fi
+
+    # 老人端默认部署到根目录下的 /eating-medication（行空板文件管理器根视图可见、便于直接打开）；
+    # 服务端/子女端保持系统标准目录 /opt/eating-medication。用户显式指定 DEPLOY_DIR 时优先。
+    if [ "${ELDERLY_MODE:-0}" = "1" ] && [ "${DEPLOY_DIR}" = "/opt/eating-medication" ]; then
+        DEPLOY_DIR="/eating-medication"
+        log_info "老人端部署目录调整为根目录下: ${DEPLOY_DIR}（行空板文件管理器可见）"
     fi
 
     # 1. 检测系统
