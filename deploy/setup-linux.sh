@@ -614,9 +614,29 @@ setup_python_env() {
     PIP_FALLBACK="-i https://pypi.org/simple"
 
     VENV="$DEPLOY_DIR/venv"
+    # 解析用于创建 venv 的 Python 解释器。
+    # 注意：行空板上 `python3` 通常是系统自带的低版本（如 3.7），而
+    # `python` 经 pyenv 指向更高版本（如 3.12）。必须优先选择 >=3.8 的
+    # 解释器创建 venv，否则依赖（fastapi>=0.115 要求 >=3.8）将无法安装。
+    PY_BIN=""
+    for cand in python3 python; do
+        if command -v "$cand" >/dev/null 2>&1; then
+            ver="$("$cand" -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null)"
+            if [ "$(printf '%s\n%s\n' 3.8 "$ver" | sort -V | head -n1)" = "3.8" ]; then
+                PY_BIN="$(command -v "$cand")"
+                break
+            fi
+        fi
+    done
+    if [ -z "$PY_BIN" ]; then
+        log_error "未找到 >=3.8 的 Python 解释器（python3/python 均过低），无法创建兼容的虚拟环境"
+        return 1
+    fi
+    log_info "将使用 ${PY_BIN}（$( "$PY_BIN" -c 'import sys;print("%d.%d"%sys.version_info[:2])' )）创建虚拟环境"
+
     if [ ! -x "$VENV/bin/python" ]; then
         log_info "创建虚拟环境 ${VENV} ..."
-        $SUDO python3 -m venv "$VENV"
+        $SUDO "$PY_BIN" -m venv "$VENV"
     fi
 
     log_info "升级 pip ..."
@@ -638,7 +658,7 @@ setup_python_env() {
 # ============================================================
 # 生成生产环境 .env
 # ============================================================
-gen_key() { python3 -c "import secrets; print(secrets.token_urlsafe(32))"; }
+gen_key() { "${PY_BIN:-python3}" -c "import secrets; print(secrets.token_urlsafe(32))"; }
 
 generate_env_files() {
     log_step "[6/9] 生成生产环境 .env（server / family_monitor）"
