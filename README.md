@@ -746,7 +746,7 @@ journalctl -u cloudflared -f                    # 隧道日志
 ### 开发环境
 
 ```bash
-git clone https://gh.llkk.cc/https://github.com/diaoyunxi/eating-medication.git
+git clone https://gh.my-website.ccwu.cc/https://github.com/diaoyunxi/eating-medication.git
 cd eating-medication
 # 服务端开发依赖
 cd server && pip install -r requirements-dev.txt
