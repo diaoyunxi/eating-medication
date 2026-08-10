@@ -33,6 +33,24 @@ logger = logging.getLogger(__name__)
 
 # 确保以本文件所在目录为工作目录（便于读取 config.yaml / data/）
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _venv_python():
+    """返回应优先使用的 Python 解释器路径。
+
+    与根 main.py 的 _python_executable() 保持一致：
+    若项目根目录下存在 .venv 虚拟环境，则优先使用其中的解释器，
+    保证「自动安装依赖」与「运行主程序」使用同一环境，避免把依赖
+    装进 .venv 却用系统 python 运行导致 ModuleNotFoundError（如 dotenv）。
+    """
+    project_root = str(Path(BASE_DIR).resolve().parent)
+    venv_bin = os.path.join(project_root, ".venv", "bin", "python")
+    if os.path.exists(venv_bin):
+        return venv_bin
+    venv_scripts = os.path.join(project_root, ".venv", "Scripts", "python.exe")
+    if os.path.exists(venv_scripts):
+        return venv_scripts
+    return sys.executable
 if os.getcwd() != BASE_DIR:
     os.chdir(BASE_DIR)
 if BASE_DIR not in sys.path:
@@ -131,14 +149,15 @@ def check_and_install_dependencies():
                 # 再最佳努力补装系统级依赖，避免运行时 ImportError / TTS 初始化失败
                 _install_linux_system_deps()
                 result = subprocess.run(
-                    [sys.executable, root_install, req_path, "--huskylens"],
+                    [_venv_python(), root_install, req_path, "--huskylens"],
                     capture_output=False, text=True, cwd=project_root,
                 )
                 if result.returncode != 0:
                     print("依赖安装可能未完全成功，尝试继续运行...")
                 else:
                     print("依赖安装完成，正在重新启动老人端...")
-                    os.execv(sys.executable, [sys.executable] + sys.argv)
+                    py = _venv_python()
+                    os.execv(py, [py] + sys.argv)
             except Exception as e:
                 print(f"自动安装失败: {e}")
                 print(f"请手动运行: python {root_install} {req_path} --huskylens")
