@@ -19,7 +19,7 @@
 3. 仅复制非保护文件到项目根目录（保护文件规则见 common.runtime_protection）
 4. 保护文件：.env、data/、logs/、*.db、*.sqlite* 等运行时数据
 5. 更新失败时自动回滚到备份
-6. 更新成功后自动重启相关 systemd 服务（详见 _restart_services：普通部署用户经免密 sudoers 调用 systemctl restart，由 systemd 接管完成 server+family 重启）
+6. 更新成功后自动重启相关 systemd 服务（详见 _restart_services：普通部署用户经免密 sudoers 调用 systemctl restart，由 systemd 接管 server+family 重启；老人端为纯文件运行模式，无需重启）
 7. 若根目录 .env 配置了 POST_UPDATE_CMD，则在重启服务「之前」执行该命令（如数据库迁移）；失败仅告警、命令原文不写入日志（详见 _run_post_update_cmd）
 
 【保护文件清单】
@@ -568,11 +568,11 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
 
 
 def _restart_services():
-    """更新成功后自动重启相关 systemd 服务，使新版本代码生效。
+    """更新成功后自动重启相关服务，使新版本代码生效。
 
     设计要点：
     - 仅 systemd 环境（/run/systemd/system 存在且 systemctl 可用）下生效；
-      非 systemd 环境（如本地开发、Windows、容器）仅记录警告并跳过，不报错。
+      非 systemd 环境（如老人端纯文件运行、本地开发、Windows、容器）仅记录提示并跳过，不报错。
     - 以 root 运行时直接调用 systemctl；以普通部署用户（如 deploy）运行时，
       使用 `sudo -n`（非交互，避免阻塞）调用，依赖部署脚本写入的免密 sudoers 规则
       （见 deploy/setup.sh 步骤 7）。
@@ -581,6 +581,12 @@ def _restart_services():
       所在的应用进程）随后被 SIGTERM 终止，重启仍会由 systemd 完成。
     - 服务名集中在函数内，便于扩展。
     """
+    # 检测是否为老人端（纯文件运行模式）
+    elderly_mode = os.environ.get("ELDERLY_MODE", "0") == "1"
+    if elderly_mode:
+        logger.info("[更新] 老人端为纯文件运行模式，无需重启服务，请手动重启应用")
+        return True
+
     service_names = ["eating-medication-server", "eating-medication-family"]
     if not shutil.which("systemctl") or not os.path.exists("/run/systemd/system"):
         logger.warning("[更新] 当前环境非 systemd，无法自动重启服务，请手动重启以应用新版本")
