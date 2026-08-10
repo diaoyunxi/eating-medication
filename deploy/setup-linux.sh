@@ -723,11 +723,56 @@ setup_python_env() {
 gen_key() { "${PY_BIN:-python3}" -c "import secrets; print(secrets.token_urlsafe(32))"; }
 
 generate_env_files() {
-    # 老人端配置由 elderly_assistant/config.yaml 管理（结构化配置，main.py 自动处理默认），
-    # 不在此生成简单 .env，避免字段缺失导致运行报错。
+    # 老人端配置由 elderly_assistant/.env 管理（扁平 .env），与 server / family_monitor 统一：
+    # 由安装脚本直接生成完整模板（含全部默认值与注释），已存在则不覆盖（保留用户修改）。
+    # 模板内容与 elderly_assistant/utils/config_loader.py 的 _ENV_TEMPLATE 严格对齐。
     if [ "${ELDERLY_MODE:-0}" = "1" ]; then
-        log_step "[6/9] 生成生产环境 .env（老人端跳过）"
-        log_info "老人端配置请编辑: ${DEPLOY_DIR}/elderly_assistant/config.yaml（缺失时使用程序内置默认值）"
+        local elderly_env="$DEPLOY_DIR/elderly_assistant/.env"
+        if [ -f "$elderly_env" ]; then
+            log_info "$elderly_env 已存在，保留原配置"
+        else
+            $SUDO tee "$elderly_env" >/dev/null <<EOF
+# 老人端配置（扁平 .env，与 server / family_monitor 统一）
+# 由 deploy/setup-linux.sh 自动生成，可手动修改；修改后重启生效
+
+# ===== 服务端地址 =====
+SERVER_BASE_URL=https://$DOMAIN$SERVER_PREFIX
+SERVER_UPLOAD_ENDPOINT=/api/v1/public/device/upload
+SERVER_TIMEOUT=10
+HEARTBEAT_INTERVAL=30
+
+# ===== 热点配网 =====
+HOTSPOT_SSID=M10-Config
+HOTSPOT_IP=10.0.0.1
+HOTSPOT_WEB_PORT=8088
+
+# ===== 提醒 =====
+# POLL_INTERVAL: 用药计划轮询间隔（秒），默认 1200 = 20 分钟
+POLL_INTERVAL=1200
+SNOOZE_MINUTES=5
+BUZZER_LOOP_INTERVAL=3
+LONG_PRESS_SEC=1.5
+
+# ===== 摄像头 =====
+CAMERA_CONNECTION=i2c
+CAMERA_UART_TTY=/dev/ttyS1
+CAMERA_UART_BAUDRATE=115200
+CAMERA_SAVE_PATH=data/captures
+# CAMERA_PHOTO_RESOLUTION: 拍照分辨率 default/640x480/1280x720/1920x1080（二哈 takePhoto 必填）
+CAMERA_PHOTO_RESOLUTION=default
+# CAMERA_SD_SEARCH_PATHS: 二哈 SD 卡挂载根目录候选，逗号分隔；留空用内置默认 /media,/mnt,/run/media
+CAMERA_SD_SEARCH_PATHS=
+
+# ===== 药品条码扫描 =====
+# SCAN_SOURCE: auto=优先 HuskyLens 板载解码并回退 USB；可选 huskylens / usb
+SCAN_SOURCE=auto
+SCAN_USB_INDEX=0
+SCAN_TIMEOUT_SEC=8
+EOF
+            $SUDO chown "$DEPLOY_USER:$DEPLOY_USER" "$elderly_env" 2>/dev/null || true
+            $SUDO chmod 600 "$elderly_env"
+            log_info "已生成 $elderly_env"
+        fi
         return 0
     fi
 
@@ -981,10 +1026,19 @@ prompt_edit_env() {
         printf '  老人端部署即将完成！请编辑配置文件后按 Enter 继续：\n'
         printf '============================================================\n'
         printf '\n'
-        printf '  老人端配置:\n'
-        printf '     sudo nano %s/elderly_assistant/config.yaml\n' "$DEPLOY_DIR"
-        printf '     关键项: server_url(服务端地址)、device_id、硬件引脚等\n'
-        printf '     （缺失时使用程序内置默认值）\n'
+        printf '  老人端配置（扁平 .env，与 server / family_monitor 统一）:\n'
+        printf '     sudo nano %s/elderly_assistant/.env\n' "$DEPLOY_DIR"
+        printf '     说明: 首次启动 main.py 会自动生成含全部默认值的 .env 模板；\n'
+        printf '           若已存在则不会覆盖，可直接手动修改下列关键项：\n'
+        printf '\n'
+        printf '     关键项:\n'
+        printf '       SERVER_BASE_URL       服务端地址（如 https://%s%s）\n' "$DOMAIN" "$SERVER_PREFIX"
+        printf '       SERVER_UPLOAD_ENDPOINT 上报接口路径（一般保持默认）\n'
+        printf '       HOTSPOT_SSID/HOTSPOT_IP/HOTSPOT_WEB_PORT 热点配网（一般保持默认）\n'
+        printf '       POLL_INTERVAL         用药计划轮询间隔(秒)\n'
+        printf '       CAMERA_* / SCAN_*     摄像头/条码扫描（一般保持默认）\n'
+        printf '     注: device_id 由设备自动生成，无需手动配置；无显式硬件引脚配置项。\n'
+        printf '     （不修改则使用程序内置默认值，可直接按 Enter 启动）\n'
         printf '\n'
         if [ -t 0 ]; then
             printf '  编辑完成后按 Enter 重启服务以加载新配置...\n'
