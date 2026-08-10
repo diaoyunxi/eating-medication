@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """子女看护Web端 - 主程序
 
-本地以纯 HTTP 监听，HTTPS 由 Cloudflare 隧道边缘自动配置，无需本地证书。
-支持路径前缀（PATH_PREFIX），用于 Cloudflare 隧道按子路径转发场景。
+本地以纯 HTTP 监听，对外访问方式（公网域名与 HTTPS）由 setup.sh / setup.ps1 统一配置。
+支持路径前缀（PATH_PREFIX），用于反向代理按子路径转发场景。
 """
 
 import os
@@ -16,10 +16,15 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-# 仓库根目录（含统一迁移的 updater.py）
+# 仓库根目录（含统一迁移的 updater.py 与 common/ 包）
+# 注意：必须 append 而非 insert(0)。仓库根目录下存在统一启动入口 main.py，
+# 若把根目录排在 SCRIPT_DIR 之前，uvicorn 以 "main:app" 重新导入时会解析到
+# 根目录的 main.py（其中没有 app 属性），导致
+# 'Error loading ASGI app. Attribute "app" not found in module "main"'。
+# 追加到末尾可保证同名模块始终优先解析到本目录，同时不影响 updater/common 的导入。
 PROJECT_ROOT = SCRIPT_DIR.parent
 if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+    sys.path.append(str(PROJECT_ROOT))
 
 
 def _check_and_install_dependencies():
@@ -98,7 +103,6 @@ async def lifespan(app: FastAPI):
     logger.info(f" 认证系统: JWT（由 server 统一认证，转发验证）")
     logger.info(f" 人机验证: Cloudflare Turnstile")
     logger.info(f" 路径前缀: {PATH_PREFIX or '(无，根路径)'}")
-    logger.info(f" HTTPS: 由 Cloudflare 隧道边缘自动配置，本地监听 HTTP")
     logger.info("=" * 60)
 
     yield
@@ -496,7 +500,7 @@ def main():
     except Exception as e:
         logger.warning(f"更新检查失败: {e}")
 
-    # 本地纯 HTTP 监听，HTTPS 由 Cloudflare 隧道边缘处理
+    # 本地纯 HTTP 监听，对外访问方式由 setup.sh / setup.ps1 配置
     # 关闭 uvicorn 默认 access_log，改由上方 access_log_middleware 按状态码分级记录
     # （默认全量 INFO 会把 4xx 也记成 INFO，淹没真实错误）
     uvicorn.run(

@@ -17,9 +17,12 @@ from pathlib import Path
 
 
 # 确保仓库根目录在 sys.path（以便 import common 共享包）
+# 注意：必须 append 而非 insert(0)。仓库根目录下存在统一启动入口 main.py，
+# 若把根目录排在脚本目录之前，uvicorn 以 "main:app" 重新导入时会解析到
+# 根目录的 main.py（其中没有 app 属性），导致 ASGI 应用加载失败。
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+    sys.path.append(str(_REPO_ROOT))
 
 
 def global_exception_handler(exc_type, exc_value, exc_tb):
@@ -172,7 +175,7 @@ def create_app_dirs():
 
 
 def start_server():
-    """启动 FastAPI 服务（本地纯 HTTP，HTTPS 由 Cloudflare 隧道边缘处理）"""
+    """启动 FastAPI 服务（本地监听 HTTP；对外访问方式由 setup.sh / setup.ps1 配置）"""
     try:
         import uvicorn
         from app.core.config import settings
@@ -192,7 +195,6 @@ def start_server():
     print(f"  调试模式: {settings.DEBUG}")
     print(f"  数据库: {settings.DATABASE_URL}")
     print(f"  路径前缀: {path_prefix or '(无，根路径)'}")
-    print(f"  HTTPS: 由 Cloudflare 隧道边缘自动配置，本地监听 HTTP")
     print(f"  API 文档: http://localhost:{port}/docs")
     print(f"  健康检查: http://localhost:{port}/health")
     print("=" * 50)

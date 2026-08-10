@@ -1,6 +1,6 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.30.0**
+> 当前版本：**v2.33.7**
 > 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
@@ -302,7 +302,7 @@
 │   ├── static/css/                # 样式表
 │   └── templates/                 # 9 个 Jinja2 页面模板（含 Turnstile 登录/注册）
 ├── history.md                     # 项目开发历史记录（版本基准）
-├── VERSION                        # 当前版本号（v2.30.0）
+├── VERSION                        # 当前版本号（v2.33.7）
 ├── deploy/                        # 部署辅助文件（一键脚本 + systemd 单元 + cloudflared 配置）
 │   ├── setup-linux.sh             # Linux 一键部署脚本（bash）
 │   ├── setup-mac.sh               # macOS 一键部署脚本（zsh）
@@ -346,13 +346,40 @@
 - 操作系统：Windows / Linux（含行空板 M10 等 ARM 设备）
 - 可选硬件：USB 摄像头、麦克风、音箱/蜂鸣器
 - OCR 识别需安装 Tesseract（可选，老人端本地用）
-- HTTPS 由 Cloudflare 隧道处理，无需本地证书
+- 三端均以纯 HTTP 本地监听，公网域名与 HTTPS 方案在 `setup.sh` / `setup.ps1` 中选择配置
 
 > 三模块的 `install.py` 内容已统一为同一份脚本，行为：
 > 1. 先检测 `pip` 是否存在，无则按平台自动安装（Linux 优先 `apt-get install python3-pip`、Windows 用 `get-pip.py`、其他走 `ensurepip` 后备）；
 > 2. 正常 `pip install`（使用 `-i PIP_INDEX_URL` 临时指定镜像源，默认清华源，可通过环境变量覆盖）；
 > 3. 若输出包含 `--break-system-packages`（PEP 668 错误），自动加该参数重试。
 > 已安装的包自动跳过，无需重复安装。可通过 `PIP_INDEX_URL` 环境变量切换镜像源。
+
+### 根目录一键启动（推荐用于直接运行文件）
+
+在仓库根目录执行，脚本会自动识别当前设备并启动对应的端：
+
+```bash
+python main.py            # 自动识别并启动
+python main.py --check    # 只打印识别结果，不启动任何进程
+```
+
+识别规则（任一特征命中即判定为行空板）：
+
+| 特征 | 说明 |
+| --- | --- |
+| `/proc/device-tree/model` 含 `unihiker` | 设备树型号，最直接的硬件特征 |
+| 主机名含 `unihiker` | 出厂主机名特征 |
+| `/etc/unihiker*` 存在 | 出厂镜像配置文件特征 |
+| ARM 架构 + Debian 10 buster | 架构与发行版组合兜底 |
+
+启动行为：
+
+- **识别为行空板** → 用 `os.execv` 替换当前进程为老人端，前台运行，Ctrl+C 直接生效
+- **识别为其他设备** → 后台启动服务端（1059）与子女端（4430），脱离终端会话，打印 PID 后本进程退出；关闭终端不影响服务，日志写入 `logs/server.out` 与 `logs/family.out`
+
+其他参数：`--force-elderly` / `--force-server` 可跳过自动识别强制指定（二者互斥），未被识别的参数原样透传给子程序（如 `python main.py --debug`）。
+
+> 本入口仅面向「直接使用文件启动」的场景。生产环境的开机自启与进程守护请使用 `setup.sh` / `setup.ps1`。
 
 ### 老人端
 

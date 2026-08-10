@@ -167,7 +167,7 @@ family_monitor/
 - 确保老人端 API 可访问
 - 端口 4430 不需要特殊权限
 - 生产环境必须通过 `.env` 配置固定的 `SECRET_KEY`，并设置 `PRODUCTION=true`
-- HTTPS 由 Cloudflare 隧道边缘自动配置，本地监听纯 HTTP
+- 本地监听纯 HTTP，对外访问方式（公网域名与 HTTPS）由根目录 `setup.sh` / `setup.ps1` 统一配置
 
 ## 许可证
 
