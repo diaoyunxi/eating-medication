@@ -38,10 +38,13 @@ if os.getcwd() != BASE_DIR:
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-# 仓库根目录（含统一迁移的 updater.py）
+# 仓库根目录（含统一迁移的 updater.py 与 common/ 包）
+# 注意：必须 append 而非 insert(0)。仓库根目录下存在统一启动入口 main.py，
+# 若把根目录排在 BASE_DIR 之前，本目录的同名模块会被根目录的 main.py 遮蔽。
+# 追加到末尾可保证同名模块优先解析到本目录，同时不影响 updater/common 的导入。
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
 if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+    sys.path.append(PROJECT_ROOT)
 
 # 工作流与硬件访问层（依赖 elderly_assistant 已在 sys.path 中）
 from workflow.reminder import (

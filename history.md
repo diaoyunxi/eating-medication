@@ -3,6 +3,83 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.33.7 (2026-08-10) — 新增根目录统一启动入口 main.py，清理 Cloudflare HTTPS 启动提示
+
+### 概述
+
+新增仓库根目录 `main.py` 作为「直接以文件方式启动」场景的统一入口：自动识别当前设备是否为行空板（UNIHIKER M10，基于 Debian 10 buster 的 ARM 单板机），是则启动老人端，否则后台启动服务端与子女端，使用者无需再手动 `cd` 到各子目录分别启动。同时移除服务端与子女端启动横幅中的「HTTPS: 由 Cloudflare 隧道边缘自动配置，本地监听 HTTP」提示——公网访问与 HTTPS 方案（Cloudflare 隧道 / DDNS + Caddy / 仅内网）已在 `setup.sh` / `setup.ps1` 中由用户显式选择，启动横幅再写死单一方案会与实际部署不符、产生误导。
+
+本版本不改变任何业务逻辑与接口，属纯启动体验与文案修正。
+
+### 主要变更
+
+**根目录（新增入口）**
+- feat(main): 新增 `main.py` 统一启动入口，仅服务于「直接使用文件启动」场景，不与 `setup.sh` / `setup.ps1` 的进程守护职责重叠
+- feat(detect): 实现行空板多特征识别 `detect_unihiker()`，任一命中即判定，并打印命中证据便于排障：
+  - `/proc/device-tree/model` 含 `unihiker`（设备树型号，最直接的硬件特征；已处理 FDT 字符串的 NUL 结尾）
+  - 主机名含 `unihiker`（出厂主机名特征）
+  - `/etc/unihiker*` 配置文件存在（出厂镜像特征，前缀匹配而非精确名匹配）
+  - ARM 架构（`aarch64` / `arm*`）+ Debian 10 buster（架构与发行版组合兜底，兼容 `ID_LIKE=debian` 衍生版与 `VERSION_ID=10.13` 带小版本号写法）
+- feat(main): 非 Linux 平台在 `detect_unihiker()` 中提前短路返回，不做任何 `/proc`、`/etc` 探测
+- feat(main): 识别为行空板时用 `os.execv` 直接替换当前进程为 `elderly_assistant/main.py`，不引入多余父进程，信号（Ctrl+C / SIGTERM）与 GUI 行为保持原生
+- feat(main): 识别为非行空板时以 nohup 语义后台启动 `server/main.py` 与 `family_monitor/main.py`，父进程打印 PID 与日志路径后立即退出，关闭终端不影响服务：
+  - POSIX 用 `start_new_session=True`（等价 `setsid()`），子进程成为新会话首进程，终端关闭的 SIGHUP 不传递
+  - Windows 用 `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`，子进程脱离父控制台
+  - `stdin` 置 `DEVNULL`，`stdout`/`stderr` 追加重定向到 `logs/server.out`、`logs/family.out`，避免终端消失后写日志触发 EPIPE / EBADF
+- feat(main): 优先使用仓库根 `.venv` 内解释器启动子程序，避免依赖装在 venv 而用系统 Python 启动导致的 `import` 失败（后台模式下重启日志不易察觉）
+- feat(main): 支持 `--force-elderly` / `--force-server` 显式覆盖自动识别（二者互斥，同时指定报错退出码 2），`--check` 仅打印识别结果不产生启动副作用；其余参数原样透传给子程序
+- fix(main): `_read_os_release()` 跳过空行与 `#` 注释行，避免误解析成键值对；`OSError` 统一降级为「无法识别」交由后续特征兜底
+- fix(main): 入口文件缺失时给出明确路径提示并以非零码退出，不再让子进程静默失败
+
+**服务端（server）**
+- style(main): 移除启动横幅中的 `HTTPS: 由 Cloudflare 隧道边缘自动配置，本地监听 HTTP` 输出行
+- docs(main): `start_server()` docstring 改写为中性描述「本地监听 HTTP；对外访问方式由 setup.sh / setup.ps1 配置」
+
+**家属端（family_monitor）**
+- style(main): 移除 `lifespan()` 启动日志中的 `HTTPS: 由 Cloudflare 隧道边缘自动配置，本地监听 HTTP` 输出行
+- docs(main): 模块顶部 docstring 与 `uvicorn.run` 前的行内注释改写为中性描述，路径前缀说明由「Cloudflare 隧道按子路径转发」泛化为「反向代理按子路径转发」
+- docs(README): 注意事项中同名表述同步改写
+
+**缺陷修复：根目录 main.py 引发的模块名遮蔽（致命）**
+
+新增根目录 `main.py` 后，`server` 与 `family_monitor` 的模块级代码把仓库根目录以
+`sys.path.insert(0, ...)` 插到搜索路径最前，导致 uvicorn 以 `"main:app"` 字符串重新
+导入 ASGI 应用时解析到根目录的 `main.py`（其中没有 `app` 属性），启动直接失败：
+
+```
+ERROR:    Error loading ASGI app. Attribute "app" not found in module "main".
+```
+
+该问题在 README 记载的标准启动方式 `cd family_monitor && python main.py` 下即可稳定复现，
+属于新增入口文件与既有同名模块的命名冲突，影响服务端与子女端全部启动路径。
+
+- fix(family_monitor/main): 仓库根目录改用 `sys.path.append` 追加到末尾，保证同名模块优先解析到脚本自身目录
+- fix(server/main): 同上，`_REPO_ROOT` 由 `insert(0)` 改为 `append`
+- fix(elderly_assistant/main): 同上，`PROJECT_ROOT` 由 `insert(0)` 改为 `append`（预防性修复，避免后续同类遮蔽）
+- 三处均补充注释说明「为何必须 append 而非 insert(0)」，防止后续维护者改回
+- feat(main): 后台启动子进程时显式将子程序目录置于 `PYTHONPATH` 首位，并以相对文件名而非绝对路径启动，双重保证 `server` / `family_monitor` 各自的同名 `main` 模块互不串味
+
+> 影响评估：`updater`、`common.*` 等跨端共享模块仍可正常导入（根目录仍在 `sys.path` 中，
+> 仅优先级后移），全量测试 523 passed / 10 skipped 无回归。
+
+**文档与版本**
+- docs(README): 快速开始新增「根目录一键启动」小节，说明自动识别规则、后台运行行为与日志位置
+- chore(version): `VERSION` 2.33.6 -> 2.33.7；同步修正 README 顶部滞后的版本号标注
+
+### 涉及文件
+
+- `main.py`（新增）
+- `server/main.py`（修改：文案清理 + sys.path 遮蔽修复）
+- `family_monitor/main.py`（修改：文案清理 + sys.path 遮蔽修复）
+- `elderly_assistant/main.py`（修改：sys.path 遮蔽预防性修复）
+- `family_monitor/README.md`（修改）
+- `README.md`（修改）
+- `.gitignore`（新增 `logs/` 忽略规则）
+- `VERSION` — 2.33.6 -> 2.33.7
+- `history.md`
+
+---
+
 ## v2.30.0 (2026-08-07) — 新增药品编号（product_code）与老人端扫码播报、用药计划离线回退
 
 ### 概述
