@@ -1256,7 +1256,10 @@ main() {
         printf '%s\n' '------------------------------------------------------------'
         printf '  后续步骤（老人端）:\n'
         printf '  1) 查看日志: journalctl -u eating-medication-elderly -f\n'
-        printf '  2) 更新代码: sudo bash %s/deploy/setup-linux.sh\n' "$DEPLOY_DIR"
+        printf '  2) 更新代码（安全自动更新，保留 .env/data）:\n'
+        printf '     sudo %s/venv/bin/python %s/updater.py\n' "$DEPLOY_DIR" "$DEPLOY_DIR"
+        printf '     或强制更新: sudo %s/venv/bin/python %s/updater.py --force\n' "$DEPLOY_DIR" "$DEPLOY_DIR"
+        printf '     注: 服务启动时也会自动检查更新（AUTO_PULL，默认开启）\n'
         printf '%s\n' '------------------------------------------------------------'
     else
         $SUDO systemctl status eating-medication-server --no-pager --lines=0 2>/dev/null || true
@@ -1267,7 +1270,10 @@ main() {
         printf '  1) 查看日志:\n'
         printf '     journalctl -u eating-medication-server -f\n'
         printf '     journalctl -u eating-medication-family -f\n'
-        printf '  2) 更新代码: sudo bash %s/deploy/setup-linux.sh\n' "$DEPLOY_DIR"
+        printf '  2) 更新代码（安全自动更新，保留 .env/data）:\n'
+        printf '     sudo %s/venv/bin/python %s/updater.py\n' "$DEPLOY_DIR" "$DEPLOY_DIR"
+        printf '     或强制更新: sudo %s/venv/bin/python %s/updater.py --force\n' "$DEPLOY_DIR" "$DEPLOY_DIR"
+        printf '     注: 服务启动时也会自动检查更新（AUTO_PULL，默认开启）\n'
         case "$ACCESS_MODE" in
             1)
                 printf '  3) Cloudflare 隧道路由:\n'
