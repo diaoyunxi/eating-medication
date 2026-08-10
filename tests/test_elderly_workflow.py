@@ -12,8 +12,8 @@ if str(EA) not in sys.path:
 
 from workflow.reminder import ReminderState, check_medication_trigger
 from workflow.actions import handle_confirm, handle_snooze
-from workflow.button_input import ButtonController
-from hardware.fakes import FakeButton, FakeBuzzer, FakeDisplay, FakeHttpClient
+from core.display import Display
+from hardware.fakes import FakeBuzzer, FakeDisplay, FakeHttpClient
 
 
 class FakePoller:
@@ -100,51 +100,60 @@ class TestHandleConfirm(unittest.TestCase):
         self.assertEqual(http.confirmed, ("阿司匹林", "1片"))
 
 
-class TestButtonController(unittest.TestCase):
-    def test_short_press_confirms_when_active(self):
-        ctrl = ButtonController(long_press_sec=1.5)
+class TestScreenActionButtons(unittest.TestCase):
+    """原物理按键 A/B 已移除，确认/问AI/暂缓改为屏幕触摸按钮。
+
+    本测试验证 Display 的屏幕动作按钮回调注入与触发逻辑（不依赖硬件）。
+    """
+
+    def test_confirm_button_triggers_confirm(self):
+        # Display 在无 GUI 环境下 gui=None，set_action_handlers/_on_action_clicked 不依赖 gui
+        display = Display()
         st = ReminderState()
         st.trigger("药", "1片", "k")
-        btn = FakeButton(pressed=False)
         buzzer = FakeBuzzer()
-        display = FakeDisplay()
         http = FakeHttpClient()
         log = __import__("logging").getLogger("t")
         confirmed = []
 
         def on_confirm():
-            # 与 main 主循环一致：on_confirm 实际执行确认动作
             confirmed.append(1)
             handle_confirm(st, buzzer, display, http, log)
 
-        ctrl.process(1.0, btn, None, st, on_confirm, lambda: None, lambda: None)
-        self.assertEqual(confirmed, [])
-        btn.set_pressed(True)
-        ctrl.process(1.1, btn, None, st, on_confirm, lambda: None, lambda: None)
-        btn.set_pressed(False)
-        ctrl.process(1.2, btn, None, st, on_confirm, lambda: None, lambda: None)
+        display.set_action_handlers({"confirm": on_confirm})
+        self.assertTrue(display._on_action_clicked("confirm"))
         self.assertEqual(confirmed, [1])
         self.assertFalse(st.active)
 
-    def test_long_press_triggers_ai(self):
-        ctrl = ButtonController(long_press_sec=1.5)
-        st = ReminderState()
-        st.trigger("药", "1片", "k")
-        btn = FakeButton(pressed=True)
+    def test_ai_button_triggers_handler(self):
+        display = Display()
         ai = []
-        ctrl.process(1.0, btn, None, st, lambda: None, lambda: ai.append(1), lambda: None)
-        ctrl.process(3.0, btn, None, st, lambda: None, lambda: ai.append(1), lambda: None)
+        display.set_action_handlers({"ask_ai": lambda: ai.append(1)})
+        self.assertTrue(display._on_action_clicked("ask_ai"))
         self.assertEqual(ai, [1])
 
-    def test_snooze_when_active(self):
-        ctrl = ButtonController(long_press_sec=1.5)
+    def test_snooze_button_triggers_handler(self):
+        display = Display()
         st = ReminderState()
         st.trigger("药", "1片", "k")
-        btn_b = FakeButton(pressed=True)
         snoozed = []
-        ctrl.process(1.0, None, btn_b, st, lambda: None, lambda: None, lambda: snoozed.append(1))
+        display.set_action_handlers({"snooze": lambda: snoozed.append(1)})
+        self.assertTrue(display._on_action_clicked("snooze"))
         self.assertEqual(snoozed, [1])
-        self.assertGreater(ctrl.button_block_until, 1.0)
+        self.assertTrue(st.active)  # 暂缓不清除提醒
+
+    def test_missing_handler_is_noop(self):
+        display = Display()
+        # 未注入任何回调时，点击任意动作应安全返回 False，不抛异常
+        self.assertFalse(display._on_action_clicked("confirm"))
+        self.assertFalse(display._on_action_clicked("ask_ai"))
+        self.assertFalse(display._on_action_clicked("snooze"))
+
+    def test_handler_exception_is_isolated(self):
+        display = Display()
+        display.set_action_handlers({"confirm": lambda: 1 / 0})
+        # 回调抛异常应被隔离，返回 False，不向上传播
+        self.assertFalse(display._on_action_clicked("confirm"))
 
 
 if __name__ == "__main__":

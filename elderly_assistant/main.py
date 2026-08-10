@@ -2,15 +2,17 @@
 # -*- coding: utf-8 -*-
 """
 老人端主程序（行空板 M10）
-- 使用 pinpong 库控制硬件（蜂鸣器、按钮、光线传感器、LED）
+- 使用 pinpong 库控制硬件（蜂鸣器、光线传感器、LED 指示灯）
 - 使用 unihiker GUI 显示界面
+- 用药操作（确认服药 / 问AI / 暂缓）全部通过屏幕触摸按钮完成（不再使用物理按键）
 - 后台热点 + 配网 Web 服务 + 用药计划轮询
-- 主循环：更新时间显示、检查按钮、检查用药提醒
+- 主循环：更新时间显示、检查用药提醒
 
 本文件仅负责「装配」与「主循环骨架」：
-- 硬件板级访问集中于 hardware.board（Board 初始化幂等、按钮/LED 句柄获取）
-- 用药提醒工作流（状态机/轮询/触发/确认/暂缓/AI问答/按钮输入）集中于 workflow
-这样业务逻辑与具体硬件解耦，便于在无 M10 硬件环境下进行单元测试。
+- 硬件板级访问集中于 hardware.board（Board 初始化幂等、LED 句柄获取）
+- 用药提醒工作流（状态机/轮询/触发/确认/暂缓/AI问答）集中于 workflow
+- 屏幕触摸按钮由 core.display.Display 提供，动作通过回调注入，业务逻辑与硬件解耦
+这样便于在无 M10 硬件环境下进行单元测试。
 """
 
 import os
@@ -78,8 +80,8 @@ from workflow.actions import (
     _ask_ai_and_speak,
     _capture_and_upload,
 )
-from workflow.button_input import ButtonController
-from hardware.board import init_pinpong_board, get_buttons, get_led
+# 注：原物理按钮 A/B 已移除，全部改用屏幕触摸按钮（见 display.set_action_handlers）
+from hardware.board import init_pinpong_board, get_led
 
 DEBUG_MODE = False
 
@@ -246,8 +248,7 @@ def main():
     except Exception as e:
         logger.error(f"HTTP 客户端初始化失败: {e}")
 
-    # 5. 获取按钮句柄
-    button_a, button_b = get_buttons()
+    # 5. 获取 LED 句柄（屏幕按钮无需物理按键）
     led = get_led()
 
     # 5.1 初始化药品条码扫描器（HuskyLens 板载解码优先，回退 USB 摄像头本地解码）
@@ -340,6 +341,28 @@ def main():
 
     display.set_scan_handler(_on_scan_button)
 
+    # 8.3 注册提醒界面「确认服药 / 问AI / 稍后提醒」三个屏幕按钮回调，
+    #      替代原物理按键 A/B（老年用户按键不便，全部改为屏幕触摸按钮）
+    def _on_confirm():
+        handle_confirm(reminder_state, buzzer, display, http_client, logger, speech, config)
+
+    def _on_ai():
+        import threading as _th
+        _th.Thread(
+            target=_ask_ai_and_speak,
+            args=(reminder_state, http_client, speech, logger, config),
+            daemon=True,
+        ).start()
+
+    def _on_snooze():
+        handle_snooze(reminder_state, buzzer, display, snooze_minutes, logger)
+
+    display.set_action_handlers({
+        "confirm": _on_confirm,
+        "ask_ai": _on_ai,
+        "snooze": _on_snooze,
+    })
+
     # 9. 显示主界面（含「扫码查药」触摸按钮）
     display.show_main_screen(device_uuid=device_uuid, server_url=server_url, connected=False)
 
@@ -348,13 +371,8 @@ def main():
 
     # LED 心跳与服务器状态检查
     last_status_check = 0
-    last_button_check = 0
     last_time_update = 0
     server_connected = False
-    # 按钮 A 长按阈值（秒），超过则触发 AI 问答；可由配置 long_press_sec 覆盖
-    long_press_sec = float(reminder_cfg.get('long_press_sec', 1.5))
-    # 按钮控制器：封装按钮 A/B 边沿与长按检测（行为与原内联逻辑一致）
-    button_controller = ButtonController(long_press_sec=long_press_sec)
 
     # 10. 主循环
     logger.info("进入主循环")
@@ -391,32 +409,8 @@ def main():
                 now, poller, reminder_state, buzzer, display, snooze_minutes, logger, speech
             )
 
-            # ---- 检查按钮（约每 200ms 一次，非阻塞）----
-            # 非阻塞防抖：防抖屏蔽期内跳过按钮检测，避免 sleep 阻塞主循环
-            if (now.timestamp() - last_button_check) >= 0.2 and now.timestamp() >= button_controller.button_block_until:
-                last_button_check = now.timestamp()
-                # 按钮 A：短按=确认服药；长按(>阈值)=问 AI 该药注意事项并语音播报
-                # 按钮 B：暂不提醒（5分钟后再提醒）
-                # 药品扫码由屏幕「扫码查药」触摸按钮触发，不占用物理按键
-                # 具体动作通过回调注入，保持工作流与硬件解耦、可单测
-                def _on_confirm():
-                    handle_confirm(reminder_state, buzzer, display, http_client, logger, speech, config)
-
-                def _on_ai():
-                    import threading as _th
-                    _th.Thread(
-                        target=_ask_ai_and_speak,
-                        args=(reminder_state, http_client, speech, logger, config),
-                        daemon=True,
-                    ).start()
-
-                def _on_snooze():
-                    handle_snooze(reminder_state, buzzer, display, snooze_minutes, logger)
-
-                button_controller.process(
-                    now.timestamp(), button_a, button_b, reminder_state,
-                    _on_confirm, _on_ai, _on_snooze,
-                )
+            # 注：原物理按钮 A/B 检测已移除，确认/问AI/暂缓均由屏幕触摸按钮触发
+            #     （display.set_action_handlers 注入回调，回调解耦合与硬件无关）
 
             # ---- LED 心跳：连接时亮，断开时灭 ----
             if led:

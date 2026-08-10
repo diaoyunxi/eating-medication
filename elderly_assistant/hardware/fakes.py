@@ -1,22 +1,8 @@
 # -*- coding: utf-8 -*-
 """硬件测试替身（Fake）。
 
-在无真实 M10 硬件时，供工作流单元测试注入，验证提醒状态机、确认/暂缓、
-按钮边沿与长按逻辑的正确性。
+在无真实 M10 硬件时，供工作流单元测试注入，验证提醒状态机、确认/暂缓逻辑的正确性。
 """
-
-
-class FakeButton:
-    """可程序化控制按下状态的按钮替身，满足 ButtonPort 接口。"""
-
-    def __init__(self, pressed: bool = False):
-        self._pressed = pressed
-
-    def is_pressed(self) -> bool:
-        return self._pressed
-
-    def set_pressed(self, value: bool) -> None:
-        self._pressed = value
 
 
 class FakeLed:
