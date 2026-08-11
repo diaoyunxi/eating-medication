@@ -199,6 +199,10 @@ app.include_router(ai_config.router, prefix=api_prefix)
 app.include_router(vision.router, prefix=api_prefix)
 app.include_router(public.router, prefix=api_prefix)
 app.include_router(chat.router, prefix=api_prefix)
+# 家属设备接口：已登录家属用 JWT 访问其绑定设备的数据，替代此前复用设备
+# 令牌接口（设备令牌仅存于老人端本机，已注册设备不再下发，导致子女端 403）
+from app.api.v1.endpoints.family_device import router as family_device_router
+app.include_router(family_device_router, prefix=api_prefix)
 # OAuth 路由统一带 /auth 前缀，真实路径为 /api/v1/auth/oauth/...
 # 与 family_monitor 的 _server_url("/auth/oauth/...") 调用及回调配置保持一致
 app.include_router(oauth.router, prefix=f"{api_prefix}/auth")

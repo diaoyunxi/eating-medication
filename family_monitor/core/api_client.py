@@ -29,6 +29,24 @@ class ElderlyAPIClient(BaseServerClient):
         super().__init__(base_url=config.ELDERLY_SERVER_URL, timeout=10.0)
         self._device_id = self._load_bound_device_id()
         self._device_token = self._load_device_token()
+        # 家属登录态 JWT：当子女端网页以登录家属身份访问设备数据时设置，
+        # 此时改用 /api/v1/family/device/* 接口（JWT 鉴权 + 设备绑定校验），
+        # 不再依赖老人端设备令牌（设备令牌仅存于老人端本机，已注册设备不再
+        # 下发，导致子女端此前拿到空令牌、/device/status 返回 403）。
+        self._jwt_token: Optional[str] = None
+        self._family_auth: bool = False
+
+    def set_jwt_token(self, token: Optional[str]) -> None:
+        """设置子女端登录家属的 JWT（来自登录 cookie），用于家属授权接口。"""
+        self._jwt_token = token
+        if token:
+            self._family_auth = True
+
+    def set_family_auth(self, enabled: bool) -> None:
+        self._family_auth = enabled and bool(self._jwt_token)
+
+    def _family_mode(self) -> bool:
+        return self._family_auth and bool(self._jwt_token)
 
     def _auth_headers(self) -> Dict[str, str]:
         """返回携带设备ID和设备令牌的请求头"""
@@ -40,6 +58,150 @@ class ElderlyAPIClient(BaseServerClient):
         if self._device_token:
             headers["X-Device-Token"] = self._device_token
         return headers
+
+    def _jwt_headers(self) -> Dict[str, str]:
+        """返回携带登录家属 JWT 的请求头（家属授权接口使用）。"""
+        headers = {}
+        if self._jwt_token:
+            headers["Authorization"] = f"Bearer {self._jwt_token}"
+        return headers
+
+    async def bind_device_family(self, device_id: str, device_name: str = "") -> Dict[str, Any]:
+        """通过家属授权接口绑定设备并获取设备令牌（解决空令牌 403 根因）。
+
+        已登录家属调用 /api/v1/family/device/bind，server 端校验设备已注册后
+        将当前账号绑定该设备并返回设备令牌，子女端本地保存供后续使用。
+        """
+        payload = {"device_id": device_id, "device_name": device_name}
+        try:
+            response = await self._execute(
+                "POST", "/api/v1/family/device/bind", json_body=payload, headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                data = response.json()
+                token = data.get("device_token", "")
+                if token:
+                    self._device_token = token
+                    self._device_id = device_id
+                return data
+            return {"status": "error", "msg": f"绑定失败 status={response.status_code}"}
+        except Exception as e:
+            return {"status": "error", "msg": f"绑定请求异常: {str(e)}"}
+
+    async def _status_via_family(self) -> Dict[str, Any]:
+        try:
+            response = await self._execute(
+                "GET", f"/api/v1/family/device/status/{self._device_id}", headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    'connected': data.get('is_online', False),
+                    'device_id': data.get('device_id'),
+                    'device_name': data.get('device_name'),
+                    'role': data.get('role'),
+                    'created_at': data.get('created_at'),
+                    'total_plans': data.get('total_plans', 0),
+                    'total_records': data.get('total_records', 0),
+                    'status': data.get('status', 'offline'),
+                    'last_heartbeat': data.get('last_heartbeat'),
+                    'last_check': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            return {'connected': False, 'device_id': self._device_id,
+                    'device_name': '设备离线', 'status': 'offline'}
+        except Exception:
+            return {'connected': False, 'device_id': self._device_id,
+                    'device_name': '设备离线', 'status': 'offline'}
+
+    async def _plans_via_family(self) -> Dict[str, Any]:
+        try:
+            response = await self._execute(
+                "GET", f"/api/v1/family/device/plans/{self._device_id}", headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                return response.json()
+            return {'device_id': self._device_id, 'plans': []}
+        except Exception:
+            return {'device_id': self._device_id, 'plans': []}
+
+    async def _records_via_family(self, limit: int = 100) -> Dict[str, Any]:
+        try:
+            response = await self._execute(
+                "GET", f"/api/v1/family/device/records/{self._device_id}?limit={limit}",
+                headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                return response.json()
+            return {'device_id': self._device_id, 'records': []}
+        except Exception:
+            return {'device_id': self._device_id, 'records': []}
+
+    async def _chat_history_via_family(self, limit: int = 50) -> Dict[str, Any]:
+        try:
+            response = await self._execute(
+                "GET", f"/api/v1/family/device/chat_history/{self._device_id}?limit={limit}",
+                headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                return response.json()
+            return {'device_id': self._device_id, 'messages': []}
+        except Exception:
+            return {'device_id': self._device_id, 'messages': []}
+
+    async def _set_plan_via_family(self, drug_name: str, dosage: str, frequency: str,
+                                   schedule_times: list, total_quantity: float,
+                                   remaining_quantity: float, unit: str,
+                                   product_code: Optional[str], low_stock_threshold: int) -> Dict[str, Any]:
+        payload = {
+            "device_id": self._device_id, "drug_name": drug_name, "dosage": dosage,
+            "product_code": product_code, "frequency": frequency,
+            "schedule_times": schedule_times, "total_quantity": total_quantity,
+            "remaining_quantity": remaining_quantity, "unit": unit,
+            "low_stock_threshold": low_stock_threshold,
+        }
+        try:
+            response = await self._execute(
+                "POST", "/api/v1/family/device/medication_plan", json_body=payload, headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                return {"success": True, "data": response.json()}
+            return {"success": False, "error": self._extract_error(response)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def _update_plan_via_family(self, plan_id: int, drug_name: str, dosage: str,
+                                      frequency: str, schedule_times: list, total_quantity: float,
+                                      remaining_quantity: float, unit: str,
+                                      product_code: Optional[str], low_stock_threshold: int) -> Dict[str, Any]:
+        payload = {
+            "device_id": self._device_id, "drug_name": drug_name, "dosage": dosage,
+            "product_code": product_code, "frequency": frequency,
+            "schedule_times": schedule_times, "total_quantity": total_quantity,
+            "remaining_quantity": remaining_quantity, "unit": unit,
+            "low_stock_threshold": low_stock_threshold,
+        }
+        try:
+            response = await self._execute(
+                "PUT", f"/api/v1/family/device/medication_plan/{plan_id}",
+                json_body=payload, headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                return {"success": True, "data": response.json()}
+            return {"success": False, "error": self._extract_error(response)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def _delete_plan_via_family(self, plan_id: int) -> Dict[str, Any]:
+        try:
+            response = await self._execute(
+                "DELETE", f"/api/v1/family/device/medication_plan/{plan_id}?device_id={self._device_id}",
+                headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                return {"success": True, "data": response.json()}
+            return {"success": False, "error": self._extract_error(response)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     @staticmethod
     def _extract_error(response) -> str:
@@ -175,6 +337,9 @@ class ElderlyAPIClient(BaseServerClient):
 
         调用 GET /api/v1/public/device/plans/{self._device_id}
         """
+        if self._family_mode():
+            data = await self._plans_via_family()
+            return data.get('plans', []) or []
         if not self._device_id:
             return []
         try:
@@ -209,6 +374,14 @@ class ElderlyAPIClient(BaseServerClient):
         if not self._device_id:
             return {"success": False, "error": "未绑定 M10 设备，请先在设置页面绑定设备后再添加用药计划"}
 
+        # 家属登录态：走家属授权接口，不再依赖老人端设备令牌
+        if self._family_mode():
+            return await self._set_plan_via_family(
+                drug_name, dosage, frequency, schedule_times, total_quantity,
+                remaining_quantity if remaining_quantity is not None else total_quantity,
+                unit, product_code, low_stock_threshold
+            )
+
         # remaining_quantity 未指定时默认等于 total_quantity
         if remaining_quantity is None:
             remaining_quantity = total_quantity
@@ -241,6 +414,8 @@ class ElderlyAPIClient(BaseServerClient):
 
         调用 DELETE /api/v1/public/device/medication_plan/{plan_id}
         """
+        if self._family_mode():
+            return await self._delete_plan_via_family(plan_id)
         try:
             response = await self._execute(
                 "DELETE", f"/api/v1/public/device/medication_plan/{plan_id}",
@@ -273,6 +448,14 @@ class ElderlyAPIClient(BaseServerClient):
         if not self._device_id:
             return {"success": False, "error": "未绑定 M10 设备，请先在设置页面绑定设备后再更新用药计划"}
 
+        # 家属登录态：走家属授权接口，不再依赖老人端设备令牌
+        if self._family_mode():
+            return await self._update_plan_via_family(
+                plan_id, drug_name, dosage, frequency, schedule_times, total_quantity,
+                remaining_quantity if remaining_quantity is not None else total_quantity,
+                unit, product_code, low_stock_threshold
+            )
+
         if remaining_quantity is None:
             remaining_quantity = total_quantity
 
@@ -301,6 +484,8 @@ class ElderlyAPIClient(BaseServerClient):
 
     async def get_device_info(self) -> Dict[str, Any]:
         """从服务端获取老人端设备信息"""
+        if self._family_mode():
+            return await self._status_via_family()
         if not self._device_id:
             return {
                 'connected': False,
@@ -344,6 +529,9 @@ class ElderlyAPIClient(BaseServerClient):
 
     async def get_reminders(self) -> List[Dict[str, Any]]:
         """获取提醒列表（改用公开接口 /device/plans）"""
+        if self._family_mode():
+            data = await self._plans_via_family()
+            return data.get('plans', []) or []
         if not self._device_id:
             return []
         try:
@@ -359,6 +547,9 @@ class ElderlyAPIClient(BaseServerClient):
 
     async def get_medication_records(self) -> List[Dict[str, Any]]:
         """获取用药记录（改用公开接口 /device/records）"""
+        if self._family_mode():
+            data = await self._records_via_family()
+            return data.get('records', []) or []
         if not self._device_id:
             return []
         try:
@@ -586,6 +777,9 @@ class ElderlyAPIClient(BaseServerClient):
 
     async def get_chat_history(self, limit: int = 50) -> List[Dict[str, Any]]:
         """获取聊天历史（通过公开接口获取）"""
+        if self._family_mode():
+            data = await self._chat_history_via_family(limit)
+            return data.get('messages', []) or []
         if not self._device_id:
             return []
         try:
@@ -617,3 +811,17 @@ class ElderlyAPIClient(BaseServerClient):
 
 # 全局客户端实例
 elderly_client = ElderlyAPIClient()
+
+
+def make_family_client(jwt_token: str) -> "ElderlyAPIClient":
+    """创建携带登录家属 JWT 的客户端实例（请求级，避免全局单例 token 串号）。
+
+    已登录家属访问设备数据时，使用此实例调用 /api/v1/family/device/* 接口，
+    由 server 端校验"当前账号已绑定该设备"，不再依赖老人端设备令牌。
+    """
+    client = ElderlyAPIClient()
+    client.set_jwt_token(jwt_token)
+    return client
+
+
+
