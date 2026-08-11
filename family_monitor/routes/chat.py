@@ -7,7 +7,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from core import config, elderly_client
-from routes.web_helpers import templates, require_login, login_redirect, unauthorized_json
+from routes.web_helpers import templates, require_login, login_redirect, unauthorized_json, family_client
 
 router = APIRouter()
 
@@ -56,5 +56,6 @@ async def chat_history(request: Request, limit: int = 50):
         return unauthorized_json()
     # 边界校验：限制 1~200，防止过大查询拖慢服务
     limit = max(1, min(limit, 200))
-    messages = await elderly_client.get_chat_history(limit=limit)
+    fc = family_client(request) or elderly_client
+    messages = await fc.get_chat_history(limit=limit)
     return JSONResponse(content={"success": True, "messages": messages})

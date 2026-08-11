@@ -69,3 +69,23 @@ async def user_api_request(method: str, path: str, *, token: str,
     except Exception:
         data = {"detail": resp.text}
     return resp.status_code, data
+
+
+def get_jwt_from_request(request: Request) -> str:
+    """从登录 cookie 取出当前用户的 access_token（Bearer 凭证）。"""
+    return request.cookies.get("access_token", "") or ""
+
+
+def family_client(request: Request):
+    """为已登录家属创建一个携带 JWT 的设备客户端（请求级，避免全局 token 串号）。
+
+    返回的客户端调用 /api/v1/family/device/* 接口，由 server 端校验"当前账号
+    已绑定该设备"，从根本上解决此前复用设备令牌（空令牌导致 403）的问题。
+
+    :return: ElderlyAPIClient 实例；未登录时返回 None
+    """
+    from core.api_client import make_family_client
+    token = get_jwt_from_request(request)
+    if not token:
+        return None
+    return make_family_client(token)
