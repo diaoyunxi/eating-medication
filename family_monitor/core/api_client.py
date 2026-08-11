@@ -55,6 +55,34 @@ class ElderlyAPIClient(BaseServerClient):
     def _family_mode(self) -> bool:
         return self._family_auth and bool(self._jwt_token)
 
+    async def _resolve_family_device_id(self) -> Optional[str]:
+        """在 family 模式下，从服务端解析当前家属账号真实绑定的 device_id。
+
+        权威来源是服务端 /api/v1/users/me 返回的 device_id（家属绑定设备时写入
+        current_user.device_id），而非本地 bound_device.json。本地文件可能因
+        历史残留、重装或不同账号登录而与服务端不一致，导致"设置页显示已绑定、
+        其余页面显示未绑定/离线"的假绑定现象。
+
+        仅当 self._device_id 为空且处于 family 模式时发起查询（避免重复请求）。
+        查询成功后缓存到 self._device_id，供 _status_via_family 等拼 URL 使用。
+        """
+        if not self._family_mode() or self._device_id:
+            return self._device_id or None
+        try:
+            response = await self._execute(
+                "GET", "/api/v1/users/me", headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, dict):
+                    device_id = data.get("device_id")
+                    if device_id:
+                        self._device_id = str(device_id)
+                        return self._device_id
+        except Exception:
+            pass
+        return None
+
     def _auth_headers(self) -> Dict[str, str]:
         """返回携带设备ID和设备令牌的请求头"""
         headers = {}
@@ -96,6 +124,10 @@ class ElderlyAPIClient(BaseServerClient):
             return {"status": "error", "msg": f"绑定请求异常: {str(e)}"}
 
     async def _status_via_family(self) -> Dict[str, Any]:
+        # 以服务端绑定关系为准解析 device_id，避免本地文件残留导致的假绑定
+        if not await self._resolve_family_device_id():
+            return {'connected': False, 'device_id': None,
+                    'device_name': '未绑定设备', 'status': '未绑定'}
         try:
             response = await self._execute(
                 "GET", f"/api/v1/family/device/status/{self._device_id}", headers=self._jwt_headers()
@@ -121,6 +153,8 @@ class ElderlyAPIClient(BaseServerClient):
                     'device_name': '设备离线', 'status': 'offline'}
 
     async def _plans_via_family(self) -> Dict[str, Any]:
+        if not await self._resolve_family_device_id():
+            return {'device_id': None, 'plans': []}
         try:
             response = await self._execute(
                 "GET", f"/api/v1/family/device/plans/{self._device_id}", headers=self._jwt_headers()
@@ -132,6 +166,8 @@ class ElderlyAPIClient(BaseServerClient):
             return {'device_id': self._device_id, 'plans': []}
 
     async def _records_via_family(self, limit: int = 100) -> Dict[str, Any]:
+        if not await self._resolve_family_device_id():
+            return {'device_id': None, 'records': []}
         try:
             response = await self._execute(
                 "GET", f"/api/v1/family/device/records/{self._device_id}?limit={limit}",
@@ -144,6 +180,8 @@ class ElderlyAPIClient(BaseServerClient):
             return {'device_id': self._device_id, 'records': []}
 
     async def _chat_history_via_family(self, limit: int = 50) -> Dict[str, Any]:
+        if not await self._resolve_family_device_id():
+            return {'device_id': None, 'messages': []}
         try:
             response = await self._execute(
                 "GET", f"/api/v1/family/device/chat_history/{self._device_id}?limit={limit}",
@@ -157,6 +195,8 @@ class ElderlyAPIClient(BaseServerClient):
 
     async def _reminders_via_family(self, limit: int = 50) -> Dict[str, Any]:
         """家属模式下获取绑定设备的今日提醒（/family/device/reminders）。"""
+        if not await self._resolve_family_device_id():
+            return {'device_id': None, 'reminders': []}
         try:
             response = await self._execute(
                 "GET", f"/api/v1/family/device/reminders/{self._device_id}?limit={limit}",
@@ -172,6 +212,8 @@ class ElderlyAPIClient(BaseServerClient):
                                    schedule_times: list, total_quantity: float,
                                    remaining_quantity: float, unit: str,
                                    product_code: Optional[str], low_stock_threshold: int) -> Dict[str, Any]:
+        if not await self._resolve_family_device_id():
+            return {"success": False, "error": "当前账号尚未绑定设备，请先在设置页绑定"}
         payload = {
             "device_id": self._device_id, "drug_name": drug_name, "dosage": dosage,
             "product_code": product_code, "frequency": frequency,
@@ -193,6 +235,8 @@ class ElderlyAPIClient(BaseServerClient):
                                       frequency: str, schedule_times: list, total_quantity: float,
                                       remaining_quantity: float, unit: str,
                                       product_code: Optional[str], low_stock_threshold: int) -> Dict[str, Any]:
+        if not await self._resolve_family_device_id():
+            return {"success": False, "error": "当前账号尚未绑定设备，请先在设置页绑定"}
         payload = {
             "device_id": self._device_id, "drug_name": drug_name, "dosage": dosage,
             "product_code": product_code, "frequency": frequency,
@@ -212,6 +256,8 @@ class ElderlyAPIClient(BaseServerClient):
             return {"success": False, "error": str(e)}
 
     async def _delete_plan_via_family(self, plan_id: int) -> Dict[str, Any]:
+        if not await self._resolve_family_device_id():
+            return {"success": False, "error": "当前账号尚未绑定设备，请先在设置页绑定"}
         try:
             response = await self._execute(
                 "DELETE", f"/api/v1/family/device/medication_plan/{plan_id}?device_id={self._device_id}",
@@ -848,12 +894,6 @@ def make_family_client(jwt_token: str) -> "ElderlyAPIClient":
     """
     client = ElderlyAPIClient(load_bound=False)
     client.set_jwt_token(jwt_token)
-    # 关键修复：家属实例同样需要已绑定的 device_id，否则除设置页外的所有页面
-    # 因 URL 缺 device_id 被服务端拒绝，显示为未绑定/不在线。
-    bound = client.get_bound_device()
-    if bound:
-        client._device_id = bound.get("device_id") or ""
-        client._device_token = bound.get("device_token") or ""
     return client
 
 
