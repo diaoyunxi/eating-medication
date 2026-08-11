@@ -251,6 +251,13 @@ def main():
     # 1. 初始化 pinpong Board（幂等，集中由 hardware.board 管理）
     init_pinpong_board()
 
+    # 1.1 M10 屏幕依赖 unihiker → tkinter 底层，启动前补全 DISPLAY 环境变量；
+    #     SSH / systemd 等无交互会话可能导致该变量缺失，tk.Tk() 在线程内抛出
+    #     "no display name and no $DISPLAY environment variable" 异常。
+    if os.name == 'posix' and 'DISPLAY' not in os.environ:
+        os.environ['DISPLAY'] = ':0'
+        logger.info("自动设置环境变量 DISPLAY=:0（M10 默认屏幕）")
+
     # 2. 创建 GUI 显示界面
     display = Display()
 
