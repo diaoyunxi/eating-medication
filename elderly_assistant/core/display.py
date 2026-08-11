@@ -20,22 +20,20 @@ class Display:
     CENTER_Y = SCREEN_H // 2
 
     # ---- 主界面底部两行小字布局 ----
-    # UUID 与服务器状态原先同处 y=SCREEN_H-30 一行：UUID 从左侧 x=10 向右延伸，
-    # 状态以 top_right 锚定右边缘向左延伸。但 get_device_id() 返回标准 36 字符
-    # UUID（uuid5，含 4 个连字符），加前缀 "UUID: " 共 42 字符，font_size=10 下
-    # 宽度约 210~250px，已超出 240px 屏宽，必然横向压到右侧状态文字上。
-    # 故拆为上下两行：状态在上、UUID 在下，各占一行互不干扰。
+    # 设备 ID 与服务器状态原先同处 y=SCREEN_H-30 一行左右分列，横向必然叠压，
+    # 故拆为上下两行：状态在上、设备 ID 在下，各占一行互不干扰。
+    # 设备 ID 现为 uuid.getnode() 的十进制整数（约 15 位，如 218356669348204），
+    # font_size=9 下宽约 75px，单行居中显示绰绰有余，无需截断。
     STATUS_TEXT_Y = SCREEN_H - 34         # 服务器状态行
-    UUID_TEXT_Y = SCREEN_H - 20           # 设备 UUID 行（下移 14px，与状态行分离）
-    BOTTOM_TEXT_SIZE = 9                  # 底部小字字号（缩小 1px 进一步压缩占宽）
-    UUID_SHORT_LEN = 8                    # UUID 仅显示前 8 位，足以区分设备
+    UUID_TEXT_Y = SCREEN_H - 20           # 设备 ID 行（下移 14px，与状态行分离）
+    BOTTOM_TEXT_SIZE = 9                  # 底部小字字号
 
     def __init__(self):
         self.gui = None
         # 控件引用
         self._time_text = None          # 主时间显示
         self._date_text = None          # 日期显示
-        self._uuid_text = None          # 设备UUID 底部小字
+        self._uuid_text = None          # 设备ID 底部小字
         self._status_text = None        # 服务器连接状态底部小字
         self._next_reminder_text = None # 下一个用药提醒
         self._reminder_text = None      # 当前用药提醒（大字）
@@ -148,7 +146,7 @@ class Display:
         绘制主界面框架：
         - 顶部：当前时间（大字体居中）
         - 中部：下一个用药提醒（如有）
-        - 底部：设备UUID、服务器连接状态（小字）
+        - 底部：服务器连接状态、设备ID（上下两行小字）
         """
         if not self.gui:
             return
@@ -208,18 +206,17 @@ class Display:
             return f'服务器: 未连接'
 
     def _format_uuid(self, device_uuid):
-        """格式化底部设备 UUID 文本（截断为前 8 位）。
+        """格式化底部设备 ID 文本。
 
-        标准 UUID 共 36 字符，加前缀后在 240px 屏宽下会横向溢出并与同区域的
-        状态文字重叠。前 8 位（uuid5 派生，取自 MAC 哈希）已足够现场区分设备，
-        完整 UUID 可在配网页面与服务端查看。
+        设备 ID 为 uuid.getnode() 的十进制整数（约 15 位），完整显示即可，
+        家属需据此在子女端绑定设备，故不作截断。
 
-        :param device_uuid: 完整设备 UUID，空值返回占位符
-        :return: 形如 'ID: f47ac10b' 的短文本
+        :param device_uuid: 设备 ID，空值返回占位符
+        :return: 形如 'ID: 218356669348204' 的文本
         """
         if not device_uuid:
             return 'ID: --'
-        return f'ID: {str(device_uuid)[:self.UUID_SHORT_LEN]}'
+        return f'ID: {device_uuid}'
 
     # ---------------- 时间更新 ----------------
 
@@ -433,7 +430,7 @@ class Display:
             logger.error(f"更新连接状态失败: {e}")
 
     def show_device_uuid(self, device_uuid):
-        """更新底部设备UUID显示"""
+        """更新底部设备ID显示"""
         if not self.gui:
             return
         try:
@@ -450,7 +447,7 @@ class Display:
                     color='#999999', origin='center'
                 )
         except Exception as e:
-            logger.error(f"更新设备UUID显示失败: {e}")
+            logger.error(f"更新设备ID显示失败: {e}")
 
     def show_next_reminder(self, schedule):
         """

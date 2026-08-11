@@ -172,7 +172,7 @@
                         <div class="info-content">
                             <div class="info-title">已绑定设备</div>
                             <div class="info-text">
-                                <p><strong>设备标识：</strong>{{ bound_device.device_id }}</p>
+                                <p><strong>设备ID：</strong>{{ bound_device.device_id }}</p>
                                 {% if bound_device.device_name %}
                                 <p><strong>设备名称：</strong>{{ bound_device.device_name }}</p>
                                 {% endif %}
@@ -185,11 +185,12 @@
                     </button>
                     {% else %}
                     <div class="form-group">
-                        <label class="form-label">设备UUID</label>
-                        <input type="text" class="form-input" id="deviceId" name="device-uuid"
-                               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                               placeholder="输入行空板M10的设备UUID（如 12345678-1234-1234-1234-123456789abc）">
-                        <p class="form-hint">在老人端设备上查看设备UUID，格式为标准 UUID（8-4-4-4-12 十六进制，含连字符）</p>
+                        <label class="form-label">设备ID</label>
+                        <input type="text" class="form-input" id="deviceId" name="device-id"
+                               inputmode="numeric" autocomplete="off" autocorrect="off"
+                               autocapitalize="off" spellcheck="false"
+                               placeholder="输入行空板M10的设备ID（如 218356669348204）">
+                        <p class="form-hint">设备ID 显示在老人端屏幕底部（形如 ID: 218356669348204），为一串纯数字</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label">设备名称（可选）</label>
@@ -552,7 +553,7 @@
             const bindBtn = document.querySelector('button[onclick="bindDevice()"]');
 
             if (!deviceId) {
-                showToast('请输入设备标识符', 'warning');
+                showToast('请输入设备ID', 'warning');
                 return;
             }
             
