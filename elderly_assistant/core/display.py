@@ -19,6 +19,17 @@ class Display:
     CENTER_X = SCREEN_W // 2
     CENTER_Y = SCREEN_H // 2
 
+    # ---- 主界面底部两行小字布局 ----
+    # UUID 与服务器状态原先同处 y=SCREEN_H-30 一行：UUID 从左侧 x=10 向右延伸，
+    # 状态以 top_right 锚定右边缘向左延伸。但 get_device_id() 返回标准 36 字符
+    # UUID（uuid5，含 4 个连字符），加前缀 "UUID: " 共 42 字符，font_size=10 下
+    # 宽度约 210~250px，已超出 240px 屏宽，必然横向压到右侧状态文字上。
+    # 故拆为上下两行：状态在上、UUID 在下，各占一行互不干扰。
+    STATUS_TEXT_Y = SCREEN_H - 34         # 服务器状态行
+    UUID_TEXT_Y = SCREEN_H - 20           # 设备 UUID 行（下移 14px，与状态行分离）
+    BOTTOM_TEXT_SIZE = 9                  # 底部小字字号（缩小 1px 进一步压缩占宽）
+    UUID_SHORT_LEN = 8                    # UUID 仅显示前 8 位，足以区分设备
+
     def __init__(self):
         self.gui = None
         # 控件引用
@@ -172,18 +183,19 @@ class Display:
             # 「扫码查药」触摸按钮（已注册回调时才绘制）
             self._draw_scan_button()
 
-            # 底部设备UUID（小字）
-            self._uuid_text = self.gui.draw_text(
-                x=10, y=self.SCREEN_H - 30,
-                text=f'UUID: {device_uuid}' if device_uuid else 'UUID: --',
-                font_size=10, color='#999999'
-            )
-            # 底部服务器连接状态
+            # 底部第一行：服务器连接状态（居中）
             status_str = self._format_status(server_url, connected)
             self._status_text = self.gui.draw_text(
-                x=self.SCREEN_W - 10, y=self.SCREEN_H - 30,
-                text=status_str, font_size=10, color='#999999',
-                origin='top_right'
+                x=self.CENTER_X, y=self.STATUS_TEXT_Y,
+                text=status_str, font_size=self.BOTTOM_TEXT_SIZE,
+                color='#999999', origin='center'
+            )
+            # 底部第二行：设备 ID（居中，截断显示避免横向溢出）
+            self._uuid_text = self.gui.draw_text(
+                x=self.CENTER_X, y=self.UUID_TEXT_Y,
+                text=self._format_uuid(device_uuid),
+                font_size=self.BOTTOM_TEXT_SIZE, color='#999999',
+                origin='center'
             )
         except Exception as e:
             logger.error(f"绘制主界面失败: {e}")
@@ -194,6 +206,20 @@ class Display:
             return f'服务器: 已连接'
         else:
             return f'服务器: 未连接'
+
+    def _format_uuid(self, device_uuid):
+        """格式化底部设备 UUID 文本（截断为前 8 位）。
+
+        标准 UUID 共 36 字符，加前缀后在 240px 屏宽下会横向溢出并与同区域的
+        状态文字重叠。前 8 位（uuid5 派生，取自 MAC 哈希）已足够现场区分设备，
+        完整 UUID 可在配网页面与服务端查看。
+
+        :param device_uuid: 完整设备 UUID，空值返回占位符
+        :return: 形如 'ID: f47ac10b' 的短文本
+        """
+        if not device_uuid:
+            return 'ID: --'
+        return f'ID: {str(device_uuid)[:self.UUID_SHORT_LEN]}'
 
     # ---------------- 时间更新 ----------------
 
@@ -399,9 +425,9 @@ class Display:
                     pass
             else:
                 self._status_text = self.gui.draw_text(
-                    x=self.SCREEN_W - 10, y=self.SCREEN_H - 30,
-                    text=status_str, font_size=10, color='#999999',
-                    origin='top_right'
+                    x=self.CENTER_X, y=self.STATUS_TEXT_Y,
+                    text=status_str, font_size=self.BOTTOM_TEXT_SIZE,
+                    color='#999999', origin='center'
                 )
         except Exception as e:
             logger.error(f"更新连接状态失败: {e}")
@@ -411,7 +437,7 @@ class Display:
         if not self.gui:
             return
         try:
-            text = f'UUID: {device_uuid}' if device_uuid else 'UUID: --'
+            text = self._format_uuid(device_uuid)
             if self._uuid_text is not None:
                 try:
                     self._uuid_text.config(text=text)
@@ -419,8 +445,9 @@ class Display:
                     pass
             else:
                 self._uuid_text = self.gui.draw_text(
-                    x=10, y=self.SCREEN_H - 30,
-                    text=text, font_size=10, color='#999999'
+                    x=self.CENTER_X, y=self.UUID_TEXT_Y,
+                    text=text, font_size=self.BOTTOM_TEXT_SIZE,
+                    color='#999999', origin='center'
                 )
         except Exception as e:
             logger.error(f"更新设备UUID显示失败: {e}")
