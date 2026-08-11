@@ -3,6 +3,41 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.37.0 (2026-08-11) — 设备标识改用网卡 MAC 整数值，移除 uuid5 派生 / pinpong / 持久化兜底
+
+### 概述
+
+老人端设备标识由「三级来源 + uuid5 派生」简化为**直接取 `uuid.getnode()` 的十进制整数值**（形如 `218356669348204`），并同步调整子女端绑定页面的显示与输入提示。
+
+原实现有三条来源：MAC 经 `uuid5` 派生 → pinpong `Board.uuid` → 随机持久化 UUID。其中 pinpong 分支经 v2.30.3 验证在真实 M10 上恒返回 `None`（固件未暴露该属性），持久化兜底则会产生 `data/device_id.txt` 落盘文件。而 `uuid5` 派生结果为 36 字符含连字符的长串，在 240px 小屏上难以完整显示，家属手工抄录绑定也易出错。
+
+改用 MAC 整数值后：每台设备唯一、重启不变、无需落盘即可稳定重生，且长度仅约 15 位纯数字，屏幕可完整显示、输入不易出错。
+
+### 主要变更
+
+**老人端（elderly_assistant）**
+- refactor(device_id): `get_device_id()` 精简为直接返回 `str(uuid.getnode())`，删除 `_get_mac_uuid()` / `_get_pinpong_uuid()` / `_get_persisted_uuid()` 三个旧实现
+- refactor(device_id): 不再依赖 `hardware.board.ensure_board`，模块彻底与 pinpong 解耦；不再生成 `data/device_id.txt`
+- fix(device_id): MAC 读取失败或为 0 时返回 `None` 并告警，不再静默回落其它来源
+- fix(display): 设备 ID 恢复完整显示（`ID: 218356669348204`），移除上一版为规避 UUID 超宽而加的前 8 位截断与 `UUID_SHORT_LEN` 常量
+- docs(wifi_config): 修正已失效的「延迟导入避免触发 pinpong 初始化」注释——`device_id` now 不再引入 pinpong
+- style: 老人端「设备 UUID」相关注释、日志与 docstring 统一改称「设备 ID」
+
+**子女端（family_monitor）**
+- fix(settings): 绑定表单标签由「设备UUID」改为「设备ID」，占位符与提示改为纯数字示例，移除「标准 UUID（8-4-4-4-12 十六进制，含连字符）」的过时格式说明
+- feat(settings): 输入框增加 `inputmode="numeric"`，移动端唤起数字键盘
+- style(settings): 已绑定设备信息中「设备标识」标签统一为「设备ID」；未填写时的提示文案统一为「请输入设备ID」
+
+**文档与测试**
+- docs(PRIVACY): 设备标识符说明由「存储在本地 `device_id.txt`」更正为「由网卡 MAC 地址直接读取（不落盘存储）」
+- test(device_id): 重写 `tests/test_elderly_device_id.py`，覆盖整数格式、跨调用一致性、MAC 不可用与异常降级，并断言三个旧实现已移除（5 项通过）
+
+### 兼容性说明
+
+**设备 ID 格式发生变化，属不兼容变更**：已绑定的老设备在升级后 ID 会由 36 字符 UUID 变为纯数字，需在子女端**重新绑定**。服务端 `device_id` 为 `str` 字段且无格式校验，无需迁移。
+
+---
+
 ## v2.36.2 (2026-08-11) — 修复老人端主界面底部设备 UUID 与服务器状态文字重叠
 
 ### 概述
