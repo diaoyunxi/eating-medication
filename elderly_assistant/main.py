@@ -37,6 +37,11 @@ logger = logging.getLogger(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+def _in_venv():
+    """判断当前解释器是否运行在虚拟环境中（venv/virtualenv 通用判据）"""
+    return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+
+
 def _venv_python():
     """返回应优先使用的 Python 解释器路径。
 
@@ -53,6 +58,22 @@ def _venv_python():
     if os.path.exists(venv_scripts):
         return venv_scripts
     return sys.executable
+
+
+def _ensure_running_in_venv():
+    """若仓库根 .venv 已存在但当前未在 venv 中运行，则用 venv 解释器重启自身。
+
+    必须在依赖检测之前执行：否则检测发生在系统 Python 内，看不到已装进
+    .venv 的依赖（含 dfrobot_huskylensv2），每次启动都会误报缺失并重复安装。
+    """
+    py = _venv_python()
+    if py != sys.executable and not _in_venv():
+        try:
+            os.execv(py, [py] + sys.argv)
+        except Exception as e:
+            print(f"切换到虚拟环境失败，继续以当前解释器运行: {e}")
+
+
 if os.getcwd() != BASE_DIR:
     os.chdir(BASE_DIR)
 if BASE_DIR not in sys.path:
@@ -150,8 +171,13 @@ def check_and_install_dependencies():
                 # pyzbar / pyttsx3 依赖系统原生库（libzbar0 / espeak），pip 安装后
                 # 再最佳努力补装系统级依赖，避免运行时 ImportError / TTS 初始化失败
                 _install_linux_system_deps()
+                # --target 显式指定为本目录（BASE_DIR）：dfrobot_huskylensv2 是
+                # PyPI 未发布的单文件模块，安装脚本默认落地目录虽同为
+                # elderly_assistant/，但显式传参可避免安装进程与主程序
+                # 导入路径不一致导致「装了却仍报缺失」
                 result = subprocess.run(
-                    [_venv_python(), root_install, req_path, "--huskylens"],
+                    [_venv_python(), root_install, req_path,
+                     "--huskylens", "--target", BASE_DIR],
                     capture_output=False, text=True, cwd=project_root,
                 )
                 if result.returncode != 0:
@@ -183,6 +209,10 @@ def main():
     global logger
     args = parse_arguments()
     DEBUG_MODE = args.debug or args.verbose
+
+    # 依赖检测必须在虚拟环境内进行：先确保当前进程已运行于 .venv，
+    # 否则系统 Python 看不到 .venv 内已装依赖，每次启动都会误报缺失
+    _ensure_running_in_venv()
 
     # 启动前检查依赖，缺失则调用 common/install.py 安装（含 huskylens）
     check_and_install_dependencies()

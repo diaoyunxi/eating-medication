@@ -583,6 +583,29 @@ def _huskylens_download_url():
     return HUSKYLENS_RAW_URL
 
 
+# dfrobot_huskylensv2.py 内容完整性校验标记（camera.py 依赖的关键符号）
+HUSKYLENS_REQUIRED_MARKERS = (
+    "class HuskylensV2_I2C",
+    "class HuskylensV2_UART",
+    "ALGORITHM_OBJECT_RECOGNITION",
+)
+
+
+def _is_valid_huskylens_file(path):
+    """校验本地 dfrobot_huskylensv2.py 是否存在且包含全部关键符号
+
+    用于跳过重复下载：文件残缺（如上次下载中断）时返回 False 以触发重新下载。
+    """
+    try:
+        if not os.path.isfile(path):
+            return False
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            text = f.read()
+    except Exception:
+        return False
+    return all(m in text for m in HUSKYLENS_REQUIRED_MARKERS)
+
+
 def _download_huskylens(target_path):
     """下载 dfrobot_huskylensv2.py 到 target_path, 含内容完整性校验
 
@@ -597,12 +620,7 @@ def _download_huskylens(target_path):
         print(f"    下载失败: {e}")
         return False
     text = data.decode("utf-8", errors="ignore")
-    required_markers = (
-        "class HuskylensV2_I2C",
-        "class HuskylensV2_UART",
-        "ALGORITHM_OBJECT_RECOGNITION",
-    )
-    missing = [m for m in required_markers if m not in text]
+    missing = [m for m in HUSKYLENS_REQUIRED_MARKERS if m not in text]
     if missing:
         print("    下载内容校验失败, 缺少预期符号:", ", ".join(missing))
         return False
@@ -649,13 +667,23 @@ def install_dfrobot_huskylensv2(target_dir=None):
         print("  ", HUSKYLENS_PKG, "已安装, 跳过")
         return True
 
-    print("  正在安装", HUSKYLENS_PKG, "(PyPI 未发布, 从官方仓库下载) ...")
     if target_dir is None:
         target_dir = str(ROOT_DIR / "elderly_assistant")
     target_dir = os.path.abspath(target_dir)
 
-    # 策略 1: 下载到目标目录
+    # 目标文件已存在且内容完整时直接复用, 避免每次启动重复下载。
+    # is_package_installed 依赖当前进程 sys.path, 安装进程与主程序 sys.path
+    # 不一定一致, 仅凭它判断会误判为「未安装」而反复联网下载。
     local_path = os.path.join(target_dir, f"{HUSKYLENS_PKG}.py")
+    if _is_valid_huskylens_file(local_path):
+        print("  ", HUSKYLENS_PKG, "已存在于", target_dir, ", 跳过下载")
+        if target_dir not in sys.path:
+            sys.path.insert(0, target_dir)
+        return True
+
+    print("  正在安装", HUSKYLENS_PKG, "(PyPI 未发布, 从官方仓库下载) ...")
+
+    # 策略 1: 下载到目标目录
     if _download_huskylens(local_path):
         if target_dir not in sys.path:
             sys.path.insert(0, target_dir)
