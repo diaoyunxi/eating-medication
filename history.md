@@ -3,6 +3,41 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.36.1 (2026-08-11) — 修复三端依赖检测未进入虚拟环境导致每次启动误报缺失依赖
+
+### 概述
+
+修复三端启动时「每次都提示缺少依赖并重复安装」的缺陷。根因是依赖检测发生在**系统 Python** 进程内，而依赖实际安装在仓库根 `.venv` 中，系统 Python 的 `sys.path` 看不到 venv 内的包，因此每轮启动都判定缺失并重新触发安装；安装完成后又以系统 Python 重启自身，形成「检测缺失 → 安装到 venv → 用系统 Python 重启 → 再次检测缺失」的死循环。
+
+`dfrobot_huskylensv2`（PyPI 未发布的单文件模块）另有独立成因：安装脚本仅凭 `is_package_installed()` 判断是否已安装，而该函数依赖**当前进程**的 `sys.path`；安装子进程与主程序 `sys.path` 不一致，导致文件明明已落地仍被判为未安装，每次启动都联网重新下载。
+
+本版本不改变任何业务逻辑与接口，属纯启动流程缺陷修复。
+
+### 主要变更
+
+**老人端（elderly_assistant）**
+- fix(main): 新增 `_in_venv()` 与 `_ensure_running_in_venv()`，在 `main()` 中**先切换到 `.venv` 解释器再执行依赖检测**，确保检测与运行处于同一环境
+- fix(main): 原实现仅在「检测到缺失并安装后」才切 venv，若系统 Python 中恰好已装部分包（如 requests）则直接跳过，全程停留在系统 Python——与服务端此前修复的第 2 类历史问题同源
+- fix(main): 安装 huskylens 时显式传入 `--target BASE_DIR`，保证模块落地目录与主程序 `sys.path` 一致，避免「装了却仍报缺失」
+
+**子女端（family_monitor）**
+- fix(main): 新增 `_in_venv()` / `_venv_python_path()`，在模块级依赖检查**之前**补充 venv 切换逻辑（原先完全缺失该步骤）
+- fix(main): 安装脚本调用与安装后 `os.execv` 重启均由 `sys.executable` 改为 `.venv` 解释器，修复「依赖装进 venv 却用系统 Python 重启」导致的死循环
+
+**服务端（server）**
+- fix(main): `check_and_install_dependencies()` 中 `subprocess.run` 由 `sys.executable` 改为显式 `venv_python`，与重启逻辑保持一致
+
+**公共安装脚本（common/install.py）**
+- fix(install): 新增 `_is_valid_huskylens_file()`，直接校验本地 `dfrobot_huskylensv2.py` 是否存在且包含全部关键符号，命中则跳过下载
+- fix(install): 文件残缺（如上次下载中断）时仍会重新下载，不会因存在空文件而永久跳过
+- refactor(install): 提取 `HUSKYLENS_REQUIRED_MARKERS` 模块级常量，消除下载校验与本地校验的重复定义
+
+### 影响范围
+
+三端启动路径均受影响。修复后首次启动仍会正常安装依赖，此后启动不再重复检测失败、不再重复联网下载 huskylens 模块。
+
+---
+
 ## v2.33.7 (2026-08-10) — 新增根目录统一启动入口 main.py，清理 Cloudflare HTTPS 启动提示
 
 ### 概述

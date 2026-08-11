@@ -27,6 +27,19 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
 
+def _in_venv():
+    """判断当前解释器是否运行在虚拟环境中（venv/virtualenv 通用判据）"""
+    return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+
+
+def _venv_python_path():
+    """返回仓库根 .venv 内 python 解释器路径（按平台区分 Scripts/bin）"""
+    project_root = SCRIPT_DIR.parent
+    if os.name == "nt":
+        return project_root / ".venv" / "Scripts" / "python.exe"
+    return project_root / ".venv" / "bin" / "python"
+
+
 def _check_and_install_dependencies():
     """检查关键依赖是否已安装，若缺失则调用公共安装脚本 common/install.py。"""
     import importlib
@@ -46,13 +59,14 @@ def _check_and_install_dependencies():
         req_path = os.path.join(str(SCRIPT_DIR), "requirements.txt")
         if os.path.exists(root_install):
             try:
+                venv_python = str(_venv_python_path())
                 result = subprocess.run(
-                    [sys.executable, root_install, req_path],
+                    [venv_python, root_install, req_path],
                     capture_output=False, text=True, cwd=str(PROJECT_ROOT),
                 )
                 if result.returncode == 0:
                     print("依赖安装完成，正在重新启动服务...")
-                    os.execv(sys.executable, [sys.executable] + sys.argv)
+                    os.execv(venv_python, [venv_python] + sys.argv)
                 else:
                     print("依赖安装可能未完全成功，尝试继续运行...")
             except Exception as e:
@@ -62,6 +76,14 @@ def _check_and_install_dependencies():
             print("未找到common/install.py，请手动安装依赖:")
             print(f"pip install {' '.join(missing)}")
 
+
+# 启动前切换到虚拟环境（若 .venv 存在且当前不在 venv 中）
+_venv_py = _venv_python_path()
+if _venv_py.exists() and not _in_venv():
+    try:
+        os.execv(str(_venv_py), [str(_venv_py)] + sys.argv)
+    except Exception:
+        pass
 
 # 启动前检查依赖，缺失则调用 common/install.py 安装
 _check_and_install_dependencies()
