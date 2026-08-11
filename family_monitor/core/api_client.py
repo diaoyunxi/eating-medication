@@ -838,9 +838,22 @@ def make_family_client(jwt_token: str) -> "ElderlyAPIClient":
 
     已登录家属访问设备数据时，使用此实例调用 /api/v1/family/device/* 接口，
     由 server 端校验"当前账号已绑定该设备"，不再依赖老人端设备令牌。
+
+    注意：即便以家属模式运行，也必须从本地 bound_device.json 装入已绑定的
+    device_id。否则 self._device_id 为空，/api/v1/family/device/status/{id}、
+    /plans/{id}、/records/{id} 等接口的 URL 将缺少 device_id，服务端
+    _require_bound_device 校验 current_user.device_id == device_id 失败返回 403，
+    前端全部降级为"未绑定/离线"——即"设置页显示已绑定、其余页面显示未绑定/离线"
+    的根因。该本地文件与设置页"已绑定设备"卡片同源，装入即可与绑定态保持一致。
     """
     client = ElderlyAPIClient(load_bound=False)
     client.set_jwt_token(jwt_token)
+    # 关键修复：家属实例同样需要已绑定的 device_id，否则除设置页外的所有页面
+    # 因 URL 缺 device_id 被服务端拒绝，显示为未绑定/不在线。
+    bound = client.get_bound_device()
+    if bound:
+        client._device_id = bound.get("device_id") or ""
+        client._device_token = bound.get("device_token") or ""
     return client
 
 
