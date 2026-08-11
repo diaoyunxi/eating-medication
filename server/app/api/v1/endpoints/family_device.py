@@ -95,6 +95,15 @@ async def bind_device(
     except HTTPException:
         raise HTTPException(status_code=404, detail="设备未注册，请先让老人端开机联网")
 
+    # 弱保护：设备须曾上报过心跳（即老人端确实在线/存在），避免仅凭 device_id
+    # 即可绑定一个从不在线、可能属他人的设备。device_id 本身为 15 位随机整数，
+    # 不可猜测；此处进一步要求"设备存在且曾被使用"，降低越权绑定风险。
+    if user.last_heartbeat_at is None:
+        raise HTTPException(
+            status_code=409,
+            detail="设备尚未联机，请先让老人端开机联网后再绑定",
+        )
+
     # 家属账号持有该设备关联（复用 User.device_id 字段，语义与老人侧一致）
     current_user.device_id = req.device_id
     if req.device_name and not user.username:
