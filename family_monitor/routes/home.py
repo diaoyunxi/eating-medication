@@ -65,6 +65,7 @@ async def get_reminders(request: Request):
     """提醒页面"""
     if not require_login(request):
         return login_redirect()
+    fc = family_client(request) or elderly_client
     reminders = await fc.get_reminders()
     status = await elderly_client.get_server_status()
     device_info = await fc.get_device_info()
@@ -86,6 +87,7 @@ async def get_records(request: Request):
     """用药记录页面"""
     if not require_login(request):
         return login_redirect()
+    fc = family_client(request) or elderly_client
     records = await fc.get_medication_records()
     status = await elderly_client.get_server_status()
     device_info = await fc.get_device_info()
