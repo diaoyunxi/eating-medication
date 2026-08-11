@@ -120,6 +120,28 @@ async def bind_device(
     }
 
 
+@router.post("/unbind")
+async def family_device_unbind(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """家属解绑当前设备（JWT 鉴权）。
+
+    将当前家属账号的 device_id 置空，清除服务端绑定关系；仅清服务端，不涉及
+    老人端设备本身。前端在服务端解绑成功后再清理本地 bound_device.json，避免
+    "前端已解绑、服务端仍绑定" 的不一致。
+
+    :return: {"status": "ok", "message": "设备已解绑"}
+    """
+    if current_user.device_id:
+        logger.info(
+            f"家属解绑设备: user={current_user.id} device={mask_device_id(current_user.device_id)}"
+        )
+        current_user.device_id = None
+        db.commit()
+    return {"status": "ok", "message": "设备已解绑"}
+
+
 @router.get("/status/{device_id}")
 async def family_device_status(
     device_id: str,
