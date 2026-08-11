@@ -104,6 +104,10 @@ class FakeClient:
         self.calls.append(("bind_device_family", device_id, device_name))
         return {"status": "ok", "device_token": "tok-xyz", "device_id": device_id}
 
+    async def unbind_device_family(self):
+        self.calls.append(("unbind_device_family",))
+        return {"status": "ok", "msg": "设备已解绑"}
+
     async def register_device(self, device_id, device_name=""):
         self.calls.append(("register_device", device_id, device_name))
         return {"success": True, "data": {"device_token": "tok-xyz"}}
@@ -208,6 +212,8 @@ class TestHomeRoutes(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["success"])
         self.assertIsNone(self.fake.bound)
+        # 应先调用服务端解绑接口
+        self.assertIn(("unbind_device_family",), self.fake.calls)
 
     def test_bind_device_success(self):
         resp = self.client.post(

@@ -191,6 +191,43 @@ class TestApiMethods(unittest.TestCase):
         self.assertFalse(res["success"])
         self.assertEqual(res["error"], "bad")
 
+    def test_set_medication_plan_family_mode(self):
+        # 家属模式（load_bound=False，_device_id 为空）应先进家属分支、
+        # 先解析服务端绑定，再 POST 家属接口，而非提前返回未绑定。
+        self.client.set_jwt_token("jwt-fake")
+        calls = []
+
+        async def seq_execute(method, path, **kwargs):
+            calls.append((method, path))
+            if path == "/api/v1/users/me":
+                return _FakeResp(200, {"device_id": "server-dev"})
+            if path == "/api/v1/family/device/medication_plan":
+                return _FakeResp(200, {"status": "ok"})
+            return _FakeResp(500)
+
+        self.client._execute = seq_execute
+        res = self._run(self.client.set_medication_plan("药", "1片", ["08:00"]))
+        self.assertTrue(res["success"])
+        self.assertEqual(self.client._device_id, "server-dev")
+        self.assertIn(("GET", "/api/v1/users/me"), calls)
+        self.assertIn(("POST", "/api/v1/family/device/medication_plan"), calls)
+
+    def test_set_medication_plan_family_unbound(self):
+        # 家属模式但服务端未绑定（/users/me 返回空 device_id）时应给出明确错误
+        self.client.set_jwt_token("jwt-fake")
+        calls = []
+
+        async def seq_execute(method, path, **kwargs):
+            calls.append((method, path))
+            if path == "/api/v1/users/me":
+                return _FakeResp(200, {"device_id": None})
+            return _FakeResp(500)
+
+        self.client._execute = seq_execute
+        res = self._run(self.client.set_medication_plan("药", "1片", ["08:00"]))
+        self.assertFalse(res["success"])
+        self.assertIn("尚未绑定", res["error"])
+
     def test_delete_medication_plan_success(self):
         self.client.set_response(_FakeResp(200, {"ok": True}))
         res = self._run(self.client.delete_medication_plan(5))
@@ -206,6 +243,25 @@ class TestApiMethods(unittest.TestCase):
         self.client.set_response(_FakeResp(200, {"ok": True}))
         res = self._run(self.client.update_medication_plan(5, "药", "1片", ["08:00"]))
         self.assertTrue(res["success"])
+
+    def test_update_medication_plan_family_mode(self):
+        # 家属模式（_device_id 为空）应先进家属分支、先解析服务端绑定，再 PUT
+        self.client.set_jwt_token("jwt-fake")
+        calls = []
+
+        async def seq_execute(method, path, **kwargs):
+            calls.append((method, path))
+            if path == "/api/v1/users/me":
+                return _FakeResp(200, {"device_id": "server-dev"})
+            if path == "/api/v1/family/device/medication_plan/5":
+                return _FakeResp(200, {"status": "ok"})
+            return _FakeResp(500)
+
+        self.client._execute = seq_execute
+        res = self._run(self.client.update_medication_plan(5, "药", "1片", ["08:00"]))
+        self.assertTrue(res["success"])
+        self.assertIn(("GET", "/api/v1/users/me"), calls)
+        self.assertIn(("PUT", "/api/v1/family/device/medication_plan/5"), calls)
 
     def test_get_device_info_no_device(self):
         self.client._device_id = None
