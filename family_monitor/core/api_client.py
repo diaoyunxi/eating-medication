@@ -25,10 +25,17 @@ _encode_device_id = encode_device_id
 class ElderlyAPIClient(BaseServerClient):
     """老人端API客户端"""
 
-    def __init__(self):
+    def __init__(self, load_bound: bool = True):
         super().__init__(base_url=config.ELDERLY_SERVER_URL, timeout=10.0)
-        self._device_id = self._load_bound_device_id()
-        self._device_token = self._load_device_token()
+        # load_bound=False 用于家属模式：请求由 JWT 鉴权、device_id 由服务端按
+        # URL 传入，本地共享的 bound_device.json 仅属老人端设备身份，不应被读取，
+        # 避免家属实例与老人端设备身份产生耦合（每个请求独立实例）。
+        if load_bound:
+            self._device_id = self._load_bound_device_id()
+            self._device_token = self._load_device_token()
+        else:
+            self._device_id = ""
+            self._device_token = ""
         # 家属登录态 JWT：当子女端网页以登录家属身份访问设备数据时设置，
         # 此时改用 /api/v1/family/device/* 接口（JWT 鉴权 + 设备绑定校验），
         # 不再依赖老人端设备令牌（设备令牌仅存于老人端本机，已注册设备不再
@@ -147,6 +154,19 @@ class ElderlyAPIClient(BaseServerClient):
             return {'device_id': self._device_id, 'messages': []}
         except Exception:
             return {'device_id': self._device_id, 'messages': []}
+
+    async def _reminders_via_family(self, limit: int = 50) -> Dict[str, Any]:
+        """家属模式下获取绑定设备的今日提醒（/family/device/reminders）。"""
+        try:
+            response = await self._execute(
+                "GET", f"/api/v1/family/device/reminders/{self._device_id}?limit={limit}",
+                headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                return response.json()
+            return {'device_id': self._device_id, 'reminders': []}
+        except Exception:
+            return {'device_id': self._device_id, 'reminders': []}
 
     async def _set_plan_via_family(self, drug_name: str, dosage: str, frequency: str,
                                    schedule_times: list, total_quantity: float,
@@ -528,10 +548,10 @@ class ElderlyAPIClient(BaseServerClient):
             }
 
     async def get_reminders(self) -> List[Dict[str, Any]]:
-        """获取提醒列表（改用公开接口 /device/plans）"""
+        """获取提醒列表（家属模式走 /family/device/reminders，否则走公开接口）。"""
         if self._family_mode():
-            data = await self._plans_via_family()
-            return data.get('plans', []) or []
+            data = await self._reminders_via_family()
+            return data.get('reminders', []) or []
         if not self._device_id:
             return []
         try:
@@ -819,7 +839,7 @@ def make_family_client(jwt_token: str) -> "ElderlyAPIClient":
     已登录家属访问设备数据时，使用此实例调用 /api/v1/family/device/* 接口，
     由 server 端校验"当前账号已绑定该设备"，不再依赖老人端设备令牌。
     """
-    client = ElderlyAPIClient()
+    client = ElderlyAPIClient(load_bound=False)
     client.set_jwt_token(jwt_token)
     return client
 
