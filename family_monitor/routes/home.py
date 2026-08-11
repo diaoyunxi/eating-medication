@@ -134,7 +134,17 @@ async def get_settings(request: Request):
     fc = family_client(request) or elderly_client
     status = await elderly_client.get_server_status()
     device_info = await fc.get_device_info()
-    bound_device = elderly_client.get_bound_device()
+    # 绑定状态以服务端为准（device_info.device_id 来自 /users/me 解析的当前账号
+    # 真实绑定关系），避免本地 bound_device.json 残留导致"假绑定"。
+    local_bound = elderly_client.get_bound_device()
+    if device_info.get('device_id'):
+        bound_device = {
+            'device_id': device_info.get('device_id'),
+            'device_name': device_info.get('device_name') or (local_bound or {}).get('device_name', ''),
+            'bound_at': (local_bound or {}).get('bound_at', ''),
+        }
+    else:
+        bound_device = None
 
     return templates.TemplateResponse("settings.html", {
             "request": request,
