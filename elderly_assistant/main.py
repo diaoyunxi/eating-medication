@@ -254,10 +254,10 @@ def main():
     # 2. 创建 GUI 显示界面
     display = Display()
 
-    # 获取设备 UUID
+    # 获取设备 ID（网卡 MAC 整数值）
     device_uuid = get_device_id()
     server_url = config.get('server', {}).get('base_url', '')
-    logger.info(f"设备 UUID: {device_uuid}")
+    logger.info(f"设备 ID: {device_uuid}")
     logger.info(f"服务器地址: {server_url}")
 
     # 3. 初始化蜂鸣器
