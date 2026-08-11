@@ -3,6 +3,37 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.38.0 (2026-08-11) — 子女端改用家属登录态鉴权，新增 `/family/device/*` 授权接口
+
+### 概述
+
+修复「子女端网页设备状态显示离线」的问题。根因是**子女端复用了老人端的设备 token 鉴权路径**：老人端首次注册时服务端才下发 `device_token`，已注册设备再次调用 `register` 仅作心跳、不再返回 token（防枚举设计）。因此子女端在老人端之后绑定同一设备时，拿到的是空 token，调用 `/device/status/{device_id}` 一律 403，页面据此判定设备离线。
+
+本版新增一组**基于家属登录态（JWT）的授权接口** `/family/device/*`，子女端在已登录且已绑定该设备的前提下改走该组接口读取数据，不再依赖老人端的设备 token；同时绑定流程改用 `/family/device/bind` 合法获取 token，从根上消除空 token 场景。
+
+### 主要变更
+
+**服务端（server）**
+- feat(api): 新增 `app/api/v1/endpoints/family_device.py`，前缀 `/family/device`，全部端点以 `Depends(get_current_user)` 鉴权，并校验 `current_user.device_id == device_id`，不匹配返回 403
+- feat(api): 端点覆盖 `POST /bind`、`GET /status/{id}`、`/plans/{id}`、`/records/{id}`、`/chat_history/{id}`、`/reminders/{id}`，以及用药计划的 `POST` / `PUT` / `DELETE`
+- feat(api): `POST /bind` 在设备已注册的前提下写入 `current_user.device_id` 并**合法下发 `device_token`**，替代此前拿不到 token 的绑定路径
+- feat(device_service): 新增 `DeviceService.get_reminders(db, user, limit)`，基于用药计划与当日服药记录生成今日提醒
+- chore(main): 挂载 `family_device` 路由
+
+**子女端（family_monitor）**
+- feat(api_client): `ElderlyAPIClient` 增加 family 模式（`set_jwt_token` / `set_family_auth` / `_family_mode`），家属模式下以 `Authorization: Bearer` 调用 `/family/device/*`
+- feat(api_client): 新增 `bind_device_family` 及 status / plans / records / chat_history / 计划增删改的 family 分支实现
+- feat(api_client): 新增 `make_family_client(jwt_token)` 工厂，**每请求创建独立实例**，避免全局单例设置 token 引发并发串号
+- feat(web_helpers): 新增 `get_jwt_from_request` 与 `family_client(request)`，从 cookie `access_token` 取登录态
+- refactor(home/chat): 所有 `require_login` 路由改用 `fc = family_client(request) or elderly_client` 调用，兼容未登录时的旧路径
+- fix(home): `bind_device` 改走 `bind_device_family` 获取合法 token 后再落盘
+
+### 兼容性说明
+
+**向下兼容**。原有 `/device/*` 设备 token 接口完全保留，老人端行为不变、无需升级；子女端未登录时仍回落旧调用路径。已绑定用户建议在子女端**重新执行一次绑定**以写入合法 token。
+
+---
+
 ## v2.37.0 (2026-08-11) — 设备标识改用网卡 MAC 整数值，移除 uuid5 派生 / pinpong / 持久化兜底
 
 ### 概述

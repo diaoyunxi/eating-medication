@@ -304,6 +304,52 @@ class DeviceService:
         ]
 
     @staticmethod
+    def get_reminders(db: Session, user: User, limit: int = 50) -> list:
+        """生成绑定设备的今日服药提醒（供子女端仪表盘）。
+
+        基于用药计划逐个时间点展开，并关联已上报的服药记录标记完成状态。
+        字段对齐子女端 get_reminders 的期望：id/plan_id/drug_name/planned_time/
+        status/taken_time/note。
+        """
+        from app.utils.datetime_utils import hhmm_to_today
+        from datetime import datetime as _dt
+
+        limit = max(1, min(limit, 200))
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        plans = MedicationService.get_plans_by_user(db, user.id)
+        # 已上报记录按 (plan_id, 计划时点) 建索引，便于匹配完成状态
+        records = (
+            db.query(MedicationRecord)
+            .filter(MedicationRecord.user_id == user.id)
+            .all()
+        )
+        record_index = {}
+        for r in records:
+            key = (r.plan_id, (r.scheduled_time.strftime("%H:%M") if r.scheduled_time else ""))
+            record_index[key] = r
+
+        reminders = []
+        rid = 0
+        for plan in plans:
+            for time_str in plan.schedule_times:
+                scheduled = hhmm_to_today(time_str, now)
+                rid += 1
+                rec = record_index.get((plan.id, time_str))
+                reminders.append({
+                    "id": rid,
+                    "plan_id": plan.id,
+                    "drug_name": plan.drug_name,
+                    "dosage": plan.dosage,
+                    "planned_time": scheduled.isoformat() if scheduled else None,
+                    "status": rec.status if rec else "pending",
+                    "taken_time": rec.taken_time.isoformat() if rec and rec.taken_time else None,
+                    "note": rec.note if rec else None,
+                })
+        # 按计划时点排序，限制数量
+        reminders.sort(key=lambda x: x["planned_time"] or "")
+        return reminders[:limit]
+
+    @staticmethod
     def save_upload(db: Session, user: User, image_base64: str, note: Optional[str] = None) -> str:
         """保存设备上传的服药照片（base64 解码后落盘），返回相对路径。
 
