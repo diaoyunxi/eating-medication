@@ -81,7 +81,14 @@ class DeviceService:
 
         作为 device_id->用户的唯一查询原语，避免各端点重复实现。
         """
-        by_field = db.query(User).filter(User.device_id == device_id).first()
+        # by_field 仅匹配"设备本人"(role=elderly)，排除被家属绑定后写入 device_id
+        # 的家属账号，避免家属账号污染 get_device_user 反查（否则老人端 register/
+        # status 会误命中家属账号，导致设备无法找到自身账户）。
+        by_field = (
+            db.query(User)
+            .filter(User.device_id == device_id, User.role == "elderly")
+            .first()
+        )
         by_name = db.query(User).filter(User.username == device_id).first()
         return by_field, by_name
 
@@ -316,11 +323,17 @@ class DeviceService:
 
         limit = max(1, min(limit, 200))
         now = datetime.now(timezone.utc).replace(tzinfo=None)
+        # 今日零点，用于只索引"今天"的服药记录，避免把历史全部记录载入内存
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         plans = MedicationService.get_plans_by_user(db, user.id)
-        # 已上报记录按 (plan_id, 计划时点) 建索引，便于匹配完成状态
+        # 已上报记录按 (plan_id, 计划时点) 建索引，便于匹配完成状态；
+        # 仅取 today 起的记录（scheduled_time 由 hhmm_to_today 生成为今日时点）
         records = (
             db.query(MedicationRecord)
-            .filter(MedicationRecord.user_id == user.id)
+            .filter(
+                MedicationRecord.user_id == user.id,
+                MedicationRecord.scheduled_time >= today_start,
+            )
             .all()
         )
         record_index = {}
