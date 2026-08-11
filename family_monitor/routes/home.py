@@ -136,12 +136,17 @@ async def get_settings(request: Request):
     device_info = await fc.get_device_info()
     # 绑定状态以服务端为准（device_info.device_id 来自 /users/me 解析的当前账号
     # 真实绑定关系），避免本地 bound_device.json 残留导致"假绑定"。
-    local_bound = elderly_client.get_bound_device()
-    if device_info.get('device_id'):
+    local_bound = elderly_client.get_bound_device() or {}
+    server_device_id = device_info.get('device_id')
+    if server_device_id:
+        # 仅当本地 bound_device.json 的 device_id 与服务端一致时，才采用本地的
+        # device_name / bound_at；否则本地可能属其他设备/账号，不能混用。
+        local_matches = local_bound.get('device_id') == server_device_id
         bound_device = {
-            'device_id': device_info.get('device_id'),
-            'device_name': device_info.get('device_name') or (local_bound or {}).get('device_name', ''),
-            'bound_at': (local_bound or {}).get('bound_at', ''),
+            'device_id': server_device_id,
+            'device_name': (local_bound.get('device_name') or device_info.get('device_name') or '')
+                if local_matches else (device_info.get('device_name') or ''),
+            'bound_at': local_bound.get('bound_at', '') if local_matches else '',
         }
     else:
         bound_device = None
@@ -338,6 +343,13 @@ async def unbind_device(request: Request):
         return unauthorized_json()
     fc = family_client(request) or elderly_client
     try:
+        # 先同步服务端解绑，成功后再清理本地，保证前端与服务端一致
+        result = await fc.unbind_device_family()
+        if result.get("status") != "ok":
+            return JSONResponse(content={
+                "success": False,
+                "message": result.get("msg", "服务端解绑失败")
+            }, status_code=400)
         elderly_client.clear_bound_device()
         return JSONResponse(content={
             "success": True,
