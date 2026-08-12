@@ -35,6 +35,12 @@ class User(Base):
     device_id = Column(String(64), nullable=True, unique=True, index=True)
     # 设备访问令牌：register_device 时生成，设备端点需通过 X-Device-Token 校验
     device_token = Column(String(64), nullable=True, index=True)
+    # 二哈摄像头人脸识别 ID：家属在网页录入人脸后回填，用于老人端服药前身份核验。
+    # 多老人场景下，每位老人对应一个二哈已学习的 face_id，拍照前需确认当前人脸匹配。
+    husky_face_id = Column(Integer, nullable=True, index=True)
+    # 待录入人脸标记：家属在网页触发「录入人脸」后置 True，设备轮询到后进入学习模式，
+    # 学习完成并上报 husky_face_id 后由服务端清零。用于多老人下把二哈已学人脸绑定到具体老人。
+    pending_learn = Column(Boolean, default=False, nullable=False)
     # ===== GitHub OAuth 关联字段 =====
     # GitHub 用户唯一 ID（首次 OAuth 登录绑定，唯一索引），非 GitHub 用户为 NULL
     github_id = Column(Integer, nullable=True, unique=True, index=True)

@@ -54,6 +54,8 @@ class HTTPClient:
         self.device_id = get_device_id()
         # 加载持久化的 device_token
         self.device_token = _load_device_token()
+        # 家属网页触发的人脸录入请求（由 /device/schedule 随计划一同下发）
+        self.learn_request = None
 
     def _headers(self):
         """返回携带设备标识和令牌的请求头"""
@@ -199,6 +201,10 @@ class HTTPClient:
                 # 校验响应类型，避免非 dict 响应调用 .get 崩溃
                 if isinstance(data, dict):
                     schedules = data.get('schedules', []) or []
+                    # 人脸录入请求（家属触发）随计划一同下发；
+                    # 必须是 dict，否则在主循环 learn_req.get(...) 会抛异常导致崩溃
+                    lr = data.get('learn_request')
+                    self.learn_request = lr if isinstance(lr, dict) else None
                 elif isinstance(data, list):
                     schedules = data
                 else:
@@ -251,7 +257,7 @@ class HTTPClient:
             logger.warning(f"上报服药确认异常: {e}")
             return False
 
-    def upload_image(self, image_path, endpoint=None, plan_id=None, scheduled_time=None):
+    def upload_image(self, image_path, endpoint=None, plan_id=None, scheduled_time=None, elderly_id=None):
         # 图片以 base64 编码放入 JSON 上传（避免 multipart 在大文件/代理下不稳定）
         if endpoint is None:
             endpoint = self.config.get('upload_endpoint', '/api/v1/public/device/upload')
@@ -268,6 +274,8 @@ class HTTPClient:
             "image_base64": f"data:image/jpeg;base64,{b64}",
             "plan_id": plan_id,
             "scheduled_time": scheduled_time,
+            # 多老人：照片归属的老人 ID（由拍照前身份识别确定），缺省回退设备主体
+            "elderly_id": elderly_id,
         }
         try:
             resp = requests.post(
@@ -282,6 +290,28 @@ class HTTPClient:
             return False
         except Exception as e:
             logger.warning(f"上传图片异常: {e}")
+            return False
+
+    def report_learned_face(self, elderly_id: int, face_id: int) -> bool:
+        """上报录入人脸结果：将二哈学习到的 face_id 回填到对应老人账号。
+
+        家属在网页触发录入后，设备端学习完成调用本方法（POST /device/learn_face）。
+        """
+        url = f"{self.base_url}/api/v1/public/device/learn_face"
+        payload = {
+            "device_id": self.device_id,
+            "elderly_id": elderly_id,
+            "husky_face_id": face_id,
+        }
+        try:
+            resp = requests.post(url, json=payload, timeout=self.timeout, headers=self._headers())
+            if resp.status_code == 200:
+                logger.info("已上报录入人脸: elderly_id=%s face_id=%s", elderly_id, face_id)
+                return True
+            logger.warning(f"上报录入人脸失败，状态码: {resp.status_code}")
+            return False
+        except Exception as e:
+            logger.warning(f"上报录入人脸异常: {e}")
             return False
 
     def send_emergency(self):

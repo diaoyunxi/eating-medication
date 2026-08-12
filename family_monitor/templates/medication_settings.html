@@ -71,52 +71,57 @@
                 </div>
 
                 <div id="planListContainer">
-                    {% if plans %}
-                    <div class="plan-list">
-                        {% for plan in plans %}
-                        <div class="plan-item" data-plan-id="{{ plan.id }}">
-                            <div class="plan-icon">💊</div>
-                            <div class="plan-info">
-                                <div class="plan-name">
-                                    {{ plan.get('drug_name', '未知药品') }}
-                                    {% if plan.get('frequency') %}
-                                    <span class="time-badge">🗓️ {{ plan.get('frequency') }}</span>
-                                    {% endif %}
-                                    {% if plan.get('product_code') %}
-                                    <span class="time-badge">🔖 {{ plan.get('product_code') }}</span>
-                                    {% endif %}
+                    {% if plan_groups %}
+                    {% for group in plan_groups %}
+                    <div class="elderly-plan-group">
+                        <div class="elderly-group-title">👴 {{ group.grouper }}</div>
+                        <div class="plan-list">
+                            {% for plan in group.list %}
+                            <div class="plan-item" data-plan-id="{{ plan.id }}">
+                                <div class="plan-icon">💊</div>
+                                <div class="plan-info">
+                                    <div class="plan-name">
+                                        {{ plan.get('drug_name', '未知药品') }}
+                                        {% if plan.get('frequency') %}
+                                        <span class="time-badge">🗓️ {{ plan.get('frequency') }}</span>
+                                        {% endif %}
+                                        {% if plan.get('product_code') %}
+                                        <span class="time-badge">🔖 {{ plan.get('product_code') }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="plan-meta">
+                                        剂量：{{ plan.get('dosage', '-') }}
+                                        {% if plan.get('unit') %}（{{ plan.get('unit') }}）{% endif %}
+                                    </div>
+                                    <div class="plan-times">
+                                        {% if plan.get('schedule_times') %}
+                                            {% for t in plan.get('schedule_times') %}
+                                            <span class="time-badge">⏰ {{ t }}</span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="time-badge">未设置时间</span>
+                                        {% endif %}
+                                        {% if plan.get('remaining_quantity') is not none %}
+                                        <span class="stock-badge {% if plan.get('remaining_quantity', 0) <= plan.get('low_stock_threshold', 5) %}low{% endif %}">
+                                            📦 余量 {{ plan.get('remaining_quantity', 0) }}/{{ plan.get('total_quantity', 0) }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
                                 </div>
-                                <div class="plan-meta">
-                                    剂量：{{ plan.get('dosage', '-') }}
-                                    {% if plan.get('unit') %}（{{ plan.get('unit') }}）{% endif %}
-                                </div>
-                                <div class="plan-times">
-                                    {% if plan.get('schedule_times') %}
-                                        {% for t in plan.get('schedule_times') %}
-                                        <span class="time-badge">⏰ {{ t }}</span>
-                                        {% endfor %}
-                                    {% else %}
-                                        <span class="time-badge">未设置时间</span>
-                                    {% endif %}
-                                    {% if plan.get('remaining_quantity') is not none %}
-                                    <span class="stock-badge {% if plan.get('remaining_quantity', 0) <= plan.get('low_stock_threshold', 5) %}low{% endif %}">
-                                        📦 余量 {{ plan.get('remaining_quantity', 0) }}/{{ plan.get('total_quantity', 0) }}
-                                    </span>
-                                    {% endif %}
+                                <div class="plan-actions">
+                                    <button class="btn btn-danger btn-sm"
+                                            data-plan-id="{{ plan.id }}"
+                                            data-drug-name="{{ plan.get('drug_name', '') }}"
+                                            onclick="deletePlan(this.dataset.planId, this.dataset.drugName)">
+                                        <span>🗑️</span>
+                                        <span>删除</span>
+                                    </button>
                                 </div>
                             </div>
-                            <div class="plan-actions">
-                                <button class="btn btn-danger btn-sm"
-                                        data-plan-id="{{ plan.id }}"
-                                        data-drug-name="{{ plan.get('drug_name', '') }}"
-                                        onclick="deletePlan(this.dataset.planId, this.dataset.drugName)">
-                                    <span>🗑️</span>
-                                    <span>删除</span>
-                                </button>
-                            </div>
+                            {% endfor %}
                         </div>
-                        {% endfor %}
                     </div>
+                    {% endfor %}
                     {% else %}
                     <div class="empty-state">
                         <div class="empty-state-icon">📭</div>
@@ -141,6 +146,17 @@
 
                 <form id="planForm" onsubmit="return false;">
                     <div class="form-grid">
+                        <!-- 服药老人 -->
+                        <div class="form-field">
+                            <label for="elderlyId">服药老人 *</label>
+                            <select id="elderlyId" required>
+                                {% for e in elderly_list %}
+                                <option value="{{ e.id }}">{{ e.name }}{% if e.has_device %}（本机）{% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            <span class="form-hint-inline">该用药计划归属的老人（多老人时请选择「哪个老人吃」）</span>
+                        </div>
+
                         <!-- 药品名称 -->
                         <div class="form-field">
                             <label for="drugName">药品名称 *</label>
@@ -372,6 +388,16 @@
                 return;
             }
 
+            const elderlyId = parseInt(document.getElementById('elderlyId').value) || null;
+            if (!elderlyId) {
+                showToast('请选择服药老人', 'warning');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.style.opacity = '';
+                    submitBtn.style.cursor = '';
+                }
+                return;
+            }
             const payload = {
                 drug_name: drugName,
                 dosage: dosage,
@@ -381,7 +407,8 @@
                 unit: unit,
                 total_quantity: totalQuantity,
                 remaining_quantity: isNaN(remainingQuantity) ? totalQuantity : remainingQuantity,
-                low_stock_threshold: lowStockThreshold
+                low_stock_threshold: lowStockThreshold,
+                elderly_id: elderlyId
             };
 
             showToast('正在保存用药计划...', 'info');

@@ -56,6 +56,8 @@ class FamilyMedicationPlan(BaseModel):
     remaining_quantity: float = 30.0
     unit: str = "片"
     low_stock_threshold: int = 5
+    # 多老人：该计划归属的老人 ID（网页用药设置下拉选择「哪个老人吃」），缺省回退设备主体
+    elderly_id: Optional[int] = None
 
 
 def _require_bound_device(current_user: User, db: Session, device_id: str) -> User:
@@ -197,9 +199,10 @@ async def family_device_record_photo(
     from app.models.medication_record import MedicationRecord
 
     user = _require_bound_device(current_user, db, device_id)
+    elderly_ids = DeviceService._group_elderly_ids(db, user)
     rec = (
         db.query(MedicationRecord)
-        .filter(MedicationRecord.id == record_id, MedicationRecord.user_id == user.id)
+        .filter(MedicationRecord.id == record_id, MedicationRecord.user_id.in_(elderly_ids))
         .first()
     )
     if not rec or not rec.photo:
@@ -247,6 +250,8 @@ async def family_set_medication_plan(
 ):
     """家属为绑定设备设置用药计划（JWT 鉴权 + 设备绑定校验）"""
     user = _require_bound_device(current_user, db, req.device_id)
+    # 多老人：计划归属到指定老人（elderly_id），默认回退设备主体用户
+    owner = DeviceService._resolve_elderly(db, user, req.elderly_id)
     plan_data = MedicationPlanCreate(
         drug_name=req.drug_name,
         dosage=req.dosage,
@@ -258,7 +263,7 @@ async def family_set_medication_plan(
         unit=req.unit,
         low_stock_threshold=req.low_stock_threshold,
     )
-    plan = MedicationService.create_plan(db, user.id, plan_data)
+    plan = MedicationService.create_plan(db, owner.id, plan_data)
     logger.info(
         f"家属为设备 {mask_device_id(req.device_id or '')} 设置用药计划: {req.drug_name}"
     )
@@ -279,6 +284,8 @@ async def family_update_medication_plan(
 ):
     """更新绑定设备的用药计划（JWT 鉴权 + 设备绑定校验）"""
     user = _require_bound_device(current_user, db, req.device_id)
+    # 多老人：计划归属到指定老人（elderly_id），默认回退设备主体用户
+    owner = DeviceService._resolve_elderly(db, user, req.elderly_id)
     plan_data = MedicationPlanCreate(
         drug_name=req.drug_name,
         dosage=req.dosage,
@@ -291,7 +298,7 @@ async def family_update_medication_plan(
         low_stock_threshold=req.low_stock_threshold,
     )
     try:
-        plan = MedicationService.update_plan(db, plan_id, user.id, plan_data)
+        plan = MedicationService.update_plan(db, plan_id, owner.id, plan_data)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     logger.info(
@@ -314,9 +321,11 @@ async def family_delete_medication_plan(
 ):
     """删除绑定设备的用药计划（JWT 鉴权 + 设备绑定校验）"""
     user = _require_bound_device(current_user, db, device_id)
+    # 多老人：组内任一老人的计划均可删除（家属统一管理）
+    elderly_ids = DeviceService._group_elderly_ids(db, user)
     plan = db.query(MedicationPlan).filter(
         MedicationPlan.id == plan_id,
-        MedicationPlan.user_id == user.id
+        MedicationPlan.user_id.in_(elderly_ids)
     ).first()
     if not plan:
         raise HTTPException(status_code=404, detail="计划不存在或不属于该设备")

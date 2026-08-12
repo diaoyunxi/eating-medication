@@ -225,6 +225,65 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
         raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
 
 
+@router.get("/elderly")
+async def elderly_manage(request: Request):
+    """老人管理页面：列出本家庭组老人，支持增加/减少/录入人脸"""
+    if not require_login(request):
+        return login_redirect()
+    fc = family_client(request) or elderly_client
+    status = await elderly_client.get_server_status()
+    elderly_list = await fc.list_elderly()
+    return templates.TemplateResponse("elderly_manage.html", {
+        "request": request,
+        "app_name": config.APP_NAME,
+        "status": status,
+        "elderly_list": elderly_list,
+    })
+
+
+@router.post("/elderly/add")
+async def elderly_add(request: Request):
+    """家属创建同组老人（网页「增加老年人」）"""
+    if not require_login(request):
+        return unauthorized_json()
+    fc = family_client(request) or elderly_client
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse(content={"success": False, "message": "请求体格式错误"}, status_code=400)
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return JSONResponse(content={"success": False, "message": "请输入老人姓名"}, status_code=400)
+    result = await fc.create_elderly(name)
+    if result.get("success"):
+        return JSONResponse(content={"success": True, "message": f"已添加老人 {name}"})
+    return JSONResponse(content={"success": False, "message": f"添加失败: {result.get('error', '未知错误')}"}, status_code=400)
+
+
+@router.post("/elderly/delete/{user_id}")
+async def elderly_delete(request: Request, user_id: int):
+    """家属删除本组老人（网页「减少老年人」）"""
+    if not require_login(request):
+        return unauthorized_json()
+    fc = family_client(request) or elderly_client
+    result = await fc.delete_elderly(user_id)
+    if result.get("success"):
+        return JSONResponse(content={"success": True, "message": "老人已删除"})
+    return JSONResponse(content={"success": False, "message": f"删除失败: {result.get('error', '未知错误')}"}, status_code=400)
+
+
+@router.post("/elderly/learn/{user_id}")
+async def elderly_learn(request: Request, user_id: int):
+    """家属触发录入人脸（标记 pending_learn，等待老人端二哈学习）"""
+    if not require_login(request):
+        return unauthorized_json()
+    fc = family_client(request) or elderly_client
+    result = await fc.start_learn_face(user_id)
+    if result.get("success"):
+        return JSONResponse(content={"success": True, "message": "已通知设备，请在二哈摄像头前让该老人面向摄像头完成录入"})
+    return JSONResponse(content={"success": False, "message": f"触发失败: {result.get('error', '未知错误')}"}, status_code=400)
+
+
 @router.get("/medication_settings")
 async def medication_settings(request: Request):
     """用药设置页面"""
@@ -234,6 +293,14 @@ async def medication_settings(request: Request):
     status = await elderly_client.get_server_status()
     device_info = await fc.get_device_info()
     plans = await fc.get_device_plans()
+    elderly_list = await fc.list_elderly()
+
+    # 按老人分组，供模板按“哪位老人”展示用药计划（Jinja 无 regroup，改在视图层分组）
+    _grouped: dict = {}
+    for _p in plans:
+        _key = _p.get("elderly_name") or "未指定老人"
+        _grouped.setdefault(_key, []).append(_p)
+    plan_groups = [{"grouper": _k, "list": _v} for _k, _v in _grouped.items()]
 
     return templates.TemplateResponse("medication_settings.html", {
         "request": request,
@@ -241,6 +308,8 @@ async def medication_settings(request: Request):
         "status": status,
         "device_info": device_info,
         "plans": plans,
+        "plan_groups": plan_groups,
+        "elderly_list": elderly_list,
     })
 
 

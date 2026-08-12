@@ -197,3 +197,62 @@ class UserService:
         db.delete(user)
         db.commit()
         return True
+
+    @staticmethod
+    def create_elderly(db: Session, name: str, group_id: int) -> User:
+        """家属创建同家庭组的老人账号（网页「增加老年人」，无需老人自行注册）
+
+        创建的老人 username=姓名，无密码（OAuth 式），不持有 device_id（设备鉴权由
+        设备主体用户代理），通过 group_id 与家属、设备主体同组，从而被设备端聚合拉取计划。
+
+        :param db: 数据库会话
+        :param name: 老人姓名（作为昵称）
+        :param group_id: 家庭组 ID（取自当前登录家属的 group_id）
+        :return: 新建的老人 User 对象
+        """
+        elderly = User(
+            username=name,
+            hashed_password=None,
+            role="elderly",
+            group_id=group_id,
+            device_id=None,
+            pending_learn=False,
+            husky_face_id=None,
+        )
+        db.add(elderly)
+        db.commit()
+        db.refresh(elderly)
+        return elderly
+
+    @staticmethod
+    def list_elderly(db: Session, group_id: int) -> List[User]:
+        """列出家庭组内所有老人（按 id 升序，保证列表顺序稳定）"""
+        return (
+            db.query(User)
+            .filter(User.group_id == group_id, User.role == "elderly")
+            .order_by(User.id)
+            .all()
+        )
+
+    @staticmethod
+    def set_husky_face_id(db: Session, user_id: int, husky_face_id: int) -> Optional[User]:
+        """录入人脸完成时回填老人的二哈人脸 ID，并清除待录入标记"""
+        user = UserService.get_user_by_id(db, user_id)
+        if not user:
+            return None
+        user.husky_face_id = husky_face_id
+        user.pending_learn = False
+        db.commit()
+        db.refresh(user)
+        return user
+
+    @staticmethod
+    def set_pending_learn(db: Session, user_id: int, value: bool) -> Optional[User]:
+        """设置/清除老人的待录入人脸标记（家属网页触发录入后置 True）"""
+        user = UserService.get_user_by_id(db, user_id)
+        if not user:
+            return None
+        user.pending_learn = value
+        db.commit()
+        db.refresh(user)
+        return user

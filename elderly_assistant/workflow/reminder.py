@@ -39,6 +39,8 @@ class MedicationPoller:
         self.last_success = False
         self._stop_flag = threading.Event()
         self._thread = None
+        # 人脸录入请求（由轮询服务端计划响应写入），默认为 None
+        self.learn_request = None
         if cache_loader is not None:
             try:
                 cached = cache_loader() or []
@@ -80,6 +82,8 @@ class MedicationPoller:
                 return
             with self._lock:
                 self._schedules = list(schedules)
+            # 同步人脸录入请求（家属网页触发后由服务端下发）
+            self.learn_request = getattr(self.http_client, "learn_request", None)
             self.last_success = True
         except Exception as e:
             logger.warning(f"拉取用药计划失败: {e}")
@@ -136,14 +140,21 @@ class ReminderState:
         self.current_key = ""     # 当前响铃中的提醒 key
         self.items = []
         self.triggered_at = None  # 最近一次响铃时间（datetime），用于本地重复提醒音
+        # 多老人支持：当前提醒所属老人（用于播报「是谁」与拍照前身份核验）
+        self.elderly_id = None
+        self.elderly_name = None
+        self.husky_face_id = None
 
-    def trigger(self, drug_name, dosage, key, items=None):
+    def trigger(self, drug_name, dosage, key, items=None, elderly_id=None, elderly_name=None, husky_face_id=None):
         self.active = True
         self.drug_name = drug_name
         self.dosage = dosage
         self.current_key = key
         self.fired_keys.add(key)
         self.items = items or []
+        self.elderly_id = elderly_id
+        self.elderly_name = elderly_name
+        self.husky_face_id = husky_face_id
         self.triggered_at = datetime.now()
 
     def confirm(self):
@@ -151,6 +162,9 @@ class ReminderState:
         self.drug_name = ""
         self.dosage = ""
         self.current_key = ""
+        self.elderly_id = None
+        self.elderly_name = None
+        self.husky_face_id = None
         self.triggered_at = None
 
 
@@ -230,6 +244,9 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, logge
                 "key": key,
                 "plan_id": s.get('plan_id'),
                 "scheduled_time": s.get('time'),
+                "elderly_id": s.get('elderly_id'),
+                "elderly_name": s.get('elderly_name'),
+                "husky_face_id": s.get('husky_face_id'),
             })
 
         if matched_reminders:
@@ -250,15 +267,36 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, logge
                 "drug_name": m["drug_name"],
                 "dosage": m["dosage"],
                 "scheduled_time": m["scheduled_time"],
+                "elderly_id": m.get("elderly_id"),
+                "elderly_name": m.get("elderly_name"),
+                "husky_face_id": m.get("husky_face_id"),
             } for m in matched_reminders]
+            # 收集需要播报/核验的老人姓名（去重，保持出现顺序）
+            elderly_names = []
+            for m in matched_reminders:
+                n = m.get("elderly_name")
+                if n and n not in elderly_names:
+                    elderly_names.append(n)
+            elderly_label = "、".join(elderly_names)
+            primary = matched_reminders[0]
             # 触发提醒
-            reminder_state.trigger(drug_name, dosage, key, items=items)
+            reminder_state.trigger(
+                drug_name,
+                dosage,
+                key,
+                items=items,
+                elderly_id=primary.get("elderly_id"),
+                elderly_name=elderly_label or primary.get("elderly_name"),
+                husky_face_id=primary.get("husky_face_id"),
+            )
             buzzer.play_reminder()
             display.show_reminder(drug_name, dosage)
-            # 语音播报提醒（TTS，缺失时静默降级）
+            # 语音播报提醒（TTS，缺失时静默降级）：先播报「是谁」，再提示用药
             if speech:
                 try:
-                    speech.speak(f"该用药了，{drug_name}")
+                    if elderly_label:
+                        speech.speak(f"{elderly_label}，该吃药了")
+                    speech.speak(f"请服用{drug_name}" + (f"，剂量{dosage}" if dosage else ""))
                 except Exception:
                     pass
             logger.info(f"触发用药提醒: {drug_name} {dosage} @ {now_hm} (共 {len(matched_reminders)} 个)")
