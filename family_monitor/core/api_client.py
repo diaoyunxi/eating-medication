@@ -650,16 +650,20 @@ class ElderlyAPIClient(BaseServerClient):
         normalized = []
         for p in plans:
             rq = p.get('remaining_quantity')
+            tq = p.get('total_quantity')
+            lst = p.get('low_stock_threshold')
             normalized.append({
                 'id': p.get('id'),
                 'drug_name': p.get('drug_name', '未知药品'),
                 'dosage': p.get('dosage', ''),
                 'frequency': p.get('frequency', ''),
                 'schedule_times': p.get('schedule_times', []) or [],
-                'total_quantity': p.get('total_quantity', 0) or 0,
+                # 数值字段仅保留 int/float，字符串(如"5")或 None 统一归一为 0，
+                # 避免模板中 remaining_quantity <= low_stock_threshold 触发 TypeError
+                'total_quantity': tq if isinstance(tq, (int, float)) else 0,
                 'remaining_quantity': rq if isinstance(rq, (int, float)) else 0,
                 'unit': p.get('unit', ''),
-                'low_stock_threshold': p.get('low_stock_threshold', 0) or 0,
+                'low_stock_threshold': lst if isinstance(lst, (int, float)) else 0,
                 'product_code': p.get('product_code'),
                 'enabled': p.get('enabled', True),
             })
