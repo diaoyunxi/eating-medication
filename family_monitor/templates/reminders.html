@@ -82,10 +82,11 @@
                         <tr>
                             <th style="width:18%">药品名称</th>
                             <th style="width:10%">剂量</th>
-                            <th style="width:22%">服药时间</th>
+                            <th style="width:20%">服药时间</th>
                             <th style="width:12%">频率</th>
-                            <th style="width:18%">库存</th>
-                            <th style="width:20%; text-align:right">操作</th>
+                            <th style="width:16%">库存</th>
+                            <th style="width:14%">条形码</th>
+                            <th style="width:10%; text-align:right">操作</th>
                         </tr>
                     </thead>
                     <tbody id="dnsTableBody">
@@ -103,6 +104,7 @@
                                     <span class="dns-stock-ok">{{ plan.remaining_quantity }}/{{ plan.total_quantity }}{{ plan.unit }}</span>
                                     {% endif %}
                                 </td>
+                                <td class="dns-cell-barcode">{{ plan.product_code if plan.product_code else '—' }}</td>
                                 <td>
                                     <div class="dns-actions">
                                         <button class="dns-action-btn dns-edit" title="编辑" onclick="editPlan({{ plan.id }})">
@@ -117,7 +119,7 @@
                             {% endfor %}
                         {% else %}
                         <tr>
-                            <td colspan="6">
+                            <td colspan="7">
                                 <div class="dns-empty">
                                     <div class="dns-empty-icon">&#9873;</div>
                                     <div class="dns-empty-text">暂无用药提醒，点击"添加提醒"创建</div>
@@ -230,6 +232,14 @@
                     '<input class="dns-input dns-input-small" type="number" name="total_quantity" placeholder="总量" value="' + (plan.total_quantity || 0) + '" style="max-width:60px">' +
                     '<input class="dns-input dns-input-small" type="text" name="unit" placeholder="片" value="' + (plan.unit || '片') + '" style="max-width:50px">' +
                 '</td>' +
+                '<td>' +
+                    '<div style="display:flex; gap:4px; align-items:center;">' +
+                        '<input class="dns-input dns-input-small" type="text" name="product_code" placeholder="选填" value="' + (plan.product_code || '') + '" style="max-width:110px">' +
+                        '<button type="button" class="dns-action-btn" title="扫描条形码" onclick="openReminderScan(this)">' +
+                            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>' +
+                        '</button>' +
+                    '</div>' +
+                '</td>' +
                 '<td style="text-align:right">' +
                     '<div class="dns-actions">' +
                         '<button class="dns-action-btn dns-save" title="保存" onclick="saveRow(this)">' +
@@ -264,7 +274,7 @@
             return {
                 drug_name: tr.querySelector('[name="drug_name"]') ? tr.querySelector('[name="drug_name"]').value.trim() : '',
                 dosage: tr.querySelector('[name="dosage"]') ? tr.querySelector('[name="dosage"]').value.trim() : '',
-                product_code: tr.dataset.productCode || '',
+                product_code: (tr.querySelector('[name="product_code"]') ? tr.querySelector('[name="product_code"]').value.trim() : '') || tr.dataset.productCode || '',
                 schedule_times: times,
                 frequency: tr.querySelector('[name="frequency"]') ? tr.querySelector('[name="frequency"]').value : 'daily',
                 remaining_quantity: parseInt((tr.querySelector('[name="remaining_quantity"]') || {}).value) || 0,
@@ -504,6 +514,95 @@
                 .catch(function(){});
         }
         setInterval(refreshDeviceStatus, 15000);
+    })();
+    </script>
+
+    <!-- 扫码设置药品条形码（浏览器原生 BarcodeDetector，不支持时提示手动输入） -->
+    <div id="reminderScanModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 style="margin:0;">扫描药品条形码</h3>
+                <button type="button" class="modal-close" onclick="closeReminderScan()">✕</button>
+            </div>
+            <video id="reminderScanVideo" playsinline muted style="width:100%;background:#000;border-radius:8px;display:block;"></video>
+            <p id="reminderScanMsg" class="form-hint-inline">将条形码对准摄像头…</p>
+            <p class="form-hint-inline">若浏览器不支持自动扫码，请关闭弹窗并在上方手动输入编号。</p>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        if (window.__reminderScanInit) return;
+        window.__reminderScanInit = true;
+
+        var _targetInput = null;
+        var _stream = null;
+        var _video = null;
+        var _detector = null;
+        var _scanning = false;
+
+        function stopReminderScan() {
+            if (_stream) {
+                _stream.getTracks().forEach(function (t) { t.stop(); });
+                _stream = null;
+            }
+            if (_video) { _video.srcObject = null; }
+            _scanning = false;
+        }
+
+        async function startReminderScan() {
+            _video = document.getElementById('reminderScanVideo');
+            var msgEl = document.getElementById('reminderScanMsg');
+            msgEl.textContent = '将条形码对准摄像头…';
+            if (!('BarcodeDetector' in window)) {
+                msgEl.textContent = '当前浏览器不支持自动扫码，请在上方手动输入编号。';
+                return;
+            }
+            try {
+                var formats = [];
+                try { formats = await BarcodeDetector.getSupportedFormats(); } catch (e) {}
+                _detector = new BarcodeDetector({ formats: formats });
+                _stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }, audio: false
+                });
+                _video.srcObject = _stream;
+                await _video.play();
+                _scanning = true;
+                scanLoop();
+            } catch (e) {
+                msgEl.textContent = '无法访问摄像头：' + (e && e.message ? e.message : e);
+            }
+        }
+
+        async function scanLoop() {
+            if (!_scanning || !_detector || !_video) return;
+            try {
+                var codes = await _detector.detect(_video);
+                if (codes && codes.length > 0) {
+                    if (_targetInput) { _targetInput.value = codes[0].rawValue; }
+                    closeReminderScan();
+                    return;
+                }
+            } catch (e) {}
+            requestAnimationFrame(scanLoop);
+        }
+
+        window.openReminderScan = function (btn) {
+            var tr = btn.closest('tr');
+            _targetInput = tr ? tr.querySelector('[name="product_code"]') : null;
+            document.getElementById('reminderScanModal').classList.add('show');
+            startReminderScan();
+        };
+
+        window.closeReminderScan = function () {
+            stopReminderScan();
+            var modal = document.getElementById('reminderScanModal');
+            if (modal) { modal.classList.remove('show'); }
+        };
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { closeReminderScan(); }
+        });
     })();
     </script>
 {% endblock %}
