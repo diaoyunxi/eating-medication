@@ -259,26 +259,39 @@ class DeviceService:
 
     @staticmethod
     def get_records(db: Session, user: User, limit: int = 100) -> list:
-        """获取设备的服药记录（限制 limit 范围，防止一次拉取过多）"""
+        """获取设备的服药记录（限制 limit 范围，防止一次拉取过多）。
+
+        返回字段对齐子女端 records.html 的真实数据需求：
+        medication_name/dosage 取自关联用药计划；
+        confirmed 由记录状态推导（已服药即视为已确认）；
+        photo 当前未与记录关联，返回 None 以避免虚假显示"有照片"。
+        """
         limit = max(1, min(limit, 500))
-        records = (
-            db.query(MedicationRecord)
+        rows = (
+            db.query(MedicationRecord, MedicationPlan.drug_name, MedicationPlan.dosage)
+            .outerjoin(MedicationPlan, MedicationRecord.plan_id == MedicationPlan.id)
             .filter(MedicationRecord.user_id == user.id)
             .order_by(MedicationRecord.scheduled_time.desc())
             .limit(limit)
             .all()
         )
-        return [
-            {
-                "id": r.id,
-                "plan_id": r.plan_id,
-                "scheduled_time": r.scheduled_time.isoformat() if r.scheduled_time else None,
-                "taken_time": r.taken_time.isoformat() if r.taken_time else None,
-                "status": r.status,
-                "note": r.note,
-            }
-            for r in records
-        ]
+        records = []
+        for r, drug_name, dosage in rows:
+            records.append(
+                {
+                    "id": r.id,
+                    "plan_id": r.plan_id,
+                    "medication_name": drug_name,
+                    "dosage": dosage,
+                    "scheduled_time": r.scheduled_time.isoformat() if r.scheduled_time else None,
+                    "taken_time": r.taken_time.isoformat() if r.taken_time else None,
+                    "status": r.status,
+                    "confirmed": r.status == "taken" or r.taken_time is not None,
+                    "photo": None,
+                    "note": r.note,
+                }
+            )
+        return records
 
     @staticmethod
     def get_chat_history(db: Session, user: User, limit: int = 50) -> list:
