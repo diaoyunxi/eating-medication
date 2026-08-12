@@ -8,7 +8,7 @@ import logging
 import sys
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import (
@@ -177,7 +177,32 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
-# 移除手动 path_prefix 中间件，前缀剥离统一由 root_path 处理，避免双重处理
+# 路径前缀剥离中间件：Starlette 的 root_path 仅用于 URL 构建，不会自动剥离
+# scope["path"] 用于路由匹配。在 Cloudflare 隧道（保留完整路径转发）模式下，请求路径
+# 带 /eating-medication/server 前缀，若不手工剥离，路由以 /eating-medication/server/api/v1/...
+# 去匹配 /api/v1/... 会 404。此处条件剥离（仅当前缀匹配才剥），对 Caddy handle_path
+# 模式（路径已在代理层剥掉）无副作用。
+async def path_prefix_middleware(request: Request, call_next):
+    if PATH_PREFIX:
+        request.scope["root_path"] = PATH_PREFIX
+        raw_path = request.scope.get("path", "")
+        if raw_path.startswith(PATH_PREFIX + "/"):
+            request.scope["path"] = raw_path[len(PATH_PREFIX):]
+        elif raw_path == PATH_PREFIX or raw_path == PATH_PREFIX + "/":
+            request.scope["path"] = "/"
+        response = await call_next(request)
+        # 重定向 Location 补前缀，确保浏览器跟随到正确子路径
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("location", "")
+            if (location.startswith("/")
+                    and not location.startswith(PATH_PREFIX + "/")
+                    and location != PATH_PREFIX):
+                response.headers["location"] = PATH_PREFIX + location
+        return response
+    return await call_next(request)
+
+
+app.add_middleware(path_prefix_middleware)
 
 # 全局异常处理器
 add_exception_handlers(app)
