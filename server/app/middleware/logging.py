@@ -10,7 +10,7 @@ from app.core.config import settings
 logger = logging.getLogger("app.access")
 
 # 敏感路径——这些路径不记录请求体
-SENSITIVE_PATHS = {"/auth/login", "/auth/register", "/device/register"}
+SENSITIVE_PATHS = {"/auth/login", "/auth/register", "/device/register", "/public/device/register"}
 
 # 请求体中需要脱敏的字段名（子串匹配，不区分大小写）
 SENSITIVE_FIELDS = ("password", "token", "secret_key", "api_key", "authorization")
