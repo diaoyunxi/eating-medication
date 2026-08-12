@@ -10,7 +10,7 @@ from app.core.config import settings
 logger = logging.getLogger("app.access")
 
 # 敏感路径——这些路径不记录请求体
-SENSITIVE_PATHS = {"/auth/login", "/auth/register", "/device/register"}
+SENSITIVE_PATHS = {"/auth/login", "/auth/register", "/device/register", "/public/device/register"}
 
 # 请求体中需要脱敏的字段名（子串匹配，不区分大小写）
 SENSITIVE_FIELDS = ("password", "token", "secret_key", "api_key", "authorization")
@@ -49,8 +49,15 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             f"来自: {client_ip} - UA: {user_agent}"
         )
 
-        # 仅在 DEBUG 模式下记录请求体，且敏感路径不记录
-        if settings.DEBUG and request.method in ["POST", "PUT", "PATCH"]:
+        # 仅在 DEBUG 模式下记录请求体；但绝不能直接 ``await request.body()`` 后原样
+        # ``call_next(request)`` —— 那样会消费请求体流。在多层 BaseHTTPMiddleware
+        # （含 fb35676 新增的 path_prefix_middleware 函数式中间件）叠加时，下游路由用
+        # Pydantic 解析 ``req: XxxIn`` 会拿到空 body，导致所有 POST 请求返回 400，
+        # 且 body 流被提前耗尽后下游会卡在等待，表现为 10s+ 超时（生产环境 DEBUG=true
+        # 时尤为明显，GET 无 body 故正常）。
+        # 正确做法：读取一次后将 body 通过「重放 receive」重建 Request 再下发，
+        # 既保留 DEBUG 请求体日志，又不破坏下游对 body 的解析。
+        if settings.DEBUG and request.method in ("POST", "PUT", "PATCH"):
             content_type = request.headers.get("content-type", "")
             # 剥离 API 前缀以匹配敏感路径
             normalized_path = request.url.path
@@ -63,13 +70,25 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             elif normalized_path in SENSITIVE_PATHS:
                 logger.info("🔒 敏感路径，不记录请求体")
             else:
-                # 对于文本请求，尝试读取和解析
+                # 对于文本请求，尝试读取和解析（读取后即重放，避免消费流）
                 try:
                     body_bytes = await request.body()
                     if body_bytes:
                         request_body = body_bytes.decode("utf-8", errors="replace")
                         request_body = _redact_body(request_body)
                         logger.info(f"📦 请求体:\n{request_body}")
+                    # 关键修复：用已读取的 body 重建 receive 并重放给下游路由，
+                    # 否则下游 Pydantic 解析会读到空 body（返回 400）甚至卡死。
+                    captured = body_bytes
+
+                    async def _replay_receive():
+                        return {
+                            "type": "http.request",
+                            "body": captured,
+                            "more_body": False,
+                        }
+
+                    request = Request(request.scope, receive=_replay_receive)
                 except Exception as e:
                     logger.debug(f"读取请求体失败: {e}")
 
