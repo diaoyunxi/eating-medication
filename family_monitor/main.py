@@ -165,6 +165,15 @@ async def path_prefix_middleware(request: Request, call_next):
     """
     if PATH_PREFIX:
         request.scope["root_path"] = PATH_PREFIX
+        # 关键：剥离 scope["path"] 的前缀，供路由匹配使用。
+        # root_path 仅用于 URL 构建，Starlette 不会据此自动剥离 path；
+        # 在 Cloudflare 隧道（保留完整路径转发）模式下，若只设 root_path 不剥 path，
+        # 路由仍以带前缀的 path（如 /eating-medication/family/login）去匹配 /login，导致 404。
+        raw_path = request.scope.get("path", "")
+        if raw_path.startswith(PATH_PREFIX + "/"):
+            request.scope["path"] = raw_path[len(PATH_PREFIX):]
+        elif raw_path == PATH_PREFIX or raw_path == PATH_PREFIX + "/":
+            request.scope["path"] = "/"
         response = await call_next(request)
         # 重定向 Location 补前缀
         if response.status_code in (301, 302, 303, 307, 308):
