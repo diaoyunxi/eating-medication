@@ -476,6 +476,7 @@ class ElderlyAPIClient(BaseServerClient):
         unit: str = "片",
         low_stock_threshold: int = 5,
         product_code: Optional[str] = None,
+        elderly_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """设置/添加用药计划
 
@@ -552,6 +553,7 @@ class ElderlyAPIClient(BaseServerClient):
         unit: str = "片",
         low_stock_threshold: int = 5,
         product_code: Optional[str] = None,
+        elderly_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """更新用药计划
 

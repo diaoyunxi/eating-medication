@@ -295,12 +295,20 @@ async def medication_settings(request: Request):
     plans = await fc.get_device_plans()
     elderly_list = await fc.list_elderly()
 
+    # 按老人分组，供模板按“哪位老人”展示用药计划（Jinja 无 regroup，改在视图层分组）
+    _grouped: dict = {}
+    for _p in plans:
+        _key = _p.get("elderly_name") or "未指定老人"
+        _grouped.setdefault(_key, []).append(_p)
+    plan_groups = [{"grouper": _k, "list": _v} for _k, _v in _grouped.items()]
+
     return templates.TemplateResponse("medication_settings.html", {
         "request": request,
         "app_name": config.APP_NAME,
         "status": status,
         "device_info": device_info,
         "plans": plans,
+        "plan_groups": plan_groups,
         "elderly_list": elderly_list,
     })
 

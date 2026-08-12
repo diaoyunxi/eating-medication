@@ -71,8 +71,7 @@
                 </div>
 
                 <div id="planListContainer">
-                    {% if plans %}
-                    {% regroup plans by (plan.get('elderly_name') or '未指定老人') as plan_groups %}
+                    {% if plan_groups %}
                     {% for group in plan_groups %}
                     <div class="elderly-plan-group">
                         <div class="elderly-group-title">👴 {{ group.grouper }}</div>
