@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """用药确认/AI问答/拍照上传等工作流动作（纯逻辑，硬件以参数注入）。"""
 import logging
+from typing import List
 
 logger = logging.getLogger("ElderlyAssistant")
 
@@ -13,7 +14,7 @@ def _capture_and_upload(config, http_client, logger, reminder_state=None):
     """
     plan_id = None
     scheduled_time = None
-    elderly_id = None
+    elderly_ids: List[int] = []
     if reminder_state is not None:
         # items 为字典列表：用 .get() 正确取值（此前误当对象访问 item.medication
         # 导致 plan_id 永远为 None，照片无法关联到具体服药计划）
@@ -24,15 +25,23 @@ def _capture_and_upload(config, http_client, logger, reminder_state=None):
             if pid is not None:
                 plan_id = pid
                 scheduled_time = item.get("scheduled_time")
-                elderly_id = item.get("elderly_id")
-                break
+            # 收集所有涉及的老人（支持同一时刻多名老人服药的合并提醒），
+            # 避免照片只归属首位老人，确保每位老人的服药记录都能关联照片
+            eid = item.get("elderly_id")
+            if eid is not None and eid not in elderly_ids:
+                elderly_ids.append(eid)
     try:
         from core.camera import capture_image
         path = capture_image(config)
         if not path:
             return
-        # 上传时附带用药计划与所属老人，便于服务端精确归类
-        http_client.upload_image(path, plan_id=plan_id, scheduled_time=scheduled_time, elderly_id=elderly_id)
+        # 上传时附带用药计划与所属老人，便于服务端精确归类；
+        # 多老人场景下逐一上报，使每位老人都拥有本次照片记录
+        targets = elderly_ids or [None]
+        for eid in targets:
+            http_client.upload_image(
+                path, plan_id=plan_id, scheduled_time=scheduled_time, elderly_id=eid
+            )
     except Exception as e:
         logger.warning(f"拍照上传失败: {e}")
 

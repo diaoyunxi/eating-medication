@@ -577,6 +577,15 @@ class DeviceService:
         elderly_id 必须属于同一家庭组，否则拒绝写入（防止越权写入他人记录）。
         """
         if elderly_id:
+            # 未加入家庭组的设备（group_id 为 NULL）只能操作自身，禁止通过传入其他
+            # group_id 同样为 NULL 的老人 ID 越权访问他人记录。
+            if device_user.group_id is None:
+                if int(elderly_id) == device_user.id:
+                    return device_user
+                raise HTTPException(
+                    status_code=403,
+                    detail="设备未加入家庭组，仅可操作自身记录",
+                )
             target = db.query(User).filter(
                 User.id == elderly_id,
                 User.role == "elderly",

@@ -3,7 +3,7 @@
 
 在无真实 M10 硬件时，供工作流单元测试注入，验证提醒状态机、确认/暂缓逻辑的正确性。
 """
-from typing import List
+from typing import List, Optional
 
 
 class FakeLed:
@@ -105,6 +105,7 @@ class FakeHttpClient:
     def __init__(self):
         self.confirmed = None
         self.uploaded = []
+        self.reported_faces = []
 
     def confirm_medication(self, drug: str, dosage: str, items=None) -> None:
         self.confirmed = (drug, dosage)
@@ -121,6 +122,10 @@ class FakeHttpClient:
     def upload_image(self, path: str, **kwargs) -> None:
         self.uploaded.append({"path": path, "kwargs": kwargs})
 
+    def report_learned_face(self, elderly_id: int, face_id: int) -> bool:
+        self.reported_faces.append({"elderly_id": elderly_id, "face_id": face_id})
+        return True
+
     def ask_ai(self, question: str) -> str:
         return "ok"
 
@@ -131,7 +136,12 @@ class FakeHttpClient:
 class FakeFaceRecognizer:
     """人脸识别器替身，满足 FaceRecognizerPort 接口，供单测注入。"""
 
-    def __init__(self, available: bool = True, detected: List[int] = None, learn_result: bool = True):
+    def __init__(
+        self,
+        available: bool = True,
+        detected: Optional[List[int]] = None,
+        learn_result: bool = True,
+    ) -> None:
         self.available = available
         self.detected = list(detected or [])
         self.learn_result = learn_result

@@ -80,8 +80,14 @@
                             </div>
                             <div class="plan-actions">
                                 {% if not e.has_device %}
-                                <button class="btn btn-outline btn-sm" onclick="learnFace({{ e.id }}, '{{ e.name }}')">📷 录入人脸</button>
-                                <button class="btn btn-danger btn-sm" onclick="deleteElderly({{ e.id }}, '{{ e.name }}')">🗑️ 删除</button>
+                                <button class="btn btn-outline btn-sm"
+                                        data-elderly-id="{{ e.id }}"
+                                        data-elderly-name="{{ e.name }}"
+                                        onclick="learnFace(this.dataset.elderlyId, this.dataset.elderlyName)">📷 录入人脸</button>
+                                <button class="btn btn-danger btn-sm"
+                                        data-elderly-id="{{ e.id }}"
+                                        data-elderly-name="{{ e.name }}"
+                                        onclick="deleteElderly(this.dataset.elderlyId, this.dataset.elderlyName)">🗑️ 删除</button>
                                 {% else %}
                                 <span class="form-hint-inline">设备主体不可删除</span>
                                 {% endif %}

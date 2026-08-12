@@ -184,6 +184,9 @@ async def device_learn_face(
     from app.services.user_service import UserService
 
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
+    # 未加入家庭组的设备拒绝录入人脸，避免越权写入
+    if user.group_id is None:
+        raise HTTPException(status_code=403, detail="设备未加入家庭组，无法录入人脸")
     # 校验 elderly_id 属于同一家庭组，防止越权写入他人照片/人脸
     target = (
         db.query(User)

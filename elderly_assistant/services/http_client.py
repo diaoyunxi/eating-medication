@@ -201,8 +201,10 @@ class HTTPClient:
                 # 校验响应类型，避免非 dict 响应调用 .get 崩溃
                 if isinstance(data, dict):
                     schedules = data.get('schedules', []) or []
-                    # 人脸录入请求（家属触发）随计划一同下发
-                    self.learn_request = data.get('learn_request')
+                    # 人脸录入请求（家属触发）随计划一同下发；
+                    # 必须是 dict，否则在主循环 learn_req.get(...) 会抛异常导致崩溃
+                    lr = data.get('learn_request')
+                    self.learn_request = lr if isinstance(lr, dict) else None
                 elif isinstance(data, list):
                     schedules = data
                 else:
