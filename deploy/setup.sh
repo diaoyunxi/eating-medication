@@ -40,6 +40,19 @@ echo "============================================================"
 
 # ===== 1. 系统依赖 =====
 echo "==> [1/7] 安装系统依赖 (git/python3/pip/curl)..."
+
+# 备份当前源文件
+cp /etc/apt/sources.list /etc/apt/sources.list.bak
+
+# 编辑源文件
+rm -rf /etc/apt/sources.list
+# 解决debian10的apt源问题
+cat > /etc/apt/sources.list << 'EOF'
+deb http://mirrors.aliyun.com/debian-archive/debian buster main contrib non-free
+deb http://mirrors.aliyun.com/debian-archive/debian buster-updates main contrib non-free
+deb http://mirrors.aliyun.com/debian-archive/debian-security buster/updates main contrib non-free
+EOF
+
 if command -v apt-get >/dev/null 2>&1; then
   $SUDO apt-get update -y
   $SUDO apt-get install -y git python3 python3-pip python3-venv curl
