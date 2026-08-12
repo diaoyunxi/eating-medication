@@ -191,20 +191,33 @@ if _db_scheme(settings.DATABASE_URL) == "sqlite":
     try:
         from sqlalchemy import event as _sa_event
 
-        def _apply_sqlite_pragmas(dbapi_conn, _conn_record):
-            """每个新连接建立时应用 SQLite 性能/并发 PRAGMA。"""
-            cur = dbapi_conn.cursor()
+        def _apply_sqlite_pragmas(dbapi_conn, _conn_record) -> None:
+            """每个新连接建立时应用 SQLite 性能/并发 PRAGMA。
+
+            注意：本函数在 DBAPI 建立连接阶段被回调，此处抛出的异常会向上传播、
+            导致取连接失败进而影响业务请求。PRAGMA 属"尽力优化"而非功能必需，
+            故在内部捕获并降级为告警日志，保证连接可用性。
+            """
+            cur = None
             try:
+                cur = dbapi_conn.cursor()
                 cur.execute("PRAGMA journal_mode=WAL")
                 cur.execute("PRAGMA synchronous=NORMAL")
                 cur.execute("PRAGMA busy_timeout=30000")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("SQLite PRAGMA 应用失败(已降级，不影响连接): %s", exc)
             finally:
-                cur.close()
+                # 仅在游标创建成功时关闭，避免 cursor() 本身失败时二次异常
+                if cur is not None:
+                    try:
+                        cur.close()
+                    except Exception:  # noqa: BLE001
+                        pass
 
         _sa_event.listen(engine, "connect", _apply_sqlite_pragmas)
-        logger.info("SQLite 已启用 WAL + busy_timeout 并发优化")
+        logger.info("SQLite 并发优化监听器已注册(WAL + busy_timeout 将于建立连接时应用)")
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"SQLite 并发优化(PRAGMA)设置失败（可忽略）: {e}")
+        logger.warning("SQLite 并发优化监听器注册失败(可忽略): %s", e)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
