@@ -27,6 +27,11 @@ from services.schedule_cache import CACHE_PATH  # noqa: E402
 # 故在导入期固化引用，供 setUp 打桩使用
 import services.schedule_cache as _schedule_cache_module  # noqa: E402
 
+# 以唯一名加载 elderly_assistant/core/barcode.py，规避与 family_monitor 同名顶层包冲突
+# （test_elderly_camera 采用相同做法；直接 `from core.barcode import ...` 在 CI 中
+#  可能因 sys.path 顺序导致 `core` 绑定到 family_monitor/core 而报 ModuleNotFoundError）
+barcode_mod = load_module("elderly_test_barcode", "elderly_assistant/core/barcode.py")
+
 LOG = __import__("logging").getLogger("t")
 
 PLANS = [
@@ -380,7 +385,7 @@ class TestHuskyLensResidualCache(unittest.TestCase):
     """回归测试：镜头无条码时不得返回第一次识别的旧结果。"""
 
     def test_no_residual_when_getresult_zero(self):
-        from core.barcode import HuskyLensScanner
+        HuskyLensScanner = barcode_mod.HuskyLensScanner
         hl = _ResidualCacheHuskyLens(total_per_call=0)
         codes = HuskyLensScanner._read_contents(hl, 1)
         self.assertEqual(codes, [])  # 关键：不返回残留的旧码
@@ -392,7 +397,7 @@ class TestHuskyLensResidualCache(unittest.TestCase):
         self.assertEqual(codes, [])  # 关键：getResult>0 但实时为空，不返回旧码
 
     def test_returns_code_when_real_target_present(self):
-        from core.barcode import HuskyLensScanner
+        HuskyLensScanner = barcode_mod.HuskyLensScanner
         hl = _ResidualCacheHuskyLens(total_per_call=1)
         codes = HuskyLensScanner._read_contents(hl, 1)
         self.assertEqual(codes, ["6901234567890"])
