@@ -415,7 +415,10 @@
                         if (m) { m.style.display = 'block'; }
                     }
                 })
-                .catch(function () { /* 忽略，按钮保持隐藏 */ });
+                .catch(function (err) {
+                    // 探测失败：记录日志便于排查（按钮保持隐藏）
+                    console.warn('GitHub 登录方式探测失败：', err);
+                });
 
             fetch(prefix + '/oauth/gitee/enabled')
                 .then(function (r) { return r.json(); })
@@ -425,7 +428,10 @@
                         if (m) { m.style.display = 'block'; }
                     }
                 })
-                .catch(function () { /* 忽略，按钮保持隐藏 */ });
+                .catch(function (err) {
+                    // 探测失败：记录日志便于排查（按钮保持隐藏）
+                    console.warn('Gitee 登录方式探测失败：', err);
+                });
 
             var ghBtn = document.getElementById('githubLoginBtn');
             if (ghBtn) {

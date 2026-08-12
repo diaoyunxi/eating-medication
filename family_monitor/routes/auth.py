@@ -9,6 +9,7 @@
 5. 后续请求由 auth_middleware 转发 JWT 到 server /api/v1/users/me 验证
 """
 
+import logging
 import os
 import httpx
 from fastapi import APIRouter, Request, status
@@ -19,6 +20,7 @@ from core.config import config
 from common.server_client import BaseServerClient
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # 模板对象（用于渲染 login.html / register.html）
 templates = Jinja2Templates(directory=str(config.TEMPLATES_DIR))
@@ -153,8 +155,20 @@ async def oauth_github_enabled():
         resp = await _server_client._execute("GET", "/auth/oauth/github/config")
         if resp.status_code == 200:
             return resp.json()
-    except Exception:
-        pass
+        # server 返回非 200（未配置/异常）→ 前端将隐藏按钮，记录日志便于排查
+        logger.warning(
+            "GitHub OAuth 启用探测：server 返回非 200 状态(%s)，按未启用处理（前端隐藏按钮）。"
+            "若已在 server 配置 GITHUB_CLIENT_ID/GITHUB_CLIENT_SECRET 仍不显示，"
+            "请确认本服务 ELDERLY_SERVER_URL 指向正确的 server 地址。",
+            resp.status_code,
+        )
+    except Exception as e:
+        # 内部调用失败（网络/超时）→ 兜底未启用，记录异常便于定位链路问题
+        logger.warning(
+            "GitHub OAuth 启用探测失败：%s；按未启用处理（前端隐藏按钮）。"
+            "请检查本服务 ELDERLY_SERVER_URL 是否能正常访问 server。",
+            e,
+        )
     return {"enabled": False}
 
 
@@ -175,8 +189,20 @@ async def oauth_gitee_enabled():
         resp = await _server_client._execute("GET", "/auth/oauth/gitee/config")
         if resp.status_code == 200:
             return resp.json()
-    except Exception:
-        pass
+        # server 返回非 200（未配置/异常）→ 前端将隐藏按钮，记录日志便于排查
+        logger.warning(
+            "Gitee OAuth 启用探测：server 返回非 200 状态(%s)，按未启用处理（前端隐藏按钮）。"
+            "若已在 server 配置 GITEE_CLIENT_ID/GITEE_CLIENT_SECRET 仍不显示，"
+            "请确认本服务 ELDERLY_SERVER_URL 指向正确的 server 地址。",
+            resp.status_code,
+        )
+    except Exception as e:
+        # 内部调用失败（网络/超时）→ 兜底未启用，记录异常便于定位链路问题
+        logger.warning(
+            "Gitee OAuth 启用探测失败：%s；按未启用处理（前端隐藏按钮）。"
+            "请检查本服务 ELDERLY_SERVER_URL 是否能正常访问 server。",
+            e,
+        )
     return {"enabled": False}
 
 
