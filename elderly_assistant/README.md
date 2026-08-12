@@ -98,7 +98,7 @@ pip install --break-system-packages -r requirements.txt
 - `SERVER_BASE_URL`：服务端 API 基址（用于上传、聊天、紧急呼救等）
 - `HEARTBEAT_INTERVAL`：心跳上报间隔（秒）
 - `HOTSPOT_*`：热点配网 SSID / IP / 端口
-- `POLL_INTERVAL` / `SNOOZE_MINUTES` / `BUZZER_LOOP_INTERVAL`：提醒与蜂鸣器间隔
+- `POLL_INTERVAL` / `BUZZER_LOOP_INTERVAL`：提醒与蜂鸣器间隔
 - `CAMERA_*`：摄像头连接方式与保存路径
 - `SCAN_*`：药品条码扫描来源、USB 摄像头序号与扫码超时
 
@@ -143,7 +143,6 @@ python main.py
 |------|------|------|
 | 物理键 A 短按 | 提醒响铃中 | 确认服药（停止响铃、上报服务端、拍照上传） |
 | 物理键 A 长按（>`LONG_PRESS_SEC`） | 提醒响铃中 | 询问 AI 该药服用注意事项并语音播报 |
-| 物理键 B 按下 | 提醒响铃中 | 暂缓提醒（`SNOOZE_MINUTES` 分钟后再响） |
 | 屏幕「扫码查药」按钮 | 主界面 | 扫描药品条码并语音播报用量 |
 
 > 扫码使用屏幕触摸按钮而非物理按键，避免与「暂缓提醒」语义冲突及误触摄像头；按钮位于主界面下方，点击后在后台线程扫码，不影响时间刷新与提醒触发。
@@ -180,7 +179,6 @@ python main.py
 | `HEARTBEAT_INTERVAL` | 心跳上报间隔（秒） |
 | `HOTSPOT_SSID` / `HOTSPOT_IP` / `HOTSPOT_WEB_PORT` | 热点配网 SSID / IP / 端口 |
 | `POLL_INTERVAL` | 用药计划轮询间隔（秒），默认 `1200`（20 分钟） |
-| `SNOOZE_MINUTES` | 暂缓提醒间隔（分钟） |
 | `BUZZER_LOOP_INTERVAL` | 蜂鸣器循环间隔（秒） |
 | `LONG_PRESS_SEC` | 按钮长按判定阈值（秒），默认 `1.5` |
 | `CAMERA_CONNECTION` / `CAMERA_UART_TTY` / `CAMERA_UART_BAUDRATE` / `CAMERA_SAVE_PATH` | 摄像头连接方式与保存路径 |

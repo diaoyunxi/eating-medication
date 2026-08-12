@@ -11,7 +11,7 @@ server.method）与幽灵字段（paths.log_dir、speech.*）。现已统一为�
 
 - server   : base_url / upload_endpoint / timeout / heartbeat_interval
 - hotspot  : ssid / ip / web_port
-- reminder : poll_interval / snooze_minutes / buzzer_loop_interval
+- reminder : poll_interval / buzzer_loop_interval
 - camera   : connection / uart_tty / uart_baudrate / save_path
 - scan     : source / usb_index / timeout_sec（药品条码扫描）
 
@@ -47,7 +47,6 @@ DEFAULT_CONFIG = {
     "reminder": {
         # 用药计划轮询间隔：默认 20 分钟拉取一次（有网走网络，失败回退本地缓存）
         "poll_interval": 1200,
-        "snooze_minutes": 5,
         "buzzer_loop_interval": 3,
         "long_press_sec": 1.5,
     },
@@ -79,7 +78,6 @@ _ENV_LEAVES = [
     ("HOTSPOT_IP", "hotspot", "ip", str),
     ("HOTSPOT_WEB_PORT", "hotspot", "web_port", int),
     ("POLL_INTERVAL", "reminder", "poll_interval", int),
-    ("SNOOZE_MINUTES", "reminder", "snooze_minutes", int),
     ("BUZZER_LOOP_INTERVAL", "reminder", "buzzer_loop_interval", int),
     ("LONG_PRESS_SEC", "reminder", "long_press_sec", float),
     ("CAMERA_CONNECTION", "camera", "connection", str),
@@ -109,7 +107,6 @@ _ENV_TEMPLATE = (
     "# ===== 提醒 =====\n"
     "# POLL_INTERVAL: 用药计划轮询间隔（秒），默认 1200 = 20 分钟\n"
     "POLL_INTERVAL=1200\n"
-    "SNOOZE_MINUTES=5\n"
     "BUZZER_LOOP_INTERVAL=3\n"
     "LONG_PRESS_SEC=1.5\n\n"
     "# ===== 摄像头 =====\n"

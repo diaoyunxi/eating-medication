@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""用药确认/暂缓/AI问答/拍照上传等工作流动作（纯逻辑，硬件以参数注入）。"""
+"""用药确认/AI问答/拍照上传等工作流动作（纯逻辑，硬件以参数注入）。"""
 import logging
 
 logger = logging.getLogger("ElderlyAssistant")
@@ -157,30 +157,4 @@ def handle_scan_medication(scanner, poller, speech, logger, timeout=None):
         return None
 
 
-def handle_snooze(reminder_state, buzzer, display, snooze_minutes, logger):
-    """按钮 B：暂不提醒（5分钟后再提醒）。"""
-    try:
-        logger.info(f"用户暂缓提醒，{snooze_minutes} 分钟后再提醒")
-        buzzer.stop()
-        reminder_state.snooze(snooze_minutes)
-        # 返回主界面，等待 snooze_until 到期再响铃
-        display.clear_reminder()
-    except Exception as e:
-        logger.error(f"处理暂缓提醒异常: {e}")
 
-
-def handle_close(buzzer, display, logger):
-    """关闭提醒页：停止蜂鸣并退回到主界面，不记录服药也不暂缓。
-
-    供老年端用药提醒页「关闭」按钮调用，让老人能主动退出提醒界面，
-    而不必执行「确认服药」或「稍后提醒」。
-    """
-    try:
-        logger.info("用户关闭提醒页")
-        try:
-            buzzer.stop()
-        except Exception:
-            pass
-        display.clear_reminder()
-    except Exception as e:
-        logger.error(f"处理关闭提醒异常: {e}")
