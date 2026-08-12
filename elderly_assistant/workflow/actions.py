@@ -13,19 +13,26 @@ def _capture_and_upload(config, http_client, logger, reminder_state=None):
     """
     plan_id = None
     scheduled_time = None
+    elderly_id = None
     if reminder_state is not None:
+        # items 为字典列表：用 .get() 正确取值（此前误当对象访问 item.medication
+        # 导致 plan_id 永远为 None，照片无法关联到具体服药计划）
         for item in getattr(reminder_state, "items", []) or []:
-            med = getattr(item, "medication", None)
-            if med is not None:
-                plan_id = getattr(med, "plan_id", None)
-                scheduled_time = getattr(med, "scheduled_time", None)
+            if not isinstance(item, dict):
+                continue
+            pid = item.get("plan_id")
+            if pid is not None:
+                plan_id = pid
+                scheduled_time = item.get("scheduled_time")
+                elderly_id = item.get("elderly_id")
                 break
     try:
         from core.camera import capture_image
         path = capture_image(config)
         if not path:
             return
-        http_client.upload_image(path, plan_id=plan_id, scheduled_time=scheduled_time)
+        # 上传时附带用药计划与所属老人，便于服务端精确归类
+        http_client.upload_image(path, plan_id=plan_id, scheduled_time=scheduled_time, elderly_id=elderly_id)
     except Exception as e:
         logger.warning(f"拍照上传失败: {e}")
 
@@ -46,9 +53,59 @@ def _ask_ai_and_speak(reminder_state, http_client, speech, logger, config):
         logger.error(f"AI 问答异常: {e}")
 
 
-def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=None, config=None):
-    """按钮 A：确认服药。"""
+def _verify_elderly_identity(reminder_state, face_recognizer, logger):
+    """拍照确认前核验当前人脸是否为预期服药老人（严格模式）。
+
+    返回 (是否通过, 失败原因提示)。通过则调用方继续确认+拍照；不通过则
+    调用方不确认、不拍照，并播报提示。规则：
+      - 硬件不可用（is_available 为 False）：降级放行，沿用原行为；
+      - 预期老人的 husky_face_id 为 None（尚未在二哈录入人脸）：
+        提示家属在网页触发录入，不确认不拍照；
+      - 二哈未检测到任何人脸：提示面对摄像头；
+      - 检测到人脸但不包含预期老人：提示「不是本人」；
+      - 大概率是已录入老人：放行。
+    """
+    expected = getattr(reminder_state, "husky_face_id", None)
     try:
+        if not face_recognizer.is_available():
+            # 无硬件环境（测试或设备无二哈）降级放行
+            return True, None
+    except Exception as e:
+        logger.warning(f"人脸识别可用性检测失败，降级放行: {e}")
+        return True, None
+
+    # 该老人尚未录入人脸：先提示在二哈录入，不确认不拍照
+    if expected is None:
+        return False, "请让家人在手机网页上为您录入人脸"
+
+    try:
+        detected = face_recognizer.recognize() or []
+    except Exception as e:
+        logger.warning(f"人脸识别失败，降级放行: {e}")
+        return True, None
+
+    if not detected:
+        return False, "没有检测到人脸，请面对摄像头"
+    if expected not in detected:
+        return False, "不是本人，请让本人面对摄像头"
+    return True, None
+
+
+def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=None, config=None, face_recognizer=None):
+    """按钮 A：确认服药（拍照前先做身份核验，严格模式）。"""
+    try:
+        # 拍照确认前先做身份核验：仅当大概率是预期老人时才确认并拍照
+        if face_recognizer is not None:
+            proceed, reason = _verify_elderly_identity(reminder_state, face_recognizer, logger)
+            if not proceed:
+                logger.info(f"身份核验未通过，拒绝确认服药: {reason}")
+                if speech is not None and reason:
+                    try:
+                        speech.speak(reason)
+                    except Exception:
+                        pass
+                # 不确认、不拍照，避免误拍/误报
+                return
         drug = reminder_state.drug_name
         dosage = reminder_state.dosage
         logger.info(f"用户确认服药: {drug} {dosage}")

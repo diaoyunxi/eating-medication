@@ -28,6 +28,12 @@ def validate_and_build(payload):
     remaining_quantity = payload.get("remaining_quantity")
     unit = (payload.get("unit") or "片").strip()
     low_stock_threshold = payload.get("low_stock_threshold", 5)
+    # 多老人：该计划归属的老人 ID（网页下拉选择「哪个老人吃」；0/空表示设备主体）
+    elderly_id = payload.get("elderly_id")
+    try:
+        elderly_id = int(elderly_id) if elderly_id not in (None, "", 0) else None
+    except (TypeError, ValueError):
+        elderly_id = None
 
     if not drug_name:
         return {}, "请填写药品名称"
@@ -68,5 +74,6 @@ def validate_and_build(payload):
         "remaining_quantity": remaining_quantity,
         "unit": unit,
         "low_stock_threshold": low_stock_threshold,
+        "elderly_id": elderly_id,
     }
     return fields, None

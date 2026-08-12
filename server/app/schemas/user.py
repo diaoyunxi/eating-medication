@@ -71,3 +71,24 @@ class BindFamilyReq(BaseModel):
     elderly_user_id: int = Field(..., description="老人用户ID")
     # 弱保护：家属必须知道老人的设备ID（老人用户名即设备注册时的 device_id）
     device_id: str = Field(..., description="老人设备ID（弱保护：需知道设备ID才能绑定）")
+
+
+class CreateElderlyReq(BaseModel):
+    """家属创建同家庭组老人账号请求（无需老人自行注册，按姓名即可创建）"""
+    name: str = Field(..., min_length=1, max_length=50, description="老人姓名（作为账号昵称）")
+
+
+class ElderlyOut(BaseModel):
+    """家庭组老人简要信息（用于网页老人管理列表与用药设置下拉）"""
+    id: int
+    name: Optional[str] = None
+    # 二哈已录入人脸 ID（未录入为 None）；前端据此提示是否需录入
+    husky_face_id: Optional[int] = None
+    # 该账号是否绑定了设备（设备主体用户）；设备主体不可被删除，需先解绑
+    has_device: bool = False
+
+
+class LearnFaceReportReq(BaseModel):
+    """老人端上报二哈学习到的人脸 ID（录入人脸流程结束时调用）"""
+    elderly_id: int = Field(..., description="老人用户ID")
+    husky_face_id: int = Field(..., description="二哈摄像头返回的人脸学习 ID")

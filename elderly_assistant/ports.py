@@ -112,11 +112,32 @@ class HttpClientPort(Protocol):
     def confirm_medication(self, drug: str, dosage: str, items=None) -> None:
         ...
 
-    def upload_image(self, path: str) -> None:
+    def upload_image(self, path: str, plan_id=None, scheduled_time=None, elderly_id=None) -> None:
         ...
 
     def ask_ai(self, question: str) -> str:
         ...
 
     def unregister_device(self) -> None:
+        ...
+
+
+@runtime_checkable
+class FaceRecognizerPort(Protocol):
+    """人脸识别（设备端身份核验/录入）抽象接口。
+
+    拍照确认服药前调用 recognize() 核验当前人脸是否为预期老人；
+    家属在网页触发录入时调用 learn(face_id) 学习人脸。
+    无硬件环境由 FakeFaceRecognizer 注入，便于单元测试。
+    """
+
+    def is_available(self) -> bool:
+        ...
+
+    def recognize(self) -> List[int]:
+        """识别当前帧人脸，返回已学习的人脸 ID 列表（空表示未检测到）。"""
+        ...
+
+    def learn(self, face_id: int) -> bool:
+        """学习当前帧人脸为指定 face_id，成功返回 True。"""
         ...

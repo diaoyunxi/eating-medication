@@ -203,6 +203,61 @@ def create_data_files():
             json.dump([], f, indent=2, ensure_ascii=False)
 
 
+# 人脸录入请求最近一次尝试时间戳（节流，避免每轮循环重复触发二哈学习）
+_LAST_LEARN_ATTEMPT = 0.0
+
+
+def _maybe_learn_face(poller, face_recognizer, http_client, display, speech, logger):
+    """处理家属网页触发的人脸录入请求。
+
+    服务端在 /device/schedule 响应中附带 learn_request（含 elderly_id / name /
+    face_id）。本函数读取后用二哈学习当前人脸，并上报 husky_face_id，完成录入闭环。
+    通过节流（默认 30s）避免轮询循环频繁触发学习；学习成功后清空本地请求，
+    等待服务端下次下发（pending_learn 清零后不再下发）。
+    """
+    global _LAST_LEARN_ATTEMPT
+    learn_req = getattr(poller, "learn_request", None)
+    if not learn_req or face_recognizer is None:
+        return
+    import time as _time
+    if (_time.time() - _LAST_LEARN_ATTEMPT) < 30.0:
+        return
+    _LAST_LEARN_ATTEMPT = _time.time()
+
+    elderly_id = learn_req.get("elderly_id")
+    name = learn_req.get("name") or learn_req.get("elderly_name") or "老人"
+    face_id = learn_req.get("face_id")
+    if elderly_id is None or face_id is None:
+        return
+
+    if speech is not None:
+        try:
+            speech.speak(f"请让{name}面对摄像头，准备录入人脸")
+        except Exception:
+            pass
+    logger.info("开始人脸录入: elderly_id=%s face_id=%s", elderly_id, face_id)
+    ok = False
+    try:
+        ok = face_recognizer.learn(int(face_id))
+    except Exception as e:
+        logger.warning(f"二哈人脸录入异常: {e}")
+    if ok:
+        try:
+            http_client.report_learned_face(int(elderly_id), int(face_id))
+            logger.info("人脸录入完成并已上报服务端")
+        except Exception as e:
+            logger.warning(f"上报人脸录入结果失败: {e}")
+        # 清空本地请求，避免重复学习直到服务端再次下发
+        poller.learn_request = None
+    else:
+        logger.warning("人脸录入失败（未检测到人脸或学习超时）")
+        if speech is not None:
+            try:
+                speech.speak("人脸录入失败，请稍后再试")
+            except Exception:
+                pass
+
+
 def main():
     global DEBUG_MODE
     global logger
@@ -296,6 +351,15 @@ def main():
     except Exception as e:
         logger.warning(f"条码扫描器初始化失败，扫码功能降级不可用: {e}")
 
+    # 6.x 初始化人脸识别器（二哈 HuskyLens 人脸算法），用于拍照确认前身份核验
+    face_recognizer = None
+    try:
+        from core.face import FaceRecognizer
+        face_recognizer = FaceRecognizer(config)
+        logger.info("人脸识别器（二哈 HuskyLens）已就绪")
+    except Exception as e:
+        logger.warning(f"人脸识别器初始化失败，身份核验将降级放行: {e}")
+
     # 6. 联网检测：已联网则无需启动热点配网（配网仅在离线/首启时通过热点进行）
     # hotspot 尚未实例化, 调用 HotspotManager.is_online() 类方法探测联网状态;
     # 在线则 hotspot 保持 None(不启动 AP), 离线时下方才会实例化 HotspotManager 并开热点
@@ -379,7 +443,8 @@ def main():
     # 8.3 注册提醒界面「确认服药 / 问AI」两个屏幕按钮回调，
     #      替代原物理按键 A/B（老年用户按键不便，全部改为屏幕触摸按钮）
     def _on_confirm():
-        handle_confirm(reminder_state, buzzer, display, http_client, logger, speech, config)
+        # 拍照确认前先做身份核验（严格模式），face_recognizer 为 None 时降级放行
+        handle_confirm(reminder_state, buzzer, display, http_client, logger, speech, config, face_recognizer)
 
     def _on_ai():
         import threading as _th
@@ -439,6 +504,9 @@ def main():
             check_medication_trigger(
                 now, poller, reminder_state, buzzer, display, logger, speech
             )
+
+            # ---- 人脸录入请求（家属网页触发后由服务端下发）----
+            _maybe_learn_face(poller, face_recognizer, http_client, display, speech, logger)
 
             # ---- 本地重复提醒音：提醒触发后每 60 秒老人仍未确认则再次响铃 ----
             if reminder_state.active and reminder_state.triggered_at is not None:

@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.schemas.user import UserOut, UserUpdate, BindFamilyReq
+from typing import List
+from app.schemas.user import UserOut, UserUpdate, BindFamilyReq, ElderlyOut, CreateElderlyReq
 from app.services.user_service import UserService
 from app.services.device_service import DeviceService
 
@@ -125,8 +126,88 @@ def delete_user_by_family(
     # 必须在同一家庭组
     if target.group_id != current_user.group_id:
         raise HTTPException(status_code=403, detail="只能删除同家庭组的老人")
+    # 绑定了设备的账号（设备主体）不可直接删除，否则设备将失去鉴权主体而失效
+    if target.device_id:
+        raise HTTPException(
+            status_code=400,
+            detail="该老人账号已绑定设备，无法删除；如需移除请先解绑设备",
+        )
     # 执行硬删除（级联删除其用药计划/记录/AI日志）
     if not UserService.delete_user(db, user_id):
         raise HTTPException(status_code=404, detail="用户不存在")
     logger.info("家属删除老人: family_id=%s, elderly_id=%s", current_user.id, user_id)
     return {"status": "success", "message": "老人账号已删除"}
+
+
+@router.post("/elderly", response_model=ElderlyOut)
+def create_elderly(
+    req: CreateElderlyReq,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """家属创建同家庭组老人（网页「增加老年人」）
+
+    按姓名即可创建，无需老人自行注册；新老人通过 group_id 与家属、设备主体同组，
+    从而被老人端设备聚合拉取用药计划、参与服药前的身份核验。
+    """
+    if current_user.role != "family":
+        raise HTTPException(status_code=403, detail="只有家属可以创建老人账号")
+    if current_user.group_id is None:
+        raise HTTPException(status_code=400, detail="尚未绑定老人/设备，无法添加老人")
+    elderly = UserService.create_elderly(db, name=req.name, group_id=current_user.group_id)
+    return ElderlyOut(
+        id=elderly.id,
+        name=elderly.username,
+        husky_face_id=elderly.husky_face_id,
+        has_device=bool(elderly.device_id),
+    )
+
+
+@router.get("/elderly", response_model=List[ElderlyOut])
+def list_elderly(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """列出本家庭组所有老人（网页老人管理列表 / 用药设置老人下拉数据源）"""
+    if current_user.role != "family":
+        raise HTTPException(status_code=403, detail="只有家属可以查看老人列表")
+    if current_user.group_id is None:
+        return []
+    elders = UserService.list_elderly(db, current_user.group_id)
+    return [
+        ElderlyOut(
+            id=e.id,
+            name=e.username,
+            husky_face_id=e.husky_face_id,
+            has_device=bool(e.device_id),
+        )
+        for e in elders
+    ]
+
+
+@router.post("/elderly/{user_id}/learn")
+def start_learn_face(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """家属触发「录入人脸」：标记该老人 pending_learn=True，等待老人端二哈学习
+
+    老人端每分钟轮询 schedule 会收到 learn_request，进入学习模式让该老人面向二哈摄像头，
+    学习完成上报 husky_face_id 后由服务端清零 pending_learn。
+    """
+    if current_user.role != "family":
+        raise HTTPException(status_code=403, detail="只有家属可以操作")
+    target = (
+        db.query(User)
+        .filter(
+            User.id == user_id,
+            User.group_id == current_user.group_id,
+            User.role == "elderly",
+        )
+        .first()
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="老人不存在或不属于本家庭组")
+    UserService.set_pending_learn(db, user_id, True)
+    return {"status": "ok", "elderly_id": user_id, "elderly_name": target.username}

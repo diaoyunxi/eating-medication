@@ -249,7 +249,8 @@ class ElderlyAPIClient(BaseServerClient):
     async def _set_plan_via_family(self, drug_name: str, dosage: str, frequency: str,
                                    schedule_times: list, total_quantity: float,
                                    remaining_quantity: float, unit: str,
-                                   product_code: Optional[str], low_stock_threshold: int) -> Dict[str, Any]:
+                                   product_code: Optional[str], low_stock_threshold: int,
+                                   elderly_id: Optional[int] = None) -> Dict[str, Any]:
         if not await self._resolve_family_device_id():
             return {"success": False, "error": "当前账号尚未绑定设备，请先在设置页绑定"}
         payload = {
@@ -258,6 +259,8 @@ class ElderlyAPIClient(BaseServerClient):
             "schedule_times": schedule_times, "total_quantity": total_quantity,
             "remaining_quantity": remaining_quantity, "unit": unit,
             "low_stock_threshold": low_stock_threshold,
+            # 多老人：计划归属的老人 ID（网页下拉选择「哪个老人吃」），缺省回退设备主体
+            "elderly_id": elderly_id,
         }
         try:
             response = await self._execute(
@@ -272,7 +275,8 @@ class ElderlyAPIClient(BaseServerClient):
     async def _update_plan_via_family(self, plan_id: int, drug_name: str, dosage: str,
                                       frequency: str, schedule_times: list, total_quantity: float,
                                       remaining_quantity: float, unit: str,
-                                      product_code: Optional[str], low_stock_threshold: int) -> Dict[str, Any]:
+                                      product_code: Optional[str], low_stock_threshold: int,
+                                      elderly_id: Optional[int] = None) -> Dict[str, Any]:
         if not await self._resolve_family_device_id():
             return {"success": False, "error": "当前账号尚未绑定设备，请先在设置页绑定"}
         payload = {
@@ -281,6 +285,8 @@ class ElderlyAPIClient(BaseServerClient):
             "schedule_times": schedule_times, "total_quantity": total_quantity,
             "remaining_quantity": remaining_quantity, "unit": unit,
             "low_stock_threshold": low_stock_threshold,
+            # 多老人：计划归属的老人 ID（网页下拉选择「哪个老人吃」），缺省回退设备主体
+            "elderly_id": elderly_id,
         }
         try:
             response = await self._execute(
@@ -482,7 +488,7 @@ class ElderlyAPIClient(BaseServerClient):
             return await self._set_plan_via_family(
                 drug_name, dosage, frequency, schedule_times, total_quantity,
                 remaining_quantity if remaining_quantity is not None else total_quantity,
-                unit, product_code, low_stock_threshold
+                unit, product_code, low_stock_threshold, elderly_id
             )
 
         if not self._device_id:
@@ -558,7 +564,7 @@ class ElderlyAPIClient(BaseServerClient):
             return await self._update_plan_via_family(
                 plan_id, drug_name, dosage, frequency, schedule_times, total_quantity,
                 remaining_quantity if remaining_quantity is not None else total_quantity,
-                unit, product_code, low_stock_threshold
+                unit, product_code, low_stock_threshold, elderly_id
             )
 
         if not self._device_id:
@@ -945,6 +951,57 @@ class ElderlyAPIClient(BaseServerClient):
             'device_name': bound.get('device_name', '') if bound else '',
             'last_check': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
+
+    # ---------- 多老人管理（家属 JWT 调用 /api/v1/users/elderly） ----------
+
+    async def list_elderly(self) -> List[Dict[str, Any]]:
+        """列出本家庭组所有老人（网页老人管理列表 / 用药设置老人下拉）"""
+        try:
+            response = await self._execute(
+                "GET", "/api/v1/users/elderly", headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                return response.json() or []
+            return []
+        except Exception:
+            return []
+
+    async def create_elderly(self, name: str) -> Dict[str, Any]:
+        """家属创建同家庭组老人（网页「增加老年人」）"""
+        try:
+            response = await self._execute(
+                "POST", "/api/v1/users/elderly",
+                json_body={"name": name}, headers=self._jwt_headers(),
+            )
+            if response.status_code == 200:
+                return {"success": True, "data": response.json()}
+            return {"success": False, "error": self._extract_error(response)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def delete_elderly(self, user_id: int) -> Dict[str, Any]:
+        """家属删除本家庭组老人（网页「减少老年人」，复用 /users/{user_id} 删除接口）"""
+        try:
+            response = await self._execute(
+                "DELETE", f"/api/v1/users/{user_id}", headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                return {"success": True, "data": response.json()}
+            return {"success": False, "error": self._extract_error(response)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def start_learn_face(self, user_id: int) -> Dict[str, Any]:
+        """家属触发录入人脸：标记该老人 pending_learn=True，等待老人端二哈学习"""
+        try:
+            response = await self._execute(
+                "POST", f"/api/v1/users/elderly/{user_id}/learn", headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                return {"success": True, "data": response.json()}
+            return {"success": False, "error": self._extract_error(response)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
 
 # 全局客户端实例
