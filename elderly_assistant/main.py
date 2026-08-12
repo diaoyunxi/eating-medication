@@ -97,6 +97,7 @@ from workflow.reminder import (
 from workflow.actions import (
     handle_confirm,
     handle_snooze,
+    handle_close,
     handle_scan_medication,
     _ask_ai_and_speak,
     _capture_and_upload,
@@ -394,10 +395,14 @@ def main():
     def _on_snooze():
         handle_snooze(reminder_state, buzzer, display, snooze_minutes, logger)
 
+    def _on_close():
+        handle_close(buzzer, display, logger)
+
     display.set_action_handlers({
         "confirm": _on_confirm,
         "ask_ai": _on_ai,
         "snooze": _on_snooze,
+        "close": _on_close,
     })
 
     # 9. 显示主界面（含「扫码查药」触摸按钮）

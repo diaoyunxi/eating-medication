@@ -40,10 +40,11 @@ class Display:
         self._reminder_dosage_text = None  # 当前用药剂量
         self._hint_text = None          # 提示信息（如配网模式）
         self._scan_button = None        # 「扫码查药」触摸按钮
-        # 提醒界面「确认/问AI/暂缓」三个屏幕触摸按钮（替代原物理按键 A/B）
+        # 提醒界面「确认/问AI/暂缓/关闭」四个屏幕触摸按钮（替代原物理按键 A/B）
         self._confirm_button = None
         self._ai_button = None
         self._snooze_button = None
+        self._close_button = None      # 「关闭」按钮（退回主界面，不记录服药/暂缓）
         # 状态
         self._in_reminder = False       # 是否处于用药提醒界面
         self._scan_handler = None       # 扫码回调（由 main 注入，Display 不依赖扫码实现）
@@ -75,10 +76,10 @@ class Display:
         self._scan_handler = handler if callable(handler) else None
 
     def set_action_handlers(self, handlers):
-        """注入提醒界面三个屏幕按钮回调，替代原物理按键 A/B。
+        """注入提醒界面四个屏幕按钮回调，替代原物理按键 A/B。
 
-        :param handlers: dict，可选键 confirm / ask_ai / snooze，对应可调用对象；
-                         缺失的键视为空操作。
+        :param handlers: dict，可选键 confirm / ask_ai / snooze / close，
+                         对应可调用对象；缺失的键视为空操作。
         """
         if not isinstance(handlers, dict):
             handlers = {}
@@ -86,6 +87,7 @@ class Display:
             "confirm": handlers.get("confirm"),
             "ask_ai": handlers.get("ask_ai"),
             "snooze": handlers.get("snooze"),
+            "close": handlers.get("close"),
         }
 
     def _on_action_clicked(self, key):
@@ -312,34 +314,49 @@ class Display:
             logger.error(f"显示用药提醒失败: {e}")
 
     def _draw_action_buttons(self):
-        """绘制提醒界面的三个屏幕触摸按钮（替代物理按键 A/B）。
+        """绘制提醒界面的四个屏幕触摸按钮（替代物理按键 A/B，含关闭按钮）。
 
-        横屏 240x320，下方纵向紧凑排列三枚大按钮，便于老人在屏幕上点按。
+        横屏 240x320，下方纵向紧凑排列四枚大按钮，便于老人在屏幕上点按。
+        注意：unihiker GUI 的按钮方法为 add_button（而非 draw_button，后者不存在），
+        旧版本 unihiker 无该方法时静默跳过，避免 AttributeError 导致整页绘制失败。
         """
         if not self.gui:
             return
-        # 按钮尺寸：宽 200 居中，高 26、间隔 5，起始 y=222（提示文字在 y=200）
-        btn_w, btn_h, gap = 200, 26, 5
-        start_y = 222
-        specs = [
-            ("confirm", "确认服药", '#2E8B57'),   # 海绿色：确认（积极动作）
-            ("ask_ai", "问AI注意事项", '#1E90FF'),  # 道奇蓝：AI 咨询
-            ("snooze", "稍后提醒", '#FF8C00'),       # 深橙色：暂缓
-        ]
-        for idx, (key, label, color) in enumerate(specs):
-            y = start_y + idx * (btn_h + gap)
-            x = self.CENTER_X - btn_w // 2
-            btn = self.gui.draw_button(
-                x=x, y=y, w=btn_w, h=btn_h,
-                text=label, origin='top_left', color=color,
-                state='normal', on_click=self._make_action_callback(key)
-            )
-            if key == "confirm":
-                self._confirm_button = btn
-            elif key == "ask_ai":
-                self._ai_button = btn
-            else:
-                self._snooze_button = btn
+        # 已绘制则跳过，避免重复叠加（show_reminder 在提醒态可能被多次调用）
+        if self._confirm_button is not None:
+            return
+        add_button = getattr(self.gui, "add_button", None)
+        if not callable(add_button):
+            # 旧版 unihiker 无 add_button，静默跳过（不影响其它功能）
+            logger.warning("当前 unihiker 版本不支持 add_button，提醒按钮不可用")
+            return
+        try:
+            # 按钮尺寸：宽 200 居中，高 22、间隔 4，起始 y=216，四枚止于 y=316（屏幕 320 内）
+            btn_w, btn_h, gap = 200, 22, 4
+            start_y = 216
+            specs = [
+                ("confirm", "确认服药"),
+                ("ask_ai", "问AI注意事项"),
+                ("snooze", "稍后提醒"),
+                ("close", "关闭"),
+            ]
+            for idx, (key, label) in enumerate(specs):
+                y = start_y + idx * (btn_h + gap)
+                btn = add_button(
+                    x=self.CENTER_X, y=y, w=btn_w, h=btn_h,
+                    text=label, origin='center',
+                    onclick=self._make_action_callback(key),
+                )
+                if key == "confirm":
+                    self._confirm_button = btn
+                elif key == "ask_ai":
+                    self._ai_button = btn
+                elif key == "snooze":
+                    self._snooze_button = btn
+                else:
+                    self._close_button = btn
+        except Exception as e:
+            logger.error(f"绘制提醒按钮失败: {e}")
 
     def _make_action_callback(self, key):
         """生成绑定到指定动作键的按钮回调（闭包捕获 key）。"""
@@ -358,6 +375,7 @@ class Display:
             self._confirm_button = None
             self._ai_button = None
             self._snooze_button = None
+            self._close_button = None
             self._in_reminder = False
             self.show_main_screen()
         except Exception as e:
@@ -379,6 +397,7 @@ class Display:
             self._confirm_button = None
             self._ai_button = None
             self._snooze_button = None
+            self._close_button = None
 
             self.gui.draw_text(
                 x=self.CENTER_X, y=100,
