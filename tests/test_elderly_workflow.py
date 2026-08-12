@@ -2,6 +2,7 @@
 """elderly_assistant 工作流纯逻辑测试（无硬件依赖，使用 Fake 替身）。"""
 import sys
 import unittest
+import pytest
 from datetime import datetime
 from pathlib import Path
 
@@ -11,7 +12,7 @@ if str(EA) not in sys.path:
     sys.path.insert(0, str(EA))
 
 from workflow.reminder import ReminderState, check_medication_trigger
-from workflow.actions import handle_confirm, handle_snooze
+from workflow.actions import handle_confirm
 from core.display import Display
 from hardware.fakes import FakeBuzzer, FakeDisplay, FakeHttpClient
 
@@ -40,11 +41,7 @@ class TestReminderState(unittest.TestCase):
         self.assertEqual(st.drug_name, "")
 
     def test_snooze_keeps_active(self):
-        st = ReminderState()
-        st.trigger("药", "1片", "k")
-        st.snooze(5)
-        self.assertTrue(st.active)
-        self.assertIsNotNone(st.snooze_until)
+        pytest.skip("稍后提醒(snooze) 功能已删除")
 
 
 class TestCheckMedicationTrigger(unittest.TestCase):
@@ -59,7 +56,7 @@ class TestCheckMedicationTrigger(unittest.TestCase):
         buzzer = FakeBuzzer()
         display = FakeDisplay()
         log = __import__("logging").getLogger("t")
-        check_medication_trigger(self._now("12:00"), poller, st, buzzer, display, 5, log)
+        check_medication_trigger(self._now("12:00"), poller, st, buzzer, display, log)
         self.assertTrue(st.active)
         self.assertTrue(buzzer.playing)
         self.assertEqual(display.reminder_shown, ("阿司匹林", "1片"))
@@ -70,7 +67,7 @@ class TestCheckMedicationTrigger(unittest.TestCase):
         buzzer = FakeBuzzer()
         display = FakeDisplay()
         log = __import__("logging").getLogger("t")
-        check_medication_trigger(self._now("13:00"), poller, st, buzzer, display, 5, log)
+        check_medication_trigger(self._now("13:00"), poller, st, buzzer, display, log)
         self.assertFalse(st.active)
         self.assertFalse(buzzer.playing)
 
@@ -80,9 +77,9 @@ class TestCheckMedicationTrigger(unittest.TestCase):
         buzzer = FakeBuzzer()
         display = FakeDisplay()
         log = __import__("logging").getLogger("t")
-        check_medication_trigger(self._now("12:00"), poller, st, buzzer, display, 5, log)
+        check_medication_trigger(self._now("12:00"), poller, st, buzzer, display, log)
         # 再次触发同一分钟不应重复（fired_keys 已记录）
-        check_medication_trigger(self._now("12:00"), poller, st, buzzer, display, 5, log)
+        check_medication_trigger(self._now("12:00"), poller, st, buzzer, display, log)
         self.assertEqual(display.reminder_count, 1)
 
 
@@ -101,7 +98,7 @@ class TestHandleConfirm(unittest.TestCase):
 
 
 class TestScreenActionButtons(unittest.TestCase):
-    """原物理按键 A/B 已移除，确认/问AI/暂缓改为屏幕触摸按钮。
+    """原物理按键 A/B 已移除，确认/问AI 改为屏幕触摸按钮。
 
     本测试验证 Display 的屏幕动作按钮回调注入与触发逻辑（不依赖硬件）。
     """
@@ -133,21 +130,13 @@ class TestScreenActionButtons(unittest.TestCase):
         self.assertEqual(ai, [1])
 
     def test_snooze_button_triggers_handler(self):
-        display = Display()
-        st = ReminderState()
-        st.trigger("药", "1片", "k")
-        snoozed = []
-        display.set_action_handlers({"snooze": lambda: snoozed.append(1)})
-        self.assertTrue(display._on_action_clicked("snooze"))
-        self.assertEqual(snoozed, [1])
-        self.assertTrue(st.active)  # 暂缓不清除提醒
+        pytest.skip("稍后提醒(snooze) 功能已删除")
 
     def test_missing_handler_is_noop(self):
         display = Display()
         # 未注入任何回调时，点击任意动作应安全返回 False，不抛异常
         self.assertFalse(display._on_action_clicked("confirm"))
         self.assertFalse(display._on_action_clicked("ask_ai"))
-        self.assertFalse(display._on_action_clicked("snooze"))
 
     def test_handler_exception_is_isolated(self):
         display = Display()

@@ -124,7 +124,6 @@ class ReminderState:
     当前激活的提醒状态
     - active: 是否有提醒正在响
     - drug_name / dosage: 当前提醒内容
-    - snooze_until: 暂缓提醒的复活时间（按B后5分钟）
     - fired_key: 已触发过的 "HH:MM|drug" 集合，避免同一分钟重复触发
     """
 
@@ -132,7 +131,6 @@ class ReminderState:
         self.active = False
         self.drug_name = ""
         self.dosage = ""
-        self.snooze_until = None  # datetime
         self.fired_keys = set()
         self.current_key = ""     # 当前响铃中的提醒 key
         self.items = []
@@ -143,7 +141,6 @@ class ReminderState:
         self.dosage = dosage
         self.current_key = key
         self.fired_keys.add(key)
-        self.snooze_until = None
         self.items = items or []
 
     def confirm(self):
@@ -151,12 +148,6 @@ class ReminderState:
         self.drug_name = ""
         self.dosage = ""
         self.current_key = ""
-        self.snooze_until = None
-
-    def snooze(self, snooze_minutes):
-        if self.active:
-            self.snooze_until = datetime.now() + timedelta(minutes=snooze_minutes)
-        # active 保持 True，但蜂鸣器停止；到 snooze_until 后再次响铃
 
 
 class HeartbeatThread:
@@ -197,24 +188,13 @@ class HeartbeatThread:
             self._stop_flag.wait(self.interval)
 
 
-def check_medication_trigger(now, poller, reminder_state, buzzer, display, snooze_minutes, logger, speech=None):
+def check_medication_trigger(now, poller, reminder_state, buzzer, display, logger, speech=None):
     """
     检查是否到达用药提醒时间，触发提醒
     - 到达提醒时间（匹配当前 HH:MM）且未触发过，触发提醒
-    - 若处于 snooze 状态且到达 snooze_until，重新响铃
     """
     try:
         now_hm = now.strftime("%H:%M")
-
-        # 处于暂缓状态：检查是否到达复活时间
-        if reminder_state.active and reminder_state.snooze_until is not None:
-            if now >= reminder_state.snooze_until:
-                # 重新响铃
-                reminder_state.snooze_until = None
-                if not buzzer.is_reminding():
-                    buzzer.play_reminder()
-                display.show_reminder(reminder_state.drug_name, reminder_state.dosage)
-            return
 
         # 已经在响铃中，不重复触发
         if reminder_state.active:

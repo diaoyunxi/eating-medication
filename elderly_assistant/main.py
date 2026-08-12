@@ -96,8 +96,6 @@ from workflow.reminder import (
 )
 from workflow.actions import (
     handle_confirm,
-    handle_snooze,
-    handle_close,
     handle_scan_medication,
     _ask_ai_and_speak,
     _capture_and_upload,
@@ -341,7 +339,6 @@ def main():
     # 8. 启动用药计划轮询线程（默认 20 分钟一次；断网时沿用本地缓存）
     reminder_cfg = config.get('reminder', {})
     poll_interval = reminder_cfg.get('poll_interval', 1200)
-    snooze_minutes = reminder_cfg.get('snooze_minutes', 5)
     from services.schedule_cache import load_schedules
     poller = MedicationPoller(
         http_client, poll_interval=poll_interval, cache_loader=load_schedules
@@ -379,7 +376,7 @@ def main():
 
     display.set_scan_handler(_on_scan_button)
 
-    # 8.3 注册提醒界面「确认服药 / 问AI / 稍后提醒」三个屏幕按钮回调，
+    # 8.3 注册提醒界面「确认服药 / 问AI」两个屏幕按钮回调，
     #      替代原物理按键 A/B（老年用户按键不便，全部改为屏幕触摸按钮）
     def _on_confirm():
         handle_confirm(reminder_state, buzzer, display, http_client, logger, speech, config)
@@ -392,17 +389,9 @@ def main():
             daemon=True,
         ).start()
 
-    def _on_snooze():
-        handle_snooze(reminder_state, buzzer, display, snooze_minutes, logger)
-
-    def _on_close():
-        handle_close(buzzer, display, logger)
-
     display.set_action_handlers({
         "confirm": _on_confirm,
         "ask_ai": _on_ai,
-        "snooze": _on_snooze,
-        "close": _on_close,
     })
 
     # 9. 显示主界面（含「扫码查药」触摸按钮）
@@ -448,10 +437,10 @@ def main():
 
             # ---- 检查用药提醒触发 ----
             check_medication_trigger(
-                now, poller, reminder_state, buzzer, display, snooze_minutes, logger, speech
+                now, poller, reminder_state, buzzer, display, logger, speech
             )
 
-            # 注：原物理按钮 A/B 检测已移除，确认/问AI/暂缓均由屏幕触摸按钮触发
+            # 注：原物理按钮 A/B 检测已移除，确认/问AI 均由屏幕触摸按钮触发
             #     （display.set_action_handlers 注入回调，回调解耦合与硬件无关）
 
             # ---- LED 心跳：连接时亮，断开时灭 ----
