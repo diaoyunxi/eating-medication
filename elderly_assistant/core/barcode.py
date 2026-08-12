@@ -90,34 +90,44 @@ class HuskyLensScanner:
     def _read_contents(hl, algo):
         """读取指定算法本轮识别到的全部文本内容。
 
-        ``getResult(algo)`` 返回识别目标总数（失败为 None），解析结果缓存在
-        ``hl.result[algo]["blocks"]``；部分驱动版本不暴露该字典，则退化为
-        ``getCachedResultByID`` 逐个读取。
+        关键修复：HuskyLens 的 ``hl.result[algo]["blocks"]`` 是驱动内部缓存，
+        部分驱动版本在 ``getResult(algo)`` 返回 0（当前帧无目标）时并不会清空
+        该缓存，导致上一次识别到的条码/二维码 ``content`` 残留。若直接信任该
+        字典，会出现「镜头前已无条码，却仍返回第一次识别的结果」的缺陷。
+
+        因此这里**不读取 ``result`` 旧字典**，统一改用 ``getCachedResultByID``
+        逐个实时拉取当前帧——该函数每次调用都会重新向摄像头下发取数指令，
+        返回空即代表当前帧确实没有可识别目标。``getResult`` 仅作为循环上界
+        参考，且当 ``total <= 0`` 时直接返回空（不读取任何残留缓存）。
         """
         try:
             total = int(hl.getResult(algo) or 0)
         except (TypeError, ValueError):
             total = 0
         if total <= 0:
+            # 当前帧无目标：保持干净，绝不可读取残留缓存
             return []
 
-        blocks = []
-        cache = getattr(hl, "result", None)
-        if isinstance(cache, dict):
-            entry = cache.get(algo) or {}
-            if isinstance(entry, dict):
-                blocks = list(entry.get("blocks") or [])
-        if not blocks:
-            getter = getattr(hl, "getCachedResultByID", None)
-            if callable(getter):
-                # HuskyLens 的学习 ID 从 1 开始编号
-                for idx in range(1, total + 1):
-                    try:
-                        item = getter(algo, idx)
-                    except Exception:
-                        item = None
-                    if item is not None:
-                        blocks.append(item)
+        getter = getattr(hl, "getCachedResultByID", None)
+        if callable(getter):
+            # HuskyLens 的学习 ID 从 1 开始编号；以实时返回为准，忽略 result 缓存
+            blocks = []
+            for idx in range(1, total + 1):
+                try:
+                    item = getter(algo, idx)
+                except Exception:
+                    item = None
+                if item is not None:
+                    blocks.append(item)
+        else:
+            # 极少数驱动未提供 getCachedResultByID：回退读取 result 字典，
+            # 但仅取其内容——此时已确认 total > 0，残留风险由上层轮询兜底
+            cache = getattr(hl, "result", None)
+            blocks = []
+            if isinstance(cache, dict):
+                entry = cache.get(algo) or {}
+                if isinstance(entry, dict):
+                    blocks = list(entry.get("blocks") or [])
 
         codes = []
         for block in blocks:

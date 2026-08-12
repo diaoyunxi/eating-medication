@@ -334,5 +334,69 @@ class TestScheduleTypeValidation(unittest.TestCase):
         self.assertEqual(client.get_medication_schedule(), plans)
 
 
+class _FakeBlock:
+    """模拟 HuskyLens 识别块，content 为条码/二维码文本。"""
+    def __init__(self, content):
+        self.content = content
+
+
+class _ResidualCacheHuskyLens:
+    """模拟有「缓存残留」缺陷的 HuskyLens 驱动：
+
+    - 第一次识别到码 A 后，``result`` 字典残留旧 block；
+    - 后续镜头前无条码时，``getResult`` 返回 0，且 ``getCachedResultByID`` 返回 None。
+    修复前 ``_read_contents`` 会直接信任 ``result`` 字典而返回旧码 A。
+    """
+
+    def __init__(self, total_per_call):
+        self._total = total_per_call
+        # 残留的旧 block（模拟上一帧识别到的码）
+        self.result = {1: {"blocks": [_FakeBlock("6901234567890")]}}
+
+    def getResult(self, algo):
+        # 仅返回当前帧目标数，不刷新/清空 result 字典（模拟残驱缺陷）
+        return self._total
+
+    def getCachedResultByID(self, algo, idx):
+        # 实时拉取：当前帧无目标时返回 None（不残留）
+        return None if self._total <= 0 else _FakeBlock("6901234567890")
+
+
+class _ResidualGetResultHuskyLens:
+    """更隐蔽的残驱：getResult 返回 >0 但 getCachedResultByID 实时返回空，
+    且 result 字典也残留旧 block——必须完全依赖实时读取，不得信任 result。"""
+
+    def __init__(self):
+        self.result = {1: {"blocks": [_FakeBlock("6901234567890")]}}
+
+    def getResult(self, algo):
+        return 1  # 驱动误报当前帧有目标
+
+    def getCachedResultByID(self, algo, idx):
+        return None  # 实时检查：实际并无目标
+
+
+class TestHuskyLensResidualCache(unittest.TestCase):
+    """回归测试：镜头无条码时不得返回第一次识别的旧结果。"""
+
+    def test_no_residual_when_getresult_zero(self):
+        from core.barcode import HuskyLensScanner
+        hl = _ResidualCacheHuskyLens(total_per_call=0)
+        codes = HuskyLensScanner._read_contents(hl, 1)
+        self.assertEqual(codes, [])  # 关键：不返回残留的旧码
+
+    def test_no_residual_when_getcached_returns_none(self):
+        from core.barcode import HuskyLensScanner
+        hl = _ResidualGetResultHuskyLens()
+        codes = HuskyLensScanner._read_contents(hl, 1)
+        self.assertEqual(codes, [])  # 关键：getResult>0 但实时为空，不返回旧码
+
+    def test_returns_code_when_real_target_present(self):
+        from core.barcode import HuskyLensScanner
+        hl = _ResidualCacheHuskyLens(total_per_call=1)
+        codes = HuskyLensScanner._read_contents(hl, 1)
+        self.assertEqual(codes, ["6901234567890"])
+
+
 if __name__ == "__main__":
     unittest.main()
