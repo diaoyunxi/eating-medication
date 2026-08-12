@@ -793,6 +793,13 @@ cd server && pip install -r requirements-dev.txt
 
 - **[DFRobot 行空板 M10](https://www.unihiker.com/)** — 老人端目标硬件，提供屏幕、按钮、GPIO 与 WiFi，通过 `pinpong` 库与 `unihiker` GUI 库实现图形化交互。
 
+### 代码开放
+
+- **[CodeBuddy](https://www.codebuddy.cn/home/)**
+- **[Trae](https://www.trae.ai/)**
+- **[Qwen Coder](https://coder.qwen.ai/)**
+- **[OpenHands](https://all-hands.dev/)**
+
 > 如有遗漏或需要补充/调整致谢信息，欢迎提 issue。
 
 ---
