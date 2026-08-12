@@ -67,6 +67,12 @@ else
   exit 1
 fi
 
+# 加载m10默认pyenv环境变量
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+pyenv global 3.12.7
+
 # Python 版本提示（>=3.10 推荐）
 PY_VER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo 0)"
 echo "    检测到 Python $PY_VER"
