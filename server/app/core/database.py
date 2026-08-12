@@ -156,7 +156,9 @@ def _build_engine():
     engine_kwargs = {}
 
     if scheme == "sqlite":
-        connect_args = {"check_same_thread": False}
+        # timeout 为 sqlite3 连接级忙等待上限（秒），与下方 PRAGMA busy_timeout 协同，
+        # 缓解单文件并发写时的 SQLITE_BUSY，避免请求/后台任务互相阻塞事件循环
+        connect_args = {"check_same_thread": False, "timeout": 30}
     elif scheme in ("mysql", "mariadb"):
         # pymysql 使用 utf8mb4 字符集，避免中文乱码
         connect_args = {"charset": "utf8mb4"}
@@ -179,6 +181,44 @@ def _build_engine():
 
 
 engine = _build_engine()
+
+# SQLite 并发写优化：开启 WAL 日志模式 + busy_timeout，缓解单文件写锁竞争。
+# 默认 rollback journal 模式下，后台定时任务（漏服/低库存检查）与在线请求的写操作
+# 会互相阻塞；叠加后台任务曾在事件循环线程同步写库，会导致请求排队超时。
+# WAL 使读写可并发，busy_timeout 让写冲突时短暂等待而非立即报错。
+# 仅对文件型 SQLite 生效，对 MySQL/PostgreSQL 无副作用。
+if _db_scheme(settings.DATABASE_URL) == "sqlite":
+    try:
+        from sqlalchemy import event as _sa_event
+
+        def _apply_sqlite_pragmas(dbapi_conn, _conn_record) -> None:
+            """每个新连接建立时应用 SQLite 性能/并发 PRAGMA。
+
+            注意：本函数在 DBAPI 建立连接阶段被回调，此处抛出的异常会向上传播、
+            导致取连接失败进而影响业务请求。PRAGMA 属"尽力优化"而非功能必需，
+            故在内部捕获并降级为告警日志，保证连接可用性。
+            """
+            cur = None
+            try:
+                cur = dbapi_conn.cursor()
+                cur.execute("PRAGMA journal_mode=WAL")
+                cur.execute("PRAGMA synchronous=NORMAL")
+                cur.execute("PRAGMA busy_timeout=30000")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("SQLite PRAGMA 应用失败(已降级，不影响连接): %s", exc)
+            finally:
+                # 仅在游标创建成功时关闭，避免 cursor() 本身失败时二次异常
+                if cur is not None:
+                    try:
+                        cur.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+
+        _sa_event.listen(engine, "connect", _apply_sqlite_pragmas)
+        logger.info("SQLite 并发优化监听器已注册(WAL + busy_timeout 将于建立连接时应用)")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("SQLite 并发优化监听器注册失败(可忽略): %s", e)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
