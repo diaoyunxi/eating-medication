@@ -622,22 +622,52 @@ class ElderlyAPIClient(BaseServerClient):
             }
 
     async def get_reminders(self) -> List[Dict[str, Any]]:
-        """获取提醒列表（家属模式走 /family/device/reminders，否则走公开接口）。"""
+        """获取提醒列表（实为用药计划 plans）。
+
+        /reminders 页面展示的是「用药计划（plans）」，而非「今日提醒（reminders）」。
+        家属模式与普通模式均通过各自的计划接口获取完整计划数据。
+        统一在此对每条计划做字段归一化，补默认值并避免 remaining_quantity 等
+        字段为 None 或缺失时，模板属性访问 / 比较（如 plan.remaining_quantity <=
+        plan.low_stock_threshold）触发 UndefinedError / TypeError 崩溃。
+        """
         if self._family_mode():
-            data = await self._reminders_via_family()
-            return data.get('reminders', []) or []
-        if not self._device_id:
+            data = await self._plans_via_family()
+            plans = data.get('plans', []) or []
+        elif not self._device_id:
             return []
-        try:
-            encoded_id = _encode_device_id(self._device_id)
-            response = await self._execute("GET", f"/api/v1/public/device/plans/{encoded_id}")
-            if response.status_code == 200:
-                data = response.json()
-                return data.get('plans', []) or []
-            return []
-        except Exception:
-            pass
-        return []
+        else:
+            try:
+                encoded_id = _encode_device_id(self._device_id)
+                response = await self._execute("GET", f"/api/v1/public/device/plans/{encoded_id}")
+                if response.status_code == 200:
+                    data = response.json()
+                    plans = data.get('plans', []) or []
+                else:
+                    return []
+            except Exception:
+                return []
+
+        normalized = []
+        for p in plans:
+            rq = p.get('remaining_quantity')
+            tq = p.get('total_quantity')
+            lst = p.get('low_stock_threshold')
+            normalized.append({
+                'id': p.get('id'),
+                'drug_name': p.get('drug_name', '未知药品'),
+                'dosage': p.get('dosage', ''),
+                'frequency': p.get('frequency', ''),
+                'schedule_times': p.get('schedule_times', []) or [],
+                # 数值字段仅保留 int/float，字符串(如"5")或 None 统一归一为 0，
+                # 避免模板中 remaining_quantity <= low_stock_threshold 触发 TypeError
+                'total_quantity': tq if isinstance(tq, (int, float)) else 0,
+                'remaining_quantity': rq if isinstance(rq, (int, float)) else 0,
+                'unit': p.get('unit', ''),
+                'low_stock_threshold': lst if isinstance(lst, (int, float)) else 0,
+                'product_code': p.get('product_code'),
+                'enabled': p.get('enabled', True),
+            })
+        return normalized
 
     async def get_medication_records(self) -> List[Dict[str, Any]]:
         """获取用药记录（改用公开接口 /device/records）"""
