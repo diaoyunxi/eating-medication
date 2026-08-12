@@ -1,4 +1,5 @@
 ﻿# -*- coding: utf-8 -*-
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.websocket.manager import manager
 from app.services.user_service import UserService
@@ -58,6 +59,54 @@ class Notifier:
 
         await manager.broadcast_to_group(user.group_id, message, db)
         logger.warning(f"漏服通知：{user.username} 漏服 {drug_name}")
+
+    @staticmethod
+    async def notify_unconfirmed_reminder(
+        db: Session,
+        elderly_id: int,
+        drug_name: str,
+        stage: str,
+        scheduled_time: str
+    ):
+        """通知家属：老人端在 1 分钟 / 3 分钟内未确认用药（推送到网页聊天框）。
+
+        stage="1m"：超过计划时间 1 分钟仍未确认；
+        stage="3m"：超过计划时间 3 分钟仍未确认，提示确认老人状况或拨打 120。
+
+        以 type=chat_message 推送，使家属端网页聊天界面可直接渲染显示。
+        """
+        user = UserService.get_user_by_id(db, elderly_id)
+        if not user or user.role != "elderly" or not user.group_id:
+            return
+
+        try:
+            sched_dt = datetime.fromisoformat(scheduled_time)
+            plan_time = sched_dt.strftime("%H:%M")
+        except Exception:
+            plan_time = scheduled_time or ""
+
+        if stage == "3m":
+            content = (
+                f"🚨 用药提醒：{user.username} 应于 {plan_time} 服用 {drug_name}，"
+                f"已超过 3 分钟未确认，请确认老人状况或拨打 120。"
+            )
+        else:
+            content = (
+                f"🕐 用药提醒：{user.username} 应于 {plan_time} 服用 {drug_name}，"
+                f"已超过 1 分钟未确认。"
+            )
+
+        message = {
+            "type": "chat_message",
+            "sender": "system",
+            "sender_id": "system",
+            "sender_name": "用药提醒",
+            "content": content,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "group_id": user.group_id,
+        }
+        await manager.broadcast_to_group(user.group_id, message, db)
+        logger.warning(f"未确认用药通知({stage})：{user.username} {drug_name} @ {plan_time}")
 
     @staticmethod
     async def notify_low_stock(

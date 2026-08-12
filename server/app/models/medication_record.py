@@ -1,5 +1,5 @@
 ﻿# -*- coding: utf-8 -*-
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.core.database import Base, UTCDateTime
 
@@ -13,6 +13,9 @@ class MedicationRecord(Base):
     taken_time = Column(UTCDateTime, nullable=True)       # 实际确认时间，None表示未服
     status = Column(String(20), default="pending")         # pending, taken, missed, skipped
     note = Column(String(255), nullable=True)
+    # 未确认升级通知去重标志：1 分钟 / 3 分钟未确认分别只推送一次
+    notified_unconfirmed_1m = Column(Boolean, default=False, nullable=False)
+    notified_unconfirmed_3m = Column(Boolean, default=False, nullable=False)
 
     # 关联关系
     user = relationship("User", back_populates="medication_records")
