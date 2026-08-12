@@ -3,6 +3,90 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.38.7 (2026-08-12) — 修复 LoggingMiddleware 消费请求体流导致生产环境所有 POST 返回 400（载入史册级 Bug）
+
+### 概述
+
+生产环境出现**离奇现象**：所有 `GET` 请求（health / schedule / users/me）毫秒级正常，但所有 `POST` 请求（设备注册 `device/register`、TOTP 开启 `totp/enable` 等）全部**耗时 10~15 秒后返回 400**，前端收到「无法解析 JSON」。该问题在数小时前还正常，属于**近期回归**。
+
+经多轮排查与本地复现，最终定位根因为 `LoggingMiddleware` 在 `DEBUG=true` 下读取请求体时**消费了 Starlette 的请求体流**，在多层 `BaseHTTPMiddleware` 叠加场景中破坏了下游 Pydantic 对请求体的解析。本版本（2.38.7）修复该问题，并顺带将公开设备注册路由纳入敏感路径（不记录请求体）。
+
+### 现场铁证（服务器日志）
+
+```
+# GET 正常（无 body）
+GET /server/health status=200 duration=0.000s
+GET /server/api/v1/public/device/schedule/218356669348204 status=200 duration=0.002s
+
+# POST 全慢且 400（有 body）
+POST /server/api/v1/public/device/register status=400 duration=10.003s
+POST /server/api/v1/auth/totp/enable    status=400 duration=14.829s
+```
+
+规律极度清晰：**有 body 的 POST 全部 400 且 10s+，无 body 的 GET 全部正常**。且日志里明确打出了 `📦 请求体:` 行，反证生产环境 `DEBUG=true`。
+
+### 根因分析（三层叠加，缺一不可）
+
+1. **触发器：生产环境 `DEBUG=true`**
+   部署环境 `.env` 由自动生成模板创建，模板默认 `DEBUG=true`，运维未改为 `false`。`LoggingMiddleware` 仅在 `settings.DEBUG` 时打印请求体，于是生产环境也进入该分支。
+
+2. **直接原因：`await request.body()` 消费了请求体流**
+   `LoggingMiddleware.dispatch()` 在 DEBUG 下对每个 `POST/PUT/PATCH` 直接 `body_bytes = await request.body()` 读取并打印。Starlette 的请求体流是**一次性消费**的——一旦被中间件读取，下游路由再用 `req: DeviceRegister`（Pydantic 模型）解析时，拿到的就是**空 body**。
+
+3. **放大器：fb35676 引入的 `path_prefix_middleware` 破坏了 body 重放**
+   `main.py` 在 `fb35676` 提交新增了 `path_prefix_middleware`（剥离 `/eating-medication` 前缀的函数式中间件 `app.middleware("http")`），它**包在多层层叠的 `BaseHTTPMiddleware`（含 LoggingMiddleware、SecurityHeadersMiddleware、RateLimitMiddleware）最外层**。
+   在 `fastapi==0.115.0` + `starlette` 的旧版 `BaseHTTPMiddleware` 实现下，外层函数式中间件与内层 `BaseHTTPMiddleware` 之间的 body 流传递依赖于「中间件读取后必须原样重放」这一隐性约定。LoggingMiddleware 读取后**没有重放**，下游 `BaseHTTPMiddleware` 再读时流已空，请求体被破坏。
+
+**结果**：下游 `register_device` 路由拿到空 body → FastAPI 解析失败 → `422`（经异常处理器转 400）；同时 body 流被提前耗尽，下游在等待 body 时卡等 → 表现为 **10~15s 超时**（耗时接近整数秒，符合「流耗尽后的等待/超时」特征）。
+
+**最硬佐证**：`register_device` 路由代码**本身绝不返回 400**（只 `return {"status":"ok",...}`），`register_or_heartbeat` 也不抛 400；且 `get_db`、`verify_totp_code`、`get_current_user`、`RateLimitMiddleware`、`SecurityHeadersMiddleware`、`RequestSizeLimitMiddleware` 全部确认不返回 400、也不阻塞。因此这个 400 只能来自「请求体被破坏」这一**共享中间件层**，而非任何业务代码。这也排除了"后台任务卡死事件循环""Turnstile 出网超时"等早期猜测（GET 毫秒级即证明事件循环健康）。
+
+> 关于"前端无法解析 JSON"：后端被破坏后响应延迟/异常，经 Cloudflare 隧道在 14s 超时后可能回 HTML 错误页，前端拿到非 JSON 故报错。后端恢复正常 JSON 后该现象消失。
+
+### 主要变更
+
+**服务端（server）**
+- `fix(middleware/logging.py)`: 将 DEBUG 请求体日志改为「读取一次后通过重放 `receive` 重建 `Request` 再下发」——
+
+  ```python
+  captured = body_bytes
+
+  async def _replay_receive():
+      return {"type": "http.request", "body": captured, "more_body": False}
+
+  request = Request(request.scope, receive=_replay_receive)
+  ```
+
+  这是 Starlette 推荐的「读 body 后安全重放」标准模式：既保留 DEBUG 请求体日志，又**不再消费下游所需 body 流**。
+- `chore(middleware/logging.py)`: `SENSITIVE_PATHS` 新增 `/public/device/register`。规范化逻辑会从路径剥离 `API_V1_PREFIX`（`/api/v1`），故 `/api/v1/public/device/register` 被规范化为 `/public/device/register`；原集合仅有 `/device/register` 匹配不到，导致 DEBUG 模式仍会记录设备注册请求体，补充后该公开路由不再落盘设备 ID 等敏感信息。
+
+**版本**
+- `VERSION` 2.38.6 → 2.38.7（修复导致生产 POST 全 400 的回归 bug，PATCH+1）
+
+### 验证（实测闭环）
+
+- 本地用 `TestClient` + `DEBUG=true` + **完整中间件栈（含 path_prefix_middleware）**复现生产条件：
+  - `POST /api/v1/public/device/register` → **200**（修复前为 400），`duration=0.051s`；
+  - `POST /api/v1/auth/totp/enable` → **401**（body 正确解析后进入鉴权，因 token 无效被拒；修复前为 400/422），`duration=0.005s`。
+  - 证明 10s+ 延迟正是 body 流被破坏后下游卡等所致，修复后消失。
+- 回归测试：`test_server_device_service` / `test_server_client` / `test_server_totp` 共 **32 项全部通过**。
+- 生产验证：服务器 `git pull` + **重启 uvicorn 进程**后，`device/register`、`totp/enable` 等 POST 恢复正常 200/快速 400，日志 `duration` 回到毫秒级。
+
+### 经验教训（载入史册）
+
+1. **`BaseHTTPMiddleware` 内读取 `request.body()` 是高危操作**：在多层中间件叠加（尤其是外层还有函数式 `app.middleware("http")`）的场景下，必须「读后重放」或改为 `request.stream()`/`receive` 端到端消费，否则会破坏下游 body 解析。凡是想在中间件里看请求体的需求，统一走「读一次 → 重建 `Request(receive=_replay_receive)`」模式。
+2. **生产环境务必 `DEBUG=false`**：`DEBUG=true` 会触发请求体打印、Traceback 外泄等，本就不应出现在生产。本次根因虽在代码，但 `DEBUG` 未关是触发器。代码模板已警告，本修复使 `DEBUG=true` 下也不再破坏 POST，但关 DEBUG 仍是生产最佳实践。
+3. **回归排查要相信「代码真相」而非「直觉」**：早期基于"后台任务/出网超时"的假设都被 `GET 毫秒级`这一铁证推翻。诊断时优先用「哪些请求正常 / 哪些异常」做分治（GET vs POST → 是否有 body），能极快收敛到 body 处理链路。
+4. **新增函数式中间件（fb35676 的 path_prefix_middleware）会改变 body 流传递契约**：此后任何在 `BaseHTTPMiddleware` 中读取 body 的逻辑都需重新审视是否破坏了重放。
+
+### 涉及文件
+
+- `server/app/middleware/logging.py` — DEBUG 请求体日志改为读后重放；`SENSITIVE_PATHS` 新增 `/public/device/register`
+- `VERSION` — 2.38.6 → 2.38.7
+- `history.md`
+
+---
+
 ## v2.38.0 (2026-08-11) — 子女端改用家属登录态鉴权，新增 `/family/device/*` 授权接口
 
 ### 概述
