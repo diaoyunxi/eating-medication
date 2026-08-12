@@ -133,6 +133,7 @@ class FakeClient:
                       "device_token": device_token}
 
     def clear_bound_device(self):
+        self.calls.append(("clear_bound_device",))
         self.bound = None
 
 
@@ -212,8 +213,28 @@ class TestHomeRoutes(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["success"])
         self.assertIsNone(self.fake.bound)
-        # 应先调用服务端解绑接口
+        # 应先调用服务端解绑接口，再清理本地绑定
         self.assertIn(("unbind_device_family",), self.fake.calls)
+        self.assertIn(("clear_bound_device",), self.fake.calls)
+        self.assertLess(
+            self.fake.calls.index(("unbind_device_family",)),
+            self.fake.calls.index(("clear_bound_device",)),
+        )
+
+    def test_unbind_device_server_failure(self):
+        # 服务端解绑失败时，不应清理本地绑定，且接口返回 400
+        self.fake.bound = {"device_id": "d1"}
+
+        async def _fail_unbind():
+            self.fake.calls.append(("unbind_device_family",))
+            return {"status": "error", "msg": "服务端解绑失败"}
+
+        self.fake.unbind_device_family = _fail_unbind
+        resp = self.client.post("/settings/unbind_device")
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(resp.json()["success"])
+        # 本地绑定保持不变
+        self.assertEqual(self.fake.bound, {"device_id": "d1"})
 
     def test_bind_device_success(self):
         resp = self.client.post(
