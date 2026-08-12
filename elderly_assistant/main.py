@@ -440,6 +440,15 @@ def main():
                 now, poller, reminder_state, buzzer, display, logger, speech
             )
 
+            # ---- 本地重复提醒音：提醒触发后每 60 秒老人仍未确认则再次响铃 ----
+            if reminder_state.active and reminder_state.triggered_at is not None:
+                if (datetime.now() - reminder_state.triggered_at).total_seconds() >= 60:
+                    try:
+                        buzzer.play_reminder()
+                    except Exception:
+                        pass
+                    reminder_state.triggered_at = datetime.now()
+
             # 注：原物理按钮 A/B 检测已移除，确认/问AI 均由屏幕触摸按钮触发
             #     （display.set_action_handlers 注入回调，回调解耦合与硬件无关）
 

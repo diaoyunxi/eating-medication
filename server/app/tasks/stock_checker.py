@@ -97,7 +97,12 @@ async def check_low_stock_job():
 
 
 def _collect_missed(db):
-    """同步扫描漏服计划，写入 missed 记录并提交，返回需通知列表。
+    """同步扫描漏服/未确认计划，写入状态记录并提交，返回需通知列表。
+
+    三级升级（老人一旦确认 status=taken 即停止一切升级通知）：
+    - 计划时间后 >1 分钟未确认：推送「1 分钟未确认」通知（仅一次）
+    - 计划时间后 >3 分钟未确认：推送「3 分钟未确认」通知，建议确认或拨打 120（仅一次）
+    - 计划时间后 >30 分钟未确认：标记 missed（漏服）
 
     在 run_in_threadpool 中执行，避免长循环里的同步 DB 写阻塞事件循环。
     """
@@ -108,6 +113,8 @@ def _collect_missed(db):
         .all()
     )
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    # to_notify 元素: (elderly_id, drug_name, stage, sched_iso)
+    #   stage ∈ {"1m", "3m", "missed"}
     to_notify = []
     for plan in plans:
         for t in plan.schedule_times:
@@ -119,8 +126,9 @@ def _collect_missed(db):
             sched_yesterday = sched_today - timedelta(days=1)
 
             for sched in (sched_yesterday, sched_today):
-                # 仅处理已超过计划时间 30 分钟的时间点；未来时间点跳过
-                if now < sched + timedelta(minutes=30):
+                elapsed = (now - sched).total_seconds()
+                # 仅处理已到点的时间点；未来时间点跳过
+                if elapsed < 0:
                     continue
                 rec = (
                     db.query(MedicationRecord)
@@ -130,46 +138,65 @@ def _collect_missed(db):
                     )
                     .first()
                 )
-                if rec and rec.status in ("taken", "missed"):
+                # 老人已确认：停止一切升级通知
+                if rec and rec.status == "taken":
                     continue
-                if rec:
-                    rec.status = "missed"
-                else:
+                if rec is None:
                     rec = MedicationRecord(
                         plan_id=plan.id,
                         user_id=plan.user_id,
                         scheduled_time=sched,
-                        status="missed",
+                        status="pending",
                     )
                     db.add(rec)
+                    db.flush()
+                # 1 分钟未确认（去重：仅推送一次）
+                if elapsed >= 60 and not rec.notified_unconfirmed_1m:
+                    rec.notified_unconfirmed_1m = True
+                    to_notify.append((plan.user_id, plan.drug_name, "1m", sched.isoformat()))
+                # 3 分钟未确认（去重：仅推送一次）
+                if elapsed >= 180 and not rec.notified_unconfirmed_3m:
+                    rec.notified_unconfirmed_3m = True
+                    to_notify.append((plan.user_id, plan.drug_name, "3m", sched.isoformat()))
+                # 30 分钟未确认 → 标记漏服（保留 1m/3m 标记，避免重复推送）
+                if elapsed >= 1800 and rec.status != "missed":
+                    rec.status = "missed"
+                    to_notify.append((plan.user_id, plan.drug_name, "missed", sched.isoformat()))
                 db.commit()
-                to_notify.append((plan.user_id, plan.drug_name, sched.isoformat()))
-    logger.info(f"漏服检查扫描完成，本次待通知 {len(to_notify)} 条")
+    logger.info(f"漏服/未确认检查扫描完成，本次待通知 {len(to_notify)} 条")
     return to_notify
 
 
 async def check_missed_medication_job():
-    """定时任务：扫描已过点且未服药的计划，标记漏服并通知家属（修复缺口②）
+    """定时任务：扫描已到点且未确认/未服药的计划，分级通知家属（修复缺口②）
 
-    每 5 分钟执行一次；对同一 plan_id+scheduled_time 仅通知一次（置 missed 后跳过）。
-    DB 查询/写入通过 run_in_threadpool 在后台线程执行，不阻塞事件循环，
-    避免后台任务占用主循环导致所有 HTTP 请求排队超时。
+    每 30 秒执行一次；同一 plan_id+scheduled_time 的 1m/3m 通知各仅推送一次
+    （依赖 MedicationRecord.notified_unconfirmed_1m/3m 去重标志）；missed 由
+    status 去重。DB 查询/写入通过 run_in_threadpool 在后台线程执行，不阻塞事件
+    循环，避免后台任务占用主循环导致所有 HTTP 请求排队超时。
     """
-    logger.info("开始执行漏服检查任务...")
+    logger.info("开始执行漏服/未确认检查任务...")
     db = SessionLocal()
     try:
         to_notify = await run_in_threadpool(_collect_missed, db)
-        for user_id, drug_name, sched_iso in to_notify:
+        for elderly_id, drug_name, stage, sched_iso in to_notify:
             try:
-                await notifier.notify_missed_medication(
-                    db, user_id, drug_name, sched_iso
+                if stage == "missed":
+                    await notifier.notify_missed_medication(
+                        db, elderly_id, drug_name, sched_iso
+                    )
+                else:
+                    await notifier.notify_unconfirmed_reminder(
+                        db, elderly_id, drug_name, stage, sched_iso
+                    )
+                logger.info(
+                    f"通知({stage})：用户 {elderly_id} 的 {drug_name} @ {sched_iso}"
                 )
-                logger.info(f"漏服通知：用户 {user_id} 的 {drug_name} @ {sched_iso}")
             except Exception as e:
-                logger.error(f"漏服通知失败(用户 {user_id}): {e}")
-        logger.info(f"漏服检查任务结束，本次通知 {len(to_notify)} 条")
+                logger.error(f"通知失败(用户 {elderly_id}, stage={stage}): {e}")
+        logger.info(f"漏服/未确认检查任务结束，本次通知 {len(to_notify)} 条")
     except Exception as e:
-        logger.error(f"漏服检查任务出错: {e}")
+        logger.error(f"漏服/未确认检查任务出错: {e}")
     finally:
         await run_in_threadpool(db.close)
 
@@ -185,13 +212,13 @@ def start_scheduler():
             name="低库存检查",
             replace_existing=True
         )
-        # 漏服检查：每 5 分钟执行一次
+        # 漏服/未确认检查：每 30 秒执行一次（支持 1 分钟 / 3 分钟精细升级通知）
         scheduler.add_job(
             check_missed_medication_job,
             trigger="interval",
-            minutes=5,
+            seconds=30,
             id="missed_medication_check",
-            name="漏服检查",
+            name="漏服/未确认检查",
             replace_existing=True
         )
         scheduler.start()

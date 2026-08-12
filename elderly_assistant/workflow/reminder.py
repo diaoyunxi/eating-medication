@@ -125,6 +125,7 @@ class ReminderState:
     - active: 是否有提醒正在响
     - drug_name / dosage: 当前提醒内容
     - fired_key: 已触发过的 "HH:MM|drug" 集合，避免同一分钟重复触发
+    - triggered_at: 最近一次响铃（触发或重复响铃）的时间，用于本地重复提醒音计时
     """
 
     def __init__(self):
@@ -134,6 +135,7 @@ class ReminderState:
         self.fired_keys = set()
         self.current_key = ""     # 当前响铃中的提醒 key
         self.items = []
+        self.triggered_at = None  # 最近一次响铃时间（datetime），用于本地重复提醒音
 
     def trigger(self, drug_name, dosage, key, items=None):
         self.active = True
@@ -142,12 +144,14 @@ class ReminderState:
         self.current_key = key
         self.fired_keys.add(key)
         self.items = items or []
+        self.triggered_at = datetime.now()
 
     def confirm(self):
         self.active = False
         self.drug_name = ""
         self.dosage = ""
         self.current_key = ""
+        self.triggered_at = None
 
 
 class HeartbeatThread:
