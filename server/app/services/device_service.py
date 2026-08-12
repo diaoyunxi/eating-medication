@@ -11,7 +11,7 @@ import base64
 import logging
 import os
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import HTTPException
@@ -287,7 +287,7 @@ class DeviceService:
                     "taken_time": r.taken_time.isoformat() if r.taken_time else None,
                     "status": r.status,
                     "confirmed": r.status == "taken" or r.taken_time is not None,
-                    "photo": None,
+                    "photo": r.photo,
                     "note": r.note,
                 }
             )
@@ -376,11 +376,30 @@ class DeviceService:
         return reminders[:limit]
 
     @staticmethod
-    def save_upload(db: Session, user: User, image_base64: str, note: Optional[str] = None) -> str:
-        """保存设备上传的服药照片（base64 解码后落盘），返回相对路径。
+    def photo_abs_path(photo_rel: str) -> str:
+        """将记录中存储的相对路径（uploads/{user_id}/{filename}.jpg）换算为磁盘绝对路径。"""
+        return os.path.join(os.path.dirname(_UPLOAD_ROOT), photo_rel)
+
+    @staticmethod
+    def save_upload(
+        db: Session,
+        user: User,
+        image_base64: str,
+        note: Optional[str] = None,
+        plan_id: Optional[int] = None,
+        scheduled_time: Optional[str] = None,
+    ) -> str:
+        """保存设备上传的服药照片（base64 解码后落盘），并将照片关联到对应服药记录。
 
         校验解码有效性与大小/格式，防止恶意载荷。
+        关联策略：
+        1. 若上传携带 plan_id + scheduled_time（设备确认时附带的服药标识），精确匹配记录；
+        2. 否则回退：关联最近一条已服药（taken_time 在 10 分钟内）且尚无照片的记录，
+           避免照片游离、无法在网页端展示。
         """
+        # 兼容带 data URI 前缀的 base64（设备客户端可能附带 "data:image/jpeg;base64,"）
+        if "," in image_base64:
+            image_base64 = image_base64.split(",", 1)[1]
         try:
             raw = base64.b64decode(image_base64, validate=True)
         except Exception:
@@ -406,7 +425,48 @@ class DeviceService:
         else:
             raise HTTPException(status_code=500, detail="上传图片失败：文件名碰撞次数过多")
         logger.info(f"设备上传图片已保存: {fpath}")
-        return f"uploads/{user.id}/{fname}"
+        rel_path = f"uploads/{user.id}/{fname}"
+
+        # ---- 关联照片到服药记录 ----
+        rec = None
+        if plan_id:
+            try:
+                pid = int(plan_id)
+                sched_dt = None
+                if scheduled_time and len(str(scheduled_time)) <= 5 and ":" in str(scheduled_time):
+                    sched_dt = hhmm_to_today(str(scheduled_time))
+                if sched_dt is not None:
+                    rec = (
+                        db.query(MedicationRecord)
+                        .filter(
+                            MedicationRecord.user_id == user.id,
+                            MedicationRecord.plan_id == pid,
+                            MedicationRecord.scheduled_time == sched_dt,
+                        )
+                        .first()
+                    )
+            except Exception as e:
+                logger.warning(f"按 plan_id 关联照片失败：{e}")
+                rec = None
+        if rec is None:
+            # 回退：最近一条已服药且在 10 分钟内、尚无照片的记录
+            cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10)
+            rec = (
+                db.query(MedicationRecord)
+                .filter(
+                    MedicationRecord.user_id == user.id,
+                    MedicationRecord.taken_time != None,
+                    MedicationRecord.taken_time >= cutoff,
+                    MedicationRecord.photo == None,
+                )
+                .order_by(MedicationRecord.taken_time.desc())
+                .first()
+            )
+        if rec is not None:
+            rec.photo = rel_path
+            db.commit()
+
+        return rel_path
 
     @staticmethod
     async def handle_medication(db: Session, user: User, data: dict):

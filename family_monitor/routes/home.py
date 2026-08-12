@@ -104,6 +104,22 @@ async def get_records(request: Request):
     )
 
 
+@router.get("/photo/{record_id}")
+async def get_record_photo(request: Request, record_id: int):
+    """代理获取某条记录的服药照片（从服务端拉取并流式返回给网页）。"""
+    if not require_login(request):
+        return unauthorized_json()
+    fc = family_client(request) or elderly_client
+    device_id = await fc._resolve_family_device_id()
+    if not device_id:
+        return JSONResponse(status_code=404, content={"detail": "未绑定设备"})
+    data = await fc.get_record_photo(record_id, device_id)
+    if not data:
+        return JSONResponse(status_code=404, content={"detail": "照片不存在"})
+    from fastapi.responses import Response
+    return Response(content=data, media_type="image/jpeg")
+
+
 @router.get("/dashboard")
 async def get_dashboard(request: Request):
     """仪表板页面"""

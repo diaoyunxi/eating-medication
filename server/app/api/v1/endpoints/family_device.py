@@ -179,6 +179,37 @@ async def family_device_records(
     return {"device_id": device_id, "records": records}
 
 
+@router.get("/record-photo/{record_id}")
+async def family_device_record_photo(
+    record_id: int,
+    device_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """获取绑定设备某条服药记录的照片（JWT 鉴权 + 设备绑定校验 + 记录归属校验）。
+
+    返回图片字节流（image/jpeg），供子女端网页展示真实服药照片。
+    """
+    import os
+
+    from fastapi.responses import FileResponse
+
+    from app.models.medication_record import MedicationRecord
+
+    user = _require_bound_device(current_user, db, device_id)
+    rec = (
+        db.query(MedicationRecord)
+        .filter(MedicationRecord.id == record_id, MedicationRecord.user_id == user.id)
+        .first()
+    )
+    if not rec or not rec.photo:
+        raise HTTPException(status_code=404, detail="照片不存在")
+    abs_path = DeviceService.photo_abs_path(rec.photo)
+    if not os.path.exists(abs_path):
+        raise HTTPException(status_code=404, detail="照片文件缺失")
+    return FileResponse(abs_path, media_type="image/jpeg")
+
+
 @router.get("/chat_history/{device_id}")
 async def family_device_chat_history(
     device_id: str,
