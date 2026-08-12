@@ -304,8 +304,37 @@ class TestApiMethods(unittest.TestCase):
 
     def test_get_reminders_returns_plans(self):
         self.client._device_id = "dev1"
-        self.client.set_response(_FakeResp(200, {"plans": [{"id": 1}]}))
-        self.assertEqual(self._run(self.client.get_reminders()), [{"id": 1}])
+        self.client.set_response(_FakeResp(200, {"plans": [{"id": 1, "drug_name": "药A"}]}))
+        result = self._run(self.client.get_reminders())
+        # 返回结果经过字段归一化，补全默认字段，避免模板属性访问崩溃
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["id"], 1)
+        self.assertEqual(result[0]["drug_name"], "药A")
+        self.assertEqual(result[0]["remaining_quantity"], 0)
+        self.assertEqual(result[0]["low_stock_threshold"], 0)
+        self.assertEqual(result[0]["total_quantity"], 0)
+        self.assertEqual(result[0]["schedule_times"], [])
+        self.assertEqual(result[0]["unit"], "")
+        self.assertTrue(result[0]["enabled"])
+
+    def test_get_reminders_normalizes_missing_fields(self):
+        """回归：plans 中缺少 remaining_quantity 等字段或值为 None 时，
+        归一化须补默认值，防止模板 'dict has no attribute' 崩溃（# 原崩溃场景）。"""
+        self.client._device_id = "dev1"
+        self.client.set_response(_FakeResp(200, {"plans": [
+            {"id": 1, "drug_name": "药A", "dosage": "1片", "frequency": "每日",
+             "schedule_times": ["08:00"], "total_quantity": 10,
+             "remaining_quantity": None, "unit": "片",
+             "low_stock_threshold": None, "enabled": True},
+        ]}))
+        result = self._run(self.client.get_reminders())
+        self.assertEqual(len(result), 1)
+        # None 必须被规范为数值 0，方可安全参与大小比较
+        self.assertEqual(result[0]["remaining_quantity"], 0)
+        self.assertEqual(result[0]["low_stock_threshold"], 0)
+        self.assertEqual(result[0]["total_quantity"], 10)
+        # 模拟模板中的比较逻辑不应抛异常（库存耗尽触发补药提示，正是预期行为）
+        self.assertTrue(result[0]["remaining_quantity"] <= result[0]["low_stock_threshold"])
 
     def test_get_reminders_no_device(self):
         self.client._device_id = None
