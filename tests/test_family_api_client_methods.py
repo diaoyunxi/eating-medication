@@ -343,7 +343,7 @@ class TestApiMethods(unittest.TestCase):
         self.client.set_jwt_token("jwt-fake")
         calls = []
 
-        async def seq_execute(method, path, **kwargs):
+        async def seq_execute(method: str, path: str, **kwargs: Any) -> _FakeResp:
             calls.append((method, path, kwargs))
             if path == "/api/v1/users/me":
                 return _FakeResp(200, {"device_id": "server-dev"})
