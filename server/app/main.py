@@ -202,7 +202,10 @@ async def path_prefix_middleware(request: Request, call_next):
     return await call_next(request)
 
 
-app.add_middleware(path_prefix_middleware)
+# 注意：path_prefix_middleware 是函数式中间件，必须用 app.middleware("http")(...)
+# 注册。若用 app.add_middleware(path_prefix_middleware)，Starlette 会以 app= 关键字
+# 实例化该函数，导致 TypeError（见 CodeRabbit review #25）。family 端同样使用此装饰器方式。
+app.middleware("http")(path_prefix_middleware)
 
 # 全局异常处理器
 add_exception_handlers(app)
