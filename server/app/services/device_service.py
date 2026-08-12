@@ -191,8 +191,9 @@ class DeviceService:
         兼容两类历史问题：设备-用户关联（真实老人 / 旧虚拟用户）、
         SQLite 不保留时区导致取出的 datetime 需补 UTC 时区。
         """
-        total_plans = db.query(MedicationPlan).filter(MedicationPlan.user_id == user.id).count()
-        total_records = db.query(MedicationRecord).filter(MedicationRecord.user_id == user.id).count()
+        elderly_ids = DeviceService._group_elderly_ids(db, user)
+        total_plans = db.query(MedicationPlan).filter(MedicationPlan.user_id.in_(elderly_ids)).count()
+        total_records = db.query(MedicationRecord).filter(MedicationRecord.user_id.in_(elderly_ids)).count()
 
         now = datetime.now(timezone.utc)
         is_online = False
@@ -220,13 +221,26 @@ class DeviceService:
 
     @staticmethod
     def get_schedule(db: Session, user: User) -> list:
-        """获取设备的用药计划列表（供老人端每分钟轮询）"""
-        plans = db.query(MedicationPlan).filter(MedicationPlan.user_id == user.id).all()
+        """获取设备的用药计划列表（供老人端每分钟轮询）
+
+        多老人：聚合设备所属家庭组（group_id）下所有老人的计划，每条附带
+        elderly_id / elderly_name / husky_face_id，供老人端拍照前核验身份。
+        """
+        elderly_ids = DeviceService._group_elderly_ids(db, user)
+        elders = {
+            e.id: e
+            for e in db.query(User).filter(User.id.in_(elderly_ids)).all()
+        }
+        plans = db.query(MedicationPlan).filter(MedicationPlan.user_id.in_(elderly_ids)).all()
         schedules = []
         for plan in plans:
+            owner = elders.get(plan.user_id)
             for time_str in plan.schedule_times:
                 schedules.append({
                     "plan_id": plan.id,
+                    "elderly_id": plan.user_id,
+                    "elderly_name": owner.username if owner else None,
+                    "husky_face_id": owner.husky_face_id if owner else None,
                     "drug_name": plan.drug_name,
                     "dosage": plan.dosage,
                     "product_code": plan.product_code,
@@ -239,11 +253,21 @@ class DeviceService:
 
     @staticmethod
     def get_plans(db: Session, user: User) -> list:
-        """获取设备的所有用药计划（供子女端查看）"""
-        plans = MedicationService.get_plans_by_user(db, user.id)
+        """获取设备的所有用药计划（供子女端查看）
+
+        多老人：聚合家庭组下所有老人的计划，并附带所属老人信息。
+        """
+        elderly_ids = DeviceService._group_elderly_ids(db, user)
+        elders = {
+            e.id: e
+            for e in db.query(User).filter(User.id.in_(elderly_ids)).all()
+        }
+        plans = db.query(MedicationPlan).filter(MedicationPlan.user_id.in_(elderly_ids)).all()
         return [
             {
                 "id": p.id,
+                "elderly_id": p.user_id,
+                "elderly_name": elders.get(p.user_id).username if elders.get(p.user_id) else None,
                 "drug_name": p.drug_name,
                 "dosage": p.dosage,
                 "product_code": p.product_code,
@@ -267,20 +291,25 @@ class DeviceService:
         photo 当前未与记录关联，返回 None 以避免虚假显示"有照片"。
         """
         limit = max(1, min(limit, 500))
+        elderly_ids = DeviceService._group_elderly_ids(db, user)
+        elders = {e.id: e for e in db.query(User).filter(User.id.in_(elderly_ids)).all()}
         rows = (
             db.query(MedicationRecord, MedicationPlan.drug_name, MedicationPlan.dosage)
             .outerjoin(MedicationPlan, MedicationRecord.plan_id == MedicationPlan.id)
-            .filter(MedicationRecord.user_id == user.id)
+            .filter(MedicationRecord.user_id.in_(elderly_ids))
             .order_by(MedicationRecord.scheduled_time.desc())
             .limit(limit)
             .all()
         )
         records = []
         for r, drug_name, dosage in rows:
+            owner = elders.get(r.user_id)
             records.append(
                 {
                     "id": r.id,
                     "plan_id": r.plan_id,
+                    "elderly_id": r.user_id,
+                    "elderly_name": owner.username if owner else None,
                     "medication_name": drug_name,
                     "dosage": dosage,
                     "scheduled_time": r.scheduled_time.isoformat() if r.scheduled_time else None,
@@ -338,13 +367,15 @@ class DeviceService:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         # 今日零点，用于只索引"今天"的服药记录，避免把历史全部记录载入内存
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        plans = MedicationService.get_plans_by_user(db, user.id)
+        elderly_ids = DeviceService._group_elderly_ids(db, user)
+        elders = {e.id: e for e in db.query(User).filter(User.id.in_(elderly_ids)).all()}
+        plans = db.query(MedicationPlan).filter(MedicationPlan.user_id.in_(elderly_ids)).all()
         # 已上报记录按 (plan_id, 计划时点) 建索引，便于匹配完成状态；
         # 仅取 today 起的记录（scheduled_time 由 hhmm_to_today 生成为今日时点）
         records = (
             db.query(MedicationRecord)
             .filter(
-                MedicationRecord.user_id == user.id,
+                MedicationRecord.user_id.in_(elderly_ids),
                 MedicationRecord.scheduled_time >= today_start,
             )
             .all()
@@ -361,9 +392,12 @@ class DeviceService:
                 scheduled = hhmm_to_today(time_str, now)
                 rid += 1
                 rec = record_index.get((plan.id, time_str))
+                owner = elders.get(plan.user_id)
                 reminders.append({
                     "id": rid,
                     "plan_id": plan.id,
+                    "elderly_id": plan.user_id,
+                    "elderly_name": owner.username if owner else None,
                     "drug_name": plan.drug_name,
                     "dosage": plan.dosage,
                     "planned_time": scheduled.isoformat() if scheduled else None,
@@ -388,6 +422,7 @@ class DeviceService:
         note: Optional[str] = None,
         plan_id: Optional[int] = None,
         scheduled_time: Optional[str] = None,
+        elderly_id: Optional[int] = None,
     ) -> str:
         """保存设备上传的服药照片（base64 解码后落盘），并将照片关联到对应服药记录。
 
@@ -408,7 +443,10 @@ class DeviceService:
             raise HTTPException(status_code=413, detail="图片过大（上限10MB）")
         if not (raw.startswith(b"\xff\xd8\xff") or raw.startswith(b"\x89PNG")):
             raise HTTPException(status_code=400, detail="仅支持 JPEG/PNG 图片")
-        user_dir = os.path.join(_UPLOAD_ROOT, str(user.id))
+        # 多老人：照片归属到具体老人（elderly_id 指定），默认回退设备主体用户
+        owner = DeviceService._resolve_elderly(db, user, elderly_id)
+        owner_id = owner.id
+        user_dir = os.path.join(_UPLOAD_ROOT, str(owner_id))
         os.makedirs(user_dir, exist_ok=True)
         # 使用排他创建模式（O_EXCL），防止并发上传时覆盖既有照片
         for _ in range(3):  # 最多重试 3 次，应对极端碰撞
@@ -425,7 +463,7 @@ class DeviceService:
         else:
             raise HTTPException(status_code=500, detail="上传图片失败：文件名碰撞次数过多")
         logger.info(f"设备上传图片已保存: {fpath}")
-        rel_path = f"uploads/{user.id}/{fname}"
+        rel_path = f"uploads/{owner_id}/{fname}"
 
         # ---- 关联照片到服药记录 ----
         rec = None
@@ -439,7 +477,7 @@ class DeviceService:
                     rec = (
                         db.query(MedicationRecord)
                         .filter(
-                            MedicationRecord.user_id == user.id,
+                            MedicationRecord.user_id == owner_id,
                             MedicationRecord.plan_id == pid,
                             MedicationRecord.scheduled_time == sched_dt,
                         )
@@ -454,7 +492,7 @@ class DeviceService:
             rec = (
                 db.query(MedicationRecord)
                 .filter(
-                    MedicationRecord.user_id == user.id,
+                    MedicationRecord.user_id == owner_id,
                     MedicationRecord.taken_time != None,
                     MedicationRecord.taken_time >= cutoff,
                     MedicationRecord.photo == None,
@@ -494,6 +532,10 @@ class DeviceService:
         for it in items:
             try:
                 plan_id = int(it.get("plan_id"))
+                # 多老人：记录归属到具体老人（elderly_id 指定），默认回退设备主体用户
+                owner = DeviceService._resolve_elderly(
+                    db, user, it.get("elderly_id") if isinstance(it, dict) else None
+                )
                 sched_raw = it.get("scheduled_time") or data.get("taken_at")
                 if isinstance(sched_raw, str) and len(sched_raw) <= 5 and ":" in sched_raw:
                     sched_dt = hhmm_to_today(sched_raw, taken_dt)
@@ -506,6 +548,91 @@ class DeviceService:
                     scheduled_time=sched_dt,
                     taken_time=taken_dt,
                 )
-                await MedicationService.take_medication(db, user.id, req_obj)
+                await MedicationService.take_medication(db, owner.id, req_obj)
             except Exception as e:
                 logger.error(f"设备服药确认处理失败(plan_id={it.get('plan_id')}): {e}")
+
+    @staticmethod
+    def _group_elderly_ids(db: Session, user: User) -> list:
+        """返回设备所属家庭组（group_id）下所有老人的 user_id 列表
+
+        设备主体用户（持有 device_id/device_token）与额外老人共享 group_id；
+        多老人下，设备的计划/记录/提醒均按此列表聚合。
+        """
+        if user.group_id is None:
+            return [user.id]
+        ids = [
+            u[0]
+            for u in db.query(User.id)
+            .filter(User.group_id == user.group_id, User.role == "elderly")
+            .all()
+        ]
+        return ids or [user.id]
+
+    @staticmethod
+    def _resolve_elderly(db: Session, device_user: User, elderly_id: Optional[int]) -> User:
+        """解析服药/照片归属的老人用户
+
+        elderly_id 为空或非法时回退到设备主体用户（单老人兼容）；
+        elderly_id 必须属于同一家庭组，否则拒绝写入（防止越权写入他人记录）。
+        """
+        if elderly_id:
+            # 未加入家庭组的设备（group_id 为 NULL）只能操作自身，禁止通过传入其他
+            # group_id 同样为 NULL 的老人 ID 越权访问他人记录。
+            if device_user.group_id is None:
+                if int(elderly_id) == device_user.id:
+                    return device_user
+                raise HTTPException(
+                    status_code=403,
+                    detail="设备未加入家庭组，仅可操作自身记录",
+                )
+            target = db.query(User).filter(
+                User.id == elderly_id,
+                User.role == "elderly",
+                User.group_id == device_user.group_id,
+            ).first()
+            if target:
+                return target
+            raise HTTPException(
+                status_code=403,
+                detail="老人ID不属于当前设备家庭组，拒绝写入",
+            )
+        return device_user
+
+    @staticmethod
+    def get_pending_learn_request(db: Session, user: User) -> Optional[dict]:
+        """返回组内待录入人脸的老人（供老人端轮询触发二哈学习）
+
+        家属在网页点「录入人脸」后，对应老人 pending_learn=True；设备轮询到该标记，
+        进入学习模式，学习完成上报 husky_face_id 后由服务端清零。
+        """
+        if user.group_id is None:
+            return None
+        pending = (
+            db.query(User)
+            .filter(
+                User.group_id == user.group_id,
+                User.role == "elderly",
+                User.pending_learn.is_(True),
+            )
+            .first()
+        )
+        if not pending:
+            return None
+        # 建议的二哈人脸 ID：同家庭组已录入人脸 ID 的最大值 + 1，保证设备内唯一
+        existing = (
+            db.query(User.husky_face_id)
+            .filter(
+                User.group_id == user.group_id,
+                User.role == "elderly",
+                User.husky_face_id.isnot(None),
+            )
+            .all()
+        )
+        ids = [r[0] for r in existing if r[0] is not None]
+        suggested_face_id = (max(ids) + 1) if ids else 1
+        return {
+            "elderly_id": pending.id,
+            "elderly_name": pending.username,
+            "face_id": suggested_face_id,
+        }

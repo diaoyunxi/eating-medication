@@ -73,6 +73,8 @@ class FamilyMedicationPlan(BaseModel):
     remaining_quantity: float = 30.0
     unit: str = "片"
     low_stock_threshold: int = 5
+    # 多老人：该计划归属的老人 ID（网页用药设置下拉选择「哪个老人吃」），缺省回退设备主体
+    elderly_id: Optional[int] = None
 
 
 @router.post("/device/register")
@@ -139,6 +141,8 @@ class DeviceUpload(BaseModel):
     note: Optional[str] = None
     plan_id: Optional[int] = None
     scheduled_time: Optional[str] = None
+    # 多老人：照片归属的老人 ID（由老人端拍照前身份识别确定），缺省回退设备主体
+    elderly_id: Optional[int] = None
 
 
 @router.post("/device/upload")
@@ -154,9 +158,51 @@ async def device_upload(
     """
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
     path = await run_in_threadpool(
-        DeviceService.save_upload, db, user, req.image_base64, req.note, req.plan_id, req.scheduled_time
+        DeviceService.save_upload, db, user, req.image_base64, req.note, req.plan_id, req.scheduled_time, req.elderly_id
     )
     return {"status": "ok", "path": path}
+
+
+class DeviceLearnFace(BaseModel):
+    """老人端上报二哈学习到的人脸 ID（录入人脸流程结束时调用）"""
+    device_id: str
+    elderly_id: int
+    husky_face_id: int
+
+
+@router.post("/device/learn_face")
+async def device_learn_face(
+    req: DeviceLearnFace,
+    db: Session = Depends(get_db),
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+):
+    """接收老人端录入人脸后上报的二哈人脸 ID，回填到对应老人账号
+
+    家属在网页触发「录入人脸」后，对应老人 pending_learn=True；老人端轮询到 learn_request，
+    让该老人面向二哈摄像头学习，学习完成上报 husky_face_id，服务端清零 pending_learn。
+    """
+    from app.services.user_service import UserService
+
+    user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
+    # 未加入家庭组的设备拒绝录入人脸，避免越权写入
+    if user.group_id is None:
+        raise HTTPException(status_code=403, detail="设备未加入家庭组，无法录入人脸")
+    # 校验 elderly_id 属于同一家庭组，防止越权写入他人照片/人脸
+    target = (
+        db.query(User)
+        .filter(
+            User.id == req.elderly_id,
+            User.group_id == user.group_id,
+            User.role == "elderly",
+        )
+        .first()
+    )
+    if not target:
+        raise HTTPException(status_code=403, detail="老人ID不属于当前设备家庭组")
+    updated = UserService.set_husky_face_id(db, req.elderly_id, req.husky_face_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="老人不存在")
+    return {"status": "ok"}
 
 
 @router.get("/device/status/{device_id}")
@@ -238,10 +284,12 @@ async def get_device_schedule(
     """获取设备的用药计划（供老人端每分钟轮询，校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
     schedules = DeviceService.get_schedule(db, user)
+    learn_request = DeviceService.get_pending_learn_request(db, user)
     return {
         "device_id": device_id,
         "device_name": user.username,
         "schedules": schedules,
+        "learn_request": learn_request,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -254,6 +302,8 @@ async def set_device_medication_plan(
 ):
     """家属通过设备ID设置用药计划（校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
+    # 多老人：计划归属到指定老人（elderly_id），默认回退设备主体用户
+    owner = DeviceService._resolve_elderly(db, user, req.elderly_id)
 
     plan_data = MedicationPlanCreate(
         drug_name=req.drug_name,
@@ -266,7 +316,7 @@ async def set_device_medication_plan(
         unit=req.unit,
         low_stock_threshold=req.low_stock_threshold,
     )
-    plan = await run_in_threadpool(MedicationService.create_plan, db, user.id, plan_data)
+    plan = await run_in_threadpool(MedicationService.create_plan, db, owner.id, plan_data)
     logger.info(f"家属为设备 {mask_device_id(req.device_id or '')} 设置用药计划: {req.drug_name}")
 
     return {
@@ -324,9 +374,11 @@ async def delete_device_medication_plan(
 ):
     """删除用药计划（校验 device_id 与 X-Device-Token 及设备归属）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
+    # 多老人：组内任一老人的计划均可删除（家属统一管理）
+    elderly_ids = DeviceService._group_elderly_ids(db, user)
     plan = db.query(MedicationPlan).filter(
         MedicationPlan.id == plan_id,
-        MedicationPlan.user_id == user.id
+        MedicationPlan.user_id.in_(elderly_ids)
     ).first()
     if not plan:
         raise HTTPException(status_code=404, detail="计划不存在或不属于该设备")
@@ -343,6 +395,8 @@ async def update_device_medication_plan(
 ):
     """更新用药计划（校验 device_id 与 X-Device-Token 及设备归属）"""
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
+    # 多老人：计划归属到指定老人（elderly_id），默认回退设备主体用户
+    owner = DeviceService._resolve_elderly(db, user, req.elderly_id)
 
     plan_data = MedicationPlanCreate(
         drug_name=req.drug_name,
@@ -356,7 +410,7 @@ async def update_device_medication_plan(
         low_stock_threshold=req.low_stock_threshold,
     )
     try:
-        plan = await run_in_threadpool(MedicationService.update_plan, db, plan_id, user.id, plan_data)
+        plan = await run_in_threadpool(MedicationService.update_plan, db, plan_id, owner.id, plan_data)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
