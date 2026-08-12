@@ -8,6 +8,7 @@
 上传、服药确认等纯逻辑已抽至 app.services.device_service.DeviceService。
 """
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -88,7 +89,7 @@ async def register_device(
 
     :return: {"status": "ok", "user_id": int}；首次注册额外返回 "device_token"
     """
-    user, device_token = DeviceService.register_or_heartbeat(db, req.device_id, req.device_name)
+    user, device_token = await run_in_threadpool(DeviceService.register_or_heartbeat, db, req.device_id, req.device_name)
     if device_token:
         return {"status": "ok", "user_id": user.id, "device_token": device_token}
     return {"status": "ok", "user_id": user.id}
@@ -107,7 +108,7 @@ async def device_offline(
     注意：掉电/SIGKILL 等异常退出仍需依赖心跳超时判定。需校验 X-Device-Token。
     """
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
-    DeviceService.mark_offline(db, user)
+    await run_in_threadpool(DeviceService.mark_offline, db, user)
     return {"status": "ok"}
 
 
@@ -146,7 +147,7 @@ async def device_upload(
 ):
     """接收设备上传的服药照片（base64 解码后落盘，HuskyLens 采集）"""
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
-    path = DeviceService.save_upload(db, user, req.image_base64, req.note)
+    path = await run_in_threadpool(DeviceService.save_upload, db, user, req.image_base64, req.note)
     return {"status": "ok", "path": path}
 
 
@@ -196,8 +197,7 @@ async def ai_ask(
             question=req.question,
             answer=answer,
         )
-        db.add(log)
-        db.commit()
+        await run_in_threadpool(lambda: (db.add(log), db.commit()))
 
     return {"answer": answer}
 
@@ -258,7 +258,7 @@ async def set_device_medication_plan(
         unit=req.unit,
         low_stock_threshold=req.low_stock_threshold,
     )
-    plan = MedicationService.create_plan(db, user.id, plan_data)
+    plan = await run_in_threadpool(MedicationService.create_plan, db, user.id, plan_data)
     logger.info(f"家属为设备 {mask_device_id(req.device_id or '')} 设置用药计划: {req.drug_name}")
 
     return {
@@ -322,8 +322,7 @@ async def delete_device_medication_plan(
     ).first()
     if not plan:
         raise HTTPException(status_code=404, detail="计划不存在或不属于该设备")
-    db.delete(plan)
-    db.commit()
+    await run_in_threadpool(lambda: (db.delete(plan), db.commit()))
     return {"status": "ok"}
 
 
@@ -349,7 +348,7 @@ async def update_device_medication_plan(
         low_stock_threshold=req.low_stock_threshold,
     )
     try:
-        plan = MedicationService.update_plan(db, plan_id, user.id, plan_data)
+        plan = await run_in_threadpool(MedicationService.update_plan, db, plan_id, user.id, plan_data)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
