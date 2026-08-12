@@ -83,7 +83,8 @@
                     <div class="stat-icon">
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                     </div>
-                    <div class="stat-value">{{ records|length }}</div>
+                    {% set photo_count = records|selectattr('photo')|list|length %}
+                    <div class="stat-value">{{ photo_count }}</div>
                     <div class="stat-label">带照片记录</div>
                 </div>
             </div>
@@ -152,6 +153,7 @@
                             {% endif %}
                             {% if record.photo %}
                                 <span class="record-badge">有照片</span>
+                                <img src="{{ prefix }}/photo/{{ record.id }}" class="record-thumb" alt="服药照片" loading="lazy" onclick="openPhoto('{{ prefix }}/photo/{{ record.id }}')">
                             {% endif %}
                         </div>
                     </div>
@@ -180,6 +182,47 @@
             {% endif %}
         </div>
     </div>
+
+    <!-- 服药照片灯箱 -->
+    <style>
+        .record-thumb {
+            width: 40px; height: 40px; border-radius: 8px; object-fit: cover;
+            cursor: pointer; border: 1px solid var(--border); vertical-align: middle; margin-left: 6px;
+            transition: transform 0.15s ease;
+        }
+        .record-thumb:hover { transform: scale(1.08); }
+        .photo-lightbox {
+            display: none; position: fixed; inset: 0; z-index: 1000;
+            background: rgba(0,0,0,0.8); align-items: center; justify-content: center; padding: 24px;
+        }
+        .photo-lightbox.open { display: flex; }
+        .photo-lightbox-img { max-width: 92vw; max-height: 88vh; border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+        .photo-lightbox-close {
+            position: absolute; top: 18px; right: 24px; color: #fff; font-size: 34px; line-height: 1;
+            cursor: pointer; user-select: none;
+        }
+    </style>
+    <div id="photoLightbox" class="photo-lightbox" onclick="closePhoto()">
+        <span class="photo-lightbox-close" onclick="closePhoto()">&times;</span>
+        <img id="photoLightboxImg" class="photo-lightbox-img" src="" alt="服药照片">
+    </div>
+    <script>
+        function openPhoto(src) {
+            var lb = document.getElementById('photoLightbox');
+            var img = document.getElementById('photoLightboxImg');
+            if (!lb || !img) return;
+            img.src = src;
+            lb.classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+        function closePhoto() {
+            var lb = document.getElementById('photoLightbox');
+            if (!lb) return;
+            lb.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+        document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closePhoto(); });
+    </script>
 
     <script>
         // 筛选器交互

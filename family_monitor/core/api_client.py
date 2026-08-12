@@ -203,6 +203,20 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception:
             return {'device_id': self._device_id, 'records': []}
 
+    async def get_record_photo(self, record_id: int, device_id: str) -> Optional[bytes]:
+        """获取某条记录的服药照片字节（家属侧，按绑定设备鉴权）"""
+        try:
+            response = await self._execute(
+                "GET",
+                f"/api/v1/family/device/record-photo/{record_id}?device_id={device_id}",
+                headers=self._jwt_headers(),
+            )
+            if response.status_code == 200:
+                return await response.read()
+            return None
+        except Exception:
+            return None
+
     async def _chat_history_via_family(self, limit: int = 50) -> Dict[str, Any]:
         if not await self._resolve_family_device_id():
             return {'device_id': None, 'messages': []}

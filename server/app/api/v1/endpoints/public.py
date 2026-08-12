@@ -137,6 +137,8 @@ class DeviceUpload(BaseModel):
     device_id: str
     image_base64: str
     note: Optional[str] = None
+    plan_id: Optional[int] = None
+    scheduled_time: Optional[str] = None
 
 
 @router.post("/device/upload")
@@ -145,9 +147,15 @@ async def device_upload(
     db: Session = Depends(get_db),
     device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
-    """接收设备上传的服药照片（base64 解码后落盘，HuskyLens 采集）"""
+    """接收设备上传的服药照片（base64 解码后落盘，HuskyLens 采集）
+
+    可选携带 plan_id + scheduled_time（设备确认时附带的服药标识），
+    用于把照片精确关联到对应的服药记录。
+    """
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
-    path = await run_in_threadpool(DeviceService.save_upload, db, user, req.image_base64, req.note)
+    path = await run_in_threadpool(
+        DeviceService.save_upload, db, user, req.image_base64, req.note, req.plan_id, req.scheduled_time
+    )
     return {"status": "ok", "path": path}
 
 

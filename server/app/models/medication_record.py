@@ -16,6 +16,8 @@ class MedicationRecord(Base):
     # 未确认升级通知去重标志：1 分钟 / 3 分钟未确认分别只推送一次
     notified_unconfirmed_1m = Column(Boolean, default=False, nullable=False)
     notified_unconfirmed_3m = Column(Boolean, default=False, nullable=False)
+    # 服药照片相对路径（如 uploads/{user_id}/{filename}.jpg），无照片则为空
+    photo = Column(String(512), nullable=True)
 
     # 关联关系
     user = relationship("User", back_populates="medication_records")

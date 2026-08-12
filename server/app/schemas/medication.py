@@ -74,5 +74,6 @@ class MedicationRecordOut(BaseModel):
     taken_time: Optional[datetime] = None
     status: str
     note: Optional[str] = None
+    photo: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

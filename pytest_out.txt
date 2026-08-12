@@ -1,0 +1,26 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.14, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\Administrator\AppData\Local\Programs\Python\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: D:\КЂзг\github\eating-medication
+configfile: pytest.ini
+plugins: anyio-4.13.0, asyncio-1.4.0, cov-7.1.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 15 items
+
+tests/test_server_device_service.py::test_mask_device_id PASSED          [  6%]
+tests/test_server_device_service.py::test_parse_dt PASSED                [ 13%]
+tests/test_server_device_service.py::test_hhmm_to_today PASSED           [ 20%]
+tests/test_server_device_service.py::test_find_device_accounts_returns_both_candidates PASSED [ 26%]
+tests/test_server_device_service.py::test_get_device_user_resolves_and_404 PASSED [ 33%]
+tests/test_server_device_service.py::test_get_device_user_field_priority_over_username PASSED [ 40%]
+tests/test_server_device_service.py::test_get_device_user_authed PASSED  [ 46%]
+tests/test_server_device_service.py::test_register_or_heartbeat PASSED   [ 53%]
+tests/test_server_device_service.py::test_compute_status_online_offline PASSED [ 60%]
+tests/test_server_device_service.py::test_get_plans_formatting PASSED    [ 66%]
+tests/test_server_device_service.py::test_save_upload_returns_unique_paths PASSED [ 73%]
+tests/test_server_device_service.py::test_save_upload_unique_under_same_timestamp PASSED [ 80%]
+tests/test_server_device_service.py::test_save_upload_rejects_invalid_encoding PASSED [ 86%]
+tests/test_server_device_service.py::test_save_upload_rejects_non_image PASSED [ 93%]
+tests/test_server_device_service.py::test_save_upload_uses_exclusive_create_and_retries_on_collision PASSED [100%]
+
+============================= 15 passed in 2.98s ==============================

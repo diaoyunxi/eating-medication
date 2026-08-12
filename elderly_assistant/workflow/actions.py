@@ -5,14 +5,27 @@ import logging
 logger = logging.getLogger("ElderlyAssistant")
 
 
-def _capture_and_upload(config, http_client, logger):
-    """拍照并上传服药照片（HuskyLens；无摄像头时静默降级）。"""
+def _capture_and_upload(config, http_client, logger, reminder_state=None):
+    """拍照并上传服药照片（HuskyLens；无摄像头时静默降级）。
+
+    若传入 reminder_state，会从本次确认的用药项中提取 plan_id + scheduled_time，
+    一并上报给服务端，使照片能精确关联到对应的服药记录。
+    """
+    plan_id = None
+    scheduled_time = None
+    if reminder_state is not None:
+        for item in getattr(reminder_state, "items", []) or []:
+            med = getattr(item, "medication", None)
+            if med is not None:
+                plan_id = getattr(med, "plan_id", None)
+                scheduled_time = getattr(med, "scheduled_time", None)
+                break
     try:
         from core.camera import capture_image
         path = capture_image(config)
         if not path:
             return
-        http_client.upload_image(path)
+        http_client.upload_image(path, plan_id=plan_id, scheduled_time=scheduled_time)
     except Exception as e:
         logger.warning(f"拍照上传失败: {e}")
 
@@ -65,7 +78,7 @@ def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=
             try:
                 import threading as _th
                 _th.Thread(
-                    target=_capture_and_upload, args=(config, http_client, logger), daemon=True
+                    target=_capture_and_upload, args=(config, http_client, logger, reminder_state), daemon=True
                 ).start()
             except Exception:
                 pass

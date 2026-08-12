@@ -251,7 +251,7 @@ class HTTPClient:
             logger.warning(f"上报服药确认异常: {e}")
             return False
 
-    def upload_image(self, image_path, endpoint=None):
+    def upload_image(self, image_path, endpoint=None, plan_id=None, scheduled_time=None):
         # 图片以 base64 编码放入 JSON 上传（避免 multipart 在大文件/代理下不稳定）
         if endpoint is None:
             endpoint = self.config.get('upload_endpoint', '/api/v1/public/device/upload')
@@ -263,10 +263,16 @@ class HTTPClient:
             logger.warning(f"读取图片失败: {e}")
             return False
         url = f"{self.base_url}{endpoint}"
+        payload = {
+            "device_id": self.device_id,
+            "image_base64": f"data:image/jpeg;base64,{b64}",
+            "plan_id": plan_id,
+            "scheduled_time": scheduled_time,
+        }
         try:
             resp = requests.post(
                 url,
-                json={"device_id": self.device_id, "image_base64": b64},
+                json=payload,
                 timeout=self.timeout,
                 headers=self._headers(),
             )
@@ -315,9 +321,9 @@ class HTTPClient:
             logger.warning(f"发送聊天消息异常: {e}")
             return None
 
-    def upload_medicine_photo(self, image_path):
+    def upload_medicine_photo(self, image_path, plan_id=None, scheduled_time=None):
         """上传药品照片"""
-        return self.upload_image(image_path)
+        return self.upload_image(image_path, plan_id=plan_id, scheduled_time=scheduled_time)
 
     def ask_ai(self, question):
         """向服务端 AI 提问"""
