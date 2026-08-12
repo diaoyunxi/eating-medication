@@ -9,7 +9,6 @@ import importlib.util
 import json
 import unittest
 from pathlib import Path
-from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _HAS = all(importlib.util.find_spec(m) is not None
@@ -198,7 +197,7 @@ class TestApiMethods(unittest.TestCase):
         self.client.set_jwt_token("jwt-fake")
         calls: list = []
 
-        async def seq_execute(method: str, path: str, **kwargs: Any) -> _FakeResp:
+        async def seq_execute(method: str, path: str, **kwargs: object) -> _FakeResp:
             calls.append((method, path, kwargs))
             if path == "/api/v1/users/me":
                 return _FakeResp(200, {"device_id": "server-dev"})
@@ -257,7 +256,7 @@ class TestApiMethods(unittest.TestCase):
         self.client.set_jwt_token("jwt-fake")
         calls: list = []
 
-        async def seq_execute(method: str, path: str, **kwargs: Any) -> _FakeResp:
+        async def seq_execute(method: str, path: str, **kwargs: object) -> _FakeResp:
             calls.append((method, path, kwargs))
             if path == "/api/v1/users/me":
                 return _FakeResp(200, {"device_id": "server-dev"})
@@ -343,7 +342,7 @@ class TestApiMethods(unittest.TestCase):
         self.client.set_jwt_token("jwt-fake")
         calls = []
 
-        async def seq_execute(method: str, path: str, **kwargs: Any) -> _FakeResp:
+        async def seq_execute(method: str, path: str, **kwargs: object) -> _FakeResp:
             calls.append((method, path, kwargs))
             if path == "/api/v1/users/me":
                 return _FakeResp(200, {"device_id": "server-dev"})
