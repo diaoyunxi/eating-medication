@@ -391,7 +391,7 @@ class TestHuskyLensResidualCache(unittest.TestCase):
         self.assertEqual(codes, [])  # 关键：不返回残留的旧码
 
     def test_no_residual_when_getcached_returns_none(self):
-        from core.barcode import HuskyLensScanner
+        HuskyLensScanner = barcode_mod.HuskyLensScanner
         hl = _ResidualGetResultHuskyLens()
         codes = HuskyLensScanner._read_contents(hl, 1)
         self.assertEqual(codes, [])  # 关键：getResult>0 但实时为空，不返回旧码
