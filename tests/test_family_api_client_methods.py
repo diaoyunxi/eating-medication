@@ -306,7 +306,7 @@ class TestApiMethods(unittest.TestCase):
         self.client._device_id = "dev1"
         self.client.set_response(_FakeResp(200, {"plans": [{"id": 1, "drug_name": "药A"}]}))
         result = self._run(self.client.get_reminders())
-        # 返回结果经过字段归一化，补全默认字段，避免模板属性访问崩溃
+        # 返回结果经过字段归一化, 补全默认字段, 避免模板属性访问崩溃
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["id"], 1)
         self.assertEqual(result[0]["drug_name"], "药A")
@@ -318,8 +318,8 @@ class TestApiMethods(unittest.TestCase):
         self.assertTrue(result[0]["enabled"])
 
     def test_get_reminders_normalizes_missing_fields(self):
-        """回归：plans 中缺少 remaining_quantity 等字段或值为 None 时，
-        归一化须补默认值，防止模板 'dict has no attribute' 崩溃（# 原崩溃场景）。"""
+        """回归测试: plans 中缺少 remaining_quantity 等字段或值为 None 时,
+        归一化须补默认值, 防止模板 'dict has no attribute' 崩溃 (原崩溃场景)."""
         self.client._device_id = "dev1"
         self.client.set_response(_FakeResp(200, {"plans": [
             {"id": 1, "drug_name": "药A", "dosage": "1片", "frequency": "每日",
@@ -329,12 +329,49 @@ class TestApiMethods(unittest.TestCase):
         ]}))
         result = self._run(self.client.get_reminders())
         self.assertEqual(len(result), 1)
-        # None 必须被规范为数值 0，方可安全参与大小比较
+        # None 必须被规范为数值 0, 方可安全参与大小比较
         self.assertEqual(result[0]["remaining_quantity"], 0)
         self.assertEqual(result[0]["low_stock_threshold"], 0)
         self.assertEqual(result[0]["total_quantity"], 10)
-        # 模拟模板中的比较逻辑不应抛异常（库存耗尽触发补药提示，正是预期行为）
+        # 模拟模板中的比较逻辑不应抛异常 (库存耗尽触发补药提示, 正是预期行为)
         self.assertTrue(result[0]["remaining_quantity"] <= result[0]["low_stock_threshold"])
+
+    def test_get_reminders_family_mode_normalizes(self):
+        """家属模式回归测试: 设置 JWT 后进入 _family_mode(), 通过 /api/v1/users/me
+        解析 device_id, 再请求 /api/v1/family/device/plans/{device_id} 获取计划.
+        断言缺失字段/None 在家属模式下同样完成归一化, 且两请求都携带 Authorization 头."""
+        self.client.set_jwt_token("jwt-fake")
+        calls = []
+
+        async def seq_execute(method, path, **kwargs):
+            calls.append((method, path, kwargs))
+            if path == "/api/v1/users/me":
+                return _FakeResp(200, {"device_id": "server-dev"})
+            if path == "/api/v1/family/device/plans/server-dev":
+                return _FakeResp(200, {"plans": [
+                    {"id": 1, "drug_name": "药A", "remaining_quantity": "5",
+                     "low_stock_threshold": None, "total_quantity": "10"},
+                ]})
+            return _FakeResp(500)
+
+        self.client._execute = seq_execute
+        result = self._run(self.client.get_reminders())
+        self.assertEqual(len(result), 1)
+        # 字符串 "5" / "10" 与 None 都应归一为数值 0, 防止比较 TypeError
+        self.assertEqual(result[0]["remaining_quantity"], 0)
+        self.assertEqual(result[0]["low_stock_threshold"], 0)
+        self.assertEqual(result[0]["total_quantity"], 0)
+        # 确实进入了家属分支: /users/me 与家属 plans 接口各被调用一次
+        me_calls = [c for c in calls if c[1] == "/api/v1/users/me"]
+        plan_calls = [c for c in calls if c[1] == "/api/v1/family/device/plans/server-dev"]
+        self.assertEqual(len(me_calls), 1)
+        self.assertEqual(len(plan_calls), 1)
+        # 两个请求都应携带 Authorization 请求头
+        self.assertIn("Authorization", me_calls[0][2].get("headers", {}))
+        self.assertIn("Authorization", plan_calls[0][2].get("headers", {}))
+        self.assertEqual(
+            me_calls[0][2]["headers"]["Authorization"], "Bearer jwt-fake"
+        )
 
     def test_get_reminders_no_device(self):
         self.client._device_id = None
