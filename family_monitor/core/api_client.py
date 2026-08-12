@@ -9,6 +9,7 @@ SSL 上下文、认证头合并与 URL 拼接，消除了原先散落的重复�
 """
 
 import json
+import logging
 import os
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -16,6 +17,8 @@ from typing import Optional, Dict, Any, List
 
 from core.config import config
 from common.server_client import BaseServerClient, encode_device_id
+
+logger = logging.getLogger(__name__)
 
 
 # 历史兼容别名：保持 test_family_api_client 等既有引用可用
@@ -54,6 +57,36 @@ class ElderlyAPIClient(BaseServerClient):
 
     def _family_mode(self) -> bool:
         return self._family_auth and bool(self._jwt_token)
+
+    async def _resolve_family_device_id(self) -> Optional[str]:
+        """在 family 模式下，从服务端解析当前家属账号真实绑定的 device_id。
+
+        权威来源是服务端 /api/v1/users/me 返回的 device_id（家属绑定设备时写入
+        current_user.device_id），而非本地 bound_device.json。本地文件可能因
+        历史残留、重装或不同账号登录而与服务端不一致，导致"设置页显示已绑定、
+        其余页面显示未绑定/离线"的假绑定现象。
+
+        仅当 self._device_id 为空且处于 family 模式时发起查询（避免重复请求）。
+        查询成功后缓存到 self._device_id，供 _status_via_family 等拼 URL 使用。
+        """
+        if not self._family_mode() or self._device_id:
+            return self._device_id or None
+        try:
+            response = await self._execute(
+                "GET", "/api/v1/users/me", headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, dict):
+                    device_id = data.get("device_id")
+                    if device_id:
+                        self._device_id = str(device_id)
+                        return self._device_id
+        except Exception as e:
+            # 区分解析失败（网络/JWT/JSON）与真正未绑定：记录异常但不中断，
+            # 仍返回 None，由调用方按"未绑定/空数据"降级，同时保留可观测性。
+            logger.warning("从服务端解析家属绑定设备ID失败: %s", e)
+        return None
 
     def _auth_headers(self) -> Dict[str, str]:
         """返回携带设备ID和设备令牌的请求头"""
@@ -95,7 +128,30 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception as e:
             return {"status": "error", "msg": f"绑定请求异常: {str(e)}"}
 
+    async def unbind_device_family(self) -> Dict[str, Any]:
+        """通过家属授权接口解绑当前设备（JWT 鉴权）。
+
+        调用 /api/v1/family/device/unbind，服务端将当前家属账号的 device_id 置空。
+        服务端解绑成功后才应由调用方清理本地 bound_device.json，保证前端与服务端
+        一致（避免"前端已解绑、服务端仍绑定"）。
+        """
+        try:
+            response = await self._execute(
+                "POST", "/api/v1/family/device/unbind", json_body={}, headers=self._jwt_headers()
+            )
+            if response.status_code == 200:
+                self._device_id = ""
+                self._device_token = ""
+                return {"status": "ok", "msg": "设备已解绑"}
+            return {"status": "error", "msg": f"解绑失败 status={response.status_code}"}
+        except Exception as e:
+            return {"status": "error", "msg": f"解绑请求异常: {str(e)}"}
+
     async def _status_via_family(self) -> Dict[str, Any]:
+        # 以服务端绑定关系为准解析 device_id，避免本地文件残留导致的假绑定
+        if not await self._resolve_family_device_id():
+            return {'connected': False, 'device_id': None,
+                    'device_name': '未绑定设备', 'status': '未绑定'}
         try:
             response = await self._execute(
                 "GET", f"/api/v1/family/device/status/{self._device_id}", headers=self._jwt_headers()
@@ -121,6 +177,8 @@ class ElderlyAPIClient(BaseServerClient):
                     'device_name': '设备离线', 'status': 'offline'}
 
     async def _plans_via_family(self) -> Dict[str, Any]:
+        if not await self._resolve_family_device_id():
+            return {'device_id': None, 'plans': []}
         try:
             response = await self._execute(
                 "GET", f"/api/v1/family/device/plans/{self._device_id}", headers=self._jwt_headers()
@@ -132,6 +190,8 @@ class ElderlyAPIClient(BaseServerClient):
             return {'device_id': self._device_id, 'plans': []}
 
     async def _records_via_family(self, limit: int = 100) -> Dict[str, Any]:
+        if not await self._resolve_family_device_id():
+            return {'device_id': None, 'records': []}
         try:
             response = await self._execute(
                 "GET", f"/api/v1/family/device/records/{self._device_id}?limit={limit}",
@@ -144,6 +204,8 @@ class ElderlyAPIClient(BaseServerClient):
             return {'device_id': self._device_id, 'records': []}
 
     async def _chat_history_via_family(self, limit: int = 50) -> Dict[str, Any]:
+        if not await self._resolve_family_device_id():
+            return {'device_id': None, 'messages': []}
         try:
             response = await self._execute(
                 "GET", f"/api/v1/family/device/chat_history/{self._device_id}?limit={limit}",
@@ -157,6 +219,8 @@ class ElderlyAPIClient(BaseServerClient):
 
     async def _reminders_via_family(self, limit: int = 50) -> Dict[str, Any]:
         """家属模式下获取绑定设备的今日提醒（/family/device/reminders）。"""
+        if not await self._resolve_family_device_id():
+            return {'device_id': None, 'reminders': []}
         try:
             response = await self._execute(
                 "GET", f"/api/v1/family/device/reminders/{self._device_id}?limit={limit}",
@@ -172,6 +236,8 @@ class ElderlyAPIClient(BaseServerClient):
                                    schedule_times: list, total_quantity: float,
                                    remaining_quantity: float, unit: str,
                                    product_code: Optional[str], low_stock_threshold: int) -> Dict[str, Any]:
+        if not await self._resolve_family_device_id():
+            return {"success": False, "error": "当前账号尚未绑定设备，请先在设置页绑定"}
         payload = {
             "device_id": self._device_id, "drug_name": drug_name, "dosage": dosage,
             "product_code": product_code, "frequency": frequency,
@@ -193,6 +259,8 @@ class ElderlyAPIClient(BaseServerClient):
                                       frequency: str, schedule_times: list, total_quantity: float,
                                       remaining_quantity: float, unit: str,
                                       product_code: Optional[str], low_stock_threshold: int) -> Dict[str, Any]:
+        if not await self._resolve_family_device_id():
+            return {"success": False, "error": "当前账号尚未绑定设备，请先在设置页绑定"}
         payload = {
             "device_id": self._device_id, "drug_name": drug_name, "dosage": dosage,
             "product_code": product_code, "frequency": frequency,
@@ -212,6 +280,8 @@ class ElderlyAPIClient(BaseServerClient):
             return {"success": False, "error": str(e)}
 
     async def _delete_plan_via_family(self, plan_id: int) -> Dict[str, Any]:
+        if not await self._resolve_family_device_id():
+            return {"success": False, "error": "当前账号尚未绑定设备，请先在设置页绑定"}
         try:
             response = await self._execute(
                 "DELETE", f"/api/v1/family/device/medication_plan/{plan_id}?device_id={self._device_id}",
@@ -391,16 +461,18 @@ class ElderlyAPIClient(BaseServerClient):
 
         调用 POST /api/v1/public/device/medication_plan
         """
-        if not self._device_id:
-            return {"success": False, "error": "未绑定 M10 设备，请先在设置页面绑定设备后再添加用药计划"}
-
-        # 家属登录态：走家属授权接口，不再依赖老人端设备令牌
+        # 家属登录态优先：family client 为 load_bound=False，self._device_id 为空，
+        # 必须先进家属分支（内部通过服务端 /users/me 解析 device_id），否则家属账号
+        # 会提前命中下方未绑定检查而无法新增用药计划。
         if self._family_mode():
             return await self._set_plan_via_family(
                 drug_name, dosage, frequency, schedule_times, total_quantity,
                 remaining_quantity if remaining_quantity is not None else total_quantity,
                 unit, product_code, low_stock_threshold
             )
+
+        if not self._device_id:
+            return {"success": False, "error": "未绑定 M10 设备，请先在设置页面绑定设备后再添加用药计划"}
 
         # remaining_quantity 未指定时默认等于 total_quantity
         if remaining_quantity is None:
@@ -465,16 +537,18 @@ class ElderlyAPIClient(BaseServerClient):
 
         调用 PUT /api/v1/public/device/medication_plan/{plan_id}
         """
-        if not self._device_id:
-            return {"success": False, "error": "未绑定 M10 设备，请先在设置页面绑定设备后再更新用药计划"}
-
-        # 家属登录态：走家属授权接口，不再依赖老人端设备令牌
+        # 家属登录态优先：family client 为 load_bound=False，self._device_id 为空，
+        # 必须先进家属分支（内部通过服务端 /users/me 解析 device_id），否则家属账号
+        # 会提前命中下方未绑定检查而无法更新用药计划。
         if self._family_mode():
             return await self._update_plan_via_family(
                 plan_id, drug_name, dosage, frequency, schedule_times, total_quantity,
                 remaining_quantity if remaining_quantity is not None else total_quantity,
                 unit, product_code, low_stock_threshold
             )
+
+        if not self._device_id:
+            return {"success": False, "error": "未绑定 M10 设备，请先在设置页面绑定设备后再更新用药计划"}
 
         if remaining_quantity is None:
             remaining_quantity = total_quantity
@@ -839,21 +913,14 @@ def make_family_client(jwt_token: str) -> "ElderlyAPIClient":
     已登录家属访问设备数据时，使用此实例调用 /api/v1/family/device/* 接口，
     由 server 端校验"当前账号已绑定该设备"，不再依赖老人端设备令牌。
 
-    注意：即便以家属模式运行，也必须从本地 bound_device.json 装入已绑定的
-    device_id。否则 self._device_id 为空，/api/v1/family/device/status/{id}、
-    /plans/{id}、/records/{id} 等接口的 URL 将缺少 device_id，服务端
-    _require_bound_device 校验 current_user.device_id == device_id 失败返回 403，
-    前端全部降级为"未绑定/离线"——即"设置页显示已绑定、其余页面显示未绑定/离线"
-    的根因。该本地文件与设置页"已绑定设备"卡片同源，装入即可与绑定态保持一致。
+    本实例以 load_bound=False 创建，即不读取本地 bound_device.json。绑定关系
+    以服务端为权威：各 _xxx_via_family 方法通过 _resolve_family_device_id() 从
+    /api/v1/users/me 解析当前家属账号真实绑定的 device_id（并按需缓存到
+    self._device_id）。这样即便本地文件残留/跨账号/与绑定不一致，也不会产生
+    "设置页显示已绑定、其余页面显示未绑定/离线" 的假绑定现象。
     """
     client = ElderlyAPIClient(load_bound=False)
     client.set_jwt_token(jwt_token)
-    # 关键修复：家属实例同样需要已绑定的 device_id，否则除设置页外的所有页面
-    # 因 URL 缺 device_id 被服务端拒绝，显示为未绑定/不在线。
-    bound = client.get_bound_device()
-    if bound:
-        client._device_id = bound.get("device_id") or ""
-        client._device_token = bound.get("device_token") or ""
     return client
 
 

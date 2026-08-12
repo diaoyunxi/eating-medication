@@ -9,6 +9,7 @@ import importlib.util
 import json
 import unittest
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _HAS = all(importlib.util.find_spec(m) is not None
@@ -191,6 +192,50 @@ class TestApiMethods(unittest.TestCase):
         self.assertFalse(res["success"])
         self.assertEqual(res["error"], "bad")
 
+    def test_set_medication_plan_family_mode(self):
+        # 家属模式（load_bound=False，_device_id 为空）应先进家属分支、
+        # 先解析服务端绑定，再 POST 家属接口，而非提前返回未绑定。
+        self.client.set_jwt_token("jwt-fake")
+        calls: list = []
+
+        async def seq_execute(method: str, path: str, **kwargs: Any) -> _FakeResp:
+            calls.append((method, path, kwargs))
+            if path == "/api/v1/users/me":
+                return _FakeResp(200, {"device_id": "server-dev"})
+            if path == "/api/v1/family/device/medication_plan":
+                return _FakeResp(200, {"status": "ok"})
+            return _FakeResp(500)
+
+        self.client._execute = seq_execute
+        res = self._run(self.client.set_medication_plan("药", "1片", ["08:00"]))
+        self.assertTrue(res["success"])
+        self.assertEqual(self.client._device_id, "server-dev")
+        # 用户信息 GET 与用药计划 POST 都应携带家属 JWT
+        me_calls = [c for c in calls if c[1] == "/api/v1/users/me"]
+        plan_calls = [c for c in calls if c[1] == "/api/v1/family/device/medication_plan"]
+        self.assertEqual(len(me_calls), 1)
+        self.assertEqual(len(plan_calls), 1)
+        self.assertTrue(me_calls[0][2].get("headers", {}).get("Authorization", "").startswith("Bearer "))
+        self.assertTrue(plan_calls[0][2].get("headers", {}).get("Authorization", "").startswith("Bearer "))
+        # 用药计划的 device_id 应来自服务端解析的 server-dev
+        self.assertEqual(plan_calls[0][2].get("json_body", {}).get("device_id"), "server-dev")
+
+    def test_set_medication_plan_family_unbound(self):
+        # 家属模式但服务端未绑定（/users/me 返回空 device_id）时应给出明确错误
+        self.client.set_jwt_token("jwt-fake")
+        calls = []
+
+        async def seq_execute(method, path, **kwargs):
+            calls.append((method, path))
+            if path == "/api/v1/users/me":
+                return _FakeResp(200, {"device_id": None})
+            return _FakeResp(500)
+
+        self.client._execute = seq_execute
+        res = self._run(self.client.set_medication_plan("药", "1片", ["08:00"]))
+        self.assertFalse(res["success"])
+        self.assertIn("尚未绑定", res["error"])
+
     def test_delete_medication_plan_success(self):
         self.client.set_response(_FakeResp(200, {"ok": True}))
         res = self._run(self.client.delete_medication_plan(5))
@@ -206,6 +251,32 @@ class TestApiMethods(unittest.TestCase):
         self.client.set_response(_FakeResp(200, {"ok": True}))
         res = self._run(self.client.update_medication_plan(5, "药", "1片", ["08:00"]))
         self.assertTrue(res["success"])
+
+    def test_update_medication_plan_family_mode(self):
+        # 家属模式（_device_id 为空）应先进家属分支、先解析服务端绑定，再 PUT
+        self.client.set_jwt_token("jwt-fake")
+        calls: list = []
+
+        async def seq_execute(method: str, path: str, **kwargs: Any) -> _FakeResp:
+            calls.append((method, path, kwargs))
+            if path == "/api/v1/users/me":
+                return _FakeResp(200, {"device_id": "server-dev"})
+            if path == "/api/v1/family/device/medication_plan/5":
+                return _FakeResp(200, {"status": "ok"})
+            return _FakeResp(500)
+
+        self.client._execute = seq_execute
+        res = self._run(self.client.update_medication_plan(5, "药", "1片", ["08:00"]))
+        self.assertTrue(res["success"])
+        # 用户信息 GET 与用药计划 PUT 都应携带家属 JWT
+        me_calls = [c for c in calls if c[1] == "/api/v1/users/me"]
+        plan_calls = [c for c in calls if c[1] == "/api/v1/family/device/medication_plan/5"]
+        self.assertEqual(len(me_calls), 1)
+        self.assertEqual(len(plan_calls), 1)
+        self.assertTrue(me_calls[0][2].get("headers", {}).get("Authorization", "").startswith("Bearer "))
+        self.assertTrue(plan_calls[0][2].get("headers", {}).get("Authorization", "").startswith("Bearer "))
+        # 用药计划的 device_id 应来自服务端解析的 server-dev
+        self.assertEqual(plan_calls[0][2].get("json_body", {}).get("device_id"), "server-dev")
 
     def test_get_device_info_no_device(self):
         self.client._device_id = None
