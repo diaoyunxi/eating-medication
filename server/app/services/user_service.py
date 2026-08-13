@@ -129,7 +129,12 @@ class UserService:
         # 设备关联逻辑
         if device_id:
             # 校验 device_id 未被其他老人占用
-            existing = db.query(User).filter(User.device_id == device_id).first()
+            # 注意：家属账号也会复用 User.device_id 字段持有设备关联（见 /family/device/bind），
+            # 因此这里必须限定 role=="elderly"，否则会把家属误判为「设备已绑定其他用户」而拒绝，
+            # 导致绑定设备后无法建立家庭组（表现为「添加老人」报 尚未绑定老人/设备）。
+            existing = db.query(User).filter(
+                User.device_id == device_id, User.role == "elderly"
+            ).first()
             if existing and existing.id != elderly.id:
                 logger.warning(
                     "设备ID已被其他老人占用: device_id=%s, existing_elderly_id=%s",
