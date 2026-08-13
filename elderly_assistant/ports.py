@@ -83,9 +83,9 @@ class CameraPort(Protocol):
 
 @runtime_checkable
 class BarcodeScannerPort(Protocol):
-    """药品条码/二维码扫描器：在超时时间内返回识别到的编码文本。
+    """药品条码扫描器：在超时时间内返回识别到的编码文本。
 
-    实现方可为 HuskyLens 板载识别算法，或 USB 摄像头 + 本地解码库；
+    实现方可为 HuskyLens 板载条码识别算法，或 USB 摄像头 + 本地解码库；
     识别失败/超时统一返回 None，调用方据此播报提示。
     """
 

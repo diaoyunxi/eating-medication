@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-"""药品条码识别（一维条码 / 二维码）。
+"""药品条码识别（一维条码）。
 
 提供两条互补的扫码通路，运行时按配置自动选择：
 
-1. **HuskyLens 板载识别**：DFRobot 二代智能摄像头内置条码（算法号 17）与
-   二维码（算法号 18）识别算法，通过 ``switchAlgorithm`` + ``getResult``
+1. **HuskyLens 板载识别**：DFRobot 二代智能摄像头（行空板 M10 挂载的二哈）
+   内置条码识别算法（算法号 17），通过 ``switchAlgorithm`` + ``getResult``
    直接取回解码后的文本，行空板本机无需做图像解码，CPU 占用极低。
+   **仅使用条码识别，不再启用二维码识别（算法号 18）**。
 2. **USB 摄像头 + 本地解码**：OpenCV 抓帧 + pyzbar（zbar）本地解码，
    适用于未接 HuskyLens 或 HuskyLens 不可用的场景。
 
@@ -26,9 +27,9 @@ from core.camera import get_huskylens, _HUSKYLENS_OP_LOCK
 
 logger = logging.getLogger("ElderlyAssistant")
 
-# HuskyLens 官方算法编号；优先从驱动模块读取常量，取不到时用字面量兜底
+# HuskyLens 官方算法编号；优先从驱动模块读取常量，取不到时用字面量兜底。
+# 仅启用条码识别（算法号 17），不再调用二维码识别（算法号 18）。
 _DEFAULT_ALGO_BARCODE = 17
-_DEFAULT_ALGO_QRCODE = 18
 
 # 单次扫码默认超时（秒）
 DEFAULT_TIMEOUT_SEC = 8.0
@@ -56,14 +57,14 @@ def _clean_code(text):
 
 
 class HuskyLensScanner:
-    """HuskyLens 板载条码/二维码识别通路。"""
+    """HuskyLens 板载条码识别通路（仅条码，不使用二维码识别）。"""
 
     name = "HuskyLens"
 
     def __init__(self, config=None):
         self._config = config or {}
         self._hl = None
-        self._algos = ()
+        self._algo = None
         # 当前已切换到的算法号，避免每帧重复下发切换指令
         self._current_algo = None
 
@@ -79,12 +80,12 @@ class HuskyLensScanner:
             import dfrobot_huskylensv2 as hl_module
 
             hl = get_huskylens(self._config)
-            self._algos = (
-                getattr(hl_module, "ALGORITHM_BARCODE_RECOGNITION", _DEFAULT_ALGO_BARCODE),
-                getattr(hl_module, "ALGORITHM_QRCODE_RECOGNITION", _DEFAULT_ALGO_QRCODE),
+            # 仅启用条码识别算法号（算法号 17），移除二维码识别（算法号 18）
+            self._algo = getattr(
+                hl_module, "ALGORITHM_BARCODE_RECOGNITION", _DEFAULT_ALGO_BARCODE
             )
-            logger.info("二哈扫码器就绪: 条码算法号=%s 二维码算法号=%s",
-                        self._algos[0], self._algos[1])
+            logger.info("二哈扫码器就绪: 条码算法号=%s（已禁用二维码识别）",
+                        self._algo)
             self._hl = hl
             return hl
 
@@ -94,7 +95,7 @@ class HuskyLensScanner:
 
         关键修复：HuskyLens 的 ``hl.result[algo]["blocks"]`` 是驱动内部缓存，
         部分驱动版本在 ``getResult(algo)`` 返回 0（当前帧无目标）时并不会清空
-        该缓存，导致上一次识别到的条码/二维码 ``content`` 残留。若直接信任该
+        该缓存，导致上一次识别到的条码 ``content`` 残留。若直接信任该
         字典，会出现「镜头前已无条码，却仍返回第一次识别的结果」的缺陷。
 
         因此这里**不读取 ``result`` 旧字典**，统一改用 ``getCachedResultByID``
@@ -141,23 +142,23 @@ class HuskyLensScanner:
         return codes
 
     def scan_once(self):
-        """尝试识别一次（条码优先、二维码兜底），无结果返回 None。"""
+        """尝试识别一次（仅条码算法），无结果返回 None。"""
         hl = self._ensure()
+        algo = self._algo
         # 与拍照（takePhoto）共享 HuskyLens 单例句柄，加锁避免并发切换/读取冲突
         with _HUSKYLENS_OP_LOCK:
-            for algo in self._algos:
-                if self._current_algo != algo:
-                    try:
-                        logger.info("二哈扫码: 切换算法 switchAlgorithm(%s)", algo)
-                        hl.switchAlgorithm(algo)
-                        logger.info("二哈扫码: 已切换至算法 %s", algo)
-                    except Exception as e:
-                        logger.debug(f"HuskyLens 切换算法 {algo} 失败: {e}")
-                        continue
-                    self._current_algo = algo
-                codes = self._read_contents(hl, algo)
-                if codes:
-                    return codes[0]
+            if self._current_algo != algo:
+                try:
+                    logger.info("二哈扫码: 切换算法 switchAlgorithm(%s)", algo)
+                    hl.switchAlgorithm(algo)
+                    logger.info("二哈扫码: 已切换至算法 %s", algo)
+                except Exception as e:
+                    logger.debug(f"HuskyLens 切换算法 {algo} 失败: {e}")
+                    return None
+                self._current_algo = algo
+            codes = self._read_contents(hl, algo)
+            if codes:
+                return codes[0]
         return None
 
     def close(self):
