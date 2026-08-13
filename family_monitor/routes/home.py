@@ -272,16 +272,23 @@ async def elderly_delete(request: Request, user_id: int):
     return JSONResponse(content={"success": False, "message": f"删除失败: {result.get('error', '未知错误')}"}, status_code=400)
 
 
-@router.post("/elderly/learn/{user_id}")
-async def elderly_learn(request: Request, user_id: int):
-    """家属触发录入人脸（标记 pending_learn，等待老人端二哈学习）"""
+@router.post("/elderly/face_id/{user_id}")
+async def elderly_face_id(request: Request, user_id: int):
+    """家属网页为老人填写二哈显示的人脸 ID（用户已自行在二哈录入人脸）"""
     if not require_login(request):
         return unauthorized_json()
     fc = family_client(request) or elderly_client
-    result = await fc.start_learn_face(user_id)
+    try:
+        payload = await request.json()
+        face_id = int(payload.get("face_id"))
+    except Exception:
+        return JSONResponse(content={"success": False, "message": "人脸ID必须为数字"}, status_code=400)
+    if face_id < 0:
+        return JSONResponse(content={"success": False, "message": "人脸ID必须为非负整数"}, status_code=400)
+    result = await fc.set_elderly_face_id(user_id, face_id)
     if result.get("success"):
-        return JSONResponse(content={"success": True, "message": "已通知设备，请在二哈摄像头前让该老人面向摄像头完成录入"})
-    return JSONResponse(content={"success": False, "message": f"触发失败: {result.get('error', '未知错误')}"}, status_code=400)
+        return JSONResponse(content={"success": True, "message": "人脸ID已保存"})
+    return JSONResponse(content={"success": False, "message": f"保存失败: {result.get('error', '未知错误')}"}, status_code=400)
 
 
 @router.get("/medication_settings")

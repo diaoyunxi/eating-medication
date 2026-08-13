@@ -122,10 +122,6 @@ class FakeHttpClient:
     def upload_image(self, path: str, **kwargs) -> None:
         self.uploaded.append({"path": path, "kwargs": kwargs})
 
-    def report_learned_face(self, elderly_id: int, face_id: int) -> bool:
-        self.reported_faces.append({"elderly_id": elderly_id, "face_id": face_id})
-        return True
-
     def ask_ai(self, question: str) -> str:
         return "ok"
 

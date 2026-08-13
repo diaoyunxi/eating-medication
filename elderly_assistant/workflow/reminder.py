@@ -39,8 +39,6 @@ class MedicationPoller:
         self.last_success = False
         self._stop_flag = threading.Event()
         self._thread = None
-        # 人脸录入请求（由轮询服务端计划响应写入），默认为 None
-        self.learn_request = None
         if cache_loader is not None:
             try:
                 cached = cache_loader() or []
@@ -82,8 +80,6 @@ class MedicationPoller:
                 return
             with self._lock:
                 self._schedules = list(schedules)
-            # 同步人脸录入请求（家属网页触发后由服务端下发）
-            self.learn_request = getattr(self.http_client, "learn_request", None)
             self.last_success = True
         except Exception as e:
             logger.warning(f"拉取用药计划失败: {e}")

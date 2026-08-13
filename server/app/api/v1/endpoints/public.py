@@ -163,46 +163,7 @@ async def device_upload(
     return {"status": "ok", "path": path}
 
 
-class DeviceLearnFace(BaseModel):
-    """老人端上报二哈学习到的人脸 ID（录入人脸流程结束时调用）"""
-    device_id: str
-    elderly_id: int
-    husky_face_id: int
 
-
-@router.post("/device/learn_face")
-async def device_learn_face(
-    req: DeviceLearnFace,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
-):
-    """接收老人端录入人脸后上报的二哈人脸 ID，回填到对应老人账号
-
-    家属在网页触发「录入人脸」后，对应老人 pending_learn=True；老人端轮询到 learn_request，
-    让该老人面向二哈摄像头学习，学习完成上报 husky_face_id，服务端清零 pending_learn。
-    """
-    from app.services.user_service import UserService
-
-    user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
-    # 未加入家庭组的设备拒绝录入人脸，避免越权写入
-    if user.group_id is None:
-        raise HTTPException(status_code=403, detail="设备未加入家庭组，无法录入人脸")
-    # 校验 elderly_id 属于同一家庭组，防止越权写入他人照片/人脸
-    target = (
-        db.query(User)
-        .filter(
-            User.id == req.elderly_id,
-            User.group_id == user.group_id,
-            User.role == "elderly",
-        )
-        .first()
-    )
-    if not target:
-        raise HTTPException(status_code=403, detail="老人ID不属于当前设备家庭组")
-    updated = UserService.set_husky_face_id(db, req.elderly_id, req.husky_face_id)
-    if not updated:
-        raise HTTPException(status_code=404, detail="老人不存在")
-    return {"status": "ok"}
 
 
 @router.get("/device/status/{device_id}")
@@ -284,12 +245,10 @@ async def get_device_schedule(
     """获取设备的用药计划（供老人端每分钟轮询，校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
     schedules = DeviceService.get_schedule(db, user)
-    learn_request = DeviceService.get_pending_learn_request(db, user)
     return {
         "device_id": device_id,
         "device_name": user.username,
         "schedules": schedules,
-        "learn_request": learn_request,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 

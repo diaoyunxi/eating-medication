@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from typing import List
-from app.schemas.user import UserOut, UserUpdate, BindFamilyReq, ElderlyOut, CreateElderlyReq
+from app.schemas.user import UserOut, UserUpdate, BindFamilyReq, ElderlyOut, CreateElderlyReq, FaceIdReq
 from app.services.user_service import UserService
 from app.services.device_service import DeviceService
 
@@ -206,19 +206,22 @@ def list_elderly(
     ]
 
 
-@router.post("/elderly/{user_id}/learn")
-def start_learn_face(
+@router.post("/elderly/{user_id}/face_id")
+def set_elderly_face_id(
     user_id: int,
+    req: FaceIdReq,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """家属触发「录入人脸」：标记该老人 pending_learn=True，等待老人端二哈学习
+    """网页端为老人填写二哈显示的人脸 ID（用户已自行在二哈录入人脸）
 
-    老人端每分钟轮询 schedule 会收到 learn_request，进入学习模式让该老人面向二哈摄像头，
-    学习完成上报 husky_face_id 后由服务端清零 pending_learn。
+    替代原先「录入人脸」远程触发流程：用户在二哈上完成录入后，将二哈屏幕显示的人脸 ID
+    填到对应老人名下即可，设备端不再轮询学习。
     """
     if current_user.role != "family":
         raise HTTPException(status_code=403, detail="只有家属可以操作")
+    if req.face_id < 0:
+        raise HTTPException(status_code=422, detail="人脸ID必须为非负整数")
     target = (
         db.query(User)
         .filter(
@@ -230,5 +233,7 @@ def start_learn_face(
     )
     if not target:
         raise HTTPException(status_code=404, detail="老人不存在或不属于本家庭组")
-    UserService.set_pending_learn(db, user_id, True)
-    return {"status": "ok", "elderly_id": user_id, "elderly_name": target.username}
+    updated = UserService.set_husky_face_id(db, user_id, req.face_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="老人不存在")
+    return {"status": "ok", "elderly_id": user_id, "husky_face_id": req.face_id}

@@ -203,92 +203,6 @@ def create_data_files():
             json.dump([], f, indent=2, ensure_ascii=False)
 
 
-# 人脸录入请求最近一次尝试时间戳（节流，避免每轮循环重复触发二哈学习）
-_LAST_LEARN_ATTEMPT = 0.0
-# 录入任务锁：确保同一时刻只有一个后台录入线程，避免与轮询的其他二哈操作并发
-# 争用串口，也防止主循环在前一个学习任务未完成时再次发起学习。
-_LEARN_TASK_LOCK = threading.Lock()
-
-
-def _run_learn_task(poller, face_recognizer, http_client, display, speech, logger, elderly_id, face_id, name):
-    """后台录入线程：执行二哈人脸学习并上报，避免阻塞主事件循环。"""
-    try:
-        logger.info("开始人脸录入: elderly_id=%s face_id=%s", elderly_id, face_id)
-        ok = False
-        try:
-            ok = face_recognizer.learn(int(face_id))
-        except Exception as e:
-            logger.warning("二哈人脸录入异常: %s", e)
-        if ok:
-            try:
-                http_client.report_learned_face(int(elderly_id), int(face_id))
-                logger.info("人脸录入完成并已上报服务端")
-            except Exception as e:
-                logger.warning("上报人脸录入结果失败: %s", e)
-                ok = False
-            # 仅在学习并上报均成功时清空请求，避免重复学习直到服务端再次下发
-            poller.learn_request = None
-        else:
-            logger.warning("人脸录入失败（未检测到人脸或学习超时）")
-            if speech is not None:
-                try:
-                    speech.speak("人脸录入失败，请稍后再试")
-                except Exception:
-                    pass
-    finally:
-        _LEARN_TASK_LOCK.release()
-
-
-def _maybe_learn_face(poller, face_recognizer, http_client, display, speech, logger):
-    """处理家属网页触发的人脸录入请求（非阻塞，交由后台线程执行）。
-
-    服务端在 /device/schedule 响应中附带 learn_request（含 elderly_id / name /
-    face_id）。本函数读取后立即返回，由后台守护线程执行二哈学习与上报，避免
-    同步阻塞主循环。通过节流（默认 30s）与任务锁避免频繁/并发触发学习。
-    """
-    global _LAST_LEARN_ATTEMPT
-    import time as _time
-    learn_req = getattr(poller, "learn_request", None)
-    if face_recognizer is None:
-        logger.warning("收到人脸录入流程触发但二哈人脸识别器未初始化（face_recognizer=None），跳过本次录入")
-        return
-    # 防御：learn_request 必须是 dict，否则 .get 会在主循环抛异常导致崩溃
-    if not isinstance(learn_req, dict):
-        if learn_req is None:
-            logger.debug("未收到人脸录入请求（learn_request 为空），无需处理")
-        else:
-            logger.warning("learn_request 格式异常（非 dict），已忽略: %r", learn_req)
-        poller.learn_request = None
-        return
-    logger.info("收到家属人脸录入请求: learn_request=%s", learn_req)
-    if (_time.time() - _LAST_LEARN_ATTEMPT) < 30.0:
-        logger.debug("人脸录入请求 30 秒内已触发过，节流跳过本次")
-        return
-
-    elderly_id = learn_req.get("elderly_id")
-    name = learn_req.get("name") or learn_req.get("elderly_name") or "老人"
-    face_id = learn_req.get("face_id")
-    if elderly_id is None or face_id is None:
-        logger.warning("人脸录入请求缺少 elderly_id 或 face_id，已忽略: %s", learn_req)
-        poller.learn_request = None
-        return
-
-    if speech is not None:
-        try:
-            speech.speak(f"请让{name}面对摄像头，准备录入人脸")
-        except Exception:
-            pass
-    # 已有进行中的录入任务则跳过本次，避免并发学习争用二哈串口
-    if not _LEARN_TASK_LOCK.acquire(False):
-        logger.info("已有进行中的人脸录入任务，跳过本次")
-        return
-    _LAST_LEARN_ATTEMPT = _time.time()
-    threading.Thread(
-        target=_run_learn_task,
-        args=(poller, face_recognizer, http_client, display, speech, logger, elderly_id, face_id, name),
-        daemon=True,
-    ).start()
-
 
 def main():
     global DEBUG_MODE
@@ -536,9 +450,6 @@ def main():
             check_medication_trigger(
                 now, poller, reminder_state, buzzer, display, logger, speech
             )
-
-            # ---- 人脸录入请求（家属网页触发后由服务端下发）----
-            _maybe_learn_face(poller, face_recognizer, http_client, display, speech, logger)
 
             # ---- 本地重复提醒音：提醒触发后每 60 秒老人仍未确认则再次响铃 ----
             if reminder_state.active and reminder_state.triggered_at is not None:

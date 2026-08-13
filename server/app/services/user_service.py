@@ -221,7 +221,6 @@ class UserService:
             role="elderly",
             group_id=group_id,
             device_id=None,
-            pending_learn=False,
             husky_face_id=None,
         )
         db.add(elderly)
@@ -241,23 +240,14 @@ class UserService:
 
     @staticmethod
     def set_husky_face_id(db: Session, user_id: int, husky_face_id: int) -> Optional[User]:
-        """录入人脸完成时回填老人的二哈人脸 ID，并清除待录入标记"""
+        """网页端为老人填写二哈人脸 ID（用户已自行在二哈录入人脸）
+
+        直接写入老人对应的二哈人脸 ID，设备端无需轮询学习。
+        """
         user = UserService.get_user_by_id(db, user_id)
         if not user:
             return None
         user.husky_face_id = husky_face_id
-        user.pending_learn = False
-        db.commit()
-        db.refresh(user)
-        return user
-
-    @staticmethod
-    def set_pending_learn(db: Session, user_id: int, value: bool) -> Optional[User]:
-        """设置/清除老人的待录入人脸标记（家属网页触发录入后置 True）"""
-        user = UserService.get_user_by_id(db, user_id)
-        if not user:
-            return None
-        user.pending_learn = value
         db.commit()
         db.refresh(user)
         return user

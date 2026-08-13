@@ -993,11 +993,13 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def start_learn_face(self, user_id: int) -> Dict[str, Any]:
-        """家属触发录入人脸：标记该老人 pending_learn=True，等待老人端二哈学习"""
+    async def set_elderly_face_id(self, user_id: int, face_id: int) -> Dict[str, Any]:
+        """网页端为老人填写二哈显示的人脸 ID（用户已自行在二哈录入人脸）"""
         try:
             response = await self._execute(
-                "POST", f"/api/v1/users/elderly/{user_id}/learn", headers=self._jwt_headers()
+                "POST", f"/api/v1/users/elderly/{user_id}/face_id",
+                json_body={"face_id": face_id},
+                headers=self._jwt_headers(),
             )
             if response.status_code == 200:
                 return {"success": True, "data": response.json()}

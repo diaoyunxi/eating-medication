@@ -69,7 +69,7 @@ def _verify_elderly_identity(reminder_state, face_recognizer, logger):
     调用方不确认、不拍照，并播报提示。规则：
       - 硬件不可用（is_available 为 False）：降级放行，沿用原行为；
       - 预期老人的 husky_face_id 为 None（尚未在二哈录入人脸）：
-        提示家属在网页触发录入，不确认不拍照；
+        提示在二哈录入人脸后于网页填写人脸ID，不确认不拍照；
       - 二哈未检测到任何人脸：提示面对摄像头；
       - 检测到人脸但不包含预期老人：提示「不是本人」；
       - 大概率是已录入老人：放行。
@@ -85,7 +85,7 @@ def _verify_elderly_identity(reminder_state, face_recognizer, logger):
 
     # 该老人尚未录入人脸：先提示在二哈录入，不确认不拍照
     if expected is None:
-        return False, "请让家人在手机网页上为您录入人脸"
+        return False, "请在二哈上录入人脸后于网页填写人脸ID"
 
     try:
         detected = face_recognizer.recognize() or []

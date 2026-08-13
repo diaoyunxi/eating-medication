@@ -88,7 +88,6 @@ class ElderlyOut(BaseModel):
     has_device: bool = False
 
 
-class LearnFaceReportReq(BaseModel):
-    """老人端上报二哈学习到的人脸 ID（录入人脸流程结束时调用）"""
-    elderly_id: int = Field(..., description="老人用户ID")
-    husky_face_id: int = Field(..., description="二哈摄像头返回的人脸学习 ID")
+class FaceIdReq(BaseModel):
+    """网页端为老人填写的二哈人脸 ID（用户已自行在二哈录入人脸）"""
+    face_id: int = Field(..., description="二哈摄像头屏幕上显示的人脸ID（非负整数）")

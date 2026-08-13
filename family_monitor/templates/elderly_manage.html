@@ -17,7 +17,7 @@
         <header class="page-header">
             <div class="page-header-content">
                 <h1 class="page-title">👴 老人管理</h1>
-                <p class="page-subtitle">添加、删除同家庭组的老人，并为老人录入二哈人脸</p>
+                <p class="page-subtitle">添加、删除同家庭组的老人，并为其填写二哈显示的人脸ID</p>
             </div>
         </header>
 
@@ -80,10 +80,13 @@
                             </div>
                             <div class="plan-actions">
                                 {% if not e.has_device %}
-                                <button class="btn btn-outline btn-sm"
-                                        data-elderly-id="{{ e.id }}"
-                                        data-elderly-name="{{ e.name }}"
-                                        onclick="learnFace(this.dataset.elderlyId, this.dataset.elderlyName)">📷 录入人脸</button>
+                                <div class="face-id-edit" style="display:flex;gap:6px;align-items:center;">
+                                    <input type="number" min="0" step="1" inputmode="numeric"
+                                           id="faceId-{{ e.id }}" class="form-input"
+                                           style="width:120px;"
+                                           placeholder="二哈人脸ID" value="{{ e.husky_face_id if e.husky_face_id is not none else '' }}">
+                                    <button class="btn btn-outline btn-sm" onclick="saveFaceId({{ e.id }})">💾 保存</button>
+                                </div>
                                 <button class="btn btn-danger btn-sm"
                                         data-elderly-id="{{ e.id }}"
                                         data-elderly-name="{{ e.name }}"
@@ -161,15 +164,34 @@
             } catch (e) { showToast('删除失败：' + e.message, 'error'); }
         }
 
-        async function learnFace(id, name) {
-            if (!confirm('即将为「' + name + '」录入人脸。请在老人端二哈摄像头前，让该老人正对摄像头，点击确认后开始学习。')) return;
-            showToast('已通知设备，请在二哈前让该老人面向摄像头...', 'info');
+        async function saveFaceId(id) {
+            const input = document.getElementById('faceId-' + id);
+            const raw = (input.value || '').trim();
+            if (raw === '') {
+                showToast('请输入二哈显示的人脸ID', 'warning');
+                return;
+            }
+            const faceId = Number(raw);
+            if (!Number.isInteger(faceId) || faceId < 0) {
+                showToast('人脸ID必须为非负整数', 'warning');
+                return;
+            }
             try {
-                const resp = await fetch('{{ prefix }}/elderly/learn/' + id, { method: 'POST' });
+                const resp = await fetch('{{ prefix }}/elderly/face_id/' + id, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ face_id: faceId }),
+                });
                 const data = await resp.json();
-                if (data.success) showToast(data.message || '已触发录入', 'success');
-                else showToast(data.message || '触发失败', 'error');
-            } catch (e) { showToast('触发失败：' + e.message, 'error'); }
+                if (data.success) {
+                    showToast(data.message || '已保存', 'success');
+                    setTimeout(() => location.reload(), 800);
+                } else {
+                    showToast(data.message || '保存失败', 'error');
+                }
+            } catch (e) {
+                showToast('保存失败：' + e.message, 'error');
+            }
         }
     </script>
 {% endblock %}

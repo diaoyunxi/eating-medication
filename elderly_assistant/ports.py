@@ -115,10 +115,6 @@ class HttpClientPort(Protocol):
     def upload_image(self, path: str, plan_id=None, scheduled_time=None, elderly_id=None) -> None:
         ...
 
-    def report_learned_face(self, elderly_id: int, face_id: int) -> bool:
-        """上报人脸录入结果（husky_face_id）到服务端，成功返回 True。"""
-        ...
-
     def ask_ai(self, question: str) -> str:
         ...
 

@@ -599,40 +599,4 @@ class DeviceService:
             )
         return device_user
 
-    @staticmethod
-    def get_pending_learn_request(db: Session, user: User) -> Optional[dict]:
-        """返回组内待录入人脸的老人（供老人端轮询触发二哈学习）
 
-        家属在网页点「录入人脸」后，对应老人 pending_learn=True；设备轮询到该标记，
-        进入学习模式，学习完成上报 husky_face_id 后由服务端清零。
-        """
-        if user.group_id is None:
-            return None
-        pending = (
-            db.query(User)
-            .filter(
-                User.group_id == user.group_id,
-                User.role == "elderly",
-                User.pending_learn.is_(True),
-            )
-            .first()
-        )
-        if not pending:
-            return None
-        # 建议的二哈人脸 ID：同家庭组已录入人脸 ID 的最大值 + 1，保证设备内唯一
-        existing = (
-            db.query(User.husky_face_id)
-            .filter(
-                User.group_id == user.group_id,
-                User.role == "elderly",
-                User.husky_face_id.isnot(None),
-            )
-            .all()
-        )
-        ids = [r[0] for r in existing if r[0] is not None]
-        suggested_face_id = (max(ids) + 1) if ids else 1
-        return {
-            "elderly_id": pending.id,
-            "elderly_name": pending.username,
-            "face_id": suggested_face_id,
-        }

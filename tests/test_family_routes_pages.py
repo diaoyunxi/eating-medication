@@ -94,7 +94,7 @@ class FakeClient:
 
     async def list_elderly(self):
         return [{"id": 1, "name": "测试老人", "husky_face_id": None,
-                 "is_device_owner": False, "pending_learn": False}]
+                 "is_device_owner": False}]
 
     async def get_chat_history(self, limit=50):
         self.calls.append(("get_chat_history", limit))
