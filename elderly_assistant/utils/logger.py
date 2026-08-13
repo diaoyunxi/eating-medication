@@ -29,21 +29,50 @@ _ANSI_COLORS = {
 }
 
 
-class _ColoredFormatter(logging.Formatter):
-    """按日志级别着色；非 tty（文件/管道）时自动退化为纯文本，避免产生乱码转义码。"""
+class _BaseFormatter(logging.Formatter):
+    """多行消息续行缩进：第二行起对齐到消息正文起始列（前缀纯文本宽度）。"""
+
+    def format(self, record):
+        # 复刻标准 Formatter 的「消息 + 异常文本」拼接
+        message = record.getMessage()
+        if record.exc_info and not record.exc_text:
+            record.exc_text = self.formatException(record.exc_info)
+        if record.exc_text:
+            message = message + "\n" + record.exc_text
+        prefix = f"{self.formatTime(record)} - {record.name} - {record.levelname} - "
+        if "\n" in message:
+            message = message.replace("\n", "\n" + " " * len(prefix))
+        return prefix + message
+
+
+class _ColoredFormatter(_BaseFormatter):
+    """控制台彩色：仅 levelname（含其前面的 '-' 符号）按级别着色，消息正文保持默认色；
+    非 tty（文件/管道）时退化为纯文本，避免乱码转义码。多行续行自动缩进对齐。"""
 
     def __init__(self, fmt, use_color=True):
         super().__init__(fmt)
         self.use_color = use_color
 
     def format(self, record):
-        text = super().format(record)
-        if not self.use_color:
-            return text
-        code = _ANSI_COLORS.get(record.levelno)
-        if not code:
-            return text
-        return f"{code}{text}{_ANSI_RESET}"
+        message = record.getMessage()
+        if record.exc_info and not record.exc_text:
+            record.exc_text = self.formatException(record.exc_info)
+        if record.exc_text:
+            message = message + "\n" + record.exc_text
+        asctime = self.formatTime(record)
+        name = record.name
+        levelname = record.levelname
+        prefix_plain = f"{asctime} - {name} - {levelname} - "
+        if self.use_color:
+            color = _ANSI_COLORS.get(record.levelno, "")
+            reset = _ANSI_RESET if color else ""
+            # 仅 " - LEVELNAME" 这段上色（含 levelname 前面的 '-' 符号），其余保持默认色
+            prefix = f"{asctime} - {name}{color} - {levelname}{reset} - "
+        else:
+            prefix = prefix_plain
+        if "\n" in message:
+            message = message.replace("\n", "\n" + " " * len(prefix_plain))
+        return prefix + message
 
 
 def setup_logger(log_dir="logs"):
@@ -84,7 +113,8 @@ def setup_logger(log_dir="logs"):
     # 控制台仅在支持颜色的终端（tty/pty）上色，重定向到文件或管道时退化为纯文本
     console_supports_color = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
     ch.setFormatter(_ColoredFormatter(fmt, use_color=console_supports_color))
-    fh.setFormatter(logging.Formatter(fmt))
+    # 文件保持纯文本，但同样做多行续行缩进对齐
+    fh.setFormatter(_BaseFormatter(fmt))
     logger.addHandler(fh)
     logger.addHandler(ch)
     _configured_log_dir = log_dir
