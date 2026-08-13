@@ -247,23 +247,29 @@ def _maybe_learn_face(poller, face_recognizer, http_client, display, speech, log
     同步阻塞主循环。通过节流（默认 30s）与任务锁避免频繁/并发触发学习。
     """
     global _LAST_LEARN_ATTEMPT
-    if face_recognizer is None:
-        return
     import time as _time
     learn_req = getattr(poller, "learn_request", None)
+    if face_recognizer is None:
+        logger.warning("收到人脸录入流程触发但二哈人脸识别器未初始化（face_recognizer=None），跳过本次录入")
+        return
     # 防御：learn_request 必须是 dict，否则 .get 会在主循环抛异常导致崩溃
     if not isinstance(learn_req, dict):
-        if learn_req is not None:
-            logger.warning("learn_request 格式异常，已忽略")
+        if learn_req is None:
+            logger.debug("未收到人脸录入请求（learn_request 为空），无需处理")
+        else:
+            logger.warning("learn_request 格式异常（非 dict），已忽略: %r", learn_req)
         poller.learn_request = None
         return
+    logger.info("收到家属人脸录入请求: learn_request=%s", learn_req)
     if (_time.time() - _LAST_LEARN_ATTEMPT) < 30.0:
+        logger.debug("人脸录入请求 30 秒内已触发过，节流跳过本次")
         return
 
     elderly_id = learn_req.get("elderly_id")
     name = learn_req.get("name") or learn_req.get("elderly_name") or "老人"
     face_id = learn_req.get("face_id")
     if elderly_id is None or face_id is None:
+        logger.warning("人脸录入请求缺少 elderly_id 或 face_id，已忽略: %s", learn_req)
         poller.learn_request = None
         return
 

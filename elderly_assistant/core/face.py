@@ -34,10 +34,12 @@ class FaceRecognizer:
     def is_available(self) -> bool:
         """摄像头与二哈库是否可用。"""
         try:
+            logger.info("二哈人脸识别可用性检查: 尝试获取 HuskyLens 句柄")
             get_huskylens(self.config)
+            logger.info("二哈人脸识别可用")
             return True
         except Exception as e:
-            logger.debug("二哈人脸识别不可用（将降级）: %s", e)
+            logger.warning("二哈人脸识别不可用（将降级）: %s", e)
             return False
 
     def recognize(self) -> List[int]:
@@ -47,11 +49,14 @@ class FaceRecognizer:
         """
         try:
             algo = _face_algorithm()
+            logger.info("二哈人脸识别: 获取硬件锁，算法号=%s", algo)
             with _HUSKYLENS_OP_LOCK:
                 hl = get_huskylens(self.config)
                 if hasattr(hl, "switchAlgorithm"):
+                    logger.info("二哈人脸识别: switchAlgorithm(%s)", algo)
                     hl.switchAlgorithm(algo)
                 count = hl.getResult(algo) if hasattr(hl, "getResult") else 0
+                logger.debug("二哈人脸识别: getResult=%s", count)
                 ids: List[int] = []
                 if hasattr(hl, "getCachedResultByID"):
                     for i in range(count or 0):
@@ -75,9 +80,11 @@ class FaceRecognizer:
         """
         try:
             algo = _face_algorithm()
+            logger.info("二哈人脸学习: 获取硬件锁，算法号=%s face_id=%s", algo, face_id)
             with _HUSKYLENS_OP_LOCK:
                 hl = get_huskylens(self.config)
                 if hasattr(hl, "switchAlgorithm"):
+                    logger.info("二哈人脸学习: switchAlgorithm(%s)", algo)
                     hl.switchAlgorithm(algo)
                 fn = (
                     getattr(hl, "learnFace", None)
@@ -87,6 +94,7 @@ class FaceRecognizer:
                 if not fn:
                     logger.error("二哈库不支持人脸学习方法")
                     return False
+                logger.info("二哈人脸学习: 调用 %s(%s)", getattr(fn, "__name__", fn), face_id)
                 try:
                     ret = fn(face_id)
                 except TypeError:

@@ -28,6 +28,7 @@ def _init_huskylens(config):
     """
     cam_config = config.get('camera', {})
     conn_type = cam_config.get('connection', 'i2c')
+    logger.info("二哈连接初始化: 连接方式=%s", conn_type)
 
     try:
         from dfrobot_huskylensv2 import HuskylensV2_I2C, HuskylensV2_UART
@@ -35,13 +36,16 @@ def _init_huskylens(config):
         if conn_type == 'uart':
             tty = cam_config.get('uart_tty', '/dev/ttyS1')
             baud = cam_config.get('uart_baudrate', 115200)
+            logger.info("二哈 UART 参数: tty=%s baudrate=%s", tty, baud)
             hl = HuskylensV2_UART(tty_name=tty, baudrate=baud)
         else:
             hl = HuskylensV2_I2C()
 
         # 先完成构造与 knock() 验证，成功后才由调用方发布到全局单例
+        logger.info("二哈执行 knock() 握手验证...")
         if not hl.knock():
             raise RuntimeError("HuskyLens 未响应，请检查连接")
+        logger.info("二哈 knock() 验证通过，连接就绪")
         return hl
     except ImportError:
         raise ImportError("未安装 dfrobot_huskylensv2 库")
@@ -58,15 +62,19 @@ def get_huskylens(config=None):
     """
     global _huskylens
     if _huskylens is not None:
+        logger.debug("二哈单例已存在，复用既有连接")
         return _huskylens
     with _HUSKYLENS_INIT_LOCK:
         # 双重检查：可能在等待锁期间已被其他线程初始化完成
         if _huskylens is not None:
+            logger.debug("二哈单例已被其他线程初始化，复用")
             return _huskylens
         if config is None:
             raise RuntimeError("HuskyLens 未初始化，需要提供 config")
         # knock() 验证成功后才发布全局单例，避免并发取到未验证句柄
+        logger.info("二哈单例不存在，开始初始化连接")
         _huskylens = _init_huskylens(config)
+        logger.info("二哈单例初始化完成并发布")
         return _huskylens
 
 
@@ -127,6 +135,7 @@ def _fetch_huskylens_photo(remote_name, save_path, cam_config, logger):
         roots = _normalize_sd_search_paths(cam_config)
 
     seen = set()
+    logger.debug("二哈照片搜索根目录: %s", roots)
     for root in roots:
         if not root or root in seen:
             continue
@@ -168,6 +177,7 @@ def capture_image(config):
 
         # 1) 拍照：必须传入 resolution（官方库 takePhoto(self, resolution) 必填）
         resolution = cam_config.get('photo_resolution', 'default')
+        logger.info("二哈拍照: 获取硬件锁并发送 takePhoto(resolution=%s)", resolution)
         with _HUSKYLENS_OP_LOCK:
             hl = get_huskylens(config)
             remote_name = hl.takePhoto(resolution)

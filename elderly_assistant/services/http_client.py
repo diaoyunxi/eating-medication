@@ -64,6 +64,57 @@ class HTTPClient:
             headers["X-Device-Token"] = self.device_token
         return headers
 
+    @staticmethod
+    def _mask_headers(headers):
+        """复制请求头并脱敏设备令牌，便于日志展示而不泄露凭证。"""
+        safe = {}
+        for k, v in (headers or {}).items():
+            if k.lower() == "x-device-token":
+                v = f"{str(v)[:6]}****" if v else "****"
+            safe[k] = v
+        return safe
+
+    @staticmethod
+    def _redact_body(body):
+        """请求体脱敏：image_base64 仅保留长度摘要，其余原样展示。"""
+        if not isinstance(body, dict):
+            return body
+        safe = {}
+        for k, v in body.items():
+            if k == "image_base64":
+                safe[k] = f"<base64 图片, 共 {len(str(v))} 字节>"
+            else:
+                safe[k] = v
+        return safe
+
+    def _request(self, method, url, *, log_level=logging.INFO, **kwargs):
+        """统一 HTTP 请求入口：记录每一次请求与响应的完整详情（含心跳/二哈上报等）。
+
+        覆盖所有对外请求（注册/心跳/下线/拉计划/服药确认/图片上传/人脸上报/紧急/聊天/AI）。
+        敏感处理：设备令牌仅保留前 6 位；图片 base64 仅记录字节数，不落盘原始数据。
+        """
+        req_headers = kwargs.get("headers") or {}
+        safe_headers = self._mask_headers(req_headers)
+        safe_body = self._redact_body(kwargs.get("json"))
+        logger.log(log_level, "[HTTP请求] %s %s | 请求头=%s | 请求体=%s",
+                   method, url, safe_headers, safe_body)
+        try:
+            resp = requests.request(method, url, **kwargs)
+        except Exception as e:
+            logger.log(log_level, "[HTTP请求] %s %s 发送异常: %s", method, url, e)
+            raise
+        try:
+            resp_text = resp.text or ""
+        except Exception:
+            resp_text = ""
+        if resp_text and len(resp_text) > 500:
+            resp_text = resp_text[:500] + f"...(截断, 共 {len(resp_text)} 字节)"
+        elapsed_ms = getattr(resp, "elapsed", None)
+        elapsed_ms = elapsed_ms.total_seconds() * 1000 if elapsed_ms else 0
+        logger.log(log_level, "[HTTP响应] %s %s -> 状态码=%s 耗时=%.0fms | 响应体=%s",
+                   method, url, resp.status_code, elapsed_ms, resp_text)
+        return resp
+
     def check_connection(self):
         """检查服务器连接状态。
 
@@ -72,7 +123,8 @@ class HTTPClient:
         非 requests 异常保留完整堆栈。
         """
         try:
-            resp = requests.get(f"{self.base_url}/health", timeout=3, headers=self._headers())
+            resp = self._request("GET", f"{self.base_url}/health", timeout=3,
+                                  headers=self._headers(), log_level=logging.DEBUG)
             connected = resp.status_code == 200
             err = None
             is_request_err = False
@@ -116,11 +168,12 @@ class HTTPClient:
         """
         url = f"{self.base_url}/api/v1/public/device/register"
         try:
-            resp = requests.post(
+            resp = self._request(
+                "POST",
                 url,
                 json={"device_id": self.device_id, "device_name": device_name},
                 timeout=self.timeout,
-                headers=self._headers()
+                headers=self._headers(),
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -154,11 +207,12 @@ class HTTPClient:
         """
         url = f"{self.base_url}/api/v1/public/device/offline"
         try:
-            resp = requests.post(
+            resp = self._request(
+                "POST",
                 url,
                 json={"device_id": self.device_id},
                 timeout=3,
-                headers=self._headers()
+                headers=self._headers(),
             )
             if resp.status_code == 200:
                 logger.info("设备下线通知成功")
@@ -195,7 +249,7 @@ class HTTPClient:
         """
         url = f"{self.base_url}/api/v1/public/device/schedule/{self.device_id}"
         try:
-            resp = requests.get(url, timeout=self.timeout, headers=self._headers())
+            resp = self._request("GET", url, timeout=self.timeout, headers=self._headers())
             if resp.status_code == 200:
                 data = resp.json()
                 # 校验响应类型，避免非 dict 响应调用 .get 崩溃
@@ -248,7 +302,7 @@ class HTTPClient:
             },
         }
         try:
-            resp = requests.post(url, json=data, timeout=self.timeout, headers=self._headers())
+            resp = self._request("POST", url, json=data, timeout=self.timeout, headers=self._headers())
             if resp.status_code == 200:
                 return True
             logger.warning(f"上报服药确认失败，状态码: {resp.status_code}")
@@ -278,7 +332,8 @@ class HTTPClient:
             "elderly_id": elderly_id,
         }
         try:
-            resp = requests.post(
+            resp = self._request(
+                "POST",
                 url,
                 json=payload,
                 timeout=self.timeout,
@@ -304,7 +359,7 @@ class HTTPClient:
             "husky_face_id": face_id,
         }
         try:
-            resp = requests.post(url, json=payload, timeout=self.timeout, headers=self._headers())
+            resp = self._request("POST", url, json=payload, timeout=self.timeout, headers=self._headers())
             if resp.status_code == 200:
                 logger.info("已上报录入人脸: elderly_id=%s face_id=%s", elderly_id, face_id)
                 return True
@@ -318,11 +373,12 @@ class HTTPClient:
         """向服务端发送紧急消息"""
         url = f"{self.base_url}/api/v1/public/device/message"
         try:
-            resp = requests.post(
+            resp = self._request(
+                "POST",
                 url,
                 json={"device_id": self.device_id, "message_type": "emergency", "content": "紧急求助"},
                 timeout=self.timeout,
-                headers=self._headers()
+                headers=self._headers(),
             )
             if resp.status_code == 200:
                 return True
@@ -342,7 +398,7 @@ class HTTPClient:
             "data": {"sender": sender}
         }
         try:
-            resp = requests.post(url, json=data, timeout=self.timeout, headers=self._headers())
+            resp = self._request("POST", url, json=data, timeout=self.timeout, headers=self._headers())
             if resp.status_code == 200:
                 return resp.json()
             logger.warning(f"发送聊天消息失败，状态码: {resp.status_code}")
@@ -360,7 +416,7 @@ class HTTPClient:
         url = f"{self.base_url}/api/v1/public/ai/ask"
         data = {"question": question, "device_id": self.device_id}
         try:
-            resp = requests.post(url, json=data, timeout=self.timeout, headers=self._headers())
+            resp = self._request("POST", url, json=data, timeout=self.timeout, headers=self._headers())
             if resp.status_code == 200:
                 result = resp.json()
                 return result.get('answer', '抱歉，AI 没有返回答案')

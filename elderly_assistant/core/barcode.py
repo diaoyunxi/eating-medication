@@ -83,6 +83,8 @@ class HuskyLensScanner:
                 getattr(hl_module, "ALGORITHM_BARCODE_RECOGNITION", _DEFAULT_ALGO_BARCODE),
                 getattr(hl_module, "ALGORITHM_QRCODE_RECOGNITION", _DEFAULT_ALGO_QRCODE),
             )
+            logger.info("二哈扫码器就绪: 条码算法号=%s 二维码算法号=%s",
+                        self._algos[0], self._algos[1])
             self._hl = hl
             return hl
 
@@ -102,8 +104,10 @@ class HuskyLensScanner:
         """
         try:
             total = int(hl.getResult(algo) or 0)
+            logger.debug("二哈 getResult(algo=%s) -> 共 %d 个候选目标", algo, total)
         except (TypeError, ValueError):
             total = 0
+            logger.debug("二哈 getResult(algo=%s) 返回非整数，按 0 处理", algo)
         if total <= 0:
             # 当前帧无目标：保持干净，绝不可读取残留缓存
             return []
@@ -144,7 +148,9 @@ class HuskyLensScanner:
             for algo in self._algos:
                 if self._current_algo != algo:
                     try:
+                        logger.info("二哈扫码: 切换算法 switchAlgorithm(%s)", algo)
                         hl.switchAlgorithm(algo)
+                        logger.info("二哈扫码: 已切换至算法 %s", algo)
                     except Exception as e:
                         logger.debug(f"HuskyLens 切换算法 {algo} 失败: {e}")
                         continue
@@ -257,6 +263,7 @@ class BarcodeScanner:
             timeout = float(timeout) if timeout is not None else self.timeout_sec
         except (TypeError, ValueError):
             timeout = self.timeout_sec
+        logger.info("开始扫码: 来源=%s 超时=%.0f秒", self.source, timeout)
         if timeout <= 0:
             timeout = DEFAULT_TIMEOUT_SEC
 
