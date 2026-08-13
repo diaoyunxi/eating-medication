@@ -153,7 +153,17 @@ def create_elderly(
     if current_user.role != "family":
         raise HTTPException(status_code=403, detail="只有家属可以创建老人账号")
     if current_user.group_id is None:
-        raise HTTPException(status_code=400, detail="尚未绑定老人/设备，无法添加老人")
+        # 兼容仅通过 /family/device/bind 绑定设备（仅写入 device_id）而尚未建立
+        # 家庭组的场景：以设备主体用户为组内首个老人，自动建立家庭组，使「添加老人」可用。
+        if not current_user.device_id:
+            raise HTTPException(status_code=400, detail="尚未绑定老人/设备，无法添加老人")
+        device_user = DeviceService.get_device_user(db, current_user.device_id)
+        group_id = UserService.bind_family(
+            db, device_user.id, current_user.id, device_id=current_user.device_id
+        )
+        if not group_id:
+            raise HTTPException(status_code=400, detail="尚未绑定老人/设备，无法添加老人")
+        current_user.group_id = group_id
     elderly = UserService.create_elderly(db, name=req.name, group_id=current_user.group_id)
     return ElderlyOut(
         id=elderly.id,

@@ -27,6 +27,7 @@ from app.core.security import mask_device_id
 from app.models.medication_plan import MedicationPlan
 from app.services.medication_service import MedicationService
 from app.services.device_service import DeviceService
+from app.services.user_service import UserService
 from app.schemas.medication import MedicationPlanCreate
 import logging
 
@@ -114,6 +115,24 @@ async def bind_device(
     logger.info(
         f"家属绑定设备成功: user={current_user.id} device={mask_device_id(req.device_id)}"
     )
+
+    # 同步建立家庭组：以设备主体用户（注册设备时自动创建的虚拟老人）作为组内首个
+    # 老人，家属加入该组。否则家属仅持有 device_id 而 group_id 为空，导致后续
+    # 「添加老人」(create_elderly)、「老人列表」等依赖 group_id 的功能报
+    # "尚未绑定老人/设备" 而失败（设备明明在线却无法添加老人）。
+    try:
+        group_id = UserService.bind_family(
+            db, user.id, current_user.id, device_id=req.device_id
+        )
+        if not group_id:
+            logger.warning(
+                "家属绑定设备后建立家庭组失败（可能设备已绑定其他老人）: "
+                "user=%s device=%s",
+                current_user.id,
+                mask_device_id(req.device_id),
+            )
+    except Exception:
+        logger.exception("家属绑定设备后建立家庭组异常")
     return {
         "status": "ok",
         "device_id": req.device_id,
