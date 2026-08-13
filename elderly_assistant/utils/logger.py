@@ -9,14 +9,23 @@ from logging.handlers import TimedRotatingFileHandler
 # 记录已配置的 log_dir，用于检测 log_dir 变化并重建 handler
 _configured_log_dir = None
 
-# ANSI 转义码：仅终端（tty）输出时使用，便于在支持的终端按日志级别着色
+# Windows 终端默认不解析 ANSI 转义码；借用 colorama 在 Windows 上启用 VT100 颜色。
+# 非 Windows / 已支持 ANSI 的终端（如 Git Bash、Linux 终端）下 colorama 自动退化为空操作。
+try:
+    import colorama
+    colorama.init()
+except Exception:
+    colorama = None
+
+# ANSI 转义码：按日志级别着色，配色对齐 uvicorn 风格（INFO 绿 / WARNING 黄 / ERROR 红），
+# 避免之前将主力 INFO 设为青色在部分终端被误看成"蓝色"。
 _ANSI_RESET = "\033[0m"
 _ANSI_COLORS = {
-    logging.DEBUG: "\033[37m",      # 白/灰
-    logging.INFO: "\033[36m",       # 青
-    logging.WARNING: "\033[33m",    # 黄
-    logging.ERROR: "\033[31m",      # 红
-    logging.CRITICAL: "\033[41m\033[37m",  # 红底白字
+    logging.DEBUG: "\033[34m",            # 蓝（调试日志少，用作区分）
+    logging.INFO: "\033[32m",             # 绿（主力日志）
+    logging.WARNING: "\033[33m",          # 黄
+    logging.ERROR: "\033[31m",            # 红
+    logging.CRITICAL: "\033[1m\033[31m",   # 粗红
 }
 
 
