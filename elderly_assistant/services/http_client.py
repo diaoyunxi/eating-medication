@@ -6,8 +6,17 @@ HTTP 客户端模块
 """
 import logging
 import os
-import requests
+import time
 from datetime import datetime
+
+import requests
+from requests.exceptions import (
+    ConnectionError as RequestsConnectionError,
+    ConnectTimeout,
+    ReadTimeout,
+    Timeout,
+)
+
 from services.device_id import get_device_id
 from services.schedule_cache import load_schedules, save_schedules
 
@@ -15,6 +24,15 @@ logger = logging.getLogger("ElderlyAssistant")
 
 # device_token 持久化文件路径
 _TOKEN_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "device_token.txt")
+
+# === 偶发（瞬时）网络抖动的重试配置 ===
+# 仅针对「连接层/传输层」的瞬时错误做重试，业务 4xx/5xx 不重试。
+# 指数退避避免请求洪峰，缓解 #38「偶发服务端连接失败」（网络本身正常）的误报。
+_MAX_CONNECT_RETRIES = 3
+_RETRY_BACKOFF = 0.3  # 实际退避 = backoff * (2 ** 第几次重试)
+# 连接/读取超时分设：健康检查等场景连接超时设短，避免阻塞过久
+_CONNECT_TIMEOUT = 5
+_READ_TIMEOUT = 10
 
 
 def _load_device_token():
@@ -85,22 +103,54 @@ class HTTPClient:
                 safe[k] = v
         return safe
 
-    def _request(self, method, url, *, log_level=logging.INFO, **kwargs):
+    @staticmethod
+    def _is_transient_error(exc) -> bool:
+        """判断是否为「瞬时」连接/传输层错误，可安全重试。
+
+        仅包含网络层抖动（连接被重置、对端断开、DNS/连接超时、读取超时、
+        代理错误等），业务层 HTTP 状态码（4xx/5xx）不在此列，由调用方按业务处理。
+        """
+        from requests.exceptions import (
+            ConnectionError as _ConnErr,
+            ConnectTimeout as _ConnTO,
+            ReadTimeout as _ReadTO,
+            Timeout as _TO,
+            ChunkedEncodingError as _Chunked,
+            ProxyError as _Proxy,
+        )
+        return isinstance(exc, (_ConnErr, _ConnTO, _ReadTO, _TO, _Chunked, _Proxy))
+
+    def _request(self, method, url, *, log_level=logging.INFO, retries=_MAX_CONNECT_RETRIES,
+                 **kwargs):
         """统一 HTTP 请求入口：记录每一次请求与响应的完整详情（含心跳/二哈上报等）。
 
         覆盖所有对外请求（注册/心跳/下线/拉计划/服药确认/图片上传/人脸上报/紧急/聊天/AI）。
         敏感处理：设备令牌仅保留前 6 位；图片 base64 仅记录字节数，不落盘原始数据。
+
+        对瞬时网络错误（连接被重置/对端断开/超时等）做指数退避重试，
+        缓解 #38「偶发服务端连接失败」：网络本身正常时，单次抖动不应被判定为断线。
         """
         req_headers = kwargs.get("headers") or {}
         safe_headers = self._mask_headers(req_headers)
         safe_body = self._redact_body(kwargs.get("json"))
         logger.log(log_level, "[HTTP请求] %s %s | 请求头=%s | 请求体=%s",
                    method, url, safe_headers, safe_body)
-        try:
-            resp = requests.request(method, url, **kwargs)
-        except Exception as e:
-            logger.log(log_level, "[HTTP请求] %s %s 发送异常: %s", method, url, e)
-            raise
+        last_exc = None
+        for attempt in range(retries + 1):
+            try:
+                resp = requests.request(method, url, **kwargs)
+                break
+            except Exception as e:  # noqa: BLE001 - 需捕获 requests 全部传输层异常
+                last_exc = e
+                if attempt < retries and self._is_transient_error(e):
+                    backoff = _RETRY_BACKOFF * (2 ** attempt)
+                    logger.log(log_level,
+                               "[HTTP请求] %s %s 瞬时网络错误(第%d次)，%.2fs 后重试: %s",
+                               method, url, attempt + 1, backoff, e)
+                    time.sleep(backoff)
+                    continue
+                logger.log(log_level, "[HTTP请求] %s %s 发送异常: %s", method, url, e)
+                raise
         try:
             resp_text = resp.text or ""
         except Exception:
@@ -119,14 +169,20 @@ class HTTPClient:
         仅在连接状态（通/断）发生变化时记录日志，避免持续离线时主循环每 10 秒
         重复刷屏；恢复联网时记录「已恢复」便于运维确认。各类异常分别给出可读原因，
         非 requests 异常保留完整堆栈。
+
+        采用连接/读取超时分设，并对瞬时网络错误做重试（见 _request），
+        避免单次网络抖动被误判为「服务端连接失败」（#38）。
         """
         try:
-            resp = self._request("GET", f"{self.base_url}/health", timeout=3,
-                                  headers=self._headers(), log_level=logging.DEBUG)
+            resp = self._request(
+                "GET", f"{self.base_url}/health",
+                timeout=(_CONNECT_TIMEOUT, _READ_TIMEOUT),
+                headers=self._headers(), log_level=logging.DEBUG,
+            )
             connected = resp.status_code == 200
             err = None
             is_request_err = False
-        except (requests.ConnectionError, requests.Timeout) as e:
+        except (RequestsConnectionError, Timeout) as e:
             connected = False
             err = f"服务端不可达: {e}"
             is_request_err = True
