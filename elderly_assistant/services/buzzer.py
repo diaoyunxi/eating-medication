@@ -66,15 +66,20 @@ class Buzzer:
         """提醒音乐循环（在独立线程中运行）"""
         interval = self.config.get('reminder', {}).get('buzzer_loop_interval', 3) \
             if isinstance(self.config, dict) else 3
+        from hardware.board import get_audio_amp
+        amp = get_audio_amp()
         try:
             while self._reminding:
                 if not self.buzzer:
                     break
                 try:
-                    # 播放提示音一次
+                    # 播放期间解除功放静音（修复 #34：待机电流声），结束即静音
+                    amp.unmute()
                     self.buzzer.play(self.buzzer.BA_DING, self.buzzer.Once)
                 except Exception as e:
                     logger.error(f"播放提醒音失败: {e}")
+                finally:
+                    amp.mute()
                 # 等待间隔（每秒检查一次停止标志，便于快速响应）
                 for _ in range(max(1, int(interval))):
                     if not self._reminding:
@@ -104,12 +109,17 @@ class Buzzer:
         if not self.buzzer:
             logger.warning("蜂鸣器未初始化，无法播放成功提示音")
             return
+        from hardware.board import get_audio_amp
+        amp = get_audio_amp()
+        amp.unmute()
         try:
             # 使用 JUMP_UP 作为成功提示音
             self.buzzer.play(self.buzzer.JUMP_UP, self.buzzer.Once)
             logger.info("播放成功提示音")
         except Exception as e:
             logger.error(f"播放成功提示音失败: {e}")
+        finally:
+            amp.mute()
 
     def beep(self, volume=None):
         """蜂鸣（play_reminder 的别名，兼容旧调用）"""
