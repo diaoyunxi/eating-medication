@@ -82,6 +82,29 @@ class TestCheckMedicationTrigger(unittest.TestCase):
         check_medication_trigger(self._now("12:00"), poller, st, buzzer, display, log)
         self.assertEqual(display.reminder_count, 1)
 
+    def test_catchup_recently_passed_reminder(self):
+        """回归：计划时间刚过去（轮询延迟）仍在宽限窗口内应补触发，修复 #41 漏提醒。"""
+        poller = FakePoller([{"time": "11:55", "drug_name": "药", "dosage": ""}])
+        st = ReminderState()
+        buzzer = FakeBuzzer()
+        display = FakeDisplay()
+        log = __import__("logging").getLogger("t")
+        # 当前 12:00，计划 11:55 已过去 5 分钟（<600s 宽限），应补触发
+        check_medication_trigger(self._now("12:00"), poller, st, buzzer, display, log)
+        self.assertTrue(st.active)
+        self.assertEqual(display.reminder_count, 1)
+
+    def test_no_catchup_far_passed_reminder(self):
+        """回归：计划时间久已过（超出宽限窗口）不应补触发，避免误报。"""
+        poller = FakePoller([{"time": "08:00", "drug_name": "药", "dosage": ""}])
+        st = ReminderState()
+        buzzer = FakeBuzzer()
+        display = FakeDisplay()
+        log = __import__("logging").getLogger("t")
+        check_medication_trigger(self._now("12:00"), poller, st, buzzer, display, log)
+        self.assertFalse(st.active)
+        self.assertEqual(display.reminder_count, 0)
+
 
 class TestHandleConfirm(unittest.TestCase):
     def test_confirm_reports_and_clears(self):

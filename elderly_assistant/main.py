@@ -348,9 +348,9 @@ def main():
         except Exception as e:
             logger.error(f"启动配网 Web 服务异常: {e}")
 
-    # 8. 启动用药计划轮询线程（默认 20 分钟一次；断网时沿用本地缓存）
+    # 8. 启动用药计划轮询线程（默认 60 秒一次，及时拉取新设置提醒；断网时沿用本地缓存）
     reminder_cfg = config.get('reminder', {})
-    poll_interval = reminder_cfg.get('poll_interval', 1200)
+    poll_interval = reminder_cfg.get('poll_interval', 60)
     from services.schedule_cache import load_schedules
     poller = MedicationPoller(
         http_client, poll_interval=poll_interval, cache_loader=load_schedules

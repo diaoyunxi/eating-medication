@@ -202,10 +202,17 @@ class HeartbeatThread:
             self._stop_flag.wait(self.interval)
 
 
+# 补触发宽限窗口（秒）：轮询延迟导致计划时间已过去，但在该窗口内仍补触发，
+# 避免「新设置用药提醒未触发（计划拉取失败）」因轮询间隔较长而永久漏提醒。
+CATCHUP_GRACE_SECONDS = 600
+
+
 def check_medication_trigger(now, poller, reminder_state, buzzer, display, logger, speech=None):
     """
     检查是否到达用药提醒时间，触发提醒
     - 到达提醒时间（匹配当前 HH:MM）且未触发过，触发提醒
+    - 补触发：计划时间已过去但仍在当天宽限窗口内（轮询延迟导致晚到）仍触发，
+      避免新设置的提醒因设备轮询间隔较长而漏触发
     """
     try:
         now_hm = now.strftime("%H:%M")
@@ -226,8 +233,23 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, logge
         matched_reminders = []
         for s in poller.schedules:
             t = _normalize_hhmm(s.get('time'))
-            if not t or t != now_hm:
+            if not t:
                 continue
+            # 精确到分钟的匹配：当前正处于该提醒的分钟
+            if t == now_hm:
+                pass
+            else:
+                # 补触发：计划时间已过去（当天）但未超过宽限窗口，避免轮询延迟漏提醒
+                try:
+                    sched_sec = datetime.strptime(t, "%H:%M")
+                    now_sec = datetime.strptime(now_hm, "%H:%M")
+                    delta = (now_sec - sched_sec).total_seconds()
+                    if 0 < delta <= CATCHUP_GRACE_SECONDS:
+                        logger.info(f"补触发已过用药提醒(轮询延迟): {t}（距今 {int(delta)} 秒）")
+                    else:
+                        continue
+                except ValueError:
+                    continue
             drug_name = s.get('drug_name', '药品')
             dosage = s.get('dosage', '')
             key = f"{today}|{t}|{drug_name}"
