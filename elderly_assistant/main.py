@@ -251,6 +251,13 @@ def main():
     # 1. 初始化 pinpong Board（幂等，集中由 hardware.board 管理）
     init_pinpong_board()
 
+    # 1.0 启动即静音板载功放，避免待机期产生电流声（修复 #34）
+    try:
+        from hardware.board import get_audio_amp
+        get_audio_amp().force_mute()
+    except Exception as e:
+        logger.warning(f"板载功放初始化静音失败（不影响主流程）: {e}")
+
     # 1.1 M10 屏幕依赖 unihiker → tkinter 底层，启动前补全 DISPLAY 环境变量；
     #     SSH / systemd 等无交互会话可能导致该变量缺失，tk.Tk() 在线程内抛出
     #     "no display name and no $DISPLAY environment variable" 异常。
