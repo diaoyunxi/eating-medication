@@ -41,6 +41,7 @@ elderly_assistant/data/device_token.txt
 elderly_assistant/data/schedules.json
 elderly_assistant/data/captures/
 *.db
+*.db*
 
 # Editors
 .vscode/
