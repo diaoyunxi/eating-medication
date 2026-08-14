@@ -22,6 +22,14 @@ from services.schedule_cache import load_schedules, save_schedules
 
 logger = logging.getLogger("ElderlyAssistant")
 
+# 设备鉴权端点（注册/心跳/拉取用药计划），这些端点依赖 X-Device-Token 鉴权，
+# 一旦服务端返回 403（令牌缺失/不匹配），客户端应尝试重新注册以刷新令牌并重试。
+_AUTH_ENDPOINTS = (
+    "/api/v1/public/device/register",
+    "/api/v1/public/device/heartbeat",
+    "/api/v1/public/device/schedule/",
+)
+
 # device_token 持久化文件路径
 _TOKEN_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "device_token.txt")
 
@@ -70,11 +78,29 @@ class HTTPClient:
             raise ValueError("配置缺少 server.base_url，请检查 .env（SERVER_BASE_URL）")
         self.timeout = server_cfg.get('timeout', 10)
         self.device_id = get_device_id()
-        # 加载持久化的 device_token
+        # 加载持久化的 device_token（可能为 None，运行时按需从文件重新读取）
         self.device_token = _load_device_token()
 
+    def _reload_device_token(self):
+        """从持久化文件重新读取 device_token，覆盖内存中可能过期的令牌。
+
+        场景：配网流程（wifi_config.register_device_to_server）或服务端其他路径
+        已将最新令牌写入文件，而本 HTTPClient 实例在构造时令牌尚为空/旧，
+        若不重载，将一直携带空/旧 X-Device-Token，导致鉴权端点永久返回 403。
+        """
+        token = _load_device_token()
+        if token and token != self.device_token:
+            logger.info("从本地文件重新加载 device_token（覆盖内存中过期的令牌）")
+            self.device_token = token
+        return self.device_token
+
     def _headers(self):
-        """返回携带设备标识和令牌的请求头"""
+        """返回携带设备标识和令牌的请求头。
+
+        每次构造请求头时都尝试从文件重载最新令牌，确保外部写入（如配网注册）
+        的令牌能立即生效，避免携带过期空令牌触发 403。
+        """
+        self._reload_device_token()
         headers = {"X-Device-ID": self.device_id}
         if self.device_token:
             headers["X-Device-Token"] = self.device_token
@@ -238,7 +264,13 @@ class HTTPClient:
                     _save_device_token(token)
                     logger.info("设备注册成功，device_token 已保存")
                 else:
-                    logger.info("设备心跳上报成功")
+                    # 已注册设备上报心跳：不再返回令牌。若本地令牌缺失/过期，
+                    # 尝试从文件重载一次，避免后续鉴权请求（拉计划等）持续 403。
+                    self._reload_device_token()
+                    if not self.device_token:
+                        logger.warning("设备已注册但本地缺失 device_token，后续鉴权请求可能返回 403")
+                    else:
+                        logger.info("设备心跳上报成功")
                 return True
             else:
                 logger.warning(f"设备注册失败，状态码: {resp.status_code}")
@@ -314,6 +346,20 @@ class HTTPClient:
         url = f"{self.base_url}/api/v1/public/device/schedule/{self.device_id}"
         try:
             resp = self._request("GET", url, timeout=self.timeout, headers=self._headers())
+            # 令牌缺失/过期会导致鉴权端点返回 403（WiFi 正常但拉不到计划）。
+            # 自愈：重新注册以刷新 device_token，并重试一次，避免长期卡在 403。
+            if resp.status_code == 403:
+                logger.warning("拉取用药计划返回 403（令牌缺失/过期），尝试重新注册刷新令牌后重试")
+                if self.register_device():
+                    retry_resp = self._request("GET", url, timeout=self.timeout, headers=self._headers())
+                    if retry_resp.status_code == 200:
+                        resp = retry_resp
+                    else:
+                        logger.warning(f"重试拉取用药计划仍失败，状态码: {retry_resp.status_code}")
+                        return self._fallback_schedules(f"HTTP {retry_resp.status_code}")
+                else:
+                    logger.warning("重新注册失败，无法刷新令牌，回退本地缓存")
+                    return self._fallback_schedules("HTTP 403（令牌失效且重新注册失败）")
             if resp.status_code == 200:
                 data = resp.json()
                 # 校验响应类型，避免非 dict 响应调用 .get 崩溃
