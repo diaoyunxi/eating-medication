@@ -79,7 +79,6 @@
                                 </div>
                             </div>
                             <div class="plan-actions">
-                                {% if not e.has_device %}
                                 <div class="face-id-edit" style="display:flex;gap:6px;align-items:center;">
                                     <input type="number" min="0" step="1" inputmode="numeric"
                                            id="faceId-{{ e.id }}" class="form-input"
@@ -87,6 +86,7 @@
                                            placeholder="二哈人脸ID" value="{{ e.husky_face_id if e.husky_face_id is not none else '' }}">
                                     <button class="btn btn-outline btn-sm" onclick="saveFaceId({{ e.id }})">💾 保存</button>
                                 </div>
+                                {% if not e.has_device %}
                                 <button class="btn btn-danger btn-sm"
                                         data-elderly-id="{{ e.id }}"
                                         data-elderly-name="{{ e.name }}"
