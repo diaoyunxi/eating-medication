@@ -16,6 +16,13 @@ logger = logging.getLogger("ElderlyAssistant")
 # device_token 持久化文件路径
 _TOKEN_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "device_token.txt")
 
+# 心跳/连接健康检查的请求超时（秒）。
+# 心跳每 30 秒上报一次，服务端在 60 秒未收到心跳即判定设备离线；
+# 若健康检查超时设得过短（如 3 秒），在弱网/Cloudflare 隧道等高延迟环境下会
+# 频繁误报「服务器断开」，触发不必要的重连逻辑。这里预留缓冲时间：
+# 取业务默认超时(10s)与心跳间隔(30s)之间的安全值，既不过度阻塞，也避免误判。
+HEARTBEAT_TIMEOUT = 8
+
 
 def _load_device_token():
     """从本地文件加载设备令牌"""
@@ -51,6 +58,14 @@ class HTTPClient:
         if not self.base_url:
             raise ValueError("配置缺少 server.base_url，请检查 .env（SERVER_BASE_URL）")
         self.timeout = server_cfg.get('timeout', 10)
+        # 心跳/健康检查专用超时，默认使用预留缓冲时间的 HEARTBEAT_TIMEOUT。
+        # 允许通过配置覆盖，但不允许低于心跳安全的下限，避免退回到「无缓冲的 3 秒裸超时」。
+        cfg_hb_timeout = server_cfg.get('heartbeat_timeout', HEARTBEAT_TIMEOUT)
+        try:
+            cfg_hb_timeout = float(cfg_hb_timeout)
+        except (TypeError, ValueError):
+            cfg_hb_timeout = HEARTBEAT_TIMEOUT
+        self.heartbeat_timeout = cfg_hb_timeout if cfg_hb_timeout > 0 else HEARTBEAT_TIMEOUT
         self.device_id = get_device_id()
         # 加载持久化的 device_token
         self.device_token = _load_device_token()
@@ -121,7 +136,7 @@ class HTTPClient:
         非 requests 异常保留完整堆栈。
         """
         try:
-            resp = self._request("GET", f"{self.base_url}/health", timeout=3,
+            resp = self._request("GET", f"{self.base_url}/health", timeout=self.heartbeat_timeout,
                                   headers=self._headers(), log_level=logging.DEBUG)
             connected = resp.status_code == 200
             err = None
