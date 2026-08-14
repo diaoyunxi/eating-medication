@@ -270,6 +270,16 @@ class HTTPClient:
             )
             if resp.status_code == 200:
                 logger.info("设备下线通知成功")
+                # 服务端可能在设备本地令牌缺失时重新签发令牌，需持久化，
+                # 使后续需鉴权的请求恢复正常（修复设备下线通知 HTTP 403 问题）
+                try:
+                    payload = resp.json()
+                    reissued = payload.get("device_token") if isinstance(payload, dict) else None
+                    if reissued:
+                        _save_device_token(reissued)
+                        logger.info("已持久化服务端重新签发的设备令牌")
+                except Exception:
+                    pass
                 return True
             logger.warning(f"设备下线通知失败，状态码: {resp.status_code}")
             return False

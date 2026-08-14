@@ -107,11 +107,24 @@ async def device_offline(
 
     设备正常退出（SIGINT/SIGTERM/进程关闭）时调用，将 last_heartbeat_at 置为很早的时间，
     使 is_online 立即为 false，避免子女端在心跳超时窗口内看到虚假的"在线"状态。
-    注意：掉电/SIGKILL 等异常退出仍需依赖心跳超时判定。需校验 X-Device-Token。
+    注意：掉电/SIGKILL 等异常退出仍需依赖心跳超时判定。
+
+    本端点针对「设备下线」这一尽力而为的清理操作做令牌降级处理：若设备尚未
+    初始化令牌（通常是设备端本地令牌文件丢失，导致下线请求未携带 X-Device-Token
+    而被 403 拒绝），服务端会按 device_id 定位用户并重新签发令牌返回，使设备端
+    可持久化该令牌、后续需鉴权的请求恢复正常。已初始化令牌但缺失/不匹配的
+    请求仍返回 403，以防伪造。
     """
-    user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
+    user, issued_token = await run_in_threadpool(
+        DeviceService.get_device_user_for_offline, db, req.device_id, device_token
+    )
+    if user is None:
+        raise HTTPException(status_code=403, detail="设备未授权（令牌缺失或无效）")
     await run_in_threadpool(DeviceService.mark_offline, db, user)
-    return {"status": "ok"}
+    resp = {"status": "ok"}
+    if issued_token:
+        resp["device_token"] = issued_token
+    return resp
 
 
 @router.post("/device/message")
