@@ -340,6 +340,67 @@ class TestScheduleTypeValidation(unittest.TestCase):
         self.assertEqual(client.get_medication_schedule(), plans)
 
 
+class TestSchedule403SelfHeal(unittest.TestCase):
+    """#36 拉取用药计划返回 HTTP 403 的自愈验证。
+
+    设备本地令牌缺失/过期但 WiFi 正常时，服务端鉴权端点返回 403。
+    客户端应在收到 403 后重新注册以刷新 device_token，并重试一次，
+    而非永久卡在 403。
+    """
+
+    def setUp(self):
+        self._cache_dir = tempfile.TemporaryDirectory()
+        cache_path = os.path.join(self._cache_dir.name, "schedules.json")
+        patcher = mock.patch.object(_schedule_cache_module, "CACHE_PATH", cache_path)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(self._cache_dir.cleanup)
+
+    def _client(self):
+        return _ValidationClient()
+
+    def _patch_sequence(self, responses):
+        """按调用顺序依次返回响应（首个给拉计划，其后是重注册/重试）。
+
+        :param responses: list[(_FakeResp, dict|None)]，None 表示不解析 JSON（如心跳响应）
+        """
+        calls = {"i": 0}
+
+        def _side_effect(method, url, **kwargs):
+            idx = calls["i"]
+            calls["i"] += 1
+            status, data = responses[idx]
+            return _FakeResp(status, data)
+
+        patcher = mock.patch("requests.request", side_effect=_side_effect)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_403_triggers_reregister_then_retry_success(self):
+        client = self._client()
+        self.assertIsNone(client.device_token)  # 初始令牌缺失
+        plans = [{"drug_name": "阿司匹林", "product_code": "6901234567890"}]
+        # 顺序：拉计划(403) -> 重新注册(200, 返回令牌) -> 重试拉计划(200)
+        self._patch_sequence([
+            (403, None),
+            (200, {"status": "ok", "device_token": "new-token-123"}),
+            (200, {"schedules": plans}),
+        ])
+        result = client.get_medication_schedule()
+        self.assertEqual(result, plans)
+        # 重新注册后内存令牌应被刷新，重试请求才会携带有效令牌并成功
+        self.assertEqual(client.device_token, "new-token-123")
+
+    def test_403_reregister_fails_falls_back(self):
+        client = self._client()
+        self._patch_sequence([
+            (403, None),
+            (500, None),  # 重新注册失败
+        ])
+        # 无本地缓存时应回退返回 None（结果未知），且不崩溃
+        self.assertIsNone(client.get_medication_schedule())
+
+
 class _FakeBlock:
     """模拟 HuskyLens 识别块，content 为条码/二维码文本。"""
     def __init__(self, content):
