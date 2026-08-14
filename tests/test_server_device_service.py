@@ -144,6 +144,47 @@ def test_register_or_heartbeat():
     assert token2 is None
 
 
+def test_get_device_user_for_offline_no_device():
+    db = _make_session()
+    # 未知设备：应返回 (None, None)，调用方返回 403
+    user, issued = DeviceService.get_device_user_for_offline(db, "UNKNOWN0000001", None)
+    assert user is None and issued is None
+
+
+def test_get_device_user_for_offline_token_missing_rejected():
+    db = _make_session()
+    # 设备已初始化令牌，但请求无令牌：应拒绝（防伪造）
+    u = User(username="e", device_id="TOKENDEV00001", role="elderly", device_token="tok-existing")
+    db.add(u)
+    db.commit()
+    user, issued = DeviceService.get_device_user_for_offline(db, "TOKENDEV00001", None)
+    assert user is None and issued is None
+    user2, issued2 = DeviceService.get_device_user_for_offline(db, "TOKENDEV00001", "wrong")
+    assert user2 is None and issued2 is None
+
+
+def test_get_device_user_for_offline_token_match_ok():
+    db = _make_session()
+    u = User(username="e", device_id="TOKENDEV00002", role="elderly", device_token="tok-valid")
+    db.add(u)
+    db.commit()
+    user, issued = DeviceService.get_device_user_for_offline(db, "TOKENDEV00002", "tok-valid")
+    assert user is not None and user.id == u.id
+    assert issued is None
+
+
+def test_get_device_user_for_offline_reissue_when_no_token():
+    db = _make_session()
+    # 设备已注册但本地未持有令牌（user.device_token 为空）：下线请求无令牌，
+    # 服务端应定位用户并重新签发令牌返回（修复 403 问题）
+    u = User(username="e", device_id="NOTOKENDEV0001", role="elderly", device_token=None)
+    db.add(u)
+    db.commit()
+    user, issued = DeviceService.get_device_user_for_offline(db, "NOTOKENDEV0001", None)
+    assert user is not None and user.id == u.id
+    assert issued is not None and issued == user.device_token
+
+
 def test_compute_status_online_offline():
     db = _make_session()
     online = User(username="o", device_id="ONLINEDEV0001", role="elderly",
