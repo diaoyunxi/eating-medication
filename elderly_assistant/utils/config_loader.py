@@ -45,8 +45,10 @@ DEFAULT_CONFIG = {
         "web_port": 8088,
     },
     "reminder": {
-        # 用药计划轮询间隔：默认 20 分钟拉取一次（有网走网络，失败回退本地缓存）
-        "poll_interval": 1200,
+        # 用药计划轮询间隔：默认 60 秒拉取一次（有网走网络，失败回退本地缓存）
+        # 缩短间隔可让「新设置」的用药提醒尽快被设备拉取到并在约定时间触发，
+        # 避免轮询间隔过长（旧默认 1200 秒=20 分钟）导致提醒错过触发窗口。
+        "poll_interval": 60,
         "buzzer_loop_interval": 3,
         "long_press_sec": 1.5,
     },
@@ -105,8 +107,9 @@ _ENV_TEMPLATE = (
     "HOTSPOT_IP=10.0.0.1\n"
     "HOTSPOT_WEB_PORT=8088\n\n"
     "# ===== 提醒 =====\n"
-    "# POLL_INTERVAL: 用药计划轮询间隔（秒），默认 1200 = 20 分钟\n"
-    "POLL_INTERVAL=1200\n"
+    "# POLL_INTERVAL: 用药计划轮询间隔（秒），默认 60 = 1 分钟\n"
+    "# 缩短间隔可让新设置的用药提醒尽快被设备拉取并在约定时间触发\n"
+    "POLL_INTERVAL=60\n"
     "BUZZER_LOOP_INTERVAL=3\n"
     "LONG_PRESS_SEC=1.5\n\n"
     "# ===== 摄像头 =====\n"
