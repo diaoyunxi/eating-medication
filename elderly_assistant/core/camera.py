@@ -7,6 +7,11 @@ from datetime import datetime
 from uuid import uuid4
 from utils.logger import setup_logger
 
+# 模块级 logger：供 get_huskylens / _init_huskylens 等模块作用域函数使用，
+# 否则首次初始化 HuskyLens 连接（扫码调用链 barcode -> _ensure -> get_huskylens）
+# 会触发 NameError: name 'logger' is not defined。
+logger = setup_logger()
+
 # HuskyLens 实例（模块级单例）
 _huskylens = None
 
