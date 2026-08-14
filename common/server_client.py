@@ -12,6 +12,7 @@
 - 通过 ``base_url`` 设定服务端根地址；``_execute(method, path, ...)`` 的 path
   以 ``/`` 开头时直接拼接在 base_url（自动去除末尾斜杠）之后。
 """
+import asyncio
 import json
 import ssl
 from typing import Any, Dict, Optional
@@ -46,6 +47,34 @@ class _ResponseAdapter:
         if self._parse_exc is not None:
             raise self._parse_exc
         return self._parsed
+
+
+def _is_httpx_transient_error(exc: Exception) -> bool:
+    """判断是否为 httpx 的瞬时传输层错误，可安全重试。
+
+    通过异常所属模块与类名识别，避免直接访问 ``httpx.TransportError`` 基类
+    （在测试替身或老版本 httpx 中可能不存在该属性）。仅覆盖连接/读取/协议层抖动，
+    业务 HTTP 状态码（由 status_code 体现）不在此列。
+    """
+    mod = getattr(type(exc), "__module__", "") or ""
+    if mod != "httpx":
+        return False
+    return type(exc).__name__ in {
+        "TransportError",
+        "TimeoutException",
+        "Timeout",
+        "ConnectTimeout",
+        "ReadTimeout",
+        "ConnectError",
+        "ReadError",
+        "RemoteProtocolError",
+        "ConnectionClosed",
+        "ClosedProtocolError",
+        "ProxyError",
+        "NetworkError",
+        "UnsupportedProtocol",
+        "DecodingError",
+    }
 
 
 class BaseServerClient:
@@ -94,10 +123,13 @@ class BaseServerClient:
         params: Optional[Dict[str, Any]] = None,
         json_body: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
+        retries: int = 3,
     ) -> _ResponseAdapter:
         """统一执行 HTTP 请求，返回 ``_ResponseAdapter``。
 
-        - 网络/传输层异常（httpx.RequestError 等）会向上抛出，由调用方决定降级策略。
+        - 网络/传输层瞬时异常（连接被重置、对端断开、超时等）会做指数退避重试，
+          缓解「偶发服务端连接失败」（网络本身正常时，单次抖动不应判定为断线，#38）；
+          达到最大重试次数后仍失败则向上抛出，由调用方决定降级策略。
         - HTTP 错误状态码不会抛异常，仅体现在 ``status_code`` 上，便于调用方按业务处理。
 
         :param method: HTTP 方法（GET/POST/PUT/DELETE...）
@@ -105,6 +137,7 @@ class BaseServerClient:
         :param params: 查询参数
         :param json_body: JSON 请求体
         :param headers: 额外请求头（会与 ``_auth_headers()`` 合并，后者优先）
+        :param retries: 瞬时网络错误的最大重试次数（默认 3，仅对传输层异常生效）
         """
         import httpx  # 懒加载：仅在发起请求时导入，遵守 common 仅标准库的约定
 
@@ -113,24 +146,39 @@ class BaseServerClient:
             merged_headers.update(headers)
 
         verify = self._ssl_context if self._ssl_context else True
-        async with httpx.AsyncClient(timeout=self.timeout, verify=verify) as client:
-            response = await client.request(
-                method,
-                self._url(path),
-                params=params,
-                json=json_body,
-                headers=merged_headers,
-            )
-            # 客户端退出上下文后会关闭连接，必须在这里读尽正文
-            await response.aread()
-            text = response.text
+        last_exc: Optional[Exception] = None
+        for attempt in range(retries + 1):
             try:
-                parsed: Any = json.loads(text) if text else None
-                parse_exc: Optional[Exception] = None
-            except Exception as e:  # JSON 解析失败时保留异常，供 json() 复抛
-                parsed = None
-                parse_exc = e
-            return _ResponseAdapter(response.status_code, text, parsed, parse_exc)
+                async with httpx.AsyncClient(timeout=self.timeout, verify=verify) as client:
+                    response = await client.request(
+                        method,
+                        self._url(path),
+                        params=params,
+                        json=json_body,
+                        headers=merged_headers,
+                    )
+                    # 客户端退出上下文后会关闭连接，必须在这里读尽正文
+                    await response.aread()
+                    text = response.text
+                    try:
+                        parsed: Any = json.loads(text) if text else None
+                        parse_exc: Optional[Exception] = None
+                    except Exception as e:  # JSON 解析失败时保留异常，供 json() 复抛
+                        parsed = None
+                        parse_exc = e
+                    return _ResponseAdapter(response.status_code, text, parsed, parse_exc)
+            except Exception as e:  # noqa: BLE001 - 需捕获 httpx 全部传输层异常
+                last_exc = e
+                # 仅对瞬时传输层错误重试；业务异常立即上抛
+                if _is_httpx_transient_error(e) and attempt < retries:
+                    backoff = 0.3 * (2 ** attempt)
+                    print(f"服务端请求瞬时失败(第{attempt + 1}次)，{backoff:.2f}s 后重试: {e}")
+                    await asyncio.sleep(backoff)
+                    continue
+                break
+        # 重试耗尽仍未成功，抛出最后一次异常
+        assert last_exc is not None
+        raise last_exc
 
     async def check_connection(self, health_path: str = "/health") -> bool:
         """检查服务端连通性（默认请求 /health）。"""
