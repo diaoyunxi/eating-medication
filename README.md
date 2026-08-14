@@ -1,23 +1,7 @@
 # 老人用药管理智能助手
 
-> 当前版本：**v2.33.7**
 > 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
-
-## 配置健壮性与降级策略
-
-系统对配置缺失采取分层处理，确保「任意可选 key 缺失仍可运行，基础必填缺失则明确报错退出」：
-
-- **可选外部服务（缺失自动降级，不崩溃）**：
-  - **Cloudflare Turnstile 人机验证**：`TURNSTILE_SECRET_KEY` 未配置时，登录/注册自动跳过验证（记录 warning），功能仍可用。
-  - **GitHub / Gitee OAuth**：凭据缺失时前端隐藏对应登录按钮、探测接口返回 `enabled:false`，不影响账号密码登录。
-  - **OCR 药名识别**：`OCR_PROVIDER` / `OCR_API_KEY` 未配置时，`/vision/recognize` 返回友好提示（HTTP 200 + `configured:false`）而非 500 错误。
-- **基础必填配置（缺失或非法则启动即打印提示并结束进程）**：
-  - `SECRET_KEY`：生产环境（`DEBUG=false`）必须显式配置，禁止运行时随机密钥（安全考虑）。
-  - `APP_NAME` / `DATABASE_URL`：应用名称与数据库地址，禁止为空。
-  - `API_V1_PREFIX`：API 路由前缀，必须非空且以 `/` 开头。
-  - `PATH_PREFIX`：路径前缀，允许为空（本地直连）；若非空须以 `/` 开头。
-  - 三端（server / family_monitor）均在启动期统一校验，校验失败会输出缺失项清单并 `sys.exit(1)`，避免以错误配置静默运行。
 
 ## 第三方 OAuth 登录配置
 
@@ -25,31 +9,31 @@
 
 ### GitHub OAuth
 
-| 配置项 | 说明 |
-| --- | --- |
-| `GITHUB_CLIENT_ID` | GitHub OAuth App 的 Client ID（必填，否则按钮隐藏） |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth App 的 Client Secret（必填） |
-| `GITHUB_OAUTH_CALLBACK_URL` | 回调地址，须与 GitHub 后台 `Authorization callback URL` **完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback` |
+| 配置项                        | 说明                                                                                                                                                                        |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_CLIENT_ID`          | GitHub OAuth App 的 Client ID（必填，否则按钮隐藏）                                                                                                                         |
+| `GITHUB_CLIENT_SECRET`      | GitHub OAuth App 的 Client Secret（必填）                                                                                                                                   |
+| `GITHUB_OAUTH_CALLBACK_URL` | 回调地址，须与 GitHub 后台`Authorization callback URL` **完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback` |
 
 > 注意：一个 GitHub OAuth App 仅允许配置**一个**固定回调 URL。本地开发请另行在 GitHub 创建 OAuth App（回调填 `http://localhost:1059/api/v1/auth/oauth/github/callback`）。GitHub 仅申请 `read:user` scope（公开邮箱若用户设置则可取）。
 
 ### Gitee OAuth
 
-在 Gitee 创建应用（<https://gitee.com/oauth/applications>），勾选「访问用户的个人信息、最新动态」(`user_info`) 与「查看用户的个人邮箱信息」(`emails`) 权限。
+在 Gitee 创建应用（[https://gitee.com/oauth/applications](https://gitee.com/oauth/applications)），勾选「访问用户的个人信息、最新动态」(`user_info`) 与「查看用户的个人邮箱信息」(`emails`) 权限。
 
-| 配置项 | 说明 |
-| --- | --- |
-| `GITEE_CLIENT_ID` | Gitee OAuth 应用的 Client ID（必填，否则按钮隐藏） |
-| `GITEE_CLIENT_SECRET` | Gitee OAuth 应用的 Client Secret（必填） |
+| 配置项                       | 说明                                                                                                                                                       |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITEE_CLIENT_ID`          | Gitee OAuth 应用的 Client ID（必填，否则按钮隐藏）                                                                                                         |
+| `GITEE_CLIENT_SECRET`      | Gitee OAuth 应用的 Client Secret（必填）                                                                                                                   |
 | `GITEE_OAUTH_CALLBACK_URL` | 回调地址，须与 Gitee 后台「应用回调地址」**完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback` |
 
 > 注意：Gitee 回调 URL 同样唯一。授权后服务端会调用 `/api/v5/emails` 取得主邮箱并写入 `users.email`（仅在已授权 `emails` 权限时）。首次 Gitee 登录自动注册（无需手机号/密码），已绑定账号再次登录直接写入登录态。
 
 ### 公共配置
 
-| 配置项 | 说明 |
-| --- | --- |
-| `FAMILY_WEB_URL` | 家属端前端地址，OAuth 回调成功后 302 跳转用，默认 `https://my-website.ccwu.cc/eating-medication/family` |
+| 配置项             | 说明                                                                                                     |
+| ------------------ | -------------------------------------------------------------------------------------------------------- |
+| `FAMILY_WEB_URL` | 家属端前端地址，OAuth 回调成功后 302 跳转用，默认`https://my-website.ccwu.cc/eating-medication/family` |
 
 一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
 
@@ -73,7 +57,6 @@
 - [安全特性](#安全特性)
 - [贡献与开发指南](#贡献与开发指南)
 - [版本历史](#版本历史)
-- [已知问题与待办](#已知问题与待办)
 - [感谢贡献](#感谢贡献)
 - [许可](#许可)
 
@@ -81,11 +64,11 @@
 
 ## 功能概览
 
-| 模块 | 定位 | 主要功能 |
-|------|------|----------|
-| [`elderly_assistant`](./elderly_assistant) | 老人端（行空板 M10 GUI / TUI 备用） | 按时用药提醒、摄像头识别药名、AI 语音问答、服药画面上传、库存管理、家属聊天、紧急呼叫、热点配网 |
-| [`server`](./server) | 服务端（FastAPI） | 用户认证、用药计划管理、服药日志、药品库存、AI 服务、WebSocket 实时通信、百度 OCR 药品识别、库存定时检查 |
-| [`family_monitor`](./family_monitor) | 家属看护端（FastAPI Web） | 远程查看老人服药记录、实时聊天、用药计划配置、健康仪表板、Cloudflare Turnstile 人机验证 |
+| 模块                                        | 定位                                | 主要功能                                                                                                 |
+| ------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| [`elderly_assistant`](./elderly_assistant) | 老人端（行空板 M10 GUI / TUI 备用） | 按时用药提醒、摄像头识别药名、AI 语音问答、服药画面上传、库存管理、家属聊天、紧急呼叫、热点配网          |
+| [`server`](./server)                       | 服务端（FastAPI）                   | 用户认证、用药计划管理、服药日志、药品库存、AI 服务、WebSocket 实时通信、百度 OCR 药品识别、库存定时检查 |
+| [`family_monitor`](./family_monitor)       | 家属看护端（FastAPI Web）           | 远程查看老人服药记录、实时聊天、用药计划配置、健康仪表板、Cloudflare Turnstile 人机验证                  |
 
 ---
 
@@ -155,63 +138,63 @@
 
 #### 老人端 → 服务端（HTTP）
 
-| # | 方法 | 路径（相对 `base_url`） | 用途 | 触发时机 |
-|---|------|------------------------|------|----------|
-| 1 | POST | `/api/v1/public/device/register` | 设备注册（提交 device_id / device_name） | 配网页面提交表单时 |
-| 2 | GET | `/health` | 健康检查 / 连接状态探测 | 主循环每 10 秒 |
-| 3 | GET | `/api/v1/public/device/schedule/{device_id}` | 拉取用药计划 | 启动后立即一次，之后每 60 秒轮询 |
-| 4 | POST | `/api/v1/public/device/message` | 上报服药确认（`message_type=medication`） | 用户按下按钮 A 确认服药 |
-| 5 | POST | `/api/v1/public/device/message` | 紧急呼叫（`message_type=emergency`） | 触发紧急求助 |
-| 6 | POST | `/api/v1/public/device/message` | 聊天消息（`message_type=chat`，HTTP 备用） | TUI 聊天（备用链路） |
-| 7 | POST | `/api/v1/public/ai/ask` | AI 问答（经服务端中转智谱 AI） | TUI 中用户输入问题 |
-| 8 | POST | `/api/upload` | 上传服药/药品照片（multipart `file`） | TUI 确认服药 / 识别药品时 |
+| # | 方法 | 路径（相对`base_url`）                       | 用途                                         | 触发时机                         |
+| - | ---- | ---------------------------------------------- | -------------------------------------------- | -------------------------------- |
+| 1 | POST | `/api/v1/public/device/register`             | 设备注册（提交 device_id / device_name）     | 配网页面提交表单时               |
+| 2 | GET  | `/health`                                    | 健康检查 / 连接状态探测                      | 主循环每 10 秒                   |
+| 3 | GET  | `/api/v1/public/device/schedule/{device_id}` | 拉取用药计划                                 | 启动后立即一次，之后每 60 秒轮询 |
+| 4 | POST | `/api/v1/public/device/message`              | 上报服药确认（`message_type=medication`）  | 用户按下按钮 A 确认服药          |
+| 5 | POST | `/api/v1/public/device/message`              | 紧急呼叫（`message_type=emergency`）       | 触发紧急求助                     |
+| 6 | POST | `/api/v1/public/device/message`              | 聊天消息（`message_type=chat`，HTTP 备用） | TUI 聊天（备用链路）             |
+| 7 | POST | `/api/v1/public/ai/ask`                      | AI 问答（经服务端中转智谱 AI）               | TUI 中用户输入问题               |
+| 8 | POST | `/api/upload`                                | 上传服药/药品照片（multipart`file`）       | TUI 确认服药 / 识别药品时        |
 
 > 设备接口通过路径/请求体中的 `device_id` 定位设备，并须携带 `X-Device-Token` 请求头进行令牌鉴权（`/device/register` 首次注册无需令牌，服务端返回 `device_token`）；`/device/check` 需 JWT 登录态（不使用设备令牌）。服务端不读取 `X-Device-ID` 请求头。
 
 #### 老人端 → 服务端（WebSocket，仅 TUI 形态）
 
-| # | 协议 | 路径 | 用途 |
-|---|------|------|------|
+| # | 协议   | 路径                       | 用途                                                       |
+| - | ------ | -------------------------- | ---------------------------------------------------------- |
 | 9 | WS/WSS | `/ws/device/{device_id}` | 长连接实时收发家属端下发的聊天 / 提醒消息，断线每 5 秒重连 |
 
 #### 老人端 → 第三方 / 本地
 
-| # | 类型 | 目标 | 用途 |
-|---|------|------|------|
-| 10 | HTTP GET | `api.github.com/repos/diaoyunxi/eating-medication/releases/latest`（回退 `/tags`） | 启动时自动更新检查 |
-| 11 | HTTP POST | `{ai.base_url}/chat/completions` | 直连大模型（OpenAI 兼容协议，配置 `ai.base_url` 为第三方时启用） |
-| 12 | 本地子进程 | Tesseract 可执行文件 | OCR 识别（无网络请求） |
-| 13 | 本地引擎 | pyttsx3 | TTS 语音合成（无网络请求） |
-| 14 | TCP socket | `8.8.8.8:53`（可配置） | 互联网连通性探测 |
-| 15 | 本地监听 | `0.0.0.0:8088` HTTP | 热点配网 Web 服务（用户连热点后访问 `10.0.0.1:8088`） |
+| #  | 类型       | 目标                                                                                   | 用途                                                              |
+| -- | ---------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 10 | HTTP GET   | `api.github.com/repos/diaoyunxi/eating-medication/releases/latest`（回退 `/tags`） | 启动时自动更新检查                                                |
+| 11 | HTTP POST  | `{ai.base_url}/chat/completions`                                                     | 直连大模型（OpenAI 兼容协议，配置`ai.base_url` 为第三方时启用） |
+| 12 | 本地子进程 | Tesseract 可执行文件                                                                   | OCR 识别（无网络请求）                                            |
+| 13 | 本地引擎   | pyttsx3                                                                                | TTS 语音合成（无网络请求）                                        |
+| 14 | TCP socket | `8.8.8.8:53`（可配置）                                                               | 互联网连通性探测                                                  |
+| 15 | 本地监听   | `0.0.0.0:8088` HTTP                                                                  | 热点配网 Web 服务（用户连热点后访问`10.0.0.1:8088`）            |
 
 #### 服务端 → 第三方
 
-| # | 方法 | 目标 | 用途 | 触发时机 |
-|---|------|------|------|----------|
-| 20 | HTTP POST | 智谱 AI `glm-4.7-flash`（`zhipuai` SDK） | AI 健康问答 | `/ai/chat`、`/ai/chat/public`、`/public/ai/ask` 被调用 |
-| 21 | HTTP GET + POST | 百度 OCR `aip.baidubce.com` | 药品图片识别药名（先换 token，再调通用文字识别） | `/vision/recognize` 被调用 |
-| 22 | HTTP GET | `api.github.com/.../releases/latest` | 启动时自动更新检查（含 SHA256 资产校验） | 启动时 |
-| 23 | 内部调度 | APScheduler `AsyncIOScheduler` | 库存不足检查，向家庭组广播 `low_stock` | 每天 02:00 自动执行 |
+| #  | 方法            | 目标                                        | 用途                                             | 触发时机                                                     |
+| -- | --------------- | ------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------ |
+| 20 | HTTP POST       | 智谱 AI`glm-4.7-flash`（`zhipuai` SDK） | AI 健康问答                                      | `/ai/chat`、`/ai/chat/public`、`/public/ai/ask` 被调用 |
+| 21 | HTTP GET + POST | 百度 OCR`aip.baidubce.com`                | 药品图片识别药名（先换 token，再调通用文字识别） | `/vision/recognize` 被调用                                 |
+| 22 | HTTP GET        | `api.github.com/.../releases/latest`      | 启动时自动更新检查（含 SHA256 资产校验）         | 启动时                                                       |
+| 23 | 内部调度        | APScheduler`AsyncIOScheduler`             | 库存不足检查，向家庭组广播`low_stock`          | 每天 02:00 自动执行                                          |
 
 #### 子女端 → 服务端（HTTP，由 BFF 后端 `core/api_client.py` 发起）
 
-| # | 方法 | 路径（相对 `ELDERLY_SERVER_URL`） | 用途 | 触发时机 |
-|---|------|----------------------------------|------|----------|
-| 30 | GET | `/health` | 检查服务端连接 | 首页/各页渲染 + 前端每 30 秒轮询 `/status` |
-| 31 | GET | `/api/v1/public/device/check/{device_id}` | 校验设备是否已注册 | 设置页点击"绑定设备" |
-| 32 | POST | `/api/v1/public/device/register` | 绑定设备 | check 通过后 |
-| 33 | GET | `/api/v1/public/device/plans/{device_id}` | 拉取设备用药计划 | 用药设置页渲染 |
-| 34 | GET | `/api/v1/public/device/status/{device_id}` | 获取设备状态信息 | 首页/提醒/记录/仪表板/设置页渲染 |
-| 35 | POST | `/api/v1/public/device/medication_plan` | 添加用药计划 | 用药设置页提交表单 |
-| 36 | DELETE | `/api/v1/public/device/medication_plan/{plan_id}` | 删除用药计划 | 用药设置页点击删除 |
-| 37 | GET | `/api/v1/medication/plans` | 获取提醒列表 | 提醒页 / 仪表板统计 |
-| 38 | GET | `/api/v1/medication/history` | 获取用药历史 | 记录页 / 仪表板统计 |
+| #  | 方法   | 路径（相对`ELDERLY_SERVER_URL`）                  | 用途               | 触发时机                                    |
+| -- | ------ | --------------------------------------------------- | ------------------ | ------------------------------------------- |
+| 30 | GET    | `/health`                                         | 检查服务端连接     | 首页/各页渲染 + 前端每 30 秒轮询`/status` |
+| 31 | GET    | `/api/v1/public/device/check/{device_id}`         | 校验设备是否已注册 | 设置页点击"绑定设备"                        |
+| 32 | POST   | `/api/v1/public/device/register`                  | 绑定设备           | check 通过后                                |
+| 33 | GET    | `/api/v1/public/device/plans/{device_id}`         | 拉取设备用药计划   | 用药设置页渲染                              |
+| 34 | GET    | `/api/v1/public/device/status/{device_id}`        | 获取设备状态信息   | 首页/提醒/记录/仪表板/设置页渲染            |
+| 35 | POST   | `/api/v1/public/device/medication_plan`           | 添加用药计划       | 用药设置页提交表单                          |
+| 36 | DELETE | `/api/v1/public/device/medication_plan/{plan_id}` | 删除用药计划       | 用药设置页点击删除                          |
+| 37 | GET    | `/api/v1/medication/plans`                        | 获取提醒列表       | 提醒页 / 仪表板统计                         |
+| 38 | GET    | `/api/v1/medication/history`                      | 获取用药历史       | 记录页 / 仪表板统计                         |
 
 #### 子女端浏览器 → 服务端（WebSocket 直连，不经 BFF 转发）
 
-| # | 协议 | 路径 | 用途 |
-|---|------|------|------|
+| #  | 协议   | 路径                          | 用途                                         |
+| -- | ------ | ----------------------------- | -------------------------------------------- |
 | 39 | WS/WSS | `/api/v1/chat/ws/{user_id}` | 浏览器直接连接服务端聊天 WS，断线每 5 秒重连 |
 
 #### 浏览器 → 子女端（入站路由）
@@ -320,21 +303,21 @@
 
 ## 技术栈
 
-| 层级 | 老人端 | 服务端 | 子女端 |
-|------|--------|--------|--------|
-| 语言 | Python 3.6+（推荐 3.12） | Python 3.8+（推荐 3.12） | Python 3.8+（推荐 3.12） |
-| Web 框架 | — | FastAPI 0.115.0 + Uvicorn 0.32.0 | FastAPI 0.104 + Uvicorn 0.24 |
-| GUI / 硬件 | pinpong 1.2.0（行空板 M10）+ unihiker GUI | — | Jinja2 3.1 模板 |
-| HTTP 客户端 | requests 2.31.0 | httpx 0.27.2 | httpx 0.25.0 |
-| 数据库 | — | SQLAlchemy 2.0.36 + SQLite | users.json + 文件锁（bcrypt 4.1） |
-| 认证 | device_id + device_token（X-Device-Token 头） | python-jose 3.4.0（JWT HS256）+ bcrypt + Cloudflare Turnstile | JWT HttpOnly Cookie（由 server 统一签发，转发验证 + 30s 缓存）+ Cloudflare Turnstile |
-| AI | pyttsx3 / edge-tts | 智谱 AI `glm-4.7-flash`（zhipuai SDK） | — |
-| OCR | pytesseract 0.3.10（本地） | 百度 OCR（aip.baidubce.com） | — |
-| 调度 | schedule 1.2.1 | APScheduler 3.11.0 | — |
-| 配置 | python-dotenv 1.0.1 | pydantic-settings 2.6 + .env | .env |
-| 模糊匹配 | rapidfuzz 3.6.2 | — | — |
-| 图像 | Pillow 10.0.1 | Pillow 10.4.0 | — |
-| HTTPS | Cloudflare 隧道 | Cloudflare 隧道 | Cloudflare 隧道 |
+| 层级        | 老人端                                        | 服务端                                                        | 子女端                                                                               |
+| ----------- | --------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 语言        | Python 3.6+（推荐 3.12）                      | Python 3.8+（推荐 3.12）                                      | Python 3.8+（推荐 3.12）                                                             |
+| Web 框架    | —                                            | FastAPI 0.115.0 + Uvicorn 0.32.0                              | FastAPI 0.104 + Uvicorn 0.24                                                         |
+| GUI / 硬件  | pinpong 1.2.0（行空板 M10）+ unihiker GUI     | —                                                            | Jinja2 3.1 模板                                                                      |
+| HTTP 客户端 | requests 2.31.0                               | httpx 0.27.2                                                  | httpx 0.25.0                                                                         |
+| 数据库      | —                                            | SQLAlchemy 2.0.36 + SQLite                                    | users.json + 文件锁（bcrypt 4.1）                                                    |
+| 认证        | device_id + device_token（X-Device-Token 头） | python-jose 3.4.0（JWT HS256）+ bcrypt + Cloudflare Turnstile | JWT HttpOnly Cookie（由 server 统一签发，转发验证 + 30s 缓存）+ Cloudflare Turnstile |
+| AI          | pyttsx3 / edge-tts                            | 智谱 AI`glm-4.7-flash`（zhipuai SDK）                       | —                                                                                   |
+| OCR         | pytesseract 0.3.10（本地）                    | 百度 OCR（aip.baidubce.com）                                  | —                                                                                   |
+| 调度        | schedule 1.2.1                                | APScheduler 3.11.0                                            | —                                                                                   |
+| 配置        | python-dotenv 1.0.1                           | pydantic-settings 2.6 + .env                                  | .env                                                                                 |
+| 模糊匹配    | rapidfuzz 3.6.2                               | —                                                            | —                                                                                   |
+| 图像        | Pillow 10.0.1                                 | Pillow 10.4.0                                                 | —                                                                                   |
+| HTTPS       | Cloudflare 隧道                               | Cloudflare 隧道                                               | Cloudflare 隧道                                                                      |
 
 ---
 
@@ -349,10 +332,11 @@
 - 三端均以纯 HTTP 本地监听，公网域名与 HTTPS 方案在 `setup.sh` / `setup.ps1` 中选择配置
 
 > 三模块的 `install.py` 内容已统一为同一份脚本，行为：
+>
 > 1. 先检测 `pip` 是否存在，无则按平台自动安装（Linux 优先 `apt-get install python3-pip`、Windows 用 `get-pip.py`、其他走 `ensurepip` 后备）；
 > 2. 正常 `pip install`：**默认不使用任何镜像源（走系统/官方默认源）**，若首选源安装失败则自动回退到官方 PyPI 源 `https://pypi.org/simple` 重试。可通过环境变量 `PIP_INDEX_URL` 指定首选源（仍会回退官方源）；
 > 3. 若输出包含 `--break-system-packages`（PEP 668 错误），自动加该参数重试。
-> 已安装的包自动跳过，无需重复安装。
+>    已安装的包自动跳过，无需重复安装。
 
 ### 根目录一键启动（推荐用于直接运行文件）
 
@@ -365,19 +349,19 @@ python main.py --check    # 只打印识别结果，不启动任何进程
 
 识别规则（任一特征命中即判定为行空板）：
 
-| 特征 | 说明 |
-| --- | --- |
+| 特征                                        | 说明                         |
+| ------------------------------------------- | ---------------------------- |
 | `/proc/device-tree/model` 含 `unihiker` | 设备树型号，最直接的硬件特征 |
-| 主机名含 `unihiker` | 出厂主机名特征 |
-| `/etc/unihiker*` 存在 | 出厂镜像配置文件特征 |
-| ARM 架构 + Debian 10 buster | 架构与发行版组合兜底 |
+| 主机名含`unihiker`                        | 出厂主机名特征               |
+| `/etc/unihiker*` 存在                     | 出厂镜像配置文件特征         |
+| ARM 架构 + Debian 10 buster                 | 架构与发行版组合兜底         |
 
 启动行为：
 
-- **识别为行空板** → 用 `os.execv` 替换当前进程为老人端，前台运行，Ctrl+C 直接生效
+- **识别为行空板** → 用 `os.execv` 替换当前进程为老人端，前台运行
 - **识别为其他设备** → 后台启动服务端（1059）与子女端（4430），脱离终端会话，打印 PID 后本进程退出；关闭终端不影响服务，日志写入 `logs/server.out` 与 `logs/family.out`
 
-其他参数：`--force-elderly` / `--force-server` 可跳过自动识别强制指定（二者互斥），未被识别的参数原样透传给子程序（如 `python main.py --debug`）。
+其他参数：`--force-elderly` / `--force-server` 可跳过自动识别强制指定（二者互斥），未被识别的参数原样透传给子程序。
 
 > 本入口仅面向「直接使用文件启动」的场景。生产环境的开机自启与进程守护请使用 `setup.sh` / `setup.ps1`。
 
@@ -397,7 +381,7 @@ python main.py             # 启动（--debug 启用调试模式）
 ```bash
 cd server
 python ../install.py requirements.txt                # 自动安装依赖
-# 编辑 .env 配置数据库、密钥、智谱 AI、京东比价、PATH_PREFIX、ALLOWED_ORIGINS
+# 编辑 .env 配置数据库、密钥、智谱 AI、PATH_PREFIX、ALLOWED_ORIGINS
 python main.py             # 启动服务（本地端口 1059，HTTP 监听）
 ```
 
@@ -417,32 +401,35 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 - 登录/注册均集成 Cloudflare Turnstile 人机验证，认证由 server 统一处理
 
 > **注意**：`.env`、数据库（`*.db`）、`users.json`、`bound_device.json`、`device_token.txt` 等敏感文件已通过 `.gitignore` 排除，不会上传至仓库，部署时需自行配置。生产模式（`DEBUG=False`）下：
+>
 > - 服务端与子女端若未配置 `SECRET_KEY`（或为已知弱值）将**拒绝启动**
 > - 服务端若未配置 `TURNSTILE_SECRET_KEY` 将**降级跳过人机验证**（登录/注册仍可正常进行，仅记录 warning）
 > - `/openapi.json`、`/docs`、`/redoc` 在生产环境**返回 404**，仅开发环境可用
 
 > **Turnstile 两把密钥（易错点）**：Cloudflare Turnstile 需要**两把**密钥，分别放在不同服务：
+>
 > - **站点密钥（Site Key）** → 前端渲染验证小组件，配置在 `family_monitor/.env` 的 `TURNSTILE_SITE_KEY`（已配则小组件正常显示）。
 > - **密钥（Secret Key）** → 后端调用 Cloudflare `siteverify` 校验令牌，配置在 `server/.env` 的 `TURNSTILE_SECRET_KEY`（未配置则生产环境降级跳过人机验证，登录/注册仍可用）。
 >
 > 若登录/注册报「人机验证失败，请重试」，且 `server` 日志出现 `生产环境未配置 TURNSTILE_SECRET_KEY` 或 `Turnstile 校验未通过`，请按以下顺序排查：
+>
 > 1. 确认 `server/.env` 的 `TURNSTILE_SECRET_KEY` 已填入真实 Secret Key 并**重启 server**（server 启动日志会打印 Turnstile 配置状态）；
 > 2. 确认该 Secret Key 与 `family_monitor/.env` 的 Site Key 来自**同一个** Cloudflare Turnstile 站点（密钥与站点密钥不匹配会校验失败）；
 > 3. 确认 Turnstile 站点「允许的主机名」包含当前访问域名。
 
 ## 配置说明
 
-| 模块 | 配置文件 | 关键配置项 |
-|------|----------|------------|
-| elderly_assistant | `.env` | `SERVER_BASE_URL`（默认公网域名）、`HEARTBEAT_INTERVAL`、摄像头 `CAMERA_*`、蜂鸣器 `BUZZER_LOOP_INTERVAL`、热点 `HOTSPOT_*`、轮询 `POLL_INTERVAL` |
-| server | `.env` | `APP_NAME`、`DEBUG`、`PATH_PREFIX`/`API_V1_PREFIX`、`SERVER_HOST`/`SERVER_PORT`、`DATABASE_URL`、`SECRET_KEY`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`TURNSTILE_SECRET_KEY`、`ZHIPUAI_API_KEY`/`ZHIPUAI_MODEL`、`OCR_PROVIDER`/`OCR_API_KEY`/`OCR_SECRET_KEY`、`ALLOWED_ORIGINS`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`GITHUB_OAUTH_CALLBACK_URL`、`GITEE_CLIENT_ID`/`GITEE_CLIENT_SECRET`/`GITEE_OAUTH_CALLBACK_URL`/`FAMILY_WEB_URL` |
-| family_monitor | `.env` | `SECRET_KEY`、`DEBUG`、`COOKIE_SECURE`、`TURNSTILE_SITE_KEY`、`DEVICE_SECRET`、`ALLOWED_ORIGINS`、`PRODUCTION`、`SERVER_HOST`/`SERVER_PORT`、`ELDERLY_SERVER_URL`、`PATH_PREFIX`、`APP_NAME`、`DISPLAY_*` |
+| 模块              | 配置文件 | 关键配置项                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| elderly_assistant | `.env` | `SERVER_BASE_URL`（默认公网域名）、`HEARTBEAT_INTERVAL`、摄像头 `CAMERA_*`、蜂鸣器 `BUZZER_LOOP_INTERVAL`、热点 `HOTSPOT_*`、轮询 `POLL_INTERVAL`                                                                                                                                                                                                                                                                                                                                      |
+| server            | `.env` | `APP_NAME`、`DEBUG`、`PATH_PREFIX`/`API_V1_PREFIX`、`SERVER_HOST`/`SERVER_PORT`、`DATABASE_URL`、`SECRET_KEY`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`TURNSTILE_SECRET_KEY`、`ZHIPUAI_API_KEY`/`ZHIPUAI_MODEL`、`OCR_PROVIDER`/`OCR_API_KEY`/`OCR_SECRET_KEY`、`ALLOWED_ORIGINS`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`GITHUB_OAUTH_CALLBACK_URL`、`GITEE_CLIENT_ID`/`GITEE_CLIENT_SECRET`/`GITEE_OAUTH_CALLBACK_URL`/`FAMILY_WEB_URL` |
+| family_monitor    | `.env` | `SECRET_KEY`、`DEBUG`、`COOKIE_SECURE`、`TURNSTILE_SITE_KEY`、`DEVICE_SECRET`、`ALLOWED_ORIGINS`、`PRODUCTION`、`SERVER_HOST`/`SERVER_PORT`、`ELDERLY_SERVER_URL`、`PATH_PREFIX`、`APP_NAME`、`DISPLAY_*`                                                                                                                                                                                                                                                                |
 
 ### 路径前缀（PATH_PREFIX）
 
-| 模块 | 默认值 | 本地直连 |
-|------|--------|----------|
-| server | `/eating-medication/server` | 设为空字符串 |
+| 模块           | 默认值                        | 本地直连     |
+| -------------- | ----------------------------- | ------------ |
+| server         | `/eating-medication/server` | 设为空字符串 |
 | family_monitor | `/eating-medication/family` | 设为空字符串 |
 
 中间件实现位于 [server/app/main.py](./server/app/main.py) 与 [family_monitor/main.py](./family_monitor/main.py)：请求阶段剥离前缀供路由匹配，响应阶段为 3xx 重定向的 `Location` 头补回前缀。
@@ -476,116 +463,15 @@ GITEE_OAUTH_CALLBACK_URL=https://my-website.ccwu.cc/eating-medication/server/api
 FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 ```
 
-首次启动 `server/main.py` 会自动生成 `.env` 模板（v2.3.0 已修复弱密钥问题，但生产环境仍需手动填入真实密钥；**v2.10.2 起模板已包含全部可配置字段**，无需再对照本文手动补）。
+首次启动 `main.py` 会自动生成 `.env` 模板。
 
 ---
 
 ## API 文档
 
-> 完整外部路径 = `PATH_PREFIX`（`/eating-medication/server`） + `API_V1_PREFIX`（`/api/v1`） + router prefix + 端点路径。下表省略前缀，仅列 router prefix + 端点。
+> 完整外部路径 = `PATH_PREFIX`（`/eating-medication/server`） + `API_V1_PREFIX`（`/api/v1`） + 
 
-### 服务端 REST API
-
-#### 认证 `/auth`
-
-| 方法 | 路径 | 用途 | 认证 | 限流 |
-|------|------|------|------|------|
-| POST | `/auth/register` | 用户注册（老人/家属） | 否 | 5 次/分钟/IP |
-| POST | `/auth/login` | 用户登录，返回 JWT | 否 | — |
-
-#### 用户 `/users`
-
-| 方法 | 路径 | 用途 | 认证 |
-|------|------|------|------|
-| GET | `/users/me` | 获取当前用户信息 | JWT |
-| PUT | `/users/me` | 更新当前用户信息 | JWT |
-| POST | `/users/bind` | 家属绑定老人（须提供老人 device_id） | JWT（仅 family） |
-| DELETE | `/users/me` | 注销当前用户账号（硬删除，级联清理用药计划/记录/AI日志） | JWT |
-| DELETE | `/users/{user_id}` | 家属删除同家庭组的老人账号（硬删除） | JWT（仅 family，须同组） |
-
-#### 用药管理 `/medication`
-
-| 方法 | 路径 | 用途 | 认证 |
-|------|------|------|------|
-| POST | `/medication/plan` | 创建用药计划（仅老人） | JWT（仅 elderly） |
-| GET | `/medication/plans` | 获取用药计划（老人看自己，家属看同组老人） | JWT |
-| POST | `/medication/take` | 记录服药并原子扣减库存 | JWT（仅 elderly） |
-| GET | `/medication/history` | 服药历史（支持 `start`/`end` 过滤） | JWT |
-
-#### AI 健康助手 `/ai`
-
-| 方法 | 路径 | 用途 | 认证 | 限流 |
-|------|------|------|------|------|
-| POST | `/ai/chat` | 向 AI 提问（落库 `AIQueryLog`） | JWT | — |
-| POST | `/ai/chat/public` | 公开 AI 提问（供老人端） | 否 | 10 次/分钟/IP |
-
-#### 药品识别 `/vision`
-
-| 方法 | 路径 | 用途 | 认证 | 限制 |
-|------|------|------|------|------|
-| POST | `/vision/recognize` | 上传药品图片识别药名（百度 OCR） | JWT | 文件 ≤ 5MB |
-
-#### 聊天 `/chat`
-
-| 方法 | 路径 | 用途 | 认证 |
-|------|------|------|------|
-| POST | `/chat/send` | 发送聊天消息并通过 WS 推送给接收者 | JWT |
-| GET | `/chat/history/{user_id}` | 获取与指定用户的聊天历史（`limit` 1~200） | JWT |
-
-#### 设备公开接口 `/public`（供老人端 / 子女端 BFF 调用）
-
-| 方法 | 路径 | 用途 | 认证 |
-|------|------|------|------|
-| POST | `/public/device/register` | 设备注册 / 心跳上报 | device_id |
-| POST | `/public/device/message` | 接收设备上报消息（含 `emergency` 紧急） | device_id |
-| GET | `/public/device/check/{device_id}` | 检查设备是否已注册 | 无 |
-| GET | `/public/device/status/{device_id}` | 获取设备状态（计划/记录数） | device_id |
-| GET | `/public/device/schedule/{device_id}` | 获取设备用药计划（老人端轮询） | device_id |
-| GET | `/public/device/plans/{device_id}` | 获取设备所有用药计划 | device_id |
-| POST | `/public/device/medication_plan` | 家属通过 device_id 设置用药计划 | device_id |
-| DELETE | `/public/device/medication_plan/{plan_id}` | 删除用药计划 | device_id |
-| POST | `/public/ai/ask` | 设备端 AI 提问 | 否（限流 10 次/分钟/IP） |
-
-#### 更新 `/updater`（无需鉴权）
-
-| 方法 | 路径 | 用途 | 认证 |
-|------|------|------|------|
-| GET | `/updater` | 访问即触发更新检查与安装（若 `AUTO_PULL=true` 则下载、校验、安装并重启） | 无 |
-| POST | `/updater` | 同 GET，供 CI 脚本语义化调用 | 无 |
-
-#### 根路径
-
-| 方法 | 路径 | 用途 |
-|------|------|------|
-| GET | `/health` | 健康检查（容器编排/监控用） |
-| GET | `/` | 根路径，返回欢迎信息与 docs/health 链接 |
-
-### 家属看护端路由
-
-子女端后端作为 BFF，对外提供以下页面与接口（路径已含 `PATH_PREFIX` 前缀）：
-
-| 方法 | 路径 | 用途 | 认证 |
-|------|------|------|------|
-| GET | `/` | 首页 | JWT |
-| GET | `/status` | 服务器状态 JSON（前端每 30 秒轮询） | JWT |
-| GET | `/reminders` | 提醒页 | JWT |
-| GET | `/records` | 记录页 | JWT |
-| GET | `/dashboard` | 健康仪表板 | JWT |
-| GET | `/settings` | 系统设置页 | JWT |
-| POST | `/settings/bind_device` | 绑定设备（先 check 后 register） | JWT |
-| POST | `/settings/unbind_device` | 解绑设备 | JWT |
-| GET | `/medication_settings` | 用药设置页 | JWT |
-| POST | `/medication_settings/add` | 添加用药计划 | JWT |
-| POST | `/medication_settings/update/{plan_id}` | 更新用药计划 | JWT |
-| POST | `/medication_settings/delete/{plan_id}` | 删除用药计划 | JWT |
-| GET | `/login` | 登录页面 | 公开 |
-| POST | `/login` | 登录（AJAX，转发 server 验证 + Turnstile） | 公开 |
-| GET | `/register` | 注册页面 | 公开 |
-| POST | `/register` | 注册（AJAX，转发 server 验证 + Turnstile） | 公开 |
-| GET | `/turnstile/site-key` | 返回 Turnstile Site Key（供前端渲染） | 公开 |
-| GET | `/logout` | 登出（清除 JWT cookie） | — |
-
-> 登录/注册限流由 server 端统一处理：登录每 IP 每分钟最多 10 次，注册每 IP 每分钟最多 5 次。
+详细api文档见 `PATH_PREFIX` + (`docs`)
 
 ---
 
@@ -613,13 +499,13 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 
 ### 服务端主动推送消息类型（经 `ConnectionManager` + `Notifier`）
 
-| `type` | 触发场景 |
-|--------|----------|
-| `medication_taken` | 老人已服药 |
-| `medication_missed` | 老人漏服药品 |
-| `low_stock` | 药品库存不足（定时任务每天 02:00 触发） |
-| `family_message` | 家庭消息 |
-| `chat_message` | 聊天消息（chat 端点直接调用） |
+| `type`              | 触发场景                                |
+| --------------------- | --------------------------------------- |
+| `medication_taken`  | 老人已服药                              |
+| `medication_missed` | 老人漏服药品                            |
+| `low_stock`         | 药品库存不足（定时任务每天 02:00 触发） |
+| `family_message`    | 家庭消息                                |
+| `chat_message`      | 聊天消息（chat 端点直接调用）           |
 
 ---
 
@@ -627,13 +513,13 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 
 服务端使用 SQLAlchemy + SQLite（`./data/elderly_care.db`），5 张表：
 
-| 模型 | 表名 | 主要字段 |
-|------|------|----------|
-| `User` | `users` | id, username(唯一), hashed_password, full_name, role(elderly/family), phone, group_id, created_at, is_active, last_login_at |
-| `MedicationPlan` | `medication_plans` | id, user_id(FK), drug_name, dosage, frequency, schedule_times(JSON), total_quantity, remaining_quantity, unit, low_stock_threshold(默认5.0), created_at, updated_at |
-| `MedicationRecord` | `medication_records` | id, plan_id(FK), user_id(FK), scheduled_time, taken_time, status(pending/taken/missed/skipped), note |
-| `ChatMessage` | `chat_messages` | id, sender_id(FK, 索引), receiver_id(FK, 可空, 索引), sender_name(50), content(Text), created_at |
-| `AIQueryLog` | `ai_query_logs` | id, user_id(FK), question, answer, model(默认 glm-4.7-flash), created_at |
+| 模型                 | 表名                   | 主要字段                                                                                                                                                            |
+| -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `User`             | `users`              | id, username(唯一), hashed_password, full_name, role(elderly/family), phone, group_id, created_at, is_active, last_login_at                                         |
+| `MedicationPlan`   | `medication_plans`   | id, user_id(FK), drug_name, dosage, frequency, schedule_times(JSON), total_quantity, remaining_quantity, unit, low_stock_threshold(默认5.0), created_at, updated_at |
+| `MedicationRecord` | `medication_records` | id, plan_id(FK), user_id(FK), scheduled_time, taken_time, status(pending/taken/missed/skipped), note                                                                |
+| `ChatMessage`      | `chat_messages`      | id, sender_id(FK, 索引), receiver_id(FK, 可空, 索引), sender_name(50), content(Text), created_at                                                                    |
+| `AIQueryLog`       | `ai_query_logs`      | id, user_id(FK), question, answer, model(默认 glm-4.7-flash), created_at                                                                                            |
 
 启动时通过 `Base.metadata.create_all` 自动建表；生产环境建议启用 Alembic 迁移（`app/migrations/` 已就位）。
 
@@ -672,11 +558,11 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 
 三模块的 `updater.py` 已统一为同一份实现（均含完整 C9 加固）：
 
-| 模块 | SHA256 校验 | 异常处理 | 版本号来源 |
-|------|-------------|----------|------------|
+| 模块              | SHA256 校验                                                           | 异常处理                  | 版本号来源          |
+| ----------------- | --------------------------------------------------------------------- | ------------------------- | ------------------- |
 | elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 从 VERSION 文件读取 |
-| server | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 从 VERSION 文件读取 |
-| family_monitor | **完整 C9 加固**：同上 | `logger.warning` 不静默 | 从 VERSION 文件读取 |
+| server            | **完整 C9 加固**：同上                                          | `logger.warning` 不静默 | 从 VERSION 文件读取 |
+| family_monitor    | **完整 C9 加固**：同上                                          | `logger.warning` 不静默 | 从 VERSION 文件读取 |
 
 > 三个 `updater.py` 的 `__version__` 通过 `_load_version()` 从 VERSION 文件动态读取，不再写死在代码中。
 > 查找顺序：本模块目录的 VERSION → 项目根目录的 VERSION → 写死默认值（兜底）。
@@ -735,42 +621,12 @@ sudo systemctl status eating-medication-server eating-medication-family
 ```
 
 日志查看：
+
 ```bash
 journalctl -u eating-medication-server -f       # 服务端日志
 journalctl -u eating-medication-family -f       # 家属端日志
 journalctl -u cloudflared -f                    # 隧道日志
 ```
-
-## 贡献与开发指南
-
-### 开发环境
-
-```bash
-git clone https://gh.my-website.ccwu.cc/https://github.com/diaoyunxi/eating-medication.git
-cd eating-medication
-# 服务端开发依赖
-cd server && pip install -r requirements-dev.txt
-```
-
-### 目录约定
-
-- 新增 API 端点放 `server/app/api/v1/endpoints/`，对应 schema 放 `server/app/schemas/`，service 放 `server/app/services/`，model 放 `server/app/models/`。
-- 子女端页面放 `family_monitor/templates/`，路由放 `family_monitor/routes/`，样式放 `family_monitor/static/css/`。
-- 老人端硬件相关放 `elderly_assistant/services/`，业务逻辑放 `elderly_assistant/core/`。
-
-### 编码规范
-
-- 使用中文注释、中文提交信息、中文文档。
-- 提交信息遵循约定式提交（`feat: ` / `fix: ` / `docs: ` / `refactor: ` / `test: ` / `chore: `）。
-- 敏感信息（密钥、token、密码）一律不得硬编码或入库。
-- 新增端点须同步更新本 README 的 [API 文档](#api-文档)。
-
-### 提交流程
-
-1. 从 `main` 拉取最新代码。
-2. 新建分支开发：`git checkout -b feat/xxx`。
-3. 提交并推送：`git commit -m "feat: xxx"` → `git push origin feat/xxx`。
-4. 以提交PR形式给上流仓库提交代码，在经过AI的review并更改（ai的不一定符合规范，需要手动检查）再经过简单人工review后合并。
 
 ## 感谢贡献
 
@@ -806,4 +662,5 @@ cd server && pip install -r requirements-dev.txt
 
 ## 许可
 
-本项目仅供学习和个人使用，最终解释权归github账户：diaoyunxi、ha-ji-mi-MAN-BO 所有。
+[MIT](LICENSE)
+本项目仅供学习和个人使用，最终解释权归github账户：diaoyunxi 所有。
