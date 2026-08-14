@@ -12,7 +12,7 @@ import logging
 import os
 import secrets
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, Tuple
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -171,6 +171,43 @@ class DeviceService:
         db.commit()
         logger.info(f"设备心跳更新: {_masked}")
         return user, None
+
+    @staticmethod
+    def get_device_user_for_offline(
+        db: Session, device_id: str, device_token: Optional[str]
+    ) -> Tuple[Optional[User], Optional[str]]:
+        """按 device_id 定位用户以执行「设备下线通知」。
+
+        与 get_device_user_authed 不同，本方法针对「设备下线」这一
+        低敏感、尽力而为的清理操作，对令牌缺失做降级处理，避免设备
+        因本地未持有令牌而被 403 拒绝，从而无法及时通知子女端离线。
+
+        返回 (user, issued_token)：
+          - 设备已初始化令牌且令牌匹配：返回 (user, None)。
+          - 设备已初始化令牌但请求令牌缺失/不匹配：返回 (None, None)，
+            调用方应返回 403（防止伪造）。
+          - 设备尚未初始化令牌（user.device_token 为空，通常是设备端
+            本地令牌文件丢失导致下线请求无令牌）：直接定位用户并重新
+            签发一个令牌，返回 (user, new_token)；调用方应将令牌返回
+            给设备端持久化，使后续需鉴权的设备接口恢复正常。
+        """
+        user = db.query(User).filter(User.device_id == device_id).first()
+        if not user:
+            return (None, None)
+
+        # 设备已初始化令牌：必须严格匹配，否则视为伪造
+        if user.device_token:
+            if not device_token or device_token != user.device_token:
+                return (None, None)
+            return (user, None)
+
+        # 设备尚未初始化令牌：重新签发并返回，避免下线请求因缺令牌被 403
+        new_token = secrets.token_urlsafe(32)
+        user.device_token = new_token
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return (user, new_token)
 
     @staticmethod
     def mark_offline(db: Session, user: User):
