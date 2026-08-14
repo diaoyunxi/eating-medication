@@ -1,215 +1,318 @@
 # -*- coding: utf-8 -*-
-"""语音播报服务（老人端 M10）。
+"""语音播报服务（离线优先 + edge-tts 在线合成，带本地缓存与播放器自动安装）
 
-TTS 引擎优先级：
-1. edge-tts（联网优先）：中文神经语音，音质明显优于本地 espeak；
-   产出 MP3 后由系统播放器（mpg123/ffplay/mpv/play）播放，无网或请求失败时降级。
-2. pyttsx3（离线兜底）：本地 espeak 引擎，优先选用 mbrola-cn1 中文语音包
-   （需 `apt install mbrola mbrola-cn1`，由 main.py 自动安装）；缺失则退回默认语音。
-
-两个引擎均在初始化期尝试加载，运行时按优先级选择；任一失败自动切换到另一引擎，
-全部不可用时禁用语音（不影响主流程）。
+设计要点：
+1. 离线优先：pyttsx3 可用时优先（离线、零延迟、无外部依赖）；不可用才走 edge-tts。
+2. edge-tts 本地缓存：每次合成结果落盘到缓存目录，并以 index.json 建立索引
+   （key=文本+音色+语速 的 sha256）。再次播报相同内容时，先查索引命中则直接播放
+   本地文件，避免重复联网合成，降低延迟与流量。
+3. 播放器自动安装：探测 mpg123/ffplay/mpv/play 均不存在时，Linux（Debian/M10）
+   自动 apt 安装 mpg123；Windows 则给出明确提示（设备端为 Debian，此处仅告警）。
+4. 全场景容错：edge-tts 异常时自动降级到 pyttsx3；pyttsx3 不可用时静默跳过。
 """
-import asyncio
+
+import hashlib
+import json
+import logging
 import os
-import queue
 import shutil
 import subprocess
-import tempfile
-import threading
-import time
-from utils.logger import setup_logger
 
+from pathlib import Path
 
-# edge-tts 使用的中文神经语音
-EDGE_TTS_VOICE = "zh-CN-XiaoxiaoNeural"
-# MP3 播放器探测顺序（按优先级）；mpg123 由 main.py 自动 apt 安装
-_PLAYER_ARGS = {
-    "mpg123": ["-q"],
-    "ffplay": ["-nodisp", "-autoexit"],
-    "mpv": ["--no-terminal", "--force-window=no"],
-    "play": [],
-}
+logger = logging.getLogger("ElderlyAssistant")
+
+try:
+    import edge_tts
+except Exception as e:  # pragma: no cover - 依赖缺失时静态通过
+    logger.warning(f"edge_tts 导入失败: {e}")
+    edge_tts = None
 
 
 class Speech:
+    """语音播报封装。"""
+
     def __init__(self, config=None):
-        self.logger = setup_logger()
-        # speech 配置段为幽灵字段（历史遗留，从未生效），统一删除，此处不读取
-        self.config = {}
-        self._speak_queue = queue.Queue(maxsize=20)  # 有界队列，避免无界增长
-        self._stop_event = threading.Event()
-        self._edge_tts = None
-        self._edge_available = False
-        self._pyttsx_engine = None
-        # 播报串行锁：_speak 可能被多个调用方经队列串行触发，但回调/线程边界
-        # 不保证原子；加锁避免 edge-tts(asyncio.run) 与 pyttsx3(runAndWait)
-        # 在同一播放线程内交错导致引擎状态混乱或某条播报被吞。
-        self._speak_lock = threading.Lock()
-        # 最近一次播报失败原因，便于外部诊断（如「识别到但没播报」排查）
-        self.last_error = None
+        # 兼容无配置构造（测试 / 独立调用）
+        self._online = False
+        self._tts = None
+        self._voice = "zh-CN-XiaoxiaoNeural"
+        self._rate = "+0%"
+        self._player_precedence = ["mpg123", "ffplay", "mpv", "play"]
+        self._cache_dir = None
+        self._index_path = None
+        self._player = None  # 探测到的可执行播放器（绝对路径或命令名）
 
-        self._init_engines()
+        if config:
+            audio_cfg = config.get("audio", {}) if isinstance(config, dict) else {}
+            self._voice = audio_cfg.get("edge_tts_voice", self._voice)
+            self._rate = audio_cfg.get("edge_tts_rate", self._rate)
+            prec = audio_cfg.get("player_precedence", self._player_precedence)
+            if isinstance(prec, str):
+                prec = [p.strip() for p in prec.split(",") if p.strip()]
+            if prec:
+                self._player_precedence = prec
+            cache_dir = audio_cfg.get("tts_cache_dir", "data/tts_cache")
+            self._init_cache_dir(cache_dir)
 
-        if self._edge_available or self._pyttsx_engine:
-            self._worker_thread = threading.Thread(target=self._speak_worker, daemon=True)
-            self._worker_thread.start()
-        else:
-            self.logger.warning("语音引擎全部不可用，语音播报已禁用")
+        self._init_tts()
+        # 播放器探测 / 安装（仅在 edge-tts 启用时有意义，但提前探测无副作用）
+        self._ensure_player()
 
-    def _init_engines(self):
-        """初始化两套引擎：edge-tts（联网优先）+ pyttsx3（离线兜底）。"""
-        # 1. edge-tts：仅检测模块是否可导入（联网在播报时实时校验）
+    # ------------------------------------------------------------------ #
+    # 缓存目录与索引
+    # ------------------------------------------------------------------ #
+    def _init_cache_dir(self, cache_dir):
+        """初始化 edge-tts 缓存目录与索引路径。
+
+        :param cache_dir: 相对 BASE_DIR 的相对路径或绝对路径
+        """
+        base = Path(__file__).resolve().parent.parent  # elderly_assistant/
+        path = Path(cache_dir)
+        if not path.is_absolute():
+            path = base / cache_dir
+        self._cache_dir = path
+        self._index_path = self._cache_dir / "index.json"
         try:
-            import edge_tts
-            self._edge_tts = edge_tts
-            self._edge_available = True
-            self.logger.info("edge-tts 可用（联网时优先用于语音播报）")
-        except Exception as e:
-            self._edge_available = False
-            self.logger.info(f"edge-tts 不可用，将使用 pyttsx3 离线播报: {e}")
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:  # 目录不可写时降级：缓存失效但不影响播报
+            logger.warning(f"创建 TTS 缓存目录失败，将不使用本地缓存: {e}")
+            self._cache_dir = None
+            self._index_path = None
 
-        # 2. pyttsx3 离线兜底（优先 mbrola-cn1 中文语音）
+    def _index_load(self):
+        """读取缓存索引；损坏或不存在返回空 dict（容错）。"""
+        if not self._index_path:
+            return {}
+        try:
+            if self._index_path.exists():
+                with open(self._index_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                return data if isinstance(data, dict) else {}
+        except Exception as e:
+            logger.warning(f"读取 TTS 缓存索引失败，重建索引: {e}")
+        return {}
+
+    def _index_save(self, index):
+        """原子写入缓存索引，避免并发/异常损坏。"""
+        if not self._index_path:
+            return
+        tmp = self._index_path.with_suffix(".json.tmp")
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(index, f, ensure_ascii=False, indent=2)
+            tmp.replace(self._index_path)
+        except Exception as e:
+            logger.warning(f"写入 TTS 缓存索引失败: {e}")
+            try:
+                tmp.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    @staticmethod
+    def _cache_key(text, voice, rate):
+        """生成缓存键：文本 + 音色 + 语速 的稳定哈希（sha256 前 16 位）。"""
+        raw = f"{text}|{voice}|{rate}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+    def _index_lookup(self, key):
+        """查询缓存索引，返回存在的本地文件路径；文件缺失则返回 None。"""
+        if not self._cache_dir:
+            return None
+        index = self._index_load()
+        entry = index.get(key)
+        if not entry:
+            return None
+        fp = self._cache_dir / entry.get("file", "")
+        if fp.exists() and fp.is_file():
+            return str(fp)
+        # 索引指向文件已丢失：清理无效条目
+        logger.warning(f"TTS 缓存文件缺失，清理索引条目: {key}")
+        index.pop(key, None)
+        self._index_save(index)
+        return None
+
+    def _index_register(self, key, file_path):
+        """登记一条缓存记录（文件落盘后调用）。"""
+        if not self._cache_dir:
+            return
+        index = self._index_load()
+        index[key] = {
+            "file": Path(file_path).name,
+            "voice": self._voice,
+            "rate": self._rate,
+        }
+        self._index_save(index)
+
+    # ------------------------------------------------------------------ #
+    # 播放器探测与自动安装
+    # ------------------------------------------------------------------ #
+    def _find_player(self):
+        """按优先级探测可用播放器，返回命令名 / 绝对路径；均无返回 None。"""
+        for name in self._player_precedence:
+            exe = shutil.which(name)
+            if exe:
+                return exe
+        return None
+
+    def _install_player(self):
+        """检测不到播放器时自动安装。
+
+        - Linux（Debian/M10）：apt 安装 mpg123（优先），失败回退 ffmpeg（提供 ffplay）。
+        - Windows：设备端为 Debian，此处仅打印明确提示并要求手动安装 mpg123。
+        :return: 安装后探测到的播放器路径，失败返回 None
+        """
+        if os.name == "nt":
+            logger.error(
+                "未检测到音频播放器。Windows 需手动安装 mpg123 或 ffmpeg 并加入 PATH；"
+                "设备端 M10（Debian）无需此操作。"
+            )
+            return None
+        # Linux：尝试安装 mpg123（最轻量、无 X 依赖）
+        try:
+            logger.warning("未检测到播放器，尝试自动安装 mpg123 ...")
+            subprocess.run(
+                "apt-get update -qq && apt-get install -y mpg123",
+                shell=True,
+                check=False,
+                timeout=300,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            if self._find_player() is None:
+                # mpg123 安装失败，尝试 ffmpeg（提供 ffplay）
+                logger.warning("mpg123 安装失败，尝试安装 ffmpeg ...")
+                subprocess.run(
+                    "apt-get install -y ffmpeg",
+                    shell=True,
+                    check=False,
+                    timeout=600,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+        except Exception as e:
+            logger.warning(f"自动安装播放器异常: {e}")
+        return self._find_player()
+
+    def _ensure_player(self):
+        """确保存在可用播放器：先探测，失败则尝试安装。"""
+        self._player = self._find_player()
+        if self._player is None:
+            self._player = self._install_player()
+            if self._player is None:
+                logger.warning("无可用音频播放器，edge-tts 音频将无法播放（将降级 pyttsx3）。")
+
+    # ------------------------------------------------------------------ #
+    # TTS 引擎初始化
+    # ------------------------------------------------------------------ #
+    def _init_tts(self):
         try:
             import pyttsx3
-            eng = pyttsx3.init()
-            eng.setProperty('volume', 0.9)
-            eng.setProperty('rate', 150)
-            self._select_mbrola_voice(eng)
-            self._pyttsx_engine = eng
-            self.logger.info("pyttsx3 TTS 引擎初始化成功（离线兜底）")
+
+            self._tts = pyttsx3.init()
+            self._tts.setProperty("rate", 150)
+            self._tts.setProperty("volume", 0.9)
+            self._online = False
+            return
         except Exception as e:
-            self._pyttsx_engine = None
-            self.logger.warning(f"pyttsx3 初始化失败: {e}")
+            logger.warning(f"离线语音不可用，回退 edge-tts: {e}")
+        if edge_tts is None:
+            self._online = False
+            return
+        self._online = True
 
-    def _select_mbrola_voice(self, eng):
-        """在 pyttsx3 语音列表中优先选用 mbrola 中文语音（mbrola-cn1）。
-
-        espeak 启用 mbrola 后，语音 id 形如 `mbrola/cn1`；缺失时退回默认语音。
-        """
+    # ------------------------------------------------------------------ #
+    # 播放
+    # ------------------------------------------------------------------ #
+    def _play_file(self, file_path):
+        """用探测到的播放器播放本地音频文件。"""
+        if self._player is None:
+            logger.warning("无可用播放器，跳过音频播放。")
+            return
         try:
-            voices = eng.getProperty('voices') or []
-            for v in voices:
-                vid = (getattr(v, 'id', '') or '').lower()
-                if 'mbrola' in vid and 'cn' in vid:
-                    eng.setProperty('voice', v.id)
-                    self.logger.info(f"已选用 mbrola 中文语音: {vid}")
-                    return
-            self.logger.info("未找到 mbrola-cn1 语音，pyttsx3 使用默认语音")
+            subprocess.run(
+                [self._player, file_path],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=60,
+            )
         except Exception as e:
-            self.logger.warning(f"选择 mbrola 语音失败（使用默认）: {e}")
+            logger.warning(f"播放音频失败: {e}")
 
-    def _speak_worker(self):
-        while not self._stop_event.is_set():
-            try:
-                text = self._speak_queue.get(timeout=1)
-                if text is None:
-                    break
-                self._speak(text)
-            except queue.Empty:
-                continue
-            except Exception as e:
-                self.logger.error(f"语音 worker 异常: {e}")
-                time.sleep(1)
-
-    def _speak(self, text):
-        """按优先级播报：先 edge-tts，失败或无网则 pyttsx3。
-
-        全程加锁，避免两条播报（如「请把药盒对准摄像头」与扫码识别结果）
-        在同一 worker 线程内对 TTS 引擎的交替调用相互干扰，导致识别结果
-        被静默吞掉（表现为「识别到但没播报」）。任一路失败都会记录到
-        ``last_error`` 并打印明确日志，不再静默丢弃。
-        """
-        with self._speak_lock:
-            self.last_error = None
-            if self._edge_available:
-                try:
-                    self._speak_edge(text)
-                    return
-                except Exception as e:
-                    self.last_error = f"edge-tts: {e}"
-                    self.logger.warning(f"edge-tts 播报失败，转 pyttsx3: {e}")
-            if self._pyttsx_engine:
-                try:
-                    self._pyttsx_engine.say(text)
-                    self._pyttsx_engine.runAndWait()
-                    return
-                except Exception as e:
-                    self.last_error = f"pyttsx3: {e}"
-                    self.logger.error(f"pyttsx3 播报失败: {e}")
-                    try:
-                        self._init_engines()
-                    except Exception:
-                        pass
-            else:
-                # 两个引擎均不可用/失败：明确记录，便于排查为何无声音
-                self.last_error = "无可用语音引擎"
-                self.logger.error(f"语音播报失败（两路引擎均不可用）: {text}")
-
+    # ------------------------------------------------------------------ #
+    # 合成 / 播报
+    # ------------------------------------------------------------------ #
     def _speak_edge(self, text):
-        """使用 edge-tts 合成并播放（需联网）。"""
-        tmp_path = None
+        """edge-tts 在线合成（带本地缓存命中逻辑）。"""
+        if edge_tts is None:
+            logger.warning("edge_tts 未安装，无法在线合成。")
+            return
+
+        key = self._cache_key(text, self._voice, self._rate)
+        cached = self._index_lookup(key)
+        if cached:
+            logger.info(f"TTS 缓存命中，直接播放本地文件: {cached}")
+            self._play_file(cached)
+            return
+
+        tmp = None
         try:
-            fd, tmp_path = tempfile.mkstemp(suffix=".mp3")
-            os.close(fd)
-            communicate = self._edge_tts.Communicate(text, voice=EDGE_TTS_VOICE)
-            asyncio.run(communicate.save(tmp_path))
-            self._play_mp3(tmp_path)
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
+            # 落盘目标：缓存目录内以 cache key 命名的 mp3（便于索引复用）
+            if self._cache_dir:
+                out_file = str(self._cache_dir / f"{key}.mp3")
+            else:
+                import tempfile
+
+                fd, out_file = tempfile.mkstemp(suffix=".mp3")
+                os.close(fd)
+                tmp = out_file
+
+            communicate = edge_tts.Communicate(text, self._voice, rate=self._rate)
+            import asyncio
+
+            asyncio.run(communicate.save(out_file))
+
+            if self._cache_dir:
+                self._index_register(key, out_file)
+                logger.info(f"TTS 合成完成并缓存: {out_file}")
+            self._play_file(out_file)
+        except Exception as e:
+            logger.warning(f"edge-tts 合成失败: {e}")
+            # 异常时尝试离线兜底
+            if self._tts:
                 try:
-                    os.unlink(tmp_path)
+                    self._tts.say(text)
+                    self._tts.runAndWait()
+                except Exception as e2:
+                    logger.warning(f"离线兜底播报也失败: {e2}")
+        finally:
+            # 仅临时文件（未启用缓存）在播放后清理
+            if tmp and os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
                 except Exception:
                     pass
 
-    def _play_mp3(self, path):
-        """用系统中可用的播放器播放 MP3；无可用播放器则抛错触发 pyttsx3 兜底。"""
-        for player, extra in _PLAYER_ARGS.items():
-            exe = shutil.which(player)
-            if exe:
-                try:
-                    subprocess.run(
-                        [exe] + extra + [path],
-                        capture_output=True, text=True, timeout=30,
-                    )
-                    return
-                except Exception as e:
-                    self.logger.warning(f"播放器 {player} 执行失败: {e}")
-                    continue
-        raise RuntimeError("无可用音频播放器（需 mpg123/ffplay/mpv/play 之一）")
-
-    def speak(self, text, volume=None):
-        if not (self._edge_available or self._pyttsx_engine):
-            # 两路引擎均不可用：记录诊断信息（不再静默），便于排查
-            # 「识别到但没播报」等问题；扫码等场景可据此回退到屏幕显示。
-            self.last_error = "无可用语音引擎"
-            self.logger.warning("语音合成不可用（已记录 last_error）")
+    def speak(self, text):
+        """播报文本：离线优先，失败回退 edge-tts 在线合成。"""
+        if not isinstance(text, str) or not text.strip():
+            logger.warning("播报文本为空，已跳过。")
             return
-        # 队列有界，满时丢弃并告警，避免无界增长导致内存溢出
-        try:
-            self._speak_queue.put_nowait(text)
-        except queue.Full:
-            self.last_error = "语音队列已满"
-            self.logger.warning("语音队列已满，丢弃")
-
-    def stop(self):
-        # 先 put 哨兵并 join worker，再置 None，避免竞态
-        self._stop_event.set()
-        try:
-            self._speak_queue.put_nowait(None)
-        except queue.Full:
-            pass
-
-        if hasattr(self, '_worker_thread') and self._worker_thread.is_alive():
-            self._worker_thread.join(timeout=2)
-
-        if self._pyttsx_engine:
+        if self._online:
+            self._speak_edge(text)
+        elif self._tts:
             try:
-                self._pyttsx_engine.stop()
-            except Exception:
-                pass
-            self._pyttsx_engine = None
-        self._edge_tts = None
-        self._edge_available = False
+                self._tts.say(text)
+                self._tts.runAndWait()
+                logger.info(f"离线播报: {text}")
+            except Exception as e:
+                logger.warning(f"离线播报失败，尝试 edge-tts: {e}")
+                self._speak_edge(text)
+        else:
+            logger.warning("语音引擎完全不可用，无法播报。")
 
-        self.logger.info("语音服务已停止")
+    @property
+    def mode(self):
+        """当前语音模式：'offline' / 'online'。"""
+        return "online" if self._online else "offline"

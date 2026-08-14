@@ -40,6 +40,8 @@ elderly_assistant/data/device_id.txt
 elderly_assistant/data/device_token.txt
 elderly_assistant/data/schedules.json
 elderly_assistant/data/captures/
+# edge-tts 合成文件本地缓存（索引 + mp3，运行期生成，禁止入库）
+elderly_assistant/data/tts_cache/
 *.db
 *.db*
 
@@ -75,3 +77,4 @@ htmlcov/
 *.Z
 *.lz
 *.lzo
+_*

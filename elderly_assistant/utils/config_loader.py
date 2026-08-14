@@ -66,6 +66,14 @@ DEFAULT_CONFIG = {
         "usb_index": 0,
         "timeout_sec": 8.0,
     },
+    "audio": {
+        "edge_tts_voice": "zh-CN-XiaoxiaoNeural",
+        "edge_tts_rate": "+0%",
+        # 播放器探测优先级（逗号分隔字符串）；找不到时由 Speech 自动安装 mpg123（Linux）
+        "player_precedence": ["mpg123", "ffplay", "mpv", "play"],
+        # edge-tts 合成文件本地缓存目录（相对 BASE_DIR 或绝对路径）；支持索引复用避免重复合成
+        "tts_cache_dir": "data/tts_cache",
+    },
 }
 
 # 扁平 .env 键 → (嵌套分组, 嵌套键, 类型) 映射；唯一事实来源
@@ -89,6 +97,11 @@ _ENV_LEAVES = [
     ("SCAN_SOURCE", "scan", "source", str),
     ("SCAN_USB_INDEX", "scan", "usb_index", int),
     ("SCAN_TIMEOUT_SEC", "scan", "timeout_sec", float),
+    # audio 分组：edge-tts 音色 / 语速 / 播放器优先级 / 本地缓存目录
+    ("EDGE_TTS_VOICE", "audio", "edge_tts_voice", str),
+    ("EDGE_TTS_RATE", "audio", "edge_tts_rate", str),
+    ("PLAYER_PRECEDENCE", "audio", "player_precedence", str),
+    ("TTS_CACHE_DIR", "audio", "tts_cache_dir", str),
 ]
 
 # .env 模板（首运行自动生成）
@@ -122,7 +135,15 @@ _ENV_TEMPLATE = (
     "# SCAN_SOURCE: auto=优先 HuskyLens 板载解码并回退 USB；可选 huskylens / usb\n"
     "SCAN_SOURCE=auto\n"
     "SCAN_USB_INDEX=0\n"
-    "SCAN_TIMEOUT_SEC=8\n"
+    "SCAN_TIMEOUT_SEC=8\n\n"
+    "# ===== 音频 / 语音 =====\n"
+    "# EDGE_TTS_VOICE: edge-tts 音色；EDGE_TTS_RATE: 语速（+0% 正常，+50% 加快，-30% 放慢）\n"
+    "EDGE_TTS_VOICE=zh-CN-XiaoxiaoNeural\n"
+    "EDGE_TTS_RATE=+0%\n"
+    "# PLAYER_PRECEDENCE: 播放器探测优先级（逗号分隔）；Linux 端检测不到时自动 apt 安装 mpg123\n"
+    "PLAYER_PRECEDENCE=mpg123,ffplay,mpv,play\n"
+    "# TTS_CACHE_DIR: edge-tts 合成文件本地缓存目录（相对 BASE_DIR 或绝对路径）；命中索引直接播放\n"
+    "TTS_CACHE_DIR=data/tts_cache\n"
 )
 
 
@@ -179,6 +200,10 @@ def load_config(config_path=ENV_PATH):
     for env_key, group, key, typ in _ENV_LEAVES:
         raw = os.getenv(env_key)
         if raw is None or raw.strip() == "":
+            continue
+        # 列表型字段（如 player_precedence）：.env 中以逗号分隔存储，还原为列表
+        if isinstance(config[group][key], list) and typ is str:
+            config[group][key] = [p.strip() for p in raw.split(",") if p.strip()]
             continue
         if typ is int:
             # 整数转换失败时保留默认值，避免崩溃

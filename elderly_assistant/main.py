@@ -271,10 +271,12 @@ def main():
     buzzer = Buzzer(config)
 
     # 3.1 初始化语音播报（TTS，缺失环境静默降级）
+    #     传入 config：启用 edge-tts 本地缓存（data/tts_cache + index.json），
+    #     并在检测不到播放器时自动安装 mpg123（Linux/M10）。
     speech = None
     try:
         from services.speech import Speech
-        speech = Speech()
+        speech = Speech(config)
     except Exception as e:
         logger.warning(f"语音播报初始化失败，已降级: {e}")
 
