@@ -309,8 +309,9 @@ class TestScheduleTypeValidation(unittest.TestCase):
         return _ValidationClient()
 
     def _patch_get(self, status_code, data):
-        # requests 为已安装顶层包，直接打桩 requests.get（避免替换模块属性引发的串扰）
-        patcher = mock.patch("requests.get", return_value=_FakeResp(status_code, data))
+        # HTTPClient._request 统一走 requests.request，故打桩 requests.request
+        # （避免替换模块属性引发的串扰）
+        patcher = mock.patch("requests.request", return_value=_FakeResp(status_code, data))
         patcher.start()
         self.addCleanup(patcher.stop)
         return patcher
