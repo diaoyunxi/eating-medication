@@ -10,6 +10,10 @@
                     <div class="chat-status-dot" id="statusDot"></div>
                     <span class="chat-status-text" id="statusText">连接中...</span>
                 </div>
+                <div class="chat-status" id="chatWsStatus" title="聊天连接状态">
+                    <div class="chat-status-dot" id="wsDot"></div>
+                    <span class="chat-status-text" id="wsText">聊天连接中...</span>
+                </div>
             </div>
             <div class="chat-header-divider"></div>
         </div>
@@ -44,6 +48,8 @@
         const sendBtn = document.getElementById('sendBtn');
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
+        const wsDot = document.getElementById('wsDot');
+        const wsText = document.getElementById('wsText');
         const emptyEl = document.getElementById('empty');
         let ws = null;
         let reconnectTimer = null;
@@ -55,14 +61,34 @@
         const wsProto = elderlyUrl.startsWith('https') ? 'wss:' : 'ws:';
         const serverUrl = elderlyUrl.replace(/^https?:\/\//, '');
 
+        // 设备在线状态（与设置页等保持一致，来源于 /status 轮询，反映老人端真实在线状态）
+        function refreshDeviceStatus() {
+            fetch('{{ prefix }}/status')
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (!data || data.connected === undefined) return;
+                    if (data.connected) {
+                        statusDot.classList.add('connected');
+                        statusText.textContent = data.device_name ? '设备在线 · ' + data.device_name : '设备在线';
+                    } else {
+                        statusDot.classList.remove('connected');
+                        statusText.textContent = data.device_name ? '设备离线 · ' + data.device_name : '设备离线';
+                    }
+                })
+                .catch(() => {
+                    statusDot.classList.remove('connected');
+                    statusText.textContent = '设备离线';
+                });
+        }
+
         function initWS() {
             // 安全修复（低危12）：cookie 名从 session_token 改为 access_token
             const accessToken = getCookie('access_token');
             const url = `${wsProto}//${serverUrl}/api/v1/chat/ws/${encodeURIComponent(currentUserId || 0)}?token=${encodeURIComponent(accessToken)}`;
             ws = new WebSocket(url);
             ws.onopen = () => {
-                statusDot.classList.add('connected');
-                statusText.textContent = '已连接';
+                wsDot.classList.add('connected');
+                wsText.textContent = '聊天已连接';
                 sendBtn.disabled = false;
                 if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
             };
@@ -74,10 +100,10 @@
                     }
                 } catch(err) { console.error(err); }
             };
-            ws.onerror = () => { statusDot.classList.remove('connected'); statusText.textContent = '连接错误'; sendBtn.disabled = true; };
+            ws.onerror = () => { wsDot.classList.remove('connected'); wsText.textContent = '聊天连接错误'; sendBtn.disabled = true; };
             ws.onclose = () => {
-                statusDot.classList.remove('connected');
-                statusText.textContent = '已断开';
+                wsDot.classList.remove('connected');
+                wsText.textContent = '聊天已断开';
                 sendBtn.disabled = true;
                 if (!reconnectTimer) reconnectTimer = setTimeout(initWS, 5000);
             };
@@ -137,7 +163,9 @@
 
         sendBtn.addEventListener('click', sendMsg);
         inputEl.addEventListener('keypress', e => { if (e.key === 'Enter') sendMsg(); });
-        window.addEventListener('load', () => { loadHistory(); initWS(); });
+        window.addEventListener('load', () => { loadHistory(); initWS(); refreshDeviceStatus(); });
+        // 与设置页保持一致，每 15 秒轮询一次设备在线状态
+        setInterval(refreshDeviceStatus, 15000);
     </script>
 
     <!-- 导航栏用户菜单（移动端头像下拉） -->
