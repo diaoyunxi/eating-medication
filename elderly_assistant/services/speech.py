@@ -70,34 +70,47 @@ class Speech:
             self.logger.info(f"edge-tts 不可用，将使用 pyttsx3 离线播报: {e}")
 
         # 2. pyttsx3 离线兜底（优先 mbrola-cn1 中文语音）
+        # 注意：语音选择（setProperty('voice')）在某些后端（如 Windows SAPI5
+        # 或 espeak-mbrola 未正确安装）可能抛 SetVoiceByName 错误（-1），
+        # 该失败只影响"选哪个语音"，不应连累引擎本身初始化。因此将
+        # init / volume / rate 与 语音选择 分两段 try，确保默认语音可用时
+        # 离线引擎仍可被使用（见 issue #42）。
         try:
             import pyttsx3
             eng = pyttsx3.init()
             eng.setProperty('volume', 0.9)
             eng.setProperty('rate', 150)
-            self._select_mbrola_voice(eng)
             self._pyttsx_engine = eng
             self.logger.info("pyttsx3 TTS 引擎初始化成功（离线兜底）")
         except Exception as e:
             self._pyttsx_engine = None
             self.logger.warning(f"pyttsx3 初始化失败: {e}")
+            return
+
+        # 引擎已就绪，再尝试优选中文语音；失败仅退回默认语音，不中断服务
+        try:
+            self._select_mbrola_voice(eng)
+        except Exception as e:
+            self.logger.warning(f"pyttsx3 语音选择失败（使用默认语音）: {e}")
 
     def _select_mbrola_voice(self, eng):
         """在 pyttsx3 语音列表中优先选用 mbrola 中文语音（mbrola-cn1）。
 
-        espeak 启用 mbrola 后，语音 id 形如 `mbrola/cn1`；缺失时退回默认语音。
+        espeak 启用 mbrola 后，语音 id 形如 `mbrola/cn1`；缺失或
+        setProperty('voice') 在部分后端失败（如 issue #42 的 SetVoiceByName
+        -1）时退回默认语音，不向上抛出异常，保证引擎仍可用。
         """
-        try:
-            voices = eng.getProperty('voices') or []
-            for v in voices:
-                vid = (getattr(v, 'id', '') or '').lower()
-                if 'mbrola' in vid and 'cn' in vid:
+        voices = eng.getProperty('voices') or []
+        for v in voices:
+            vid = (getattr(v, 'id', '') or '').lower()
+            if 'mbrola' in vid and 'cn' in vid:
+                try:
                     eng.setProperty('voice', v.id)
                     self.logger.info(f"已选用 mbrola 中文语音: {vid}")
-                    return
-            self.logger.info("未找到 mbrola-cn1 语音，pyttsx3 使用默认语音")
-        except Exception as e:
-            self.logger.warning(f"选择 mbrola 语音失败（使用默认）: {e}")
+                except Exception as e:
+                    self.logger.warning(f"设置 mbrola 语音失败（使用默认）: {e}")
+                return
+        self.logger.info("未找到 mbrola-cn1 语音，pyttsx3 使用默认语音")
 
     def _speak_worker(self):
         while not self._stop_event.is_set():
