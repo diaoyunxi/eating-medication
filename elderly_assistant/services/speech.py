@@ -42,6 +42,12 @@ class Speech:
         self._edge_tts = None
         self._edge_available = False
         self._pyttsx_engine = None
+        # 播报串行锁：_speak 可能被多个调用方经队列串行触发，但回调/线程边界
+        # 不保证原子；加锁避免 edge-tts(asyncio.run) 与 pyttsx3(runAndWait)
+        # 在同一播放线程内交错导致引擎状态混乱或某条播报被吞。
+        self._speak_lock = threading.Lock()
+        # 最近一次播报失败原因，便于外部诊断（如「识别到但没播报」排查）
+        self.last_error = None
 
         self._init_engines()
 
@@ -107,24 +113,38 @@ class Speech:
                 time.sleep(1)
 
     def _speak(self, text):
-        """按优先级播报：先 edge-tts，失败或无网则 pyttsx3。"""
-        if self._edge_available:
-            try:
-                self._speak_edge(text)
-                return
-            except Exception as e:
-                self.logger.warning(f"edge-tts 播报失败，转 pyttsx3: {e}")
-        if self._pyttsx_engine:
-            try:
-                self._pyttsx_engine.say(text)
-                self._pyttsx_engine.runAndWait()
-                return
-            except Exception as e:
-                self.logger.error(f"pyttsx3 播报失败: {e}")
+        """按优先级播报：先 edge-tts，失败或无网则 pyttsx3。
+
+        全程加锁，避免两条播报（如「请把药盒对准摄像头」与扫码识别结果）
+        在同一 worker 线程内对 TTS 引擎的交替调用相互干扰，导致识别结果
+        被静默吞掉（表现为「识别到但没播报」）。任一路失败都会记录到
+        ``last_error`` 并打印明确日志，不再静默丢弃。
+        """
+        with self._speak_lock:
+            self.last_error = None
+            if self._edge_available:
                 try:
-                    self._init_engines()
-                except Exception:
-                    pass
+                    self._speak_edge(text)
+                    return
+                except Exception as e:
+                    self.last_error = f"edge-tts: {e}"
+                    self.logger.warning(f"edge-tts 播报失败，转 pyttsx3: {e}")
+            if self._pyttsx_engine:
+                try:
+                    self._pyttsx_engine.say(text)
+                    self._pyttsx_engine.runAndWait()
+                    return
+                except Exception as e:
+                    self.last_error = f"pyttsx3: {e}"
+                    self.logger.error(f"pyttsx3 播报失败: {e}")
+                    try:
+                        self._init_engines()
+                    except Exception:
+                        pass
+            else:
+                # 两个引擎均不可用/失败：明确记录，便于排查为何无声音
+                self.last_error = "无可用语音引擎"
+                self.logger.error(f"语音播报失败（两路引擎均不可用）: {text}")
 
     def _speak_edge(self, text):
         """使用 edge-tts 合成并播放（需联网）。"""
@@ -160,12 +180,16 @@ class Speech:
 
     def speak(self, text, volume=None):
         if not (self._edge_available or self._pyttsx_engine):
-            self.logger.warning("语音合成不可用")
+            # 两路引擎均不可用：记录诊断信息（不再静默），便于排查
+            # 「识别到但没播报」等问题；扫码等场景可据此回退到屏幕显示。
+            self.last_error = "无可用语音引擎"
+            self.logger.warning("语音合成不可用（已记录 last_error）")
             return
         # 队列有界，满时丢弃并告警，避免无界增长导致内存溢出
         try:
             self._speak_queue.put_nowait(text)
         except queue.Full:
+            self.last_error = "语音队列已满"
             self.logger.warning("语音队列已满，丢弃")
 
     def stop(self):
