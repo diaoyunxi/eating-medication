@@ -93,8 +93,9 @@ class FakeClient:
         return [{"plan_id": 1}]
 
     async def list_elderly(self):
+        # 字段名需与服务端 ElderlyOut 一致（has_device），旧的 is_device_owner 已废弃
         return [{"id": 1, "name": "测试老人", "husky_face_id": None,
-                 "is_device_owner": False}]
+                 "has_device": False}]
 
     async def get_chat_history(self, limit=50):
         self.calls.append(("get_chat_history", limit))

@@ -3,6 +3,33 @@
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
 > 条目按版本号倒序（最新在前）。
 
+## v2.41.7 (2026-08-14) — 修复网页端老人管理「设备主体老人」无法设置人脸 ID（issue #35）
+
+### 概述
+
+网页「老人管理」页中，绑定了设备的老人（设备主体，列表显示「📱 本机设备」）**没有人脸 ID 输入框与保存按钮**，导致该老人的二哈人脸 ID 永远无法保存。
+
+### 根因
+
+`family_monitor/templates/elderly_manage.html` 中，人脸 ID 编辑区与删除按钮被放在**同一个** `{% if not e.has_device %}` 分支内。该条件本意只针对「设备主体不可删除」，却把人脸 ID 输入框一并隐藏。
+
+后端链路（`/elderly/face_id/{user_id}` → `/api/v1/users/elderly/{user_id}/face_id` → `UserService.set_husky_face_id`）本身完全正常，且服务端对人脸 ID 接口**没有** `device_id` 限制，即设备主体老人本就允许设置人脸 ID，纯属前端模板渲染条件写错。
+
+### 影响
+
+设备主体老人是最常见的用药对象。服药前身份核验在 `husky_face_id` 为 `None` 时会直接拒绝确认并播报「请在二哈上录入人脸后于网页填写人脸ID」（见 `elderly_assistant/workflow/actions.py` 的 `_verify_elderly_identity`），而网页又无处可填，形成**死锁**：该老人无法完成任何一次服药确认。
+
+### 修复
+
+将人脸 ID 编辑区移出 `{% if not e.has_device %}`，对所有老人渲染；删除按钮仍保留原有的设备主体限制（「设备主体不可删除」提示不变）。
+
+### 附带修正
+
+- `tests/test_family_routes_pages.py` 中 `list_elderly` 桩数据字段名 `is_device_owner` 与服务端 `ElderlyOut` 的 `has_device` 不一致，已更正，避免掩盖同类问题。
+- 新增 `tests/test_elderly_manage_template.py`：渲染真实模板，覆盖设备主体/普通老人的人脸 ID 输入框与删除按钮显示条件（已验证回退修复后该用例失败）。
+
+---
+
 ## v2.38.7 (2026-08-12) — 修复 LoggingMiddleware 消费请求体流导致生产环境所有 POST 返回 400（载入史册级 Bug）
 
 ### 概述
