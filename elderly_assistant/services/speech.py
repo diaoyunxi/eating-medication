@@ -119,32 +119,43 @@ class Speech:
         在同一 worker 线程内对 TTS 引擎的交替调用相互干扰，导致识别结果
         被静默吞掉（表现为「识别到但没播报」）。任一路失败都会记录到
         ``last_error`` 并打印明确日志，不再静默丢弃。
+
+        播报期间通过板载功放静音控制器临时解除静音（修复 #34：待机电流声），
+        播报结束后立即恢复静音，避免静默期功放持续通电产生电流声。
         """
+        from hardware.board import get_audio_amp
+        amp = get_audio_amp()
         with self._speak_lock:
             self.last_error = None
-            if self._edge_available:
-                try:
-                    self._speak_edge(text)
-                    return
-                except Exception as e:
-                    self.last_error = f"edge-tts: {e}"
-                    self.logger.warning(f"edge-tts 播报失败，转 pyttsx3: {e}")
-            if self._pyttsx_engine:
-                try:
-                    self._pyttsx_engine.say(text)
-                    self._pyttsx_engine.runAndWait()
-                    return
-                except Exception as e:
-                    self.last_error = f"pyttsx3: {e}"
-                    self.logger.error(f"pyttsx3 播报失败: {e}")
+            # 进入播放：解除功放静音（非 M10 环境自动降级无操作）
+            amp.unmute()
+            try:
+                if self._edge_available:
                     try:
-                        self._init_engines()
-                    except Exception:
-                        pass
-            else:
-                # 两个引擎均不可用/失败：明确记录，便于排查为何无声音
-                self.last_error = "无可用语音引擎"
-                self.logger.error(f"语音播报失败（两路引擎均不可用）: {text}")
+                        self._speak_edge(text)
+                        return
+                    except Exception as e:
+                        self.last_error = f"edge-tts: {e}"
+                        self.logger.warning(f"edge-tts 播报失败，转 pyttsx3: {e}")
+                if self._pyttsx_engine:
+                    try:
+                        self._pyttsx_engine.say(text)
+                        self._pyttsx_engine.runAndWait()
+                        return
+                    except Exception as e:
+                        self.last_error = f"pyttsx3: {e}"
+                        self.logger.error(f"pyttsx3 播报失败: {e}")
+                        try:
+                            self._init_engines()
+                        except Exception:
+                            pass
+                else:
+                    # 两个引擎均不可用/失败：明确记录，便于排查为何无声音
+                    self.last_error = "无可用语音引擎"
+                    self.logger.error(f"语音播报失败（两路引擎均不可用）: {text}")
+            finally:
+                # 无论成功与否，播放结束立即恢复功放静音
+                amp.mute()
 
     def _speak_edge(self, text):
         """使用 edge-tts 合成并播放（需联网）。"""
