@@ -32,5 +32,4 @@ def get_device_id():
         logger.warning("未能读取网卡 MAC 地址，设备 ID 不可用")
         return None
     device_id = str(mac)
-    logger.info(f"设备 ID（网卡 MAC 整数值）: {device_id}")
     return device_id
