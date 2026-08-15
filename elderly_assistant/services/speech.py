@@ -228,6 +228,10 @@ class Speech:
                     # 两个引擎均不可用/失败：明确记录，便于排查为何无声音
                     self.last_error = "无可用语音引擎"
                     self.logger.error(f"语音播报失败（两路引擎均不可用）: {text}")
+            except Exception as e:
+                # 兜底：任何意外异常都不应导致调用方崩溃，仅记录便于排查
+                self.last_error = f"unexpected: {e}"
+                self.logger.error(f"语音播报未预期异常: {e}")
 
     def _speak_edge(self, text):
         """使用 edge-tts 合成并播放（需联网）。
