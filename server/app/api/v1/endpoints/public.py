@@ -100,6 +100,7 @@ async def register_device(
 @router.post("/device/offline")
 async def device_offline(
     req: DeviceOffline,
+    request: Request,
     db: Session = Depends(get_db),
     device_token: Optional[str] = Header(None, alias="X-Device-Token"),
 ):
@@ -107,24 +108,24 @@ async def device_offline(
 
     设备正常退出（SIGINT/SIGTERM/进程关闭）时调用，将 last_heartbeat_at 置为很早的时间，
     使 is_online 立即为 false，避免子女端在心跳超时窗口内看到虚假的"在线"状态。
-    注意：掉电/SIGKILL 等异常退出仍需依赖心跳超时判定。
+    注意：掉电/SIGKILL 等异常退出仍依赖心跳超时判定。
 
-    本端点针对「设备下线」这一尽力而为的清理操作做令牌降级处理：若设备尚未
-    初始化令牌（通常是设备端本地令牌文件丢失，导致下线请求未携带 X-Device-Token
-    而被 403 拒绝），服务端会按 device_id 定位用户并重新签发令牌返回，使设备端
-    可持久化该令牌、后续需鉴权的请求恢复正常。已初始化令牌但缺失/不匹配的
-    请求仍返回 403，以防伪造。
+    安全模型（修复 issue #43）：本端点为低敏感的「尽力而为」清理操作，对「设备本地
+    令牌丢失」做降级——用户存在时（无论是否持有令牌）仍允许标记离线；但本端点
+    **绝不返回设备令牌**（令牌恢复由 /device/register 或家属重新绑定负责），仅在
+    「已初始化令牌且不匹配」时才返回 403 防伪造。接口附加 IP 限流，减缓 device_id
+    可枚举（MAC 派生）带来的枚举风险。
     """
+    client_ip = get_client_ip(request)
+    if not check_rate_limit(f"device_offline:{client_ip}", 30):
+        raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
     user, issued_token = await run_in_threadpool(
         DeviceService.get_device_user_for_offline, db, req.device_id, device_token
     )
     if user is None:
-        raise HTTPException(status_code=403, detail="设备未授权（令牌缺失或无效）")
+        raise HTTPException(status_code=403, detail="设备未授权（令牌无效）")
     await run_in_threadpool(DeviceService.mark_offline, db, user)
-    resp = {"status": "ok"}
-    if issued_token:
-        resp["device_token"] = issued_token
-    return resp
+    return {"status": "ok"}
 
 
 @router.post("/device/message")

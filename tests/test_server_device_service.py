@@ -173,16 +173,29 @@ def test_get_device_user_for_offline_token_match_ok():
     assert issued is None
 
 
-def test_get_device_user_for_offline_reissue_when_no_token():
+def test_get_device_user_for_offline_no_token_falls_back_to_offline():
     db = _make_session()
-    # 设备已注册但本地未持有令牌（user.device_token 为空）：下线请求无令牌，
-    # 服务端应定位用户并重新签发令牌返回（修复 403 问题）
+    # 设备已注册但本地未持有令牌（user.device_token 为空）：下线仍应成功（降级），
+    # 但服务端**不再签发令牌**（修复未授权令牌泄露），issued 必须为 None；
+    # 令牌恢复由 /device/register 或家属重新绑定负责。
     u = User(username="e", device_id="NOTOKENDEV0001", role="elderly", device_token=None)
     db.add(u)
     db.commit()
     user, issued = DeviceService.get_device_user_for_offline(db, "NOTOKENDEV0001", None)
     assert user is not None and user.id == u.id
-    assert issued is not None and issued == user.device_token
+    assert issued is None
+    # 安全：服务端不得改写/生成设备令牌
+    assert user.device_token is None
+
+
+def test_get_device_user_for_offline_token_mismatch_rejected():
+    db = _make_session()
+    # 已初始化令牌但请求令牌错误：必须拒绝（防伪造），且不重新签发
+    u = User(username="e", device_id="TOKENDEV00003", role="elderly", device_token="tok-real")
+    db.add(u)
+    db.commit()
+    user, issued = DeviceService.get_device_user_for_offline(db, "TOKENDEV00003", "tok-fake")
+    assert user is None and issued is None
 
 
 def test_compute_status_online_offline():
