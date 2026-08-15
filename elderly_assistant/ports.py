@@ -64,6 +64,14 @@ class DisplayPort(Protocol):
     def set_scan_handler(self, handler) -> None:
         ...
 
+    def show_barcode(self, code: str, duration: float = 10.0) -> None:
+        """在屏幕上临时展示条码识别内容（duration 秒后由 update_barcode 自动清除）。"""
+        ...
+
+    def update_barcode(self) -> None:
+        """主循环调用：绘制未过期的条码内容，过期则清除。"""
+        ...
+
 
 @runtime_checkable
 class LedPort(Protocol):

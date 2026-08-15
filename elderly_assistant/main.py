@@ -378,7 +378,8 @@ def main():
         def _run_scan():
             try:
                 handle_scan_medication(
-                    scanner, poller, speech, logger, timeout=scan_timeout
+                    scanner, poller, speech, logger, timeout=scan_timeout,
+                    display=display,
                 )
             finally:
                 _scan_task_lock.release()
@@ -471,6 +472,13 @@ def main():
                     led.write_digital(1 if server_connected else 0)
                 except Exception:
                     pass
+
+            # ---- 每帧刷新扫码结果临时展示（10 秒后自动清除）----
+            if display is not None:
+                try:
+                    display.update_barcode()
+                except Exception as e:
+                    logger.warning(f"刷新扫码展示失败: {e}")
 
             # 主循环休眠，降低 CPU 占用
             time.sleep(0.1)

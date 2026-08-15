@@ -5,6 +5,7 @@
 所有 pinpong / unihiker 库的导入放在 try-except 中，在非 M10 环境下优雅降级
 """
 import logging
+import time
 from datetime import datetime
 
 logger = logging.getLogger("ElderlyAssistant")
@@ -40,6 +41,9 @@ class Display:
         self._reminder_dosage_text = None  # 当前用药剂量
         self._hint_text = None          # 提示信息（如配网模式）
         self._scan_button = None        # 「扫码查药」触摸按钮
+        self._barcode_text = None        # 扫码结果临时展示文本控件
+        self._barcode_content = ""       # 待展示的条码内容
+        self._barcode_expire = 0.0       # 条码内容自动清除的过期时刻（monotonic 秒）
         # 提醒界面「确认服药 / 问AI注意事项」两个屏幕触摸按钮（替代原物理按键 A/B）
         self._confirm_button = None
         self._ai_button = None
@@ -151,6 +155,7 @@ class Display:
         try:
             self.gui.clear()
             self._in_reminder = False
+            self._barcode_text = None
 
             now = datetime.now()
             time_str = now.strftime("%H:%M")
@@ -262,6 +267,8 @@ class Display:
                 self._in_reminder = True
                 # 清屏会销毁主界面控件，重置扫码按钮引用避免悬空
                 self._scan_button = None
+                # 切到提醒界面时清除临时条码展示
+                self._barcode_text = None
                 # 保留时间在顶部小字
                 now = datetime.now()
                 self._time_text = self.gui.draw_text(
@@ -364,6 +371,7 @@ class Display:
             self._scan_button = None
             self._confirm_button = None
             self._ai_button = None
+            self._barcode_text = None
             self._in_reminder = False
             self.show_main_screen()
         except Exception as e:
@@ -384,6 +392,7 @@ class Display:
             self._scan_button = None
             self._confirm_button = None
             self._ai_button = None
+            self._barcode_text = None
 
             self.gui.draw_text(
                 x=self.CENTER_X, y=100,
@@ -496,6 +505,63 @@ class Display:
             self._scan_button = None
             self._confirm_button = None
             self._ai_button = None
+            self._barcode_text = None
             self._in_reminder = False
         except Exception as e:
             logger.error(f"清空屏幕失败: {e}")
+
+    # ---------------- 条码识别结果临时展示 ----------------
+
+    # 主界面中部用于展示扫码结果的区域（避开时间 110、日期 160、下次提醒 210）
+    BARCODE_TEXT_Y = 185
+    BARCODE_TEXT_SIZE = 16
+    BARCODE_TEXT_COLOR = '#2E8B57'     # 醒目绿色，区别于时间蓝色与提醒红色
+    BARCODE_MAX_LEN = 22               # 单行最大字符数，超出截断避免横向溢出
+
+    def show_barcode(self, code, duration=10.0):
+        """请求在屏幕上临时展示条码识别内容。
+
+        本方法仅记录待展示内容与过期时刻，真正绘制由主循环调用 :meth:`update_barcode`
+        在主线程完成（unihiker GUI 控件禁止跨线程操作）。
+
+        :param code: 识别到的条码内容（字符串）
+        :param duration: 展示时长（秒），默认 10 秒后自动清除
+        """
+        if not code:
+            return
+        self._barcode_content = str(code)[: self.BARCODE_MAX_LEN]
+        self._barcode_expire = time.monotonic() + float(duration)
+        logger.info(f"请求展示条码: {self._barcode_content}（{duration}s 后清除）")
+
+    def update_barcode(self):
+        """主循环每秒调用：绘制未过期的条码内容，过期则清除。
+
+        仅主界面（非提醒界面）展示，避免遮挡用药提醒。
+        """
+        if not self.gui:
+            return
+        now = time.monotonic()
+        # 已过期：清除残留展示
+        if self._barcode_expire and now >= self._barcode_expire:
+            if self._barcode_text is not None:
+                try:
+                    self._barcode_text.config(text='')
+                except Exception:
+                    pass
+                self._barcode_text = None
+            self._barcode_content = ''
+            self._barcode_expire = 0.0
+            return
+        # 有未过期内容且处于主界面：绘制（提醒界面由 show_reminder 已清引用，不展示）
+        if self._barcode_content and not self._in_reminder:
+            if self._barcode_text is None:
+                self._barcode_text = self.gui.draw_text(
+                    x=self.CENTER_X, y=self.BARCODE_TEXT_Y,
+                    text=self._barcode_content, font_size=self.BARCODE_TEXT_SIZE,
+                    color=self.BARCODE_TEXT_COLOR, origin='center'
+                )
+            else:
+                try:
+                    self._barcode_text.config(text=self._barcode_content)
+                except Exception:
+                    pass

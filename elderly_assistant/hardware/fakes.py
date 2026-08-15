@@ -71,6 +71,13 @@ class FakeDisplay:
     def set_scan_handler(self, handler) -> None:
         self.scan_handler = handler
 
+    def show_barcode(self, code: str, duration: float = 10.0) -> None:
+        self.barcode_shown = code
+        self.barcode_count = getattr(self, "barcode_count", 0) + 1
+
+    def update_barcode(self) -> None:
+        pass
+
 
 class FakeBarcodeScanner:
     """条码扫描器替身，按预设队列依次返回扫码结果，满足 BarcodeScannerPort 接口。"""

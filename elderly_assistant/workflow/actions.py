@@ -176,19 +176,20 @@ def find_plan_by_product_code(schedules, code):
     return None
 
 
-def handle_scan_medication(scanner, poller, speech, logger, timeout=None):
+def handle_scan_medication(scanner, poller, speech, logger, timeout=None, display=None):
     """扫描药品条码并语音播报药品名称与用量。
 
     流程：扫码取得药品编号 -> 在当前用药计划（有网走网络、断网走本地缓存，
     均由 MedicationPoller 统一维护）中按 product_code 匹配 -> TTS 播报
     「药品名 + 用量 + 服药时间」；未识别或未匹配时播报对应提示。
 
-    scanner / poller / speech 均由调用方注入，本函数不直接依赖硬件，便于单测。
+    scanner / poller / speech / display 均由调用方注入，本函数不直接依赖硬件，便于单测。
 
     :param scanner: 满足 ports.BarcodeScannerPort 的扫码器，可为 None（降级提示）
     :param poller: 提供 schedules 属性的用药计划持有者
     :param speech: TTS 服务，可为 None（仅记录日志）
     :param timeout: 单次扫码超时秒数，None 表示使用扫码器默认值
+    :param display: 屏幕显示（DisplayPort 实现），可为 None；识别到条码时在屏幕临时展示内容
     :return: 匹配到的计划 dict；未识别/未匹配返回 None
     """
 
@@ -218,6 +219,10 @@ def handle_scan_medication(scanner, poller, speech, logger, timeout=None):
             return None
         logger.info(f"扫码识别到药品编号: {code}")
 
+        # 识别到条码：在屏幕上临时展示内容（编号），10 秒后自动清除
+        if display is not None and hasattr(display, "show_barcode"):
+            display.show_barcode(code)
+
         plan = find_plan_by_product_code(getattr(poller, "schedules", None), code)
         if plan is None:
             _speak("没有找到这个药品的用药信息，请让家人在手机上添加")
@@ -230,6 +235,9 @@ def handle_scan_medication(scanner, poller, speech, logger, timeout=None):
         if scheduled_time:
             text += f"，服药时间{scheduled_time}"
         _speak(text)
+        # 匹配到药品时把药名也展示在屏幕上（覆盖纯编号，更直观）
+        if display is not None and hasattr(display, "show_barcode"):
+            display.show_barcode(f"{drug_name} {code}")
         return plan
     except Exception as e:
         logger.error(f"扫码查询药品异常: {e}")
