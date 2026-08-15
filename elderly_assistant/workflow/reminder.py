@@ -241,9 +241,10 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, logge
             else:
                 # 补触发：计划时间已过去（当天）但未超过宽限窗口，避免轮询延迟漏提醒
                 try:
-                    sched_sec = datetime.strptime(t, "%H:%M")
-                    now_sec = datetime.strptime(now_hm, "%H:%M")
-                    delta = (now_sec - sched_sec).total_seconds()
+                    # CodeRabbit 修复：用真实当前时间 now（含秒）计算补触发窗口，
+                    # 而非仅比较 HH:MM 字符串，避免跨分钟边界误差导致漏/误触发。
+                    sched_dt = datetime.strptime(f"{today} {t}", "%Y-%m-%d %H:%M")
+                    delta = (now - sched_dt).total_seconds()
                     if 0 < delta <= CATCHUP_GRACE_SECONDS:
                         logger.info(f"补触发已过用药提醒(轮询延迟): {t}（距今 {int(delta)} 秒）")
                     else:
@@ -268,6 +269,10 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, logge
             })
 
         if matched_reminders:
+            # CodeRabbit 修复：触发前记录每个原始计划 key，确保同一药品只触发一次，
+            # 避免合并复合提醒时漏判导致重复触发。
+            for m in matched_reminders:
+                reminder_state.fired_keys.add(m["key"])
             # 合并所有同一时间的提醒为一条复合消息
             if len(matched_reminders) == 1:
                 m = matched_reminders[0]
