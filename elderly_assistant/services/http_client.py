@@ -89,7 +89,10 @@ class HTTPClient:
         若不重载，将一直携带空/旧 X-Device-Token，导致鉴权端点永久返回 403。
         """
         token = _load_device_token()
-        if token and token != self.device_token:
+        if token is None:
+            # 本地已无有效令牌：清除内存中可能失效的令牌，避免携带失效令牌持续 403
+            self.device_token = None
+        elif token != self.device_token:
             logger.info("从本地文件重新加载 device_token（覆盖内存中过期的令牌）")
             self.device_token = token
         return self.device_token
