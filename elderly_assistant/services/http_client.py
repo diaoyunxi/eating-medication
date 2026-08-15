@@ -5,6 +5,7 @@ HTTP 客户端模块
 通过 device_id + device_token 标识和认证设备
 """
 import logging
+import math
 import os
 import time
 from datetime import datetime
@@ -91,7 +92,8 @@ class HTTPClient:
             cfg_hb_timeout = float(cfg_hb_timeout)
         except (TypeError, ValueError):
             cfg_hb_timeout = HEARTBEAT_TIMEOUT
-        self.heartbeat_timeout = cfg_hb_timeout if cfg_hb_timeout > 0 else HEARTBEAT_TIMEOUT
+        # 使用 math.isfinite 拒绝所有非有限值（inf/-inf/nan/非数值），仅保存大于零且有限的超时
+        self.heartbeat_timeout = cfg_hb_timeout if (math.isfinite(cfg_hb_timeout) and cfg_hb_timeout > 0) else HEARTBEAT_TIMEOUT
         self.device_id = get_device_id()
         # 加载持久化的 device_token（可能为 None，运行时按需从文件重新读取）
         self.device_token = _load_device_token()
@@ -218,7 +220,6 @@ class HTTPClient:
         避免单次网络抖动被误判为「服务端连接失败」（#38）。
         """
         try:
-<<<<<<< HEAD
             resp = self._request("GET", f"{self.base_url}/health", timeout=self.heartbeat_timeout,
                                   headers=self._headers(), log_level=logging.DEBUG)
             connected = resp.status_code == 200
