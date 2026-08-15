@@ -62,11 +62,34 @@
         const serverUrl = elderlyUrl.replace(/^https?:\/\//, '');
 
         // 设备在线状态（与设置页等保持一致，来源于 /status 轮询，反映老人端真实在线状态）
+        // 防重叠状态请求：跟踪进行中的 fetch，强制超时，确保新轮询在当前请求
+        // settle 前不能启动，避免并发轮询互相覆盖 UI 状态（CodeRabbit 建议）。
+        let _deviceStatusInFlight = null;
+        let _deviceStatusTimer = null;
+
         function refreshDeviceStatus() {
-            fetch('{{ prefix }}/status')
-                .then(r => r.ok ? r.json() : null)
+            // 已有进行中的请求：跳过本次轮询，保留上一次结果即可（防重叠）
+            if (_deviceStatusInFlight) {
+                return;
+            }
+            // 强制超时，避免 hung 请求长期累积导致状态卡死
+            const controller = ('AbortController' in window) ? new AbortController() : null;
+            _deviceStatusTimer = setTimeout(() => { if (controller) controller.abort(); }, 10000);
+            _deviceStatusInFlight = fetch('{{ prefix }}/status', controller ? { signal: controller.signal } : undefined)
+                .then(r => {
+                    // 非 2xx 响应：应用离线 UI（不保留上次状态）
+                    if (!r.ok) {
+                        applyDeviceOffline();
+                        return null;
+                    }
+                    return r.json();
+                })
                 .then(data => {
-                    if (!data || data.connected === undefined) return;
+                    // data.connected 非 boolean（异常响应）也应用离线 UI
+                    if (!data || typeof data.connected !== 'boolean') {
+                        applyDeviceOffline();
+                        return;
+                    }
                     if (data.connected) {
                         statusDot.classList.add('connected');
                         statusText.textContent = data.device_name ? '设备在线 · ' + data.device_name : '设备在线';
@@ -76,9 +99,17 @@
                     }
                 })
                 .catch(() => {
-                    statusDot.classList.remove('connected');
-                    statusText.textContent = '设备离线';
+                    applyDeviceOffline();
+                })
+                .finally(() => {
+                    clearTimeout(_deviceStatusTimer);
+                    _deviceStatusInFlight = null;
                 });
+        }
+
+        function applyDeviceOffline() {
+            statusDot.classList.remove('connected');
+            statusText.textContent = '设备离线';
         }
 
         function initWS() {
