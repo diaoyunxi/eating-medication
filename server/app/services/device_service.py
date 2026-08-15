@@ -176,38 +176,34 @@ class DeviceService:
     def get_device_user_for_offline(
         db: Session, device_id: str, device_token: Optional[str]
     ) -> Tuple[Optional[User], Optional[str]]:
-        """按 device_id 定位用户以执行「设备下线通知」。
+        """按 device_id 定位用户以执行「设备下线通知」，对令牌缺失做安全降级。
 
-        与 get_device_user_authed 不同，本方法针对「设备下线」这一
-        低敏感、尽力而为的清理操作，对令牌缺失做降级处理，避免设备
-        因本地未持有令牌而被 403 拒绝，从而无法及时通知子女端离线。
+        安全模型（修复 issue #43 的接线错误——原实现在公开端点自助签发长期设备
+        令牌，攻击者可仅凭 device_id（由 MAC 派生、可枚举）即拿到令牌，进而伪造
+        /device/message、/device/upload、/device/schedule 等全部鉴权接口）：
 
-        返回 (user, issued_token)：
-          - 设备已初始化令牌且令牌匹配：返回 (user, None)。
-          - 设备已初始化令牌但请求令牌缺失/不匹配：返回 (None, None)，
-            调用方应返回 403（防止伪造）。
-          - 设备尚未初始化令牌（user.device_token 为空，通常是设备端
-            本地令牌文件丢失导致下线请求无令牌）：直接定位用户并重新
-            签发一个令牌，返回 (user, new_token)；调用方应将令牌返回
-            给设备端持久化，使后续需鉴权的设备接口恢复正常。
+        - 本端点仅做「尽力而为」的低敏感清理（将 last_heartbeat_at 置早，不读取/
+          修改任何用药或聊天敏感数据），因此密钥丢失不应阻断下线；
+        - **但绝不在此公开端点自助签发长期设备令牌**；已初始化令牌时仍须严格匹配
+          （用 ``secrets.compare_digest`` 防时序侧信道），缺失/不匹配返回 (None, None)
+          → 调用方 403 防伪造；
+        - 未初始化令牌（设备端本地令牌文件丢失）：直接定位用户返回 (user, None) 使
+          下线成功；令牌恢复请走 /device/register 或家属重新绑定（不在本端点处理）。
+
+        返回 (user, issued_token)：本方法固定 ``issued_token=None``（不签发令牌）。
         """
         user = db.query(User).filter(User.device_id == device_id).first()
         if not user:
             return (None, None)
 
-        # 设备已初始化令牌：必须严格匹配，否则视为伪造
+        # 已初始化令牌：严格匹配，否则视为伪造
         if user.device_token:
-            if not device_token or device_token != user.device_token:
+            if not device_token or not secrets.compare_digest(user.device_token, device_token):
                 return (None, None)
             return (user, None)
 
-        # 设备尚未初始化令牌：重新签发并返回，避免下线请求因缺令牌被 403
-        new_token = secrets.token_urlsafe(32)
-        user.device_token = new_token
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        return (user, new_token)
+        # 未初始化令牌：降级允许下线，但绝不签发令牌（避免未授权令牌泄露）
+        return (user, None)
 
     @staticmethod
     def mark_offline(db: Session, user: User):
