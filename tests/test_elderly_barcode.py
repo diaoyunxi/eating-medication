@@ -34,6 +34,18 @@ barcode_mod = load_module("elderly_test_barcode", "elderly_assistant/core/barcod
 
 LOG = __import__("logging").getLogger("t")
 
+
+def _safe_unlink(p):
+    """Windows 上删除刚写入的临时令牌文件可能因防病毒/索引瞬时锁失败，重试忽略。"""
+    import time
+    for _ in range(10):
+        try:
+            if os.path.exists(p):
+                os.unlink(p)
+            return
+        except OSError:
+            time.sleep(0.05)
+
 PLANS = [
     {"plan_id": 1, "drug_name": "阿司匹林", "dosage": "1片", "time": "08:00", "product_code": "6901234567890"},
     {"plan_id": 2, "drug_name": "降压药", "dosage": "2片", "time": "20:00", "product_code": None},
@@ -304,6 +316,15 @@ class TestScheduleTypeValidation(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.addCleanup(self._cache_dir.cleanup)
+        # CodeRabbit 修复：将设备令牌文件隔离到临时目录，避免 register 验证测试
+        # 触及真实令牌文件（elderly_assistant/data/device_token.txt）造成跨测试污染
+        fd, token_path = tempfile.mkstemp(suffix=".txt")
+        os.close(fd)
+        self._token_file = token_path
+        token_patcher = mock.patch("services.http_client._TOKEN_FILE", token_path)
+        token_patcher.start()
+        self.addCleanup(token_patcher.stop)
+        self.addCleanup(lambda: _safe_unlink(token_path))
 
     def _client(self):
         return _ValidationClient()
@@ -355,6 +376,15 @@ class TestSchedule403SelfHeal(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.addCleanup(self._cache_dir.cleanup)
+        # CodeRabbit 修复：将设备令牌文件隔离到临时目录，避免 register 验证测试
+        # 触及真实令牌文件（elderly_assistant/data/device_token.txt）造成跨测试污染
+        fd, token_path = tempfile.mkstemp(suffix=".txt")
+        os.close(fd)
+        self._token_file = token_path
+        token_patcher = mock.patch("services.http_client._TOKEN_FILE", token_path)
+        token_patcher.start()
+        self.addCleanup(token_patcher.stop)
+        self.addCleanup(lambda: _safe_unlink(token_path))
 
     def _client(self):
         return _ValidationClient()
