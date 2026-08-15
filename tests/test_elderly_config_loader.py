@@ -28,8 +28,8 @@ class TestLoadSave(unittest.TestCase):
         self.assertEqual(cfg["server"]["base_url"], "https://my-website.ccwu.cc/eating-medication/server")
         self.assertEqual(cfg["server"]["timeout"], 10)
         self.assertEqual(cfg["hotspot"]["web_port"], 8088)
-        # 用药计划轮询默认 20 分钟（1200 秒）
-        self.assertEqual(cfg["reminder"]["poll_interval"], 1200)
+        # 用药计划轮询默认 60 秒（缩短间隔可让新设置的提醒尽快被拉取并在约定时间触发，避免错过窗口）
+        self.assertEqual(cfg["reminder"]["poll_interval"], 60)
         self.assertEqual(cfg["camera"]["connection"], "i2c")
         self.assertEqual(cfg["scan"]["source"], "auto")
         self.assertEqual(cfg["scan"]["timeout_sec"], 8.0)
