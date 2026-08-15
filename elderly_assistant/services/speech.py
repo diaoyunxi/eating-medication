@@ -80,18 +80,72 @@ class Speech:
             eng = pyttsx3.init()
             eng.setProperty('volume', 0.9)
             eng.setProperty('rate', 150)
-            self._pyttsx_engine = eng
-            self.logger.info("pyttsx3 TTS 引擎初始化成功（离线兜底）")
         except Exception as e:
             self._pyttsx_engine = None
             self.logger.warning(f"pyttsx3 初始化失败: {e}")
             return
 
-        # 引擎已就绪，再尝试优选中文语音；失败仅退回默认语音，不中断服务
+        # 引擎已就绪：先保存真实默认语音，再尝试优选中文语音；失败仅退回默认语音，不中断服务
+        _DEFAULT_VOICE = None
         try:
-            self._select_mbrola_voice(eng)
+            _DEFAULT_VOICE = eng.getProperty('voice')
+        except Exception:
+            _DEFAULT_VOICE = None
+        try:
+            preferred_voice = self._select_mbrola_voice(eng)
         except Exception as e:
             self.logger.warning(f"pyttsx3 语音选择失败（使用默认语音）: {e}")
+            preferred_voice = None
+
+        # CodeRabbit 修复：在发布引擎前校验 volume/rate/voice 的最终生效值。
+        # 部分后端 setProperty 返回 True 但并未真正生效（或发音后端延迟失败），
+        # 这里用 runAndWait 做一次空播报触达后端，并回读校验；音量/语速校验
+        # 失败则丢弃该引擎，语音校验（优选语音"假成功"）失败则恢复保存的默认语音。
+        _valid = True
+        try:
+            # 回读校验 volume / rate 是否生效（允许一定误差）
+            vol = eng.getProperty('volume')
+            rate = eng.getProperty('rate')
+            if vol is None or abs(float(vol) - 0.9) > 0.1:
+                self.logger.warning(f"pyttsx3 音量设置未生效（读到={vol}），丢弃该引擎")
+                _valid = False
+            elif rate is None or abs(int(rate) - 150) > 30:
+                self.logger.warning(f"pyttsx3 语速设置未生效（读到={rate}），丢弃该引擎")
+                _valid = False
+            if _valid:
+                # 语音校验：若优先语音设置"假成功"（回读不一致），恢复保存的默认语音并告警
+                cur_voice = None
+                try:
+                    cur_voice = eng.getProperty('voice')
+                except Exception:
+                    cur_voice = None
+                if preferred_voice and cur_voice != preferred_voice:
+                    self.logger.warning(
+                        f"pyttsx3 语音设置未生效（读到={cur_voice}，期望={preferred_voice}），"
+                        f"恢复默认语音: {_DEFAULT_VOICE}"
+                    )
+                    try:
+                        if _DEFAULT_VOICE:
+                            eng.setProperty('voice', _DEFAULT_VOICE)
+                    except Exception:
+                        pass
+                # 用一次静默空播报触达发音后端，捕获潜在的延迟初始化失败
+                eng.say("")
+                eng.runAndWait()
+        except Exception as e:
+            self.logger.warning(f"pyttsx3 初始化后校验/试播失败，丢弃该引擎: {e}")
+            _valid = False
+
+        if not _valid:
+            try:
+                eng.stop()
+            except Exception:
+                pass
+            self._pyttsx_engine = None
+            return
+
+        self._pyttsx_engine = eng
+        self.logger.info("pyttsx3 TTS 引擎初始化成功（离线兜底）")
 
     def _select_mbrola_voice(self, eng):
         """在 pyttsx3 语音列表中优先选用 mbrola 中文语音（mbrola-cn1）。
@@ -99,6 +153,8 @@ class Speech:
         espeak 启用 mbrola 后，语音 id 形如 `mbrola/cn1`；缺失或
         setProperty('voice') 在部分后端失败（如 issue #42 的 SetVoiceByName
         -1）时退回默认语音，不向上抛出异常，保证引擎仍可用。
+
+        :return: 成功选中的语音 id；缺失/设置失败则退回默认语音并返回 None。
         """
         voices = eng.getProperty('voices') or []
         for v in voices:
@@ -107,10 +163,12 @@ class Speech:
                 try:
                     eng.setProperty('voice', v.id)
                     self.logger.info(f"已选用 mbrola 中文语音: {vid}")
+                    return v.id
                 except Exception as e:
                     self.logger.warning(f"设置 mbrola 语音失败（使用默认）: {e}")
-                return
+                    return None
         self.logger.info("未找到 mbrola-cn1 语音，pyttsx3 使用默认语音")
+        return None
 
     def _speak_worker(self):
         while not self._stop_event.is_set():
