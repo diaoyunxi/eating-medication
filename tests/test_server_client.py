@@ -10,7 +10,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from common.server_client import BaseServerClient, encode_device_id
+from common.server_client import (
+    BaseServerClient,
+    encode_device_id,
+    _is_httpx_transient_error,
+)
 
 
 class _FakeResponse:
@@ -132,6 +136,32 @@ class TestUrlJoin(unittest.TestCase):
     def test_ssl_context_only_for_https(self):
         self.assertIsNone(BaseServerClient(base_url="http://x.com")._ssl_context)
         self.assertIsNotNone(BaseServerClient(base_url="https://x.com")._ssl_context)
+
+
+class TestTransientErrorDetection(unittest.TestCase):
+    """回归测试：瞬时错误判定必须用 httpx.TransportError 基类覆盖全部传输层异常，
+    且排除业务异常（避免对非幂等 POST 误重试，见 issue #38/#49）。"""
+
+    def test_real_httpx_transport_errors_are_transient(self):
+        import httpx
+
+        for exc in (
+            httpx.ConnectError("x"),
+            httpx.ConnectTimeout("x"),
+            httpx.ReadTimeout("x"),
+            httpx.ReadError("x"),
+            httpx.RemoteProtocolError("x"),
+            httpx.ProxyError("x"),
+            httpx.TransportError("x"),
+        ):
+            with self.subTest(type(exc).__name__):
+                self.assertTrue(_is_httpx_transient_error(exc))
+
+    def test_business_errors_are_not_transient(self):
+        # 业务异常（模块非 httpx）一律不重试，避免重复提交
+        self.assertFalse(_is_httpx_transient_error(ValueError("x")))
+        self.assertFalse(_is_httpx_transient_error(RuntimeError("network down")))
+        self.assertFalse(_is_httpx_transient_error(KeyError("x")))
 
 
 class TestExecute(unittest.TestCase):

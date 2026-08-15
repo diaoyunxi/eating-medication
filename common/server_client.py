@@ -14,9 +14,12 @@
 """
 import asyncio
 import json
+import logging
 import ssl
 from typing import Any, Dict, Optional
 from urllib.parse import quote
+
+logger = logging.getLogger(__name__)
 
 
 def encode_device_id(device_id: str) -> str:
@@ -50,15 +53,22 @@ class _ResponseAdapter:
 
 
 def _is_httpx_transient_error(exc: Exception) -> bool:
-    """判断是否为 httpx 的瞬时传输层错误，可安全重试。
+    """判断 httpx 异常是否为「可安全重试的瞬时传输层错误」。
 
-    通过异常所属模块与类名识别，避免直接访问 ``httpx.TransportError`` 基类
-    （在测试替身或老版本 httpx 中可能不存在该属性）。仅覆盖连接/读取/协议层抖动，
-    业务 HTTP 状态码（由 status_code 体现）不在此列。
+    优先用 ``httpx.TransportError`` 基类做 isinstance 判定——真实 httpx 下它能
+    一键覆盖 Timeout/ConnectError/ReadError/RemoteProtocolError/ProxyError/DecodingError
+    等全部传输层异常，避免按字符串枚举时遗漏或写入不存在的异常名。
+    测试替身/老版本无基类时回退到类名白名单（仅保留 httpx 真实存在的类名）。
     """
-    mod = getattr(type(exc), "__module__", "") or ""
-    if mod != "httpx":
+    if getattr(type(exc), "__module__", "") != "httpx":
         return False
+    try:
+        import httpx as _httpx
+
+        if isinstance(exc, _httpx.TransportError):
+            return True
+    except Exception:
+        pass
     return type(exc).__name__ in {
         "TransportError",
         "TimeoutException",
@@ -68,8 +78,6 @@ def _is_httpx_transient_error(exc: Exception) -> bool:
         "ConnectError",
         "ReadError",
         "RemoteProtocolError",
-        "ConnectionClosed",
-        "ClosedProtocolError",
         "ProxyError",
         "NetworkError",
         "UnsupportedProtocol",
@@ -92,7 +100,7 @@ class BaseServerClient:
             try:
                 return ssl.create_default_context()
             except Exception as e:  # pragma: no cover - 系统信任库异常极罕见
-                print(f"创建SSL上下文失败: {e}")
+                logger.warning("创建SSL上下文失败: %s", e)
                 return None
         return None
 
@@ -123,7 +131,7 @@ class BaseServerClient:
         params: Optional[Dict[str, Any]] = None,
         json_body: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        retries: int = 3,
+        retries: int = 0,
     ) -> _ResponseAdapter:
         """统一执行 HTTP 请求，返回 ``_ResponseAdapter``。
 
@@ -137,7 +145,9 @@ class BaseServerClient:
         :param params: 查询参数
         :param json_body: JSON 请求体
         :param headers: 额外请求头（会与 ``_auth_headers()`` 合并，后者优先）
-        :param retries: 瞬时网络错误的最大重试次数（默认 3，仅对传输层异常生效）
+        :param retries: 瞬时网络错误的最大重试次数（默认 0，即不重试；仅
+            ``check_connection`` 等幂等健康检查显式传 3，避免对非幂等 POST/PUT/DELETE
+            调用方造成重复提交）
         """
         import httpx  # 懒加载：仅在发起请求时导入，遵守 common 仅标准库的约定
 
@@ -172,7 +182,10 @@ class BaseServerClient:
                 # 仅对瞬时传输层错误重试；业务异常立即上抛
                 if _is_httpx_transient_error(e) and attempt < retries:
                     backoff = 0.3 * (2 ** attempt)
-                    print(f"服务端请求瞬时失败(第{attempt + 1}次)，{backoff:.2f}s 后重试: {e}")
+                    logger.warning(
+                        "服务端请求瞬时失败(第%d次)，%.2fs 后重试: %s",
+                        attempt + 1, backoff, e,
+                    )
                     await asyncio.sleep(backoff)
                     continue
                 break
@@ -183,7 +196,7 @@ class BaseServerClient:
     async def check_connection(self, health_path: str = "/health") -> bool:
         """检查服务端连通性（默认请求 /health）。"""
         try:
-            resp = await self._execute("GET", health_path)
+            resp = await self._execute("GET", health_path, retries=3)
             return resp.status_code == 200
         except Exception:
             return False
