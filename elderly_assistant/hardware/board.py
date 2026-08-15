@@ -84,20 +84,24 @@ class AudioAmpMute:
         self._initialized = False
 
     def _ensure_init(self):
-        if self._initialized:
-            return
-        self._initialized = True
-        try:
-            from pinpong.board import Pin
-            self._pin = Pin(getattr(Pin, f"P{_AUDIO_AMP_PIN}"), Pin.OUT)
-            # 上电即静音（低电平），避免待机电流声。
-            self._pin.write_digital(0)
-            self._available = True
-            logger.info("板载功放静音控制已启用（引脚 P%d）", _AUDIO_AMP_PIN)
-        except ImportError:
-            logger.info("pinpong 未安装，功放静音控制降级为无操作（非 M10 环境）")
-        except Exception as e:
-            logger.warning(f"功放静音控制初始化失败，降级为无操作: {e}")
+        # CodeRabbit 修复：用实例锁同步初始化。先获取锁再检查/设置 _initialized，
+        # 并持锁直至 Pin 创建、默认静音、可用性设置完成；这样并发的 TTS 与蜂鸣器
+        # 调用方不会观察到部分初始化的实例，也不会因竞态跳过引用计数更新。
+        with self._lock:
+            if self._initialized:
+                return
+            self._initialized = True
+            try:
+                from pinpong.board import Pin
+                self._pin = Pin(getattr(Pin, f"P{_AUDIO_AMP_PIN}"), Pin.OUT)
+                # 上电即静音（低电平），避免待机电流声。
+                self._pin.write_digital(0)
+                self._available = True
+                logger.info("板载功放静音控制已启用（引脚 P%d）", _AUDIO_AMP_PIN)
+            except ImportError:
+                logger.info("pinpong 未安装，功放静音控制降级为无操作（非 M10 环境）")
+            except Exception as e:
+                logger.warning(f"功放静音控制初始化失败，降级为无操作: {e}")
 
     def unmute(self):
         """解除静音（开始播放音频前调用）。引用计数，可重入。"""

@@ -120,15 +120,12 @@ class Speech:
         被静默吞掉（表现为「识别到但没播报」）。任一路失败都会记录到
         ``last_error`` 并打印明确日志，不再静默丢弃。
 
-        播报期间通过板载功放静音控制器临时解除静音（修复 #34：待机电流声），
-        播报结束后立即恢复静音，避免静默期功放持续通电产生电流声。
+        功放静音控制仅在实际播放阶段（MP3 播放 / pyttsx3 runAndWait）启用，
+        合成与网络请求阶段保持静音，避免静默期功放噪声（修复 #34）。
         """
         from hardware.board import get_audio_amp
-        amp = get_audio_amp()
         with self._speak_lock:
             self.last_error = None
-            # 进入播放：解除功放静音（非 M10 环境自动降级无操作）
-            amp.unmute()
             try:
                 if self._edge_available:
                     try:
@@ -139,9 +136,16 @@ class Speech:
                         self.logger.warning(f"edge-tts 播报失败，转 pyttsx3: {e}")
                 if self._pyttsx_engine:
                     try:
-                        self._pyttsx_engine.say(text)
-                        self._pyttsx_engine.runAndWait()
-                        return
+                        # 仅在实际播放阶段解除板载功放静音（非 M10 环境自动降级无操作）
+                        amp = get_audio_amp()
+                        amp.unmute()
+                        try:
+                            self._pyttsx_engine.say(text)
+                            self._pyttsx_engine.runAndWait()
+                            return
+                        finally:
+                            # 播放结束（无论成功/异常）立即恢复静音
+                            amp.mute()
                     except Exception as e:
                         self.last_error = f"pyttsx3: {e}"
                         self.logger.error(f"pyttsx3 播报失败: {e}")
@@ -153,19 +157,27 @@ class Speech:
                     # 两个引擎均不可用/失败：明确记录，便于排查为何无声音
                     self.last_error = "无可用语音引擎"
                     self.logger.error(f"语音播报失败（两路引擎均不可用）: {text}")
-            finally:
-                # 无论成功与否，播放结束立即恢复功放静音
-                amp.mute()
 
     def _speak_edge(self, text):
-        """使用 edge-tts 合成并播放（需联网）。"""
+        """使用 edge-tts 合成并播放（需联网）。
+
+        功放静音控制仅在实际播放 MP3 阶段启用：合成（网络下载）阶段保持静音，
+        播放时短暂解除，播放结束（成功或失败）立即恢复静音（修复 #34）。
+        """
+        from hardware.board import get_audio_amp
         tmp_path = None
         try:
             fd, tmp_path = tempfile.mkstemp(suffix=".mp3")
             os.close(fd)
             communicate = self._edge_tts.Communicate(text, voice=EDGE_TTS_VOICE)
             asyncio.run(communicate.save(tmp_path))
-            self._play_mp3(tmp_path)
+            # 进入播放阶段：解除功放静音，播放结束立即恢复
+            amp = get_audio_amp()
+            amp.unmute()
+            try:
+                self._play_mp3(tmp_path)
+            finally:
+                amp.mute()
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 try:
