@@ -26,6 +26,7 @@ from services.schedule_cache import CACHE_PATH  # noqa: E402
 # 测试在运行期的 sys.modules 中找不到 "services.schedule_cache"（命名空间包歧义），
 # 故在导入期固化引用，供 setUp 打桩使用
 import services.schedule_cache as _schedule_cache_module  # noqa: E402
+import services.http_client as _http_client_module  # noqa: E402
 
 # 以唯一名加载 elderly_assistant/core/barcode.py，规避与 family_monitor 同名顶层包冲突
 # （test_elderly_camera 采用相同做法；直接 `from core.barcode import ...` 在 CI 中
@@ -321,7 +322,7 @@ class TestScheduleTypeValidation(unittest.TestCase):
         fd, token_path = tempfile.mkstemp(suffix=".txt")
         os.close(fd)
         self._token_file = token_path
-        token_patcher = mock.patch("services.http_client._TOKEN_FILE", token_path)
+        token_patcher = mock.patch.object(_http_client_module, "_TOKEN_FILE", token_path)
         token_patcher.start()
         self.addCleanup(token_patcher.stop)
         self.addCleanup(lambda: _safe_unlink(token_path))
@@ -381,7 +382,7 @@ class TestSchedule403SelfHeal(unittest.TestCase):
         fd, token_path = tempfile.mkstemp(suffix=".txt")
         os.close(fd)
         self._token_file = token_path
-        token_patcher = mock.patch("services.http_client._TOKEN_FILE", token_path)
+        token_patcher = mock.patch.object(_http_client_module, "_TOKEN_FILE", token_path)
         token_patcher.start()
         self.addCleanup(token_patcher.stop)
         self.addCleanup(lambda: _safe_unlink(token_path))
