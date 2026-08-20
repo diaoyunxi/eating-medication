@@ -57,10 +57,28 @@ DEFAULT_CONFIG = {
         "uart_tty": "/dev/ttyS1",
         "uart_baudrate": 115200,
         "save_path": "data/captures",
-        # 拍照分辨率：default/640x480/1280x720/1920x1080（官方库 takePhoto 必填）
+        # 拍照分辨率：default/640x480/1280x720/1920x1080（官方库 takePhoto 必填，兼容回退模式）
         "photo_resolution": "default",
-        # 二哈 SD 卡在 M10 上的挂载根目录候选（逗号分隔字符串或列表）；留空用内置默认
+        # 二哈 SD 卡在 M10 上的挂载根目录候选（逗号分隔字符串或列表）；留空用内置默认（兼容回退模式）
         "sd_search_paths": "",
+        # ===== 网络图传配置（v2.43.0 新增）=====
+        # 二哈 V2 的局域网 IP 地址（必填，用于 HTTP 快照和 RTSP 拉流）
+        "huskylens_ip": "",
+        # 网络图传模式：auto=先 HTTP 后 RTSP；http=仅 HTTP 快照；rtsp=仅 RTSP 拉流
+        "network_mode": "auto",
+        # 二哈 HTTP 服务端口（默认 80）
+        "http_port": 80,
+        # HTTP 快照接口路径
+        "snapshot_path": "/snapshot",
+        # HTTP MJPEG 流接口路径
+        "stream_path": "/stream",
+        # RTSP 端口（默认 554）
+        "rtsp_port": 554,
+        # HTTP 请求超时（秒）
+        "request_timeout": 5,
+        # WebRTC 信令接口（可选，留空则使用默认路径 /webrtc/offer）
+        "webrtc_signalling_url": "",
+        "webrtc_offer_path": "/webrtc/offer",
     },
     "scan": {
         # auto=优先 HuskyLens 板载解码并回退 USB；也可显式指定 huskylens / usb
@@ -96,6 +114,17 @@ _ENV_LEAVES = [
     ("CAMERA_SAVE_PATH", "camera", "save_path", str),
     ("CAMERA_PHOTO_RESOLUTION", "camera", "photo_resolution", str),
     ("CAMERA_SD_SEARCH_PATHS", "camera", "sd_search_paths", str),
+    # 网络图传配置（v2.43.0 新增）
+    ("HUSKYLENS_IP", "camera", "huskylens_ip", str),
+    ("HUSKYLENS_NETWORK_MODE", "camera", "network_mode", str),
+    ("HUSKYLENS_HTTP_PORT", "camera", "http_port", int),
+    ("HUSKYLENS_SNAPSHOT_PATH", "camera", "snapshot_path", str),
+    ("HUSKYLENS_STREAM_PATH", "camera", "stream_path", str),
+    ("HUSKYLENS_RTSP_PORT", "camera", "rtsp_port", int),
+    ("HUSKYLENS_REQUEST_TIMEOUT", "camera", "request_timeout", float),
+    # WebRTC 配置（v2.43.0 新增，可选）
+    ("HUSKYLENS_WEBRTC_SIGNALLING_URL", "camera", "webrtc_signalling_url", str),
+    ("HUSKYLENS_WEBRTC_OFFER_PATH", "camera", "webrtc_offer_path", str),
     ("SCAN_SOURCE", "scan", "source", str),
     ("SCAN_USB_INDEX", "scan", "usb_index", int),
     ("SCAN_TIMEOUT_SEC", "scan", "timeout_sec", float),
@@ -126,14 +155,35 @@ _ENV_TEMPLATE = (
     "BUZZER_LOOP_INTERVAL=3\n"
     "LONG_PRESS_SEC=1.5\n\n"
     "# ===== 摄像头 =====\n"
+    "# CAMERA_CONNECTION: I2C/UART 连接方式（仅供条码/人脸识别使用，图传走网络）\n"
     "CAMERA_CONNECTION=i2c\n"
     "CAMERA_UART_TTY=/dev/ttyS1\n"
     "CAMERA_UART_BAUDRATE=115200\n"
     "CAMERA_SAVE_PATH=data/captures\n"
-    "# CAMERA_PHOTO_RESOLUTION: 拍照分辨率 default/640x480/1280x720/1920x1080（二哈 takePhoto 必填）\n"
+    "# CAMERA_PHOTO_RESOLUTION: 拍照分辨率 default/640x480/1280x720/1920x1080（兼容回退模式）\n"
     "CAMERA_PHOTO_RESOLUTION=default\n"
-    "# CAMERA_SD_SEARCH_PATHS: 二哈 SD 卡挂载根目录候选，逗号分隔；留空用内置默认 /media,/mnt,/run/media\n"
+    "# CAMERA_SD_SEARCH_PATHS: 二哈 SD 卡挂载根目录候选，逗号分隔；留空用内置默认（兼容回退模式）\n"
     "CAMERA_SD_SEARCH_PATHS=\n\n"
+    "# ===== 网络图传（v2.43.0 新增）=====\n"
+    "# HUSKYLENS_IP: 二哈 V2 的局域网 IP 地址（必填，M10 与二哈需在同一 WiFi 下）\n"
+    "# 获取方式：查看二哈 Web 管理页面或路由器 DHCP 客户端列表\n"
+    "HUSKYLENS_IP=\n"
+    "# HUSKYLENS_NETWORK_MODE: auto=先 HTTP 后 RTSP；http=仅 HTTP；rtsp=仅 RTSP\n"
+    "HUSKYLENS_NETWORK_MODE=auto\n"
+    "# HUSKYLENS_HTTP_PORT: 二哈 HTTP 服务端口（默认 80）\n"
+    "HUSKYLENS_HTTP_PORT=80\n"
+    "# HUSKYLENS_SNAPSHOT_PATH: HTTP 快照接口路径\n"
+    "HUSKYLENS_SNAPSHOT_PATH=/snapshot\n"
+    "# HUSKYLENS_STREAM_PATH: HTTP MJPEG 流接口路径\n"
+    "HUSKYLENS_STREAM_PATH=/stream\n"
+    "# HUSKYLENS_RTSP_PORT: RTSP 端口（默认 554）\n"
+    "HUSKYLENS_RTSP_PORT=554\n"
+    "# HUSKYLENS_REQUEST_TIMEOUT: HTTP 请求超时（秒）\n"
+    "HUSKYLENS_REQUEST_TIMEOUT=5\n"
+    "# HUSKYLENS_WEBRTC_MODE: webrtc 是否启用（true/false），auto 模式下自动尝试\n"
+    "# 注意：需要安装 aiortc（pip install aiortc），否则 WebRTC 自动跳过\n"
+    "HUSKYLENS_WEBRTC_SIGNALLING_URL=\n"
+    "HUSKYLENS_WEBRTC_OFFER_PATH=/webrtc/offer\n\n"
     "# ===== 药品条码扫描 =====\n"
     "# SCAN_SOURCE: auto=优先 HuskyLens 板载解码并回退 USB；可选 huskylens / usb\n"
     "SCAN_SOURCE=auto\n"

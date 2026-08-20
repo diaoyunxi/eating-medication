@@ -20,3 +20,12 @@ opencv-python-headless
 # 运行时需联网；无网或失败时由 pyttsx3 离线兜底。
 # 播放 edge-tts 产出的 MP3 需要系统播放器（main.py 自动 apt 安装 mpg123）。
 edge-tts
+
+# ===== 网络图传（v2.43.0 新增）=====
+# requests 已在上方声明；以下依赖按需安装：
+# opencv-python-headless：用于 RTSP 拉流模式（HUSKYLENS_NETWORK_MODE=rtsp）
+# 注：opencv-python-headless 已包含 ffmpeg 支持，可直接打开 RTSP 流
+#
+# aiortc（可选）：用于 WebRTC 图传模式（HUSKYLENS_NETWORK_MODE=webrtc 或 auto）
+# 安装：pip install aiortc
+# 注意：aiortc 依赖 rust 编译器，首次编译较慢；如不需要 WebRTC 可跳过
