@@ -67,6 +67,35 @@ else
   exit 1
 fi
 
+# ===== 1.5 安装 gh CLI =====
+echo "==> [1.5/7] 安装 gh CLI..."
+
+if ! command -v gh >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    # Debian/Ubuntu
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | $SUDO dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | $SUDO tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+    $SUDO apt-get update
+    $SUDO apt-get install -y gh
+  elif command -v dnf >/dev/null 2>&1; then
+    # Fedora/RHEL 8+
+    $SUDO dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+    $SUDO dnf install -y gh
+  elif command -v yum >/dev/null 2>&1; then
+    # RHEL/CentOS 7
+    $SUDO yum install -y yum-utils
+    $SUDO yum-config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+    $SUDO yum install -y gh
+  elif command -v apk >/dev/null 2>&1; then
+    # Alpine
+    $SUDO apk add --no-cache github-cli
+  else
+    echo "⚠ 未识别的包管理器，请手动安装 gh CLI (https://github.com/cli/cli#installation)"
+  fi
+else
+  echo "    gh CLI 已安装: $(gh --version | head -n1)"
+fi
+
 # 加载m10默认pyenv环境变量
 export PYENV_ROOT="$HOME/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"

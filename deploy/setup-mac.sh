@@ -91,6 +91,14 @@ install_system_deps() {
     brew update 2>/dev/null || true
     brew install git python3 curl 2>/dev/null || true
 
+    # 安装 gh CLI
+    if ! command -v gh >/dev/null 2>&1; then
+        log_info "安装 gh CLI..."
+        brew install gh 2>/dev/null || true
+    else
+        log_info "gh CLI 已安装: $(gh --version | head -n1)"
+    fi
+
     PY_VER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo 0)"
     log_info "Python 版本: ${PY_VER}"
 }
