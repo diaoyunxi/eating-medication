@@ -148,6 +148,36 @@ install_system_deps() {
             ;;
     esac
 
+    # 安装 gh CLI
+    if ! command -v gh >/dev/null 2>&1; then
+        log_info "安装 gh CLI..."
+        case "$PKG_MGR" in
+            apt-get)
+                curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | $SUDO dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+                echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | $SUDO tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+                $SUDO apt-get update
+                $SUDO apt-get install -y gh
+                ;;
+            dnf)
+                $SUDO dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+                $SUDO dnf install -y gh
+                ;;
+            yum)
+                $SUDO yum install -y yum-utils
+                $SUDO yum-config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+                $SUDO yum install -y gh
+                ;;
+            pacman)
+                $SUDO pacman -Sy --noconfirm github-cli
+                ;;
+            apk)
+                $SUDO apk add --no-cache github-cli
+                ;;
+        esac
+    else
+        log_info "gh CLI 已安装: $(gh --version | head -n1)"
+    fi
+
     PY_VER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo 0)"
     log_info "Python 版本: ${PY_VER}"
 }

@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,7 +22,6 @@ jobs:
       - name: 判断是否代码类提交
         id: meta
         env:
-          # 通过环境变量注入，避免多行/含引号提交信息直接插值进 bash 脚本文本导致语法错误
           HEAD_MSG: ${{ github.event.head_commit.message }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
@@ -34,11 +35,7 @@ jobs:
           else
             echo "is_code=false" >> "$GITHUB_OUTPUT"
           fi
-      # 自动发布：打包 → SHA256 → 找/建 tag → 上传资产
-      # 文件名严格匹配 updater.py 的「完整发布包」预期：
-      #   - eating-medication-*.zip   （_find_release_zip）
-      #   - *.sha256                  （_find_sha256_assets）
-      # PAT 来自 Repository secrets（加密），需具备 repo 权限（含 push tag / 建 release）
+
       - name: 读取版本号
         id: version
         if: steps.meta.outputs.is_code == 'true'
@@ -46,30 +43,26 @@ jobs:
           VERSION="$(cat VERSION | tr -d '[:space:]')"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
-      - name: 打包项目并计算 SHA256
+
+      - name: 打包项目
         id: package
         if: steps.meta.outputs.is_code == 'true'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           ZIP="eating-medication-v${VERSION}.zip"
-          SHA="${ZIP}.sha256"
           # 打包整个仓库（排除 .git / .env / 缓存），生成与 updater.py 兼容的完整发布包
           zip -r "$ZIP" . -x '.git/*' -x '.env' -x '*/__pycache__/*' -x '*.pyc' -x '*.pyo' -x '.venv/*' -x 'venv/*'
-          # 计算 SHA256（格式：hash  filename，匹配 updater.py 对 *.sha256 的解析）
-          sha256sum "$ZIP" > "$SHA"
           echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
       - name: 创建 tag 并上传发布资产
         if: steps.meta.outputs.is_code == 'true' && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.PAT }}
           PAT: ${{ secrets.PAT }}
-          # 通过环境变量注入 head commit 信息，避免多行/含引号内容直接插值进脚本导致语法错误
           HEAD_MSG: ${{ github.event.head_commit.message }}
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           ZIP="${{ steps.package.outputs.zip }}"
-          SHA="${{ steps.package.outputs.sha }}"
           MSG="$HEAD_MSG"
           # checkout 已使用 secrets.PAT 鉴权，直接以 PAT 推送 tag（无需 insteadOf 改写）
           git config user.name "github-actions[bot]"
@@ -89,14 +82,22 @@ jobs:
           else
             gh release create "$TAG" --title "$TAG" -n "$MSG"
           fi
-          # 上传资产文件（已存在则覆盖）
-          gh release upload "$TAG" "$ZIP" "$SHA" --clobber
+          # 使用 gh CLI 上传资产文件（已存在则覆盖）
+          gh release upload "$TAG" "$ZIP" --clobber
+
+      - name: 生成 Release Attestation
+        if: steps.meta.outputs.is_code == 'true' && github.event_name == 'push'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: "${{ steps.package.outputs.zip }}"
+          subject-path: "${{ steps.package.outputs.zip }}"
 
       - name: Set up Python 3.13
         if: steps.meta.outputs.is_code == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
       - name: Install dependencies
         if: steps.meta.outputs.is_code == 'true'
         run: |
@@ -105,6 +106,7 @@ jobs:
           pip install -r server/requirements.txt
           pip install -r family_monitor/requirements.txt
           pip install "pytest==8.3.3" "pytest-asyncio==0.24.0"
+
       - name: Test with pytest
         if: steps.meta.outputs.is_code == 'true'
         run: pytest
@@ -112,7 +114,6 @@ jobs:
       # 部署端更新通知：原 update.yml 的逻辑，任何 push/PR 都会执行
       - name: update
         env:
-          # 部署端公网基址（含 /eating-medication，由后端路由区分 /server、/family）
           PUBLIC_URL: https://my-website.ccwu.cc/eating-medication
         run: |
           if [ -z "$PUBLIC_URL" ]; then
