@@ -93,21 +93,6 @@ class TestGetUpdateInfo(unittest.TestCase):
         self.assertFalse(info["update_available"])
 
 
-class TestFindSha256Assets(unittest.TestCase):
-    def test_find(self):
-        release = {"assets": [
-            {"name": "a.zip"},
-            {"name": "eating-medication-1.2.3.zip.sha256"},
-            {"name": "EATING-MEDICATION-1.2.3.WIN.SHA256"},
-        ]}
-        assets = updater._find_sha256_assets(release)
-        self.assertEqual(len(assets), 2)
-
-    def test_none(self):
-        self.assertEqual(updater._find_sha256_assets(None), [])
-        self.assertEqual(updater._find_sha256_assets({"assets": [{"name": "a.zip"}]}), [])
-
-
 class TestIsProtectedPath(unittest.TestCase):
     def test_env_files(self):
         self.assertTrue(updater._is_protected_path("server/.env"))
@@ -167,24 +152,42 @@ class TestLoadVersion(unittest.TestCase):
         self.assertTrue(len(v) > 0)
 
 
-class TestVerifyReleaseSignature(unittest.TestCase):
-    def test_none_when_no_sha(self):
-        self.assertIsNone(updater._verify_release_signature({"assets": [{"name": "a.zip"}]}))
-        self.assertIsNone(updater._verify_release_signature(None))
+class TestVerifyReleaseAttestation(unittest.TestCase):
+    """测试 _verify_release_attestation：使用 gh CLI 验证 Release Attestation。"""
 
-    def test_parse_sums(self):
-        orig = updater._download_text
-        updater._download_text = lambda url: "abc123  eating-medication-1.2.3.zip\n"
+    def test_returns_false_when_gh_not_installed(self):
+        """gh CLI 未安装时返回 False。"""
+        orig_which = updater.shutil.which
+        updater.shutil.which = lambda x: None
         try:
-            release = {"assets": [{
-                "name": "eating-medication-1.2.3.zip.sha256",
-                "browser_download_url": "u",
-            }]}
-            sums = updater._verify_release_signature(release)
-            self.assertIsNotNone(sums)
-            self.assertEqual(sums.get("eating-medication-1.2.3.zip"), "abc123")
+            self.assertFalse(updater._verify_release_attestation("/tmp/fake.zip"))
         finally:
-            updater._download_text = orig
+            updater.shutil.which = orig_which
+
+    def test_uses_correct_gh_command(self):
+        """验证调用 gh attestation verify 命令的参数正确。"""
+        captured = {}
+
+        class _Result:
+            returncode = 0
+            stderr = ""
+        def fake_run(*a, **k):
+            captured.update({"args": a[0], "capture_output": k.get("capture_output"),
+                             "text": k.get("text"), "timeout": k.get("timeout")})
+            return _Result()
+        orig_run = updater.subprocess.run
+        updater.subprocess.run = fake_run
+        orig_which = updater.shutil.which
+        updater.shutil.which = lambda x: "/usr/bin/gh" if x == "gh" else None
+        try:
+            updater._verify_release_attestation("/tmp/test.zip", repo="test/repo")
+            self.assertEqual(captured["args"], ["gh", "attestation", "verify", "/tmp/test.zip", "--repo", "test/repo"])
+            self.assertTrue(captured["capture_output"])
+            self.assertTrue(captured["text"])
+            self.assertEqual(captured["timeout"], 60)
+        finally:
+            updater.subprocess.run = orig_run
+            updater.shutil.which = orig_which
 
 
 class TestLoadAutoPull(unittest.TestCase):

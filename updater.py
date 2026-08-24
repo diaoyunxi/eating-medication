@@ -8,8 +8,8 @@
 - AUTO_PULL=false 时，仅提示、手动更新
 
 【与旧版（各模块内 updater.py）的区别】
-1. 仅从 GitHub Release 拉取「完整发布包」 eating-medication-vX.Y.Z.zip 及其 SHA256
-   校验文件；不再单独处理各模块分包（如 server_v*.zip / family_monitor_v*.zip）。
+1. 仅从 GitHub Release 拉取「完整发布包」 eating-medication-vX.Y.Z.zip；
+   下载后使用 gh CLI 验证 Release Attestation 确保资产完整性；不再单独处理各模块分包（如 server_v*.zip / family_monitor_v*.zip）。
 2. 读取仓库根目录 .env 的 GITHUB_PROXY 字段，通过该代理/镜像下载
    （兼容 gh-proxy.com 镜像前缀形式，亦兼容 http(s)://host:port 正向代理）。
 
@@ -36,7 +36,6 @@ import time
 import shutil
 import zipfile
 import tempfile
-import hashlib
 import logging
 import fnmatch
 import subprocess
@@ -319,48 +318,11 @@ def _find_release_zip(release_data):
     return None
 
 
-def _find_sha256_assets(release_data):
-    """在 Release 资产中查找完整发布包的 SHA256 校验文件（*.sha256）。"""
-    if not release_data:
-        return []
-    assets = release_data.get("assets", []) or []
-    return [a for a in assets if (a.get("name") or "").lower().endswith(".sha256")]
 
 
-def _download_text(url):
-    """下载文本内容"""
-    with _open_url(url, 15) as resp:
-        return resp.read().decode("utf-8", errors="replace")
 
-
-def _verify_release_signature(release_data):
-    """下载并解析所有 SHA256 校验文件，合并返回 {文件名: 哈希} 映射。
-
-    返回 None 表示未找到任何校验文件或全部下载失败。
-    """
-    sha_assets = _find_sha256_assets(release_data)
-    if not sha_assets:
-        return None
-    sums = {}
-    found_names = []
-    for asset in sha_assets:
-        try:
-            content = _download_text(asset.get("browser_download_url"))
-            found_names.append(asset.get("name"))
-            for line in content.strip().splitlines():
-                parts = line.split(None, 1)
-                if len(parts) == 2:
-                    sums[parts[1].strip()] = parts[0].strip().lower()
-        except Exception as e:
-            logger.warning(f"[更新检查] 下载校验文件失败 {asset.get('name')}: {e}")
-    if found_names:
-        logger.info(f"[更新检查] 已找到校验文件: {', '.join(found_names)}")
-    return sums if sums else None
-
-
-def _download_file_with_hash(url, target_path, expected_hash=None):
-    """下载文件到 target_path，可选校验 SHA256"""
-    h = hashlib.sha256()
+def _download_file(url, target_path):
+    """下载文件到 target_path"""
     try:
         with _open_url(url, 300) as resp:
             with open(target_path, "wb") as f:
@@ -368,26 +330,34 @@ def _download_file_with_hash(url, target_path, expected_hash=None):
                     chunk = resp.read(65536)
                     if not chunk:
                         break
-                    h.update(chunk)
                     f.write(chunk)
+        return True
     except Exception as e:
         logger.warning(f"[更新检查] 下载文件失败: {e}")
         if os.path.exists(target_path):
             os.remove(target_path)
         return False
 
-    if not expected_hash:
-        logger.warning("[更新检查] 缺少期望哈希，拒绝未校验的下载")
-        if os.path.exists(target_path):
-            os.remove(target_path)
+
+def _verify_release_attestation(file_path, repo="diaoyunxi/eating-medication"):
+    """使用 gh CLI 验证文件的 Release Attestation"""
+    if not shutil.which("gh"):
+        logger.error("[更新检查] gh CLI 未安装，无法验证 Release Attestation")
         return False
-    actual = h.hexdigest().lower()
-    if actual != expected_hash.lower():
-        logger.warning(f"[更新检查] SHA256 校验失败: 期望 {expected_hash}，实际 {actual}")
-        os.remove(target_path)
+    try:
+        proc = subprocess.run(
+            ["gh", "attestation", "verify", str(file_path), "--repo", repo],
+            capture_output=True, text=True, timeout=60
+        )
+        if proc.returncode == 0:
+            logger.info("[更新检查] Release Attestation 验证通过")
+            return True
+        else:
+            logger.warning(f"[更新检查] Release Attestation 验证失败: {proc.stderr}")
+            return False
+    except Exception as e:
+        logger.warning(f"[更新检查] Attestation 验证异常: {e}")
         return False
-    logger.info("[更新检查] SHA256 校验通过")
-    return True
 
 
 def _compare_versions(v1, v2):
@@ -981,7 +951,7 @@ def force_update():
     即便本地版本号 >= 远端版本号也执行（用于同版本补发修复包 / 热同步）。
     沿用 _perform_update 的受保护机制，并额外保护根目录 .gitignore 命中项，
     不会覆盖 .env、data/、logs/ 及任何被 .gitignore 忽略的本地文件。
-    仍需满足 SHA256 校验，缺少校验文件时拒绝（安全要求）。
+    仍需满足 Release Attestation 验证，验证失败时拒绝（安全要求）。
     """
     info = get_update_info()
     latest = info["latest_version"]
@@ -990,10 +960,6 @@ def force_update():
             logger.warning("[强制更新] 无法获取最新版本，跳过")
             return info
         release_data = _fetch_latest_release()
-        sha_sums = _verify_release_signature(release_data)
-        if sha_sums is None:
-            logger.error("[强制更新] 未找到 SHA256 校验文件，出于安全考虑拒绝更新")
-            return info
         zip_asset = _find_release_zip(release_data)
         if not zip_asset:
             logger.error("[强制更新] 未在 Release 资产中找到完整发布包 zip")
@@ -1002,9 +968,11 @@ def force_update():
         zip_name = zip_asset.get("name", "update.zip")
         tmp_zip_dir = Path(tempfile.mkdtemp(prefix="upd_zip_"))
         tmp_zip_path = tmp_zip_dir / zip_name
-        expected_hash = sha_sums.get(zip_name)
-        if not _download_file_with_hash(zip_url, str(tmp_zip_path), expected_hash):
+        if not _download_file(zip_url, str(tmp_zip_path)):
             logger.error("[强制更新] 下载失败")
+            return info
+        if not _verify_release_attestation(str(tmp_zip_path)):
+            logger.error("[强制更新] Release Attestation 验证失败，出于安全考虑拒绝更新")
             return info
         project_dir = Path(__file__).resolve().parent
         success, updated, skipped = _perform_update(
@@ -1041,7 +1009,7 @@ def check_for_update(auto_pull=None):
     1. 不使用 git checkout，避免误删未被跟踪的配置文件
     2. 下载 zip 到临时目录，解压后逐文件判断
     3. 保护文件（.env、data/、logs/、*.db 等）不会被覆盖
-    4. SHA256 校验确保资产完整性（缺少校验文件时拒绝自动更新）
+    4. Release Attestation 验证确保资产完整性（使用 gh CLI 验证 GitHub 官方签名，验证失败时拒绝自动更新）
     """
     # 未显式指定时，使用根目录 .env 的 AUTO_PULL 配置（缺省 True）
     if auto_pull is None:
@@ -1067,24 +1035,12 @@ def check_for_update(auto_pull=None):
         logger.info(f"  下载地址: {release_url}")
         logger.info("=" * 50)
 
-        # 解析 SHA256 校验（仅获取一次，供后续 auto_pull 判断与安全校验共用）
-        release_data = _fetch_latest_release()
-        sha_sums = _verify_release_signature(release_data)
-        if sha_sums is None:
-            logger.warning("[更新检查] 未找到 SHA256 校验文件，无法验证资产完整性")
-        else:
-            logger.info(f"[更新检查] 已加载 {len(sha_sums)} 条资产校验记录")
-
         if not auto_pull:
             logger.info(f"[更新检查] 自动更新未启用，请手动访问 {release_url} 下载最新版本")
             logger.info("[更新检查] 提示：如需启用安全自动更新，可在根目录 .env 设置 AUTO_PULL=true（保留配置文件与数据库）")
             return info
 
-        # 自动更新流程：缺少校验文件时拒绝自动更新（安全要求）
-        if sha_sums is None:
-            logger.error("[更新检查] 未找到SHA256校验文件，出于安全考虑拒绝自动更新")
-            logger.info(f"[更新检查] 请手动访问 {release_url} 下载并人工校验")
-            return info
+        release_data = _fetch_latest_release()
 
         logger.warning("⚠️ 自动更新：将下载并安装新版本")
         logger.info("[更新检查] 保护文件将保留：.env、data/、logs/、*.db 等")
@@ -1106,14 +1062,14 @@ def check_for_update(auto_pull=None):
         tmp_zip_path = tmp_zip_dir / zip_name
 
         try:
-            # 获取期望的 SHA256
-            expected_hash = None
-            if sha_sums and zip_name in sha_sums:
-                expected_hash = sha_sums[zip_name]
-
             # 下载 zip
-            if not _download_file_with_hash(zip_url, str(tmp_zip_path), expected_hash):
+            if not _download_file(zip_url, str(tmp_zip_path)):
                 logger.error("[更新检查] 下载失败")
+                return info
+
+            # 验证 Release Attestation
+            if not _verify_release_attestation(str(tmp_zip_path)):
+                logger.error("[更新检查] Release Attestation 验证失败，出于安全考虑拒绝更新")
                 return info
 
             # 执行安全更新（项目根目录即本 updater.py 所在目录）
@@ -1157,13 +1113,13 @@ eating-medication 自动更新器 (updater.py) 使用说明
 普通运行（检查并应用更新）:
     python updater.py
         比较本地 VERSION 与 GitHub Release 版本号；若有更新，下载发布包
-        （必须配套 <包名>.sha256 校验文件，否则出于安全拒绝更新），
+        （下载后使用 gh CLI 验证 Release Attestation，验证失败则出于安全拒绝更新），
         校验通过后解压并覆盖项目文件，最后清理 __pycache__ 并重启业务服务。
 
 强制更新（忽略版本号）:
     python updater.py --force
         即便本地版本号 >= 远端也执行更新（用于同版本补发包 / 热同步）。
-        仍受 SHA256 校验与受保护机制约束，不会覆盖 .env、data/、logs/
+        仍受 Release Attestation 验证与受保护机制约束，不会覆盖 .env、data/、logs/
         及任何被 .gitignore 忽略的本地文件。
 
 重置运行时数据:
