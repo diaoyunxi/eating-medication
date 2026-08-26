@@ -3,38 +3,6 @@
 > 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
 > 版本号文件见 [`VERSION`](./VERSION)。
 
-## 第三方 OAuth 登录配置
-
-服务端 `server/.env` 配置对应平台凭据后，家属端登录页自动显示相应登录按钮（未配置则隐藏）。GitHub 与 Gitee 共用同一套 provider 框架，流程一致：发起授权（state 防 CSRF）→ 回调换 token → 拉用户信息 → 已绑定直接登录，未绑定则**自动注册**（无需补全手机号/密码，邮箱权限授权后写入 `users.email`）。用户后续可在设置页面的「登录方式管理」板块绑定/解绑手机号、邮箱、GitHub、Gitee。
-
-### GitHub OAuth
-
-| 配置项                        | 说明                                                                                                                                                                        |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GITHUB_CLIENT_ID`          | GitHub OAuth App 的 Client ID（必填，否则按钮隐藏）                                                                                                                         |
-| `GITHUB_CLIENT_SECRET`      | GitHub OAuth App 的 Client Secret（必填）                                                                                                                                   |
-| `GITHUB_OAUTH_CALLBACK_URL` | 回调地址，须与 GitHub 后台`Authorization callback URL` **完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback` |
-
-> 注意：一个 GitHub OAuth App 仅允许配置**一个**固定回调 URL。本地开发请另行在 GitHub 创建 OAuth App（回调填 `http://localhost:1059/api/v1/auth/oauth/github/callback`）。GitHub 仅申请 `read:user` scope（公开邮箱若用户设置则可取）。
-
-### Gitee OAuth
-
-在 Gitee 创建应用（[https://gitee.com/oauth/applications](https://gitee.com/oauth/applications)），勾选「访问用户的个人信息、最新动态」(`user_info`) 与「查看用户的个人邮箱信息」(`emails`) 权限。
-
-| 配置项                       | 说明                                                                                                                                                       |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GITEE_CLIENT_ID`          | Gitee OAuth 应用的 Client ID（必填，否则按钮隐藏）                                                                                                         |
-| `GITEE_CLIENT_SECRET`      | Gitee OAuth 应用的 Client Secret（必填）                                                                                                                   |
-| `GITEE_OAUTH_CALLBACK_URL` | 回调地址，须与 Gitee 后台「应用回调地址」**完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback` |
-
-> 注意：Gitee 回调 URL 同样唯一。授权后服务端会调用 `/api/v5/emails` 取得主邮箱并写入 `users.email`（仅在已授权 `emails` 权限时）。首次 Gitee 登录自动注册（无需手机号/密码），已绑定账号再次登录直接写入登录态。
-
-### 公共配置
-
-| 配置项             | 说明                                                                                                     |
-| ------------------ | -------------------------------------------------------------------------------------------------------- |
-| `FAMILY_WEB_URL` | 家属端前端地址，OAuth 回调成功后 302 跳转用，默认`https://my-website.ccwu.cc/eating-medication/family` |
-
 一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
 
 ---
@@ -48,14 +16,15 @@
 - [技术栈](#技术栈)
 - [快速开始](#快速开始)
 - [配置说明](#配置说明)
+  - [路径前缀（PATH_PREFIX）](#路径前缀path_prefix)
+  - [服务端 .env 关键项](#服务端-env-关键项)
+  - [第三方 OAuth 登录配置](#第三方-oauth-登录配置)
 - [API 文档](#api-文档)
 - [WebSocket 协议](#websocket-协议)
 - [数据模型](#数据模型)
 - [定时任务](#定时任务)
 - [自动更新机制](#自动更新机制)
 - [部署与运维](#部署与运维)
-- [安全特性](#安全特性)
-- [贡献与开发指南](#贡献与开发指南)
 - [版本历史](#版本历史)
 - [感谢贡献](#感谢贡献)
 - [许可](#许可)
@@ -199,7 +168,7 @@
 
 #### 浏览器 → 子女端（入站路由）
 
-子女端后端作为 BFF，对外提供 10 个页面与若干 POST 接口（详见 [API 文档-家属端路由](#家属看护端路由)），监听 `0.0.0.0:4430`。
+子女端后端作为 BFF，对外提供 10 个页面与若干 POST 接口（详见 [API 文档-家属端路由](#api-文档)），监听 `0.0.0.0:4430`。
 
 ---
 
@@ -417,6 +386,8 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 > 2. 确认该 Secret Key 与 `family_monitor/.env` 的 Site Key 来自**同一个** Cloudflare Turnstile 站点（密钥与站点密钥不匹配会校验失败）；
 > 3. 确认 Turnstile 站点「允许的主机名」包含当前访问域名。
 
+---
+
 ## 配置说明
 
 | 模块              | 配置文件 | 关键配置项                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -434,7 +405,7 @@ python main.py             # 启动服务（本地端口 4430，HTTP 监听）
 
 中间件实现位于 [server/app/main.py](./server/app/main.py) 与 [family_monitor/main.py](./family_monitor/main.py)：请求阶段剥离前缀供路由匹配，响应阶段为 3xx 重定向的 `Location` 头补回前缀。
 
-### 服务端 `.env` 关键项
+### 服务端 .env 关键项
 
 ```ini
 APP_NAME=老年人用药管理系统
@@ -465,13 +436,49 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 
 首次启动 `main.py` 会自动生成 `.env` 模板。
 
+### 第三方 OAuth 登录配置
+
+服务端 `server/.env` 配置对应平台凭据后，家属端登录页自动显示相应登录按钮（未配置则隐藏）。GitHub 与 Gitee 共用同一套 provider 框架，流程一致：发起授权（state 防 CSRF）→ 回调换 token → 拉用户信息 → 已绑定直接登录，未绑定则**自动注册**（无需补全手机号/密码，邮箱权限授权后写入 `users.email`）。用户后续可在设置页面的「登录方式管理」板块绑定/解绑手机号、邮箱、GitHub、Gitee。
+
+#### GitHub OAuth
+
+| 配置项                        | 说明                                                                                                                                                                        |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_CLIENT_ID`          | GitHub OAuth App 的 Client ID（必填，否则按钮隐藏）                                                                                                                         |
+| `GITHUB_CLIENT_SECRET`      | GitHub OAuth App 的 Client Secret（必填）                                                                                                                                   |
+| `GITHUB_OAUTH_CALLBACK_URL` | 回调地址，须与 GitHub 后台`Authorization callback URL` **完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback` |
+
+> 注意：一个 GitHub OAuth App 仅允许配置**一个**固定回调 URL。本地开发请另行在 GitHub 创建 OAuth App（回调填 `http://localhost:1059/api/v1/auth/oauth/github/callback`）。GitHub 仅申请 `read:user` scope（公开邮箱若用户设置则可取）。
+
+#### Gitee OAuth
+
+在 Gitee 创建应用（[https://gitee.com/oauth/applications](https://gitee.com/oauth/applications)），勾选「访问用户的个人信息、最新动态」(`user_info`) 与「查看用户的个人邮箱信息」(`emails`) 权限。
+
+| 配置项                       | 说明                                                                                                                                                       |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITEE_CLIENT_ID`          | Gitee OAuth 应用的 Client ID（必填，否则按钮隐藏）                                                                                                         |
+| `GITEE_CLIENT_SECRET`      | Gitee OAuth 应用的 Client Secret（必填）                                                                                                                   |
+| `GITEE_OAUTH_CALLBACK_URL` | 回调地址，须与 Gitee 后台「应用回调地址」**完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback` |
+
+> 注意：Gitee 回调 URL 同样唯一。授权后服务端会调用 `/api/v5/emails` 取得主邮箱并写入 `users.email`（仅在已授权 `emails` 权限时）。首次 Gitee 登录自动注册（无需手机号/密码），已绑定账号再次登录直接写入登录态。
+
+#### 公共配置
+
+| 配置项             | 说明                                                                                                     |
+| ------------------ | -------------------------------------------------------------------------------------------------------- |
+| `FAMILY_WEB_URL` | 家属端前端地址，OAuth 回调成功后 302 跳转用，默认`https://my-website.ccwu.cc/eating-medication/family` |
+
 ---
 
 ## API 文档
 
-> 完整外部路径 = `PATH_PREFIX`（`/eating-medication/server`） + `API_V1_PREFIX`（`/api/v1`） + 
+完整外部路径 = `PATH_PREFIX`（`/eating-medication/server`） + `API_V1_PREFIX`（`/api/v1`） + 路由路径
 
-详细api文档见 `PATH_PREFIX` + (`docs`)
+- **Swagger UI**：`http://localhost:1059/eating-medication/server/docs`（或本地直连 `http://localhost:1059/docs`）
+- **ReDoc**：`http://localhost:1059/eating-medication/server/redoc`
+- **OpenAPI JSON**：`http://localhost:1059/openapi.json`
+
+> 生产环境（`DEBUG=False`）下 `/docs`、`/redoc`、`/openapi.json` 返回 404。
 
 ---
 
@@ -500,7 +507,7 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 ### 服务端主动推送消息类型（经 `ConnectionManager` + `Notifier`）
 
 | `type`              | 触发场景                                |
-| --------------------- | --------------------------------------- |
+| ------------------- | --------------------------------------- |
 | `medication_taken`  | 老人已服药                              |
 | `medication_missed` | 老人漏服药品                            |
 | `low_stock`         | 药品库存不足（定时任务每天 02:00 触发） |
@@ -538,7 +545,7 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 
 ## 自动更新机制
 
-所有模块均内置**启动时自动更新检查**功能（`updater.py`），符合"上传到云端的代码均需有自动更新功能，启动时检查"的要求。
+所有模块均内置**启动时自动更新检查**功能（`updater.py`），符合「上传到云端的代码均需有自动更新功能，启动时检查」的要求。
 
 - 启动时通过 GitHub API 查询最新 Release（优先）/ Tag（回退）版本号。
 - 发现新版本时打印提示（当前版本、最新版本、下载地址），**非阻塞**，不影响主程序运行。
@@ -628,20 +635,33 @@ journalctl -u eating-medication-family -f       # 家属端日志
 journalctl -u cloudflared -f                    # 隧道日志
 ```
 
+---
+
+## 版本历史
+
+详见 [`history.md`](./history.md)。
+
+---
+
 ## 感谢贡献
 
 本项目的开发与运行离不开以下服务与 API 提供方的支持（排名不分先后）：
 
 ### 基础设施与网络
 
-- **[Cloudflare](https://www.cloudflare.com/)** — 提供 Cloudflare Tunnel（cloudflared）边缘隧道，承担 HTTPS 终止与子路径转发，使本地服务无需自备证书即可对外提供安全访问，提供Turnstile 小组件等其他功能。
+- **[Cloudflare](https://www.cloudflare.com/)** — 提供 Cloudflare Tunnel（cloudflared）边缘隧道，承担 HTTPS 终止与子路径转发，使本地服务无需自备证书即可对外提供安全访问，提供 Turnstile 组件等其他功能。
 - **[dnshe](https://www.dnshe.com/)** — 提供免费域名，用于 Cloudflare 隧道对外接入。
-- **[CF-Workers-GitHub-Proxy](https://github.com/Geekertao/CF-Workers-GitHub-Proxy)** —基于该项目，[fork](https://github.com/diaoyunxi/CF-GitHub-Proxy)后进行部分更改后部署[github镜像站](https://gh.my-website.ccwu.cc/)，对在受限网络环境中进行推送等操作提供支持。
-- **[GitHub](https://github.com/)** — 代码托管与 Release 分发，自动更新检查通过 GitHub API 获取最新版本，提供[GitHub Actions](https://github.com/diaoyunxi/eating-medication/actions) 的 CI/CD 服务,提供GitHub登陆方式等。
-- **[gitee](https://gitee.com/)** — 提供gitee登陆方式等。
+- **[CF-Workers-GitHub-Proxy](https://github.com/Geekertao/CF-Workers-GitHub-Proxy)** — 基于该项目，[fork](https://github.com/diaoyunxi/CF-GitHub-Proxy) 后进行部分更改后部署 [GitHub 镜像站](https://gh.my-website.ccwu.cc/)，对在受限网络环境中进行推送等操作提供支持。
+
+### 代码托管与 CI/CD
+
+- **[GitHub](https://github.com/)** — 代码托管与 Release 分发，自动更新检查通过 GitHub API 获取最新版本，提供 [GitHub Actions](https://github.com/diaoyunxi/eating-medication/actions) 的 CI/CD 服务，提供 GitHub 登录方式等。
+- **[Gitee](https://gitee.com/)** — 提供 Gitee 登录方式等。
 
 ### AI 与识别服务
 
+- **[智谱 AI](https://bigmodel.cn/)** — 提供 GLM-4 系列大模型 API，用于健康问答等 AI 功能。
+- **[百度 OCR](https://cloud.baidu.com/product/ocr)** — 提供药品图片识别服务。
 - **[Tesseract OCR](https://github.com/tesseract-ocr/tesseract)** — 开源本地 OCR 引擎，供老人端离线识别药名。
 - **[pyttsx3](https://github.com/nateshmbhat/pyttsx3)** — 离线中文 TTS 引擎，供老人端语音播报用药提醒。
 
@@ -649,7 +669,7 @@ journalctl -u cloudflared -f                    # 隧道日志
 
 - **[DFRobot 行空板 M10](https://www.unihiker.com/)** — 老人端目标硬件，提供屏幕、按钮、GPIO 与 WiFi，通过 `pinpong` 库与 `unihiker` GUI 库实现图形化交互。
 
-### 代码开放
+### AI 编程助手
 
 - **[CodeBuddy](https://www.codebuddy.cn/home/)**
 - **[Trae](https://www.trae.ai/)**
@@ -664,4 +684,4 @@ journalctl -u cloudflared -f                    # 隧道日志
 
 [MIT](LICENSE)
 
-本项目仅供学习和个人使用，最终解释权归github账户：diaoyunxi 所有。
+本项目仅供学习和个人使用，最终解释权归 github 账户：diaoyunxi 所有。
