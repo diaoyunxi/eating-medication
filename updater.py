@@ -98,6 +98,9 @@ _ENV_DEFAULT_CONTENT = (
     "# 更新成功后执行的一条命令（shell）。留空则不执行。典型用途：数据库迁移\n"
     "# 如 alembic upgrade head。失败仅告警、不影响更新结果，命令原文不写入日志。\n"
     "POST_UPDATE_CMD=\n"
+    "# 远程触发自更新的访问令牌（供 server 的 POST /api/v1/updater 校验）。\n"
+    "# 留空则拒绝远程无鉴权触发更新；CI / 部署脚本调用时携带 X-Update-Token 头。\n"
+    "UPDATE_TOKEN=\n"
 )
 
 
@@ -186,6 +189,22 @@ def _load_post_update_cmd():
 
 
 _POST_UPDATE_CMD = _load_post_update_cmd()
+
+
+def _load_update_token():
+    """读取根目录 .env 的 UPDATE_TOKEN 字段（远程触发自更新的访问令牌）。
+
+    - 为空 / 未配置返回 None：server 的 POST /api/v1/updater 将拒绝触发更新。
+    - 该令牌仅用于 HTTP 端点鉴权，CI / 部署脚本需携带 X-Update-Token 头。
+    """
+    try:
+        data = _load_root_env()
+        val = data.get("UPDATE_TOKEN", "")
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    except Exception as e:
+        logger.warning(f"[更新检查] 读取 UPDATE_TOKEN 失败: {e}")
+    return None
 
 
 def _configure_opener():
