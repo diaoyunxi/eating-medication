@@ -17,6 +17,52 @@ from app.services import mfa_service
 
 router = APIRouter(tags=["auth", "mfa"])
 
+# ===== MFA 校验失败锁定（修复 P3-2） =====
+# 背景：/totp/verify 此前仅依赖 IP 限流（可被伪造 XFF 绕过），且 mfa_token
+# 有效期内无尝试次数上限，6 位动态码存在分布式高速爆破面。
+# 方案：按 mfa_token 累计失败次数，连续 _MFA_MAX_ATTEMPTS 次失败后锁定并作废
+# 该令牌（用户须重新登录获取新令牌），成功校验时清零。
+import time as _time
+
+_MFA_MAX_ATTEMPTS = 5
+_MFA_LOCK_SECONDS = 30
+# mfa_token -> [失败次数, 锁定截止时间戳(0=未锁定)]
+_mfa_fail_attempts: dict = {}
+
+
+def _check_mfa_lock(mfa_token: str):
+    """校验前检查：已锁定则直接 429（防止继续爆破）。"""
+    entry = _mfa_fail_attempts.get(mfa_token)
+    if not entry:
+        return
+    count, locked_until = entry
+    if locked_until and _time.time() < locked_until:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"验证失败次数过多，请 {int(locked_until - _time.time()) + 1} 秒后重试",
+        )
+    if locked_until and _time.time() >= locked_until:
+        # 锁定已过期：重新计数
+        _mfa_fail_attempts[mfa_token] = [0, 0]
+
+
+def _record_mfa_failure(mfa_token: str):
+    """校验失败：计数 +1；达到上限则锁定令牌（后续请求直接 429）。"""
+    now = _time.time()
+    entry = _mfa_fail_attempts.get(mfa_token)
+    count = (entry[0] if entry else 0) + 1
+    if count >= _MFA_MAX_ATTEMPTS:
+        # 达到上限：锁定并作废该 mfa_token，攻击者须重新登录拿新令牌
+        _mfa_fail_attempts[mfa_token] = [count, now + _MFA_LOCK_SECONDS]
+    else:
+        _mfa_fail_attempts[mfa_token] = [count, 0]
+
+
+def _clear_mfa_attempts(mfa_token: str):
+    """校验成功：清零计数。"""
+    _mfa_fail_attempts.pop(mfa_token, None)
+
+
 
 class TOTPCodeIn(BaseModel):
     code: str
@@ -103,7 +149,12 @@ def totp_disable(
 
 @router.post("/totp/verify", response_model=TokenResp)
 def totp_verify(in_: TOTPVerifyIn, db: Session = Depends(get_db)):
-    """MFA 第二步：校验动态码或备用码，成功签发正式 JWT。"""
+    """MFA 第二步：校验动态码或备用码，成功签发正式 JWT。
+
+    安全加固（修复 P3-2）：按 mfa_token 累计失败次数并锁定，防止
+    分布式 IP 在令牌有效期内高速爆破 6 位动态码；成功校验清零。
+    """
+    _check_mfa_lock(in_.mfa_token)
     user_id = verify_mfa_token(in_.mfa_token)
     if user_id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="MFA 令牌无效或已过期")
@@ -115,7 +166,9 @@ def totp_verify(in_: TOTPVerifyIn, db: Session = Depends(get_db)):
         user.backup_codes, in_.code
     )
     if not ok:
+        _record_mfa_failure(in_.mfa_token)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="动态验证码或备用码错误")
+    _clear_mfa_attempts(in_.mfa_token)
     # 若使用备用码，则消费（一次性）
     if user.backup_codes and mfa_service.verify_backup_code(user.backup_codes, in_.code):
         user.backup_codes = mfa_service.consume_backup_code(user.backup_codes, in_.code)
