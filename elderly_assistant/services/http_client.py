@@ -262,13 +262,25 @@ class HTTPClient:
 
         新设备注册时服务端返回 device_token，
         需持久化保存并在后续请求中携带。
+
+        同时上报设备绑定码（屏幕展示的 6 位短码），供家属绑定时由
+        服务端校验所有权，防止仅凭 MAC 派生的 device_id 越权绑定。
         """
         url = f"{self.base_url}/api/v1/public/device/register"
         try:
+            # 函数内导入避免模块加载顺序问题；上报失败不影响注册主流程
+            try:
+                from services.device_bind_code import load_or_create_bind_code
+                bind_code = load_or_create_bind_code()
+            except Exception:
+                bind_code = None
+            payload = {"device_id": self.device_id, "device_name": device_name}
+            if bind_code:
+                payload["bind_code"] = bind_code
             resp = self._request(
                 "POST",
                 url,
-                json={"device_id": self.device_id, "device_name": device_name},
+                json=payload,
                 timeout=self.timeout,
                 headers=self._headers(),
             )

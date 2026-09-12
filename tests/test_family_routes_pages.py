@@ -105,8 +105,8 @@ class FakeClient:
         self.calls.append(("check_device", device_id))
         return {"success": True, "data": {"exists": True}}
 
-    async def bind_device_family(self, device_id, device_name=""):
-        self.calls.append(("bind_device_family", device_id, device_name))
+    async def bind_device_family(self, device_id, device_name="", bind_code=""):
+        self.calls.append(("bind_device_family", device_id, device_name, bind_code))
         return {"status": "ok", "device_token": "tok-xyz", "device_id": device_id}
 
     async def unbind_device_family(self):
@@ -244,11 +244,13 @@ class TestHomeRoutes(unittest.TestCase):
     def test_bind_device_success(self):
         resp = self.client.post(
             "/settings/bind_device",
-            data={"device_id": "d1", "device_name": "老人机"},
+            data={"device_id": "d1", "device_name": "老人机", "bind_code": "482913"},
         )
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["success"])
         self.assertEqual(self.fake.bound["device_token"], "tok-xyz")
+        # 绑定码透传到 server 端校验
+        self.assertIn(("bind_device_family", "d1", "老人机", "482913"), self.fake.calls)
 
     def test_bind_device_not_registered(self):
         async def fake_check(device_id):
@@ -270,7 +272,7 @@ class TestHomeRoutes(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
 
     def test_bind_device_register_failure(self):
-        async def fake_bind(device_id, device_name=""):
+        async def fake_bind(device_id, device_name="", bind_code=""):
             return {"status": "error", "msg": "绑定失败"}
         home.elderly_client.bind_device_family = fake_bind
         resp = self.client.post(

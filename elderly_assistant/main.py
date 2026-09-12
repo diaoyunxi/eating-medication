@@ -274,6 +274,16 @@ def main():
     logger.info(f"设备 ID: {device_uuid}")
     logger.info(f"服务器地址: {server_url}")
 
+    # 设备绑定码：本地生成/加载，显示在屏幕供家属绑定时核对（所有权证明）。
+    # 注册/心跳上报时同步到服务端，绑定设备须提供该码。
+    bind_code = ""
+    try:
+        from services.device_bind_code import load_or_create_bind_code
+        bind_code = load_or_create_bind_code()
+        logger.info(f"设备绑定码: {bind_code}（家属绑定设备时需要）")
+    except Exception as e:
+        logger.warning(f"加载设备绑定码失败: {e}")
+
     # 3. 初始化蜂鸣器
     buzzer = Buzzer(config)
 
@@ -417,6 +427,9 @@ def main():
 
     # 9. 显示主界面（含「扫码查药」触摸按钮）
     display.show_main_screen(device_uuid=device_uuid, server_url=server_url, connected=False)
+    # 主界面底部追加显示绑定码（供家属绑定设备时核对屏幕）
+    if bind_code:
+        display.show_device_uuid(device_uuid, bind_code)
 
     # 提醒状态
     reminder_state = ReminderState()
@@ -450,7 +463,7 @@ def main():
                 except Exception:
                     server_connected = False
                 display.show_status(server_url, server_connected)
-                display.show_device_uuid(device_uuid)
+                display.show_device_uuid(device_uuid, bind_code)
                 # 更新下一个用药提醒
                 if not reminder_state.active:
                     nxt = poller.get_next_reminder(now)

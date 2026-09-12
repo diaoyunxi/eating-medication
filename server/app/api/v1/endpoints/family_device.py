@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
+import secrets
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
@@ -42,6 +43,8 @@ class FamilyBindReq(BaseModel):
     """家属绑定设备请求"""
     device_id: str
     device_name: Optional[str] = None
+    # 设备绑定码：老人端屏幕当前展示的 6 位短码，用于证明家属实际占有设备。
+    bind_code: Optional[str] = None
 
 
 class FamilyMedicationPlan(BaseModel):
@@ -85,10 +88,13 @@ async def bind_device(
 ):
     """家属绑定设备并合法获取设备令牌。
 
-    弱保护：需知道设备 ID（device_id）。校验设备已注册后，将当前登录家属的
-    device_id 设为该设备，并返回该设备的 device_token，供子女端本地保存。
-    该令牌使家属侧在调用需设备令牌的写操作（如下线/上传，若后续需要）时
-    拥有合法凭据，解决此前"已注册设备不再下发令牌导致空令牌 403"的问题。
+    绑定校验（所有权证明）：
+    1. 设备必须已注册且曾联机（last_heartbeat_at 非空）；
+    2. 设备端已上报绑定码（device_bind_code）时，家属必须提供与老人端屏幕
+       展示一致的绑定码（compare_digest 恒时比较），否则拒绝绑定——
+       防止仅凭 MAC 派生的 device_id（可枚举/易泄露）即越权绑定监控；
+    3. 设备尚未上报绑定码（旧设备未升级）时拒绝绑定并提示升级老人端，
+       避免"未证明所有权即可绑定"的弱保护延续。
 
     :return: {"status": "ok", "device_id": str, "device_name": str, "device_token": str}
     """
@@ -105,6 +111,26 @@ async def bind_device(
         raise HTTPException(
             status_code=409,
             detail="设备尚未联机，请先让老人端开机联网后再绑定",
+        )
+
+    # 所有权证明：校验设备绑定码（老人端屏幕展示的 6 位短码）
+    if user.device_bind_code:
+        if not req.bind_code:
+            raise HTTPException(
+                status_code=400,
+                detail="请查看老人端屏幕显示的 6 位绑定码并填写后重试",
+            )
+        if not secrets.compare_digest(user.device_bind_code, req.bind_code.strip()):
+            raise HTTPException(
+                status_code=403,
+                detail="绑定码错误，请核对老人端屏幕当前显示的绑定码",
+            )
+    else:
+        # 设备未上报绑定码：拒绝绑定，防止弱保护延续（device_id 由 MAC 派生、可枚举）
+        raise HTTPException(
+            status_code=409,
+            detail="设备尚未启用绑定码：请先将老人端升级到支持绑定码的版本并重启，"
+                   "待其上报后重试绑定",
         )
 
     # 家属账号持有该设备关联（复用 User.device_id 字段，语义与老人侧一致）
