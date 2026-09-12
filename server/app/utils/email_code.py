@@ -7,7 +7,7 @@
 - 邮件发送使用标准 smtplib；未配置 MAIL_* 时回退为日志输出，便于本地开发调试。
 """
 import os
-import random
+import secrets
 import time
 import smtplib
 import ssl
@@ -27,8 +27,12 @@ _store = {}
 
 
 def _gen_code():
-    """生成指定长度的数字验证码。"""
-    return "".join(random.choice("0123456789") for _ in range(_CODE_LEN))
+    """生成指定长度的数字验证码。
+
+    使用密码学安全随机源 secrets（修复 P3-3）：random 模块为
+    Mersenne Twister，不适合生成密码学敏感的验证码。
+    """
+    return "".join(secrets.choice("0123456789") for _ in range(_CODE_LEN))
 
 
 def send_code(email):
