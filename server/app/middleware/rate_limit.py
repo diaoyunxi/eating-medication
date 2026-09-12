@@ -14,6 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from app.core.config import settings
+from app.utils.request_utils import get_client_ip
 
 # 限流规则：剥离 API 前缀后的路径 -> (最大次数, 窗口秒数)
 RATE_LIMIT_RULES = {
@@ -32,11 +33,12 @@ _store = defaultdict(lambda: defaultdict(deque))
 
 
 def _client_ip(request) -> str:
-    """优先取 X-Forwarded-For（Cloudflare 隧道/反代场景），否则取直连 IP。"""
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    """限流标识 IP：仅信任配置了 TRUSTED_PROXIES 的白名单代理头。
+
+    复用 request_utils.get_client_ip（修复 P3-1：直连部署时伪造
+    X-Forwarded-For / CF-Connecting-IP 即可绕过限流）。
+    """
+    return get_client_ip(request)
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

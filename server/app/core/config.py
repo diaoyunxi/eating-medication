@@ -85,6 +85,12 @@ def _write_full_env(env_path: Path, secret_key: str):
         f"# ===== CORS 跨域白名单 =====\n"
         f"# 生产环境必填，填前端（family_monitor）访问域名，逗号分隔；留空则跨域请求被拒绝\n"
         f"ALLOWED_ORIGINS=\n\n"
+        f"# ===== 可信反向代理（限流/审计取真实 IP） =====\n"
+        f"# 服务端直连公网（无 Cloudflare 等可信反代）时，攻击者可伪造 X-Forwarded-For /\n"
+        f"# CF-Connecting-IP 头绕过限流。配置可信代理后，仅当直连 IP 命中白名单时才信任\n"
+        f"# 上述头；未配置时一律取直连 IP（默认最安全，但 Cloudflare 用户会共享出口 IP，\n"
+        f"# 限流可能过严，建议填写）。格式：逗号分隔的 IP/CIDR，或关键字 cloudflare。\n"
+        f"TRUSTED_PROXIES=\n\n"
         f"# ===== GitHub OAuth 登录 =====\n"
         f"# 不配置 GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET 时前端隐藏 GitHub 登录按钮\n"
         f"# 申请地址：https://github.com/settings/developers -> New OAuth App\n"
@@ -272,6 +278,11 @@ class Settings(BaseSettings):
 
     # CORS 允许的来源（逗号分隔），未配置则不启用 CORS
     ALLOWED_ORIGINS: str = ""
+
+    # 可信反向代理白名单（逗号分隔 IP/CIDR，或关键字 cloudflare）。
+    # 仅当直连 IP 命中白名单时才信任 CF-Connecting-IP / X-Forwarded-For，
+    # 防止伪造代理头绕过限流与审计（P3-1）。
+    TRUSTED_PROXIES: str = ""
 
     # ===== GitHub OAuth 登录配置 =====
     # 未配置 GITHUB_CLIENT_ID 时，前端隐藏 GitHub 登录按钮
