@@ -317,22 +317,52 @@ async def _authorize(
     return resp
 
 
+@router.post("/oauth/bind-start")
+async def oauth_bind_start(request: Request) -> JSONResponse:
+    """绑定模式第一步：以 Authorization header 交换 HttpOnly cookie。
+
+    修复 P3-4（JWT 置于 URL 查询参数会进入访问日志 / 浏览器历史 / Referer）：
+    family_monitor 先调用本端点（携带 Bearer JWT）设置 oauth_bind_jwt cookie，
+    再 302 到 /auth/oauth/{provider}/bind（无 token 参数），由 _bind_authorize
+    从 cookie 读取并完成第三方跳转。
+    """
+    family_settings = f"{settings.FAMILY_WEB_URL}/settings"
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"success": False, "message": "缺少登录凭证"})
+    token = auth_header[len("Bearer "):].strip()
+    try:
+        payload = decode_token(token)
+        if payload.get("sub") is None:
+            raise ValueError("JWT 缺少 sub")
+    except Exception as e:
+        logger.warning(f"OAuth 绑定模式 JWT 验证失败: {e}")
+        return JSONResponse(status_code=401, content={"success": False, "message": "登录凭证无效"})
+    resp = JSONResponse(content={"success": True})
+    resp.set_cookie(
+        key="oauth_bind_jwt",
+        value=token,
+        **_cookie_kwargs(600),
+    )
+    return resp
+
+
 async def _bind_authorize(provider: str, request: Request) -> RedirectResponse:
-    """绑定模式授权入口：验证 JWT 后设 oauth_bind_jwt cookie，再走正常 authorize
+    """绑定模式授权入口：从 oauth_bind_jwt cookie 取 JWT，再走正常 authorize
 
     流程：
-    1. 从 query 参数 token 取用户 JWT（由 family_monitor 转发）
+    1. 从 oauth_bind_jwt cookie 取用户 JWT（由 family_monitor 先调用
+       /auth/oauth/bind-start 设置；JWT 不再出现在 URL 查询参数）
     2. 验证 JWT 有效性（decode_token）
-    3. 设 oauth_bind_jwt cookie（10 分钟有效）
-    4. 调用 _authorize 跳转第三方授权页
-    5. 将 oauth_bind_jwt cookie 附加到 _authorize 的响应上
+    3. 调用 _authorize 跳转第三方授权页
+    4. 将 oauth_bind_jwt cookie 附加到 _authorize 的响应上
     """
     cfg = _OAUTH.get(provider)
     family_settings = f"{settings.FAMILY_WEB_URL}/settings"
     if cfg is None:
         return RedirectResponse(url=f"{family_settings}?error=oauth_not_configured", status_code=302)
 
-    token = request.query_params.get("token", "")
+    token = request.cookies.get("oauth_bind_jwt", "")
     if not token:
         return RedirectResponse(url=f"{family_settings}?error=no_token", status_code=302)
 
@@ -541,8 +571,9 @@ async def github_authorize() -> RedirectResponse:
 async def github_bind(request: Request) -> RedirectResponse:
     """GitHub 绑定入口（已登录用户在设置页点击"绑定 GitHub"）
 
-    接收 query 参数 token（用户 JWT），验证后设 oauth_bind_jwt cookie，
-    然后走正常 authorize 流程；回调时检测到该 cookie 则绑定到当前用户。
+    从 oauth_bind_jwt cookie 读取用户 JWT（由 /auth/oauth/bind-start 设置，
+    不再接受 query 参数 token），验证后走正常 authorize 流程；回调时检测到
+    该 cookie 则绑定到当前用户。
     """
     return await _bind_authorize("github", request)
 
@@ -574,7 +605,11 @@ async def gitee_authorize() -> RedirectResponse:
 
 @router.get("/oauth/gitee/bind")
 async def gitee_bind(request: Request) -> RedirectResponse:
-    """Gitee 绑定入口（已登录用户在设置页点击"绑定 Gitee"）"""
+    """Gitee 绑定入口（已登录用户在设置页点击"绑定 Gitee"）
+
+    从 oauth_bind_jwt cookie 读取用户 JWT（由 /auth/oauth/bind-start 设置，
+    不再接受 query 参数 token）。
+    """
     return await _bind_authorize("gitee", request)
 
 
