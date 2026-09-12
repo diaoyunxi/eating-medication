@@ -9,12 +9,11 @@ bcrypt>=4.0
 httpx==0.27.2
 fastapi-oauth20==0.0.3
 aiofiles==24.1.0
-pillow==10.4.0
-python-multipart==0.0.12
+python-multipart==0.0.32
 apscheduler==3.11.0
 alembic==1.14.0
 openai>=1.40.0
-cryptography>=42.0.0
+cryptography>=48.0.1
 # 远程数据库驱动（按需启用：MySQL 用 pymysql，PostgreSQL 用 psycopg2）
 pymysql>=1.1.0
 psycopg2-binary>=2.9.0

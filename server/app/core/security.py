@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 import secrets
 from app.core.config import settings
+from common.security import mask_device_id  # 与 common/security.py 共享同一实现，消除重复定义
 
 # 移除 passlib（与 bcrypt 4.x 不兼容），改用 bcrypt 原生 API
 # 密码哈希 rounds 固定为 12，与原 passlib 配置一致
@@ -38,19 +39,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-def mask_device_id(device_id: str) -> str:
-    """设备 ID 日志脱敏：仅保留前 4 位与后 4 位，中间以 *** 遮挡。
-
-    长度不足 8 位时统一返回 ***，避免泄露短 ID 的可识别片段。全仓统一使用此函数，
-    消除 public.py 等各处重复的 ``_did[:4] + "***" + _did[-4:]`` 脱敏写法。
-
-    :param device_id: 原始设备 ID
-    :return: 脱敏后的字符串
-    """
-    _did = device_id or ""
-    if len(_did) > 8:
-        return _did[:4] + "***" + _did[-4:]
-    return "***"
+# mask_device_id 由 common.security 导入（见上方 import），全仓统一实现，避免重复定义
 
 
 def create_access_token(data: Dict[str, Any], expires_delta: timedelta = None) -> str:

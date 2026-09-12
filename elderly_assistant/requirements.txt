@@ -1,9 +1,9 @@
 # 依赖列表（版本已锁定为已验证的稳定版本）
 # 配置统一为扁平 .env（python-dotenv 读取），不再使用 pyyaml
-python-dotenv
+python-dotenv==1.2.3
 pyttsx3==2.90
-requests==2.32.3
-pinpong
+requests==2.34.2
+pinpong==0.6.2
 # HuskyLens 摄像头依赖：dfrobot_huskylensv2
 # 该包 PyPI 未发布, 不在此处安装;
 # 改由 common/install.py 自动从官方仓库下载并落地 (详见 common/install.py::install_dfrobot_huskylensv2)
@@ -13,13 +13,13 @@ pinpong
 # 默认扫码走 HuskyLens 板载解码（无需以下依赖）；仅在使用 USB 摄像头
 # (SCAN_SOURCE=usb 或 auto 回退) 时需要，缺失时自动降级，不影响主程序运行。
 # 系统级原生依赖（main.py 自动 apt 安装）：libzbar0
-pyzbar
-opencv-python-headless
+pyzbar==0.1.9
+opencv-python-headless==4.10.0.84
 
 # ===== 联网优先 TTS：edge-tts（中文神经语音，质量优于本地 espeak）=====
 # 运行时需联网；无网或失败时由 pyttsx3 离线兜底。
 # 播放 edge-tts 产出的 MP3 需要系统播放器（main.py 自动 apt 安装 mpg123）。
-edge-tts
+edge-tts==7.2.8
 
 # ===== 网络图传（v2.43.0 新增）=====
 # requests 已在上方声明；以下依赖按需安装：

@@ -143,7 +143,7 @@
 | -- | --------------- | ------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------ |
 | 20 | HTTP POST       | 智谱 AI`glm-4.7-flash`（`zhipuai` SDK） | AI 健康问答                                      | `/ai/chat`、`/ai/chat/public`、`/public/ai/ask` 被调用 |
 | 21 | HTTP GET + POST | 百度 OCR`aip.baidubce.com`                | 药品图片识别药名（先换 token，再调通用文字识别） | `/vision/recognize` 被调用                                 |
-| 22 | HTTP GET        | `api.github.com/.../releases/latest`      | 启动时自动更新检查（含 SHA256 资产校验）         | 启动时                                                       |
+| 22 | HTTP GET        | `api.github.com/.../releases/latest`      | 启动时自动更新检查（含 Release Attestation 校验）         | 启动时                                                       |
 | 23 | 内部调度        | APScheduler`AsyncIOScheduler`             | 库存不足检查，向家庭组广播`low_stock`          | 每天 02:00 自动执行                                          |
 
 #### 子女端 → 服务端（HTTP，由 BFF 后端 `core/api_client.py` 发起）
@@ -222,7 +222,7 @@
 │   └── data/                      # 运行时数据（用药计划/计划模板）
 ├── server/                        # 服务端
 │   ├── main.py                    # 启动脚本（uvicorn:1059）
-│   ├── updater.py                 # 自动更新检查（含 SHA256 校验）
+│   ├── updater.py                 # 自动更新检查（含 Release Attestation 校验）
 │   ├── install.py                 # 依赖自动安装
 │   ├── requirements.txt           # 运行依赖
 │   ├── requirements-dev.txt       # 测试依赖
@@ -254,7 +254,7 @@
 │   ├── static/css/                # 样式表
 │   └── templates/                 # 9 个 Jinja2 页面模板（含 Turnstile 登录/注册）
 ├── history.md                     # 项目开发历史记录（版本基准）
-├── VERSION                        # 当前版本号（v2.33.7）
+├── VERSION                        # 当前版本号（v2.44.0）
 ├── deploy/                        # 部署辅助文件（一键脚本 + systemd 单元 + cloudflared 配置）
 │   ├── setup-linux.sh             # Linux 一键部署脚本（bash）
 │   ├── setup-mac.sh               # macOS 一键部署脚本（zsh）
@@ -549,7 +549,7 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 
 - 启动时通过 GitHub API 查询最新 Release（优先）/ Tag（回退）版本号。
 - 发现新版本时打印提示（当前版本、最新版本、下载地址），**非阻塞**，不影响主程序运行。
-- `AUTO_PULL=true`（根目录 `.env` 控制，缺省启用）时自动下载完整发布包、SHA256 校验后安全安装（保留 `.env` / `data/` / `logs/` 等保护文件）。
+- `AUTO_PULL=true`（根目录 `.env` 控制，缺省启用）时自动下载完整发布包、Release Attestation 校验后安全安装（保留 `.env` / `data/` / `logs/` 等保护文件）。
 - 网络异常或检查失败时静默/警告处理，不中断启动。
 
 ### 服务端 HTTP 触发更新
@@ -559,20 +559,33 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 - **GET** `/api/v1/updater`：直接触发一次更新检查与安装。
 - **POST** `/api/v1/updater`：行为与 GET 一致，供 CI 脚本语义化调用。
 
-两个方法行为完全相同：若远端存在更新版本且 `AUTO_PULL=true`，则下载完整发布包、做 SHA256 校验并安全复制到项目根目录，更新成功后自动重启服务。无需登录鉴权，便于 CI / 部署脚本 / 浏览器直接访问触发自更新。
+两个方法行为完全相同：若远端存在更新版本且 `AUTO_PULL=true`，则下载完整发布包、做 Release Attestation 校验并安全复制到项目根目录，更新成功后自动重启服务。无需登录鉴权，便于 CI / 部署脚本 / 浏览器直接访问触发自更新。
 
 ### 三模块差异
 
-三模块的 `updater.py` 已统一为同一份实现（均含完整 C9 加固）：
+三模块的 `updater.py` 已统一为同一份实现（均含完整 attestation 校验）：
 
-| 模块              | SHA256 校验                                                           | 异常处理                  | 版本号来源          |
+| 模块              | Release Attestation 校验                                                           | 异常处理                  | 版本号来源          |
 | ----------------- | --------------------------------------------------------------------- | ------------------------- | ------------------- |
-| elderly_assistant | **完整 C9 加固**：尝试在 Release 资产中查找 SHA256SUMS 校验文件 | `logger.warning` 不静默 | 从 VERSION 文件读取 |
-| server            | **完整 C9 加固**：同上                                          | `logger.warning` 不静默 | 从 VERSION 文件读取 |
-| family_monitor    | **完整 C9 加固**：同上                                          | `logger.warning` 不静默 | 从 VERSION 文件读取 |
+| elderly_assistant | **完整 attestation 校验**：调用 gh attestation verify 校验（限定本仓库 python-app.yml 签发） | `logger.warning` 不静默 | 从 VERSION 文件读取 |
+| server            | **完整 attestation 校验**：同上                                          | `logger.warning` 不静默 | 从 VERSION 文件读取 |
+| family_monitor    | **完整 attestation 校验**：同上                                          | `logger.warning` 不静默 | 从 VERSION 文件读取 |
 
 > 三个 `updater.py` 的 `__version__` 通过 `_load_version()` 从 VERSION 文件动态读取，不再写死在代码中。
 > 查找顺序：本模块目录的 VERSION → 项目根目录的 VERSION → 写死默认值（兜底）。
+
+---
+
+## 多因子认证（MFA）
+
+服务端已内置双因子认证，登录与敏感操作需二次验证：
+
+- **TOTP**：基于时间的一次性密码（`pyotp`），绑定二维码以 SVG 渲染（`qrcode`，无需 Pillow）。
+- **WebAuthn / Passkey**：基于 `webauthn` 库的生物识别 / 硬件密钥登记与断言校验。
+- **登录限流与弱密钥防护**：生产环境弱 `SECRET_KEY` 拒绝启动（`config.py` 维护 `_WEAK_SECRET_KEYS` 黑名单）；JWT 解码固定算法白名单，防 `alg=none` 降级。
+- **设备令牌时序安全比较**：`device_service.py` 使用 `secrets.compare_digest` 比较设备令牌，防时序侧信道。
+
+> 家庭成员（family 角色）可在账户设置中绑定 TOTP 与 Passkey；老人端（elderly）由家属代为管理。
 
 ---
 

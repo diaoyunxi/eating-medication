@@ -44,6 +44,19 @@ log_error() { printf '\033[31m[ERROR]\033[0m %s\n' "$1" >&2; }
 log_step()  { printf '\n\033[36m==> %s\033[0m\n' "$1"; }
 
 # ============================================================
+# 检测 gh CLI（自动更新 Release Attestation 校验依赖）
+# ============================================================
+check_gh_cli() {
+    if command -v gh >/dev/null 2>&1; then
+        log_info "已检测到 gh CLI：自动更新可对 Release Attestation 做签名校验"
+    else
+        log_warn "未检测到 gh CLI：自动更新将因无法校验 Release Attestation 而拒绝更新（安全降级）。"
+        log_warn "安装 GitHub CLI：https://cli.github.com/ （brew: gh）"
+    fi
+}
+check_gh_cli
+
+# ============================================================
 # 检测系统信息
 # ============================================================
 detect_system() {

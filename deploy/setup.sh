@@ -38,6 +38,17 @@ echo " 域名     : $DOMAIN"
 echo " 隧道前缀 : $SERVER_PREFIX / $FAMILY_PREFIX"
 echo "============================================================"
 
+# ===== 0. 检测 gh CLI（自动更新 Release Attestation 校验依赖）=====
+check_gh_cli() {
+  if command -v gh >/dev/null 2>&1; then
+    echo "✔ 已检测到 gh CLI：自动更新可对 Release Attestation 做签名校验"
+  else
+    echo "⚠ 未检测到 gh CLI：自动更新将因无法校验 Release Attestation 而拒绝更新（安全降级）。"
+    echo "  安装 GitHub CLI：https://cli.github.com/  （Debian: apt install gh / macOS: brew install gh）"
+  fi
+}
+check_gh_cli
+
 # ===== 1. 系统依赖 =====
 echo "==> [1/7] 安装系统依赖 (git/python3/pip/curl)..."
 

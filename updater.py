@@ -34,6 +34,7 @@ import sys
 import json
 import time
 import shutil
+import shlex
 import zipfile
 import tempfile
 import logging
@@ -346,7 +347,8 @@ def _verify_release_attestation(file_path, repo="diaoyunxi/eating-medication"):
         return False
     try:
         proc = subprocess.run(
-            ["gh", "attestation", "verify", str(file_path), "--repo", repo],
+            ["gh", "attestation", "verify", str(file_path), "--repo", repo,
+             "--signer-workflow", "github.com/diaoyunxi/eating-medication/.github/workflows/python-app.yml"],
             capture_output=True, text=True, timeout=60
         )
         if proc.returncode == 0:
@@ -386,7 +388,7 @@ def _safe_extract_zip(zip_path, extract_to):
     with zipfile.ZipFile(zip_path, 'r') as zf:
         for member in zf.namelist():
             member_path = (extract_to / member).resolve()
-            if not str(member_path).startswith(str(extract_to)):
+            if not member_path.is_relative_to(extract_to):
                 raise ValueError(f"非法 zip 成员路径: {member}")
         zf.extractall(extract_to)
 
@@ -523,9 +525,16 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
 
     except Exception as e:
         logger.error(f"[更新] 失败，回滚: {e}")
-        # 回滚：用备份恢复项目目录
-        shutil.rmtree(project_dir, ignore_errors=True)
-        shutil.move(backup_dir, str(project_dir))
+        # 原子回滚：先重命名当前目录，再移入备份；避免「已删除但未恢复」的中间态
+        # 若备份移入失败则尝试还原旧目录，保证项目目录始终存在可用版本。
+        _old_dir = f"{project_dir}.old.{int(time.time())}"
+        shutil.move(str(project_dir), _old_dir)
+        try:
+            shutil.move(str(backup_dir), str(project_dir))
+        except Exception:
+            shutil.move(_old_dir, str(project_dir))
+            raise
+        shutil.rmtree(_old_dir, ignore_errors=True)
         return False, 0, 0
     finally:
         # 清理临时目录
@@ -589,7 +598,7 @@ def _run_post_update_cmd():
     - 仅在更新文件落盘 + __pycache__ 清理成功、且重启业务服务「之前」调用，
       典型用途如执行数据库迁移（alembic upgrade head），确保新版本代码对应的
       数据表结构在新进程启动前就绪。
-    - 以 shell 方式执行，工作目录固定为仓库根目录（与 updater.py 同目录），
+    - 以参数列表方式执行（非 shell），工作目录固定为仓库根目录（与 updater.py 同目录），
       便于相对路径引用（如 `python -m alembic upgrade head`）。
     - 失败仅告警、不影响本次更新结果（更新已视为成功）；超时 / 异常均被捕获。
     - 出于安全考虑，日志中「不回显」命令原文，避免 .env 中的密钥随日志泄露。
@@ -597,11 +606,22 @@ def _run_post_update_cmd():
     """
     if not _POST_UPDATE_CMD:
         return
+    # 安全执行：以参数列表方式运行（去除 shell=True），消除命令注入面。
+    # 仅支持「单条简单命令 + 参数」；若含 shell 元字符（| & ; > < ` $ \）则拒绝执行（失败关闭），
+    # 防止 .env 写入权限失守后被利用为 RCE。
+    _cmd = _POST_UPDATE_CMD.strip()
+    if any(ch in _cmd for ch in "|;&><`$") or "\\" in _cmd:
+        logger.error("[更新] POST_UPDATE_CMD 含 shell 元字符，出于安全考虑拒绝执行")
+        return
+    try:
+        _args = shlex.split(_cmd)
+    except ValueError as e:
+        logger.warning(f"[更新] POST_UPDATE_CMD 解析失败，跳过执行: {e}")
+        return
     logger.info("[更新] 准备执行更新后命令 (POST_UPDATE_CMD)")
     try:
         proc = subprocess.run(
-            _POST_UPDATE_CMD,
-            shell=True,
+            _args,
             capture_output=True,
             text=True,
             timeout=300,
