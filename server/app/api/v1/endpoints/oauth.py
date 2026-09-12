@@ -122,6 +122,21 @@ class _OAuth20TimeoutMixin:
             return result
 
 
+def _pick_verified_email(emails: list) -> Optional[str]:
+    """从 GitHub /user/emails 列表中选取「主邮箱且已验证」的邮箱。
+
+    安全要求：邮箱合并绑定到本地账号前必须确认所有权，未验证的邮箱
+    （攻击者可将其设为 GitHub 主邮箱）绝不能用于合并登录。
+    没有任何已验证主邮箱时返回 None，而非回退到列表首个（可能是未验证邮箱）。
+    """
+    if not isinstance(emails, list) or not emails:
+        return None
+    for e in emails:
+        if isinstance(e, dict) and e.get("primary") and e.get("verified"):
+            return e.get("email")
+    return None
+
+
 class GitHubOAuth20Timeout(_OAuth20TimeoutMixin, GitHubOAuth20):
     """GitHub 客户端：加长超时，并保留上游 get_userinfo 的邮箱回退逻辑。"""
 
@@ -136,11 +151,11 @@ class GitHubOAuth20Timeout(_OAuth20TimeoutMixin, GitHubOAuth20):
                 response = await client.get(_oauth_rewrite_url(f"{self.userinfo_endpoint}/emails"))
                 self.raise_httpx_oauth20_errors(response)
                 emails = self.get_json_result(response, err_class=GetUserInfoError)
-                email = next(
-                    (e["email"] for e in emails if e.get("primary")),
-                    emails[0]["email"],
-                )
-                result["email"] = email
+                # 仅接受「主邮箱且已验证」的邮箱；未验证邮箱（可能被攻击者设置为
+                # 受害者邮箱）不得用于后续账号合并/注册，防止账户接管。
+                email = _pick_verified_email(emails)
+                if email:
+                    result["email"] = email
             return result
 
 
@@ -183,6 +198,9 @@ def _build_oauth_clients() -> dict:
             # 故显式指向 /user/emails（需 user:email scope，已在上方申请），
             # 由 _fetch_email 回退拉取（含私有且已验证的邮箱），与 Gitee 行为一致。
             "emails_api": "https://api.github.com/user/emails",
+            # 安全要求：合并绑定/自动注册只接受 GitHub「已验证」的邮箱，
+            # 未验证邮箱（攻击者可将其设为主邮箱）绝不能用于账号合并。
+            "require_verified_email": True,
         }
 
     if settings.GITEE_CLIENT_ID and settings.GITEE_CLIENT_SECRET:
@@ -198,6 +216,8 @@ def _build_oauth_clients() -> dict:
             "allow_signup": False,
             "auth_header": "token",                       # Gitee 使用 "token <access_token>" 而非 Bearer
             "emails_api": "https://gitee.com/api/v5/emails",
+            # Gitee 注册时强制邮箱验证，列表内邮箱均为已验证，保持宽松即可。
+            "require_verified_email": False,
         }
 
     return clients
@@ -229,8 +249,14 @@ def _clear_and_redirect(cookie_name: str, target: str) -> RedirectResponse:
     return resp
 
 
-async def _fetch_email(emails_api: str, access_token: str, auth_header: str) -> Optional[str]:
-    """拉取第三方邮箱（Gitee 主邮箱为空时补充调用 /emails）"""
+async def _fetch_email(
+    emails_api: str, access_token: str, auth_header: str, require_verified: bool = True
+) -> Optional[str]:
+    """拉取第三方邮箱（主邮箱为空时补充调用 /emails）
+
+    :param require_verified: 为 True 时只接受「主邮箱且已验证」的邮箱（GitHub）；
+        为 False 时保持宽松（Gitee 邮箱在注册时已强制验证，列表内均为已验证邮箱）。
+    """
     headers = {
         "Accept": "application/json",
         "Authorization": f"{auth_header} {access_token}",
@@ -243,12 +269,15 @@ async def _fetch_email(emails_api: str, access_token: str, auth_header: str) -> 
         resp = httpx.get(_oauth_rewrite_url(emails_api), headers=headers, timeout=OAUTH_HTTP_TIMEOUT, **_kwargs)
         emails = resp.json()
         if isinstance(emails, list) and emails:
-            # 优先取「主邮箱且已验证」，否则取列表首个
-            primary = next(
-                (e for e in emails if e.get("primary") and e.get("verified")),
-                emails[0],
-            )
-            return primary.get("email")
+            if require_verified:
+                # 仅接受「主邮箱且已验证」；没有任何已验证主邮箱时不回退到未验证邮箱，
+                # 防止攻击者用受害者的未验证邮箱触发账号合并（账户接管）。
+                primary = next(
+                    (e for e in emails if e.get("primary") and e.get("verified")),
+                    None,
+                )
+                return primary.get("email") if primary else None
+            return emails[0].get("email")
     except Exception:
         # 不记录异常细节（可能含第三方接口/令牌相关信息），仅记录失败事实
         logger.warning(f"获取 {emails_api} 邮箱失败")
@@ -259,7 +288,12 @@ async def _normalize_user(cfg: dict, raw: dict, access_token: str) -> dict:
     """将第三方原始用户信息统一为 provider_id / login / name / avatar / email"""
     email = raw.get("email")
     if not email and cfg.get("emails_api"):
-        email = await _fetch_email(cfg["emails_api"], access_token, cfg["auth_header"])
+        email = await _fetch_email(
+            cfg["emails_api"],
+            access_token,
+            cfg["auth_header"],
+            require_verified=cfg.get("require_verified_email", True),
+        )
     return {
         "provider_id": raw.get("id"),
         "provider_login": raw.get("login") or "",
