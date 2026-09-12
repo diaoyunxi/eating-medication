@@ -176,11 +176,12 @@ async def get_settings(request: Request):
 
 
 @router.post("/settings/bind_device")
-async def bind_device(request: Request, device_id: str = Form(...), device_name: str = Form("")):
-    """绑定设备（通过device_id）
+async def bind_device(request: Request, device_id: str = Form(...), device_name: str = Form(""), bind_code: str = Form("")):
+    """绑定设备（通过device_id + 绑定码）
 
     绑定前先调用服务端的 check_device 接口校验设备是否已注册，
     若设备未注册则返回明确错误，避免绑定到不存在的设备。
+    绑定码为老人端屏幕展示的 6 位短码，由 server 端校验（所有权证明）。
     """
     # G11：显式校验登录
     if not require_login(request):
@@ -207,7 +208,7 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
         #    空令牌、/device/status 返回 403、状态显示离线。改用 family_client
         #    的 bind_device_family，server 端校验设备已注册后将当前账号绑定该
         #    设备并返回设备令牌，从根本上解决空令牌问题。
-        result = await fc.bind_device_family(device_id, device_name)
+        result = await fc.bind_device_family(device_id, device_name, bind_code)
         if result.get("status") == "ok":
             token = result.get("device_token", "")
             elderly_client.save_bound_device(device_id, device_name, token)
@@ -216,9 +217,11 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
                 "message": f"设备 {device_name or device_id} 绑定成功"
             })
         else:
+            # 优先展示 server 返回的具体错误（如绑定码错误），便于家属核对屏幕
+            detail = result.get("detail") or result.get("msg") or "未知错误"
             return JSONResponse(content={
                 "success": False,
-                "message": f"绑定失败: {result.get('msg', '未知错误')}"
+                "message": f"绑定失败: {detail}"
             }, status_code=400)
     except Exception as e:
         logger.exception("绑定设备失败")

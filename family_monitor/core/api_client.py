@@ -106,13 +106,18 @@ class ElderlyAPIClient(BaseServerClient):
             headers["Authorization"] = f"Bearer {self._jwt_token}"
         return headers
 
-    async def bind_device_family(self, device_id: str, device_name: str = "") -> Dict[str, Any]:
+    async def bind_device_family(self, device_id: str, device_name: str = "", bind_code: str = "") -> Dict[str, Any]:
         """通过家属授权接口绑定设备并获取设备令牌（解决空令牌 403 根因）。
 
-        已登录家属调用 /api/v1/family/device/bind，server 端校验设备已注册后
-        将当前账号绑定该设备并返回设备令牌，子女端本地保存供后续使用。
+        已登录家属调用 /api/v1/family/device/bind，server 端校验设备已注册、
+        且绑定码与老人端屏幕展示一致后，将当前账号绑定该设备并返回设备令牌，
+        子女端本地保存供后续使用。
+
+        :param bind_code: 老人端屏幕展示的 6 位绑定码（所有权证明）。
         """
         payload = {"device_id": device_id, "device_name": device_name}
+        if bind_code:
+            payload["bind_code"] = bind_code
         try:
             response = await self._execute(
                 "POST", "/api/v1/family/device/bind", json_body=payload, headers=self._jwt_headers()
@@ -124,7 +129,12 @@ class ElderlyAPIClient(BaseServerClient):
                     self._device_token = token
                     self._device_id = device_id
                 return data
-            return {"status": "error", "msg": f"绑定失败 status={response.status_code}"}
+            # 透传 server 的具体错误（如绑定码错误），便于前端展示核对提示
+            try:
+                detail = response.json().get("detail", "")
+            except Exception:
+                detail = ""
+            return {"status": "error", "msg": f"绑定失败 status={response.status_code}", "detail": detail}
         except Exception as e:
             return {"status": "error", "msg": f"绑定请求异常: {str(e)}"}
 

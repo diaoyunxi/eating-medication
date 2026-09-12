@@ -208,18 +208,23 @@ class Display:
         else:
             return f'服务器: 未连接'
 
-    def _format_uuid(self, device_uuid):
+    def _format_uuid(self, device_uuid, bind_code=""):
         """格式化底部设备 ID 文本。
 
         设备 ID 为 uuid.getnode() 的十进制整数（约 15 位），完整显示即可，
         家属需据此在子女端绑定设备，故不作截断。
 
         :param device_uuid: 设备 ID，空值返回占位符
-        :return: 形如 'ID: 218356669348204' 的文本
+        :param bind_code: 6 位绑定码（可空），有值时追加显示供家属核对
+        :return: 形如 'ID: 218356669348204 码: 482913' 的文本
         """
         if not device_uuid:
-            return 'ID: --'
-        return f'ID: {device_uuid}'
+            text = 'ID: --'
+        else:
+            text = f'ID: {device_uuid}'
+        if bind_code:
+            text += f' 码: {bind_code}'
+        return text
 
     # ---------------- 时间更新 ----------------
 
@@ -443,12 +448,12 @@ class Display:
         except Exception as e:
             logger.error(f"更新连接状态失败: {e}")
 
-    def show_device_uuid(self, device_uuid):
-        """更新底部设备ID显示"""
+    def show_device_uuid(self, device_uuid, bind_code=""):
+        """更新底部设备ID显示（含绑定码，供家属绑定时核对屏幕）"""
         if not self.gui:
             return
         try:
-            text = self._format_uuid(device_uuid)
+            text = self._format_uuid(device_uuid, bind_code)
             if self._uuid_text is not None:
                 try:
                     self._uuid_text.config(text=text)
