@@ -14,5 +14,5 @@ def hhmm_to_today(t, now):
         from datetime import time as _time
         hh, mm = str(t).strip().split(":")
         return datetime.combine(now.date(), _time(int(hh), int(mm)))
-    except Exception:
+    except (ValueError, TypeError):
         return None

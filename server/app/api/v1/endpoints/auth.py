@@ -60,9 +60,9 @@ def verify_turnstile(token: str) -> bool:
             # 记录 Cloudflare 返回的错误码，便于排查（如站点密钥与密钥不匹配、令牌过期、域名不符等）
             logger.warning(f"Turnstile 校验未通过: error-codes={result.get('error-codes')}")
         return success
-    except Exception:
-        # 网络异常等情况下拒绝请求，避免绕过验证
-        logger.error("Turnstile 校验异常（无法连接 Cloudflare siteverify），拒绝本次认证请求")
+    except (httpx.HTTPError, ValueError, KeyError) as e:
+        # 网络异常 / JSON 解析失败等情况下拒绝请求，避免绕过验证
+        logger.error("Turnstile 校验异常（%s），拒绝本次认证请求", e)
         return False
 
 
