@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """elderly_assistant 工作流纯逻辑测试（无硬件依赖，使用 Fake 替身）。"""
 import sys
 import unittest

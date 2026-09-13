@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """安全响应头中间件（BUG-M01 / BUG-L01 / BUG-L02）。
 
 - 补充 Content-Security-Policy 等安全响应头（M01）。

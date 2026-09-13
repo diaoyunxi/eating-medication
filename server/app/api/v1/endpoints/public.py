@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 公开端点 - 供老人端设备使用。
 除 device_id 外，还需通过 X-Device-Token 头校验设备令牌，

@@ -1,5 +1,4 @@
-﻿# -*- coding: utf-8 -*-
-import logging
+﻿import logging
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional

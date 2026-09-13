@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from fastapi.middleware.cors import CORSMiddleware
 
 
