@@ -1,14 +1,15 @@
-# -*- coding: utf-8 -*-
+import logging
 import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.schemas.ai import AIQuestion, AIAnswer
-from app.services.ai_service import AIService
+from app.schemas.ai import AIAnswer, AIQuestion
 from app.services.ai_config_service import get_effective_config
+from app.services.ai_service import AIService
 from app.utils.rate_limit import check_rate_limit
-import logging
 
 logger = logging.getLogger(__name__)
 

@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
+import logging
 import os
-import sys
 import re
 import secrets
-import logging
+import sys
 from pathlib import Path
-from pydantic_settings import BaseSettings
+
 from pydantic import field_validator
-from typing import Optional
+from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
 
@@ -261,22 +260,22 @@ class Settings(BaseSettings):
 
     # Cloudflare Turnstile 密钥（用于后端 siteverify 验证）
     # 未配置时跳过 Turnstile 校验（开发环境兼容，生产环境必须配置）
-    TURNSTILE_SECRET_KEY: Optional[str] = None
+    TURNSTILE_SECRET_KEY: str | None = None
 
-    ZHIPUAI_API_KEY: Optional[str] = None
+    ZHIPUAI_API_KEY: str | None = None
     ZHIPUAI_MODEL: str = "glm-4.7-flash"
 
-    OCR_PROVIDER: Optional[str] = None
-    OCR_API_KEY: Optional[str] = None
-    OCR_SECRET_KEY: Optional[str] = None
+    OCR_PROVIDER: str | None = None
+    OCR_API_KEY: str | None = None
+    OCR_SECRET_KEY: str | None = None
 
     # CORS 允许的来源（逗号分隔），未配置则不启用 CORS
     ALLOWED_ORIGINS: str = ""
 
     # ===== GitHub OAuth 登录配置 =====
     # 未配置 GITHUB_CLIENT_ID 时，前端隐藏 GitHub 登录按钮
-    GITHUB_CLIENT_ID: Optional[str] = None
-    GITHUB_CLIENT_SECRET: Optional[str] = None
+    GITHUB_CLIENT_ID: str | None = None
+    GITHUB_CLIENT_SECRET: str | None = None
     # GitHub OAuth 回调 URL（须与 GitHub 后台 "Authorization callback URL" 完全一致；
     # 一个 GitHub OAuth App 仅允许配置一个固定回调地址）
     GITHUB_OAUTH_CALLBACK_URL: str = "https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback"
@@ -284,8 +283,8 @@ class Settings(BaseSettings):
     FAMILY_WEB_URL: str = "https://my-website.ccwu.cc/eating-medication/family"
 
     # ===== Gitee OAuth 登录配置 =====
-    GITEE_CLIENT_ID: Optional[str] = None
-    GITEE_CLIENT_SECRET: Optional[str] = None
+    GITEE_CLIENT_ID: str | None = None
+    GITEE_CLIENT_SECRET: str | None = None
     # Gitee OAuth 回调 URL（须与 Gitee 后台 "应用回调地址" 完全一致）
     GITEE_OAUTH_CALLBACK_URL: str = "https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback"
 
@@ -301,18 +300,18 @@ class Settings(BaseSettings):
 
     # ===== 邮件发送配置（SMTP / HTTP API 双后端，可切换） =====
     # MAIL_PROVIDER: "smtp" 标准 SMTP；"api" Resend 兼容 HTTP API；留空则邮件功能禁用
-    MAIL_PROVIDER: Optional[str] = None
+    MAIL_PROVIDER: str | None = None
     # SMTP 后端
-    MAIL_HOST: Optional[str] = None
-    MAIL_PORT: Optional[int] = None
-    MAIL_USERNAME: Optional[str] = None
-    MAIL_PASSWORD: Optional[str] = None
-    MAIL_FROM: Optional[str] = None
+    MAIL_HOST: str | None = None
+    MAIL_PORT: int | None = None
+    MAIL_USERNAME: str | None = None
+    MAIL_PASSWORD: str | None = None
+    MAIL_FROM: str | None = None
     MAIL_USE_TLS: bool = True
     MAIL_USE_SSL: bool = False
     # HTTP API 后端（Resend 兼容：POST MAIL_API_URL，Bearer MAIL_API_KEY）
-    MAIL_API_URL: Optional[str] = None
-    MAIL_API_KEY: Optional[str] = None
+    MAIL_API_URL: str | None = None
+    MAIL_API_KEY: str | None = None
 
     @field_validator("MAIL_PORT", mode="before")
     @classmethod

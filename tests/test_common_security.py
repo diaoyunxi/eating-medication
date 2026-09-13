@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 """common.security 纯函数测试（密码哈希/JWT/设备ID脱敏）。"""
 import unittest
 from datetime import timedelta
 
 from common.security import (
-    hash_password,
-    verify_password,
-    mask_device_id,
     create_access_token,
     decode_token,
+    hash_password,
+    mask_device_id,
+    verify_password,
 )
 
 

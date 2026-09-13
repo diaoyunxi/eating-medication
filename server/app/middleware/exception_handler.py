@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
 import json
+import logging
+
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-import logging
+
 from app.core.exceptions import BusinessError
 
 logger = logging.getLogger(__name__)

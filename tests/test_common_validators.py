@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
 """common.validators 纯函数测试（与 server/app/utils/validators 同源但为独立模块）。"""
 import unittest
 
 from common.validators import (
-    is_valid_phone,
-    is_valid_username,
-    is_valid_password,
-    is_valid_time_format,
     is_valid_email,
+    is_valid_password,
+    is_valid_phone,
+    is_valid_time_format,
+    is_valid_username,
 )
 
 

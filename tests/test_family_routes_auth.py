@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """family_monitor.routes.auth 单元测试 + 端点冒烟（TestClient）。
 
 通过 tests._helpers.load_module 按文件路径加载，避免触发 routes 包 __init__
@@ -61,6 +60,7 @@ _HAS = all(importlib.util.find_spec(m) is not None
 
 if _HAS:
     import httpx
+
     from common.server_client import _ResponseAdapter
     from tests._helpers import load_module
     auth = load_module("family_routes_auth", "family_monitor/routes/auth.py")
@@ -78,7 +78,7 @@ def _make_resp(status_code, data=None, text=None):
     if text:
         try:
             parsed = json.loads(text)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             parsed = None
             parse_exc = e
     return _ResponseAdapter(status_code, text, parsed, parse_exc)

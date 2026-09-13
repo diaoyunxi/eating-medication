@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """公共依赖安装脚本（位于 common/install.py，原仓库根目录 install.py 已迁移至此；各模块 main.py 检测到依赖缺失时调用）。
 
 执行流程:
@@ -32,12 +31,12 @@
 GitHub 下载代理统一读取仓库根目录 .env 的 GITHUB_PROXY 字段（与 updater.py / common.envfile 共用）。
 """
 
-import sys
-import os
-import subprocess
-import tempfile
-import shutil
 import importlib
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
 import urllib.request
 from pathlib import Path
 

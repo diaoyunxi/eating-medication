@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """数据库连接与引擎管理
 
 支持多种数据库后端（通过 settings.DATABASE_URL 切换）：
@@ -19,10 +18,11 @@ from datetime import timezone
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
-from sqlalchemy import create_engine, text, pool
+from sqlalchemy import create_engine, pool, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.types import TypeDecorator, DateTime
+from sqlalchemy.types import DateTime, TypeDecorator
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ def ensure_database_exists(database_url: str = None):
             parent = Path(db_path).resolve().parent
             try:
                 parent.mkdir(parents=True, exist_ok=True)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning(f"创建 SQLite 数据库父目录失败（可忽略）: {e}")
         return
 
@@ -141,7 +141,7 @@ def ensure_database_exists(database_url: str = None):
                     conn.execute(text(f'CREATE DATABASE "{db_name}"'))
             logger.info(f"已自动创建数据库 '{db_name}'")
         admin_engine.dispose()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning(
             f"自动建库检查失败（将尝试直接连接，错误可能在此后暴露）: {e}"
         )
@@ -204,19 +204,19 @@ if _db_scheme(settings.DATABASE_URL) == "sqlite":
                 cur.execute("PRAGMA journal_mode=WAL")
                 cur.execute("PRAGMA synchronous=NORMAL")
                 cur.execute("PRAGMA busy_timeout=30000")
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("SQLite PRAGMA 应用失败(已降级，不影响连接): %s", exc)
             finally:
                 # 仅在游标创建成功时关闭，避免 cursor() 本身失败时二次异常
                 if cur is not None:
                     try:
                         cur.close()
-                    except Exception:  # noqa: BLE001
+                    except Exception:
                         pass
 
         _sa_event.listen(engine, "connect", _apply_sqlite_pragmas)
         logger.info("SQLite 并发优化监听器已注册(WAL + busy_timeout 将于建立连接时应用)")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("SQLite 并发优化监听器注册失败(可忽略): %s", e)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -253,7 +253,7 @@ def _safe_add_column(conn, table_name, column, dialect):
         conn.commit()
         logger.info(f"  自愈补列: {table_name}.{column.name} {sqltype}")
         return True
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         # 列已存在（重复添加）或其他错误：仅记录，不中断
         logger.debug(f"  补列跳过 {table_name}.{column.name}: {e}")
         # 回滚可能因 ALTER 失败而开启的事务
@@ -278,7 +278,7 @@ def sync_schema_with_models():
     try:
         inspector = inspect(engine)
         conn = engine.connect()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning(f"模式自愈：连接数据库失败，跳过: {e}")
         return
     try:

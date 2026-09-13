@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """server/app/schemas/auth.py 单元测试。
 
 覆盖 RegisterReq / LoginReq 的字段校验（角色、手机号、昵称、密码规则）。
@@ -9,9 +8,13 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from pydantic import ValidationError  # noqa: E402
-
-from app.schemas.auth import RegisterReq, LoginReq, EmailSendCodeReq, EmailCodeLoginReq  # noqa: E402
+from app.schemas.auth import (
+    EmailCodeLoginReq,
+    EmailSendCodeReq,
+    LoginReq,
+    RegisterReq,
+)
+from pydantic import ValidationError
 
 
 class TestRegisterReq(unittest.TestCase):

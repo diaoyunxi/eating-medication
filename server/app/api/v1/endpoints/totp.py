@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """TOTP 第二因子端点。
 
 登录流程：手机号+密码 → 若已开启 mfa_enabled，返回 mfa_required + mfa_token，
@@ -8,9 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.core.security import create_access_token, create_mfa_token, verify_mfa_token
-from app.core.crypto import encrypt_text, decrypt_text
-from app.core.dependencies import get_db, get_current_user
+from app.core.crypto import decrypt_text, encrypt_text
+from app.core.dependencies import get_current_user, get_db
+from app.core.security import create_access_token, verify_mfa_token
 from app.models.user import User
 from app.schemas.auth import TokenResp
 from app.services import mfa_service

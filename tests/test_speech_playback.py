@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """语音播报串行性与失败兜底测试（无硬件/网络依赖）。
 
 聚焦「条形码识别到时没播报」的根因修复：
@@ -6,7 +5,6 @@
 2. edge-tts 失败时明确记录 last_error 并转出/或记录，不再静默吞掉。
 """
 import sys
-import time
 import unittest
 from pathlib import Path
 
@@ -34,7 +32,6 @@ class _FakeEngine:
     def runAndWait(self):
         if self._fail:
             raise RuntimeError("engine boom")
-        return None
 
 
 class _FakeInitEngine:
@@ -95,7 +92,6 @@ class TestPyttsxEngineInitValidation(unittest.TestCase):
     """CodeRabbit 回归：发布引擎前必须校验 volume/rate/voice 并捕获延迟失败。"""
 
     def _init_engine_with(self, fake_engine):
-        import importlib
 
         # 临时把 pyttsx3.init 指向构造假引擎，模拟后端
         mod = __import__("elderly_assistant.services.speech", fromlist=["speech"])
@@ -162,8 +158,8 @@ class TestSpeechSerialPlayback(unittest.TestCase):
         sp._edge_tts = None
         sp._edge_available = False
         sp._pyttsx_engine = _FakeEngine(fail=pyttsx_fail) if with_engine else None
-        import threading
         import queue
+        import threading
         sp._speak_queue = queue.Queue(maxsize=20)
         sp._stop_event = threading.Event()
         sp._speak_lock = threading.Lock()

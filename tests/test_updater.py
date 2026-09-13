@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """根目录 updater.py 纯函数单元测试（仅依赖标准库，可直接运行）。
 
 CI 工作流 `.github/workflows/python-app.yml` 在仓库根执行 `pytest`，
@@ -195,7 +194,6 @@ class TestLoadAutoPull(unittest.TestCase):
 
     def _call_with_config(self, payload):
         """临时改写根目录 .env（重定向 _CONFIG_PATH 到临时文件）并调用 _load_auto_pull。"""
-        import tempfile
         # 使用 mkstemp 创建不可预测的临时文件（避免 mktemp 的文件名预测/竞态问题）
         _fd, tmp_str = tempfile.mkstemp(suffix=".env")
         os.close(_fd)
@@ -313,7 +311,6 @@ class TestLoadPostUpdateCmd(unittest.TestCase):
 
     def _call_with_config(self, payload):
         """临时改写根目录 .env（重定向 _CONFIG_PATH 到临时文件）并调用 _load_post_update_cmd。"""
-        import tempfile
         _fd, tmp_str = tempfile.mkstemp(suffix=".env")
         os.close(_fd)
         tmp = Path(tmp_str)
@@ -360,7 +357,6 @@ class TestRunPostUpdateCmd(unittest.TestCase):
 
         def fake_run(*a, **k):
             called["n"] += 1
-            return None
         self._call_with(None, fake_run)
         self.assertEqual(called["n"], 0)
 

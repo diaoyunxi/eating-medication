@@ -1,8 +1,7 @@
-﻿# -*- coding: utf-8 -*-
-import re
-from typing import Optional
+﻿import re
 
-def is_valid_phone(phone: Optional[str]) -> bool:
+
+def is_valid_phone(phone: str | None) -> bool:
     """验证手机号格式（中国大陆）"""
     if not phone:
         return True

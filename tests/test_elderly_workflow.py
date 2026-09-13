@@ -1,20 +1,20 @@
-# -*- coding: utf-8 -*-
 """elderly_assistant 工作流纯逻辑测试（无硬件依赖，使用 Fake 替身）。"""
 import sys
 import unittest
-import pytest
 from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 # 将 elderly_assistant 加入 sys.path，使其顶层包 workflow / hardware / core 可导入
 EA = Path(__file__).resolve().parent.parent / "elderly_assistant"
 if str(EA) not in sys.path:
     sys.path.insert(0, str(EA))
 
-from workflow.reminder import ReminderState, check_medication_trigger
-from workflow.actions import handle_confirm
 from core.display import Display
 from hardware.fakes import FakeBuzzer, FakeDisplay, FakeHttpClient
+from workflow.actions import handle_confirm
+from workflow.reminder import ReminderState, check_medication_trigger
 
 
 class FakePoller:

@@ -1,7 +1,5 @@
-# -*- coding: utf-8 -*-
 """用药确认/AI问答/拍照上传等工作流动作（纯逻辑，硬件以参数注入）。"""
 import logging
-from typing import List
 
 logger = logging.getLogger("ElderlyAssistant")
 
@@ -14,7 +12,7 @@ def _capture_and_upload(config, http_client, logger, reminder_state=None):
     """
     plan_id = None
     scheduled_time = None
-    elderly_ids: List[int] = []
+    elderly_ids: list[int] = []
     if reminder_state is not None:
         # items 为字典列表：用 .get() 正确取值（此前误当对象访问 item.medication
         # 导致 plan_id 永远为 None，照片无法关联到具体服药计划）

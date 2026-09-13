@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 项目级自动更新检查与安全更新模块（统一位于仓库根目录）
 
@@ -29,21 +28,22 @@
 - *.db / *.sqlite / *.sqlite3
 - 任何与 .gitignore 中匹配的文件
 """
-import os
-import sys
-import json
-import time
-import shutil
-import shlex
-import zipfile
-import tempfile
-import logging
 import fnmatch
+import json
+import logging
+import os
+import shlex
+import shutil
 import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+import zipfile
 from pathlib import Path
 from urllib.parse import urlparse
-import urllib.request
-import urllib.error
+
 
 # ============================================================
 # 版本与仓库常量
@@ -106,7 +106,7 @@ def _load_root_env():
 
     .env 为扁平 key=value 格式；处于引导阶段不引入额外依赖（common.envfile 仅标准库）。
     """
-    from common.envfile import read_env_dict, write_env_text, ensure_env_template
+    from common.envfile import read_env_dict
     return read_env_dict(_CONFIG_PATH)
 
 
@@ -256,7 +256,8 @@ def _open_url(url, timeout, headers=None):
 # （更新 / 部署场景：不覆盖 .env、data/、logs/、*.db 等运行时数据）
 # 保留原函数名 _is_protected_path 以兼容内部调用与既有测试。
 # ============================================================
-from common.runtime_protection import is_protected_path as _is_protected_path, is_reset_preserved_path
+from common.runtime_protection import is_protected_path as _is_protected_path
+from common.runtime_protection import is_reset_preserved_path
 
 
 # ============================================================
@@ -325,13 +326,12 @@ def _find_release_zip(release_data):
 def _download_file(url, target_path):
     """下载文件到 target_path"""
     try:
-        with _open_url(url, 300) as resp:
-            with open(target_path, "wb") as f:
-                while True:
-                    chunk = resp.read(65536)
-                    if not chunk:
-                        break
-                    f.write(chunk)
+        with _open_url(url, 300) as resp, open(target_path, "wb") as f:
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                f.write(chunk)
         return True
     except Exception as e:
         logger.warning(f"[更新检查] 下载文件失败: {e}")
@@ -818,9 +818,9 @@ def _print_diagnostics(repo_root: Path, deleted: list, skipped: list):
         version = version_file.read_text(encoding="utf-8").strip()
         print(f"\n[1] 当前版本: {version}")
     else:
-        print(f"\n[1] ✗ VERSION 文件不存在!")
+        print("\n[1] ✗ VERSION 文件不存在!")
 
-    print(f"\n[2] 关键路由文件检查:")
+    print("\n[2] 关键路由文件检查:")
     all_ok = True
     for rel_path, required_imports in _CRITICAL_FILES.items():
         fpath = repo_root / rel_path
@@ -855,20 +855,20 @@ def _print_diagnostics(repo_root: Path, deleted: list, skipped: list):
         if "__pycache__" not in str(pyc):
             remaining_pyc.append(str(pyc))
 
-    print(f"\n[3] __pycache__ 清理状态:")
+    print("\n[3] __pycache__ 清理状态:")
     if not remaining_caches and not remaining_pyc:
         print("  ✓ 已全部清除，无残留缓存")
     else:
         print(f"  ✗ 仍有 {len(remaining_caches)} 个 __pycache__ 目录残留")
         print(f"  ✗ 仍有 {len(remaining_pyc)} 个 .pyc 文件残留")
         if remaining_caches:
-            print(f"    残留目录示例:")
+            print("    残留目录示例:")
             for c in remaining_caches[:5]:
                 print(f"      - {c}")
             print(f"  ⚠ 请手动执行: find {repo_root} -type d -name __pycache__ "
                   f"-not -path '*/.venv/*' -not -path '*/venv/*' -exec rm -rf {{}} +")
 
-    print(f"\n[4] .env 保留状态:")
+    print("\n[4] .env 保留状态:")
     env_files = list(repo_root.rglob(".env"))
     if not env_files:
         print("  ⚠ 未找到任何 .env 文件（首次运行时将由程序自动生成）")
@@ -880,15 +880,15 @@ def _print_diagnostics(repo_root: Path, deleted: list, skipped: list):
                 rel = ef
             print(f"  ✓ {rel} 已保留")
 
-    print(f"\n[5] 重置统计:")
+    print("\n[5] 重置统计:")
     print(f"  已删除: {len(deleted)} 项")
     print(f"  跳过: {len(skipped)} 项")
     if skipped:
-        print(f"  跳过详情（前 5 项）:")
+        print("  跳过详情（前 5 项）:")
         for s in skipped[:5]:
             print(f"    - {s}")
 
-    print(f"\n[6] 结论:")
+    print("\n[6] 结论:")
     issues = []
     if not all_ok:
         issues.append("关键路由文件导入不完整（可能导致 500 错误）")
@@ -1041,7 +1041,7 @@ def check_for_update(auto_pull=None):
     current_ver = info["current_version"]
     try:
         if not latest:
-            logger.warning(f"[更新检查] 无法获取最新版本（网络或 GitHub 异常），跳过检查")
+            logger.warning("[更新检查] 无法获取最新版本（网络或 GitHub 异常），跳过检查")
             return info
 
         if _compare_versions(latest, current_ver) <= 0:

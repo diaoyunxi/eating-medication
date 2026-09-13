@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """app.utils.mail 单元测试。
 
 覆盖：

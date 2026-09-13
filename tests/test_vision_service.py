@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """app.services.vision_service 单元测试（需要 pydantic-settings / httpx）。
 
 仅测试纯静态方法 _extract_drug_name（从模型/ OCR 文本中抽取药名），无需真实模型或网络。
 依赖缺失时整体跳过。
 """
+import asyncio
 import os
 import sys
-import asyncio
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

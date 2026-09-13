@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 WiFi 配网 Web 服务模块
 用于 M10 设备：在热点上运行 HTTP 服务器（端口 8088），提供配网页面。
@@ -10,18 +9,18 @@ WiFi 配网 Web 服务模块
   4. 返回成功/失败状态
 """
 
-import os
+import html
 import json
+import logging
+import os
+import re
+import secrets
 import subprocess
 import threading
 import time
-import re
-import secrets
-import html
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs, urlparse
 
-import logging
 from utils.config_loader import load_config, save_server_url
 
 logger = logging.getLogger("ElderlyAssistant")

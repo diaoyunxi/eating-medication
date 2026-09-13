@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """邮箱验证码工具：生成、存储、发送与校验。
 
 说明：
@@ -6,14 +5,13 @@
   （与项目内 rate_limit 的单进程实现风格一致）。
 - 邮件发送使用标准 smtplib；未配置 MAIL_* 时回退为日志输出，便于本地开发调试。
 """
-import os
+import logging
 import random
-import time
 import smtplib
 import ssl
-import logging
-from email.mime.text import MIMEText
+import time
 from email.header import Header
+from email.mime.text import MIMEText
 
 from app.core.config import settings
 

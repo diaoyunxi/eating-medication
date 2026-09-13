@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """WebAuthn / Passkey 端点（无用户名 passkey 登录）。
 
 - 登记（绑定）：/auth/webauthn/register/options → /auth/webauthn/register（需登录态）
@@ -6,16 +5,17 @@
 - 管理：/auth/webauthn/credentials 列表与删除（需登录态）
 """
 import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.dependencies import get_current_user, get_db
 from app.core.security import create_access_token
-from app.utils.datetime_utils import utcnow
-from app.core.dependencies import get_db, get_current_user
 from app.models.user import User, WebAuthnCredential
 from app.schemas.auth import TokenResp
 from app.services import mfa_service
+from app.utils.datetime_utils import utcnow
 
 router = APIRouter(tags=["auth", "webauthn"])
 

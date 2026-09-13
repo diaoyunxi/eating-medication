@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """请求工具函数"""
 from fastapi import Request
 

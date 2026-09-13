@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """server/app/utils/request_utils.py 单元测试。
 
 验证客户端 IP 提取优先级：CF-Connecting-IP > X-Forwarded-For > client.host。
@@ -10,7 +9,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from app.utils.request_utils import get_client_ip  # noqa: E402
+from app.utils.request_utils import get_client_ip
 
 
 class TestGetClientIp(unittest.TestCase):

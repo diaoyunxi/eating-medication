@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """AI 配置解析服务：从数据库解析某用户的生效 AI 配置
 
 解析优先级（使「家属在子女端为被照护老人配置」能正确生效）：
@@ -6,11 +5,13 @@
 2. 同家庭组（group_id 一致）中家属(family)用户的配置（兜底）；
 3. 均无则返回 None，交由 AIService.ask 回退到全局 settings.ZHIPUAI_*。
 """
+import logging
+
 from sqlalchemy.orm import Session
+
+from app.core.crypto import decrypt_text
 from app.models.user import User
 from app.models.user_ai_config import UserAIConfig
-from app.core.crypto import decrypt_text
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ def get_effective_config(db: Session, user: User) -> dict:
             .filter(
                 User.group_id == user.group_id,
                 User.role == "family",
-                UserAIConfig.enabled == True,  # noqa: E712
+                UserAIConfig.enabled == True,
                 UserAIConfig.api_key != "",
             )
             .first()

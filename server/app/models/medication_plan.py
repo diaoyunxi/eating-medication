@@ -1,7 +1,8 @@
-# -*- coding: utf-8 -*-
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, JSON
-from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
+
+from sqlalchemy import JSON, Column, Float, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
+
 from app.core.database import Base, UTCDateTime
 
 
