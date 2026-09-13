@@ -225,18 +225,22 @@ class HTTPClient:
             connected = resp.status_code == 200
             err = None
             is_request_err = False
+            generic_exc = None
         except (RequestsConnectionError, Timeout) as e:
             connected = False
             err = f"服务端不可达: {e}"
             is_request_err = True
+            generic_exc = None
         except requests.RequestException as e:
             connected = False
             err = f"健康检查请求异常: {e}"
             is_request_err = True
+            generic_exc = None
         except Exception as e:
             connected = False
             err = str(e)
             is_request_err = False
+            generic_exc = e
 
         # 仅在状态变化时记录，避免离线期间重复告警；首次检测记录初始状态
         last = getattr(self, "_last_connected", None)
@@ -247,13 +251,13 @@ class HTTPClient:
                 elif is_request_err:
                     logger.warning("服务端连接失败: %s", err)
                 else:
-                    logger.warning("服务端连接失败（非请求类异常）: %s", err, exc_info=True)
+                    logger.warning("服务端连接失败（非请求类异常）: %s", err, exc_info=generic_exc)
             elif connected:
                 logger.info("服务端连接已恢复")
             elif is_request_err:
                 logger.warning("服务端连接失败: %s", err)
             else:
-                logger.warning("服务端连接失败（非请求类异常）: %s", err, exc_info=True)
+                logger.warning("服务端连接失败（非请求类异常）: %s", err, exc_info=generic_exc)
             self._last_connected = connected
         return connected
 
