@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """app.core.exceptions 单元测试。"""
 import os
 import sys
@@ -6,8 +5,8 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from fastapi import status
 from app.core.exceptions import BusinessError
+from fastapi import status
 
 
 class TestBusinessError(unittest.TestCase):

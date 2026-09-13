@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """家属端 Web 路由共享工具（消除跨路由重复样板）。
 
 集中家属端各路由文件（home / chat / ai_config）此前各自重复定义的：
@@ -11,11 +10,11 @@
 import logging
 from datetime import datetime
 
+from core import config
 from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from core import config
 from common.server_client import BaseServerClient
 
 logger = logging.getLogger(__name__)

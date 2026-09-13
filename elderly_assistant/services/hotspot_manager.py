@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 热点管理模块
 行空板M10专用：创建带 WPA2 加密的配置热点
@@ -8,9 +7,8 @@
 - 密码: 启动时随机生成（WPA2）
 """
 import logging
-import subprocess
-import time
 import secrets
+import subprocess
 
 logger = logging.getLogger("ElderlyAssistant")
 

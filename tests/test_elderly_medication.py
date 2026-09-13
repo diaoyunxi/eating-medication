@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """elderly_assistant 用药管理纯逻辑测试。"""
 import importlib.util
 import os

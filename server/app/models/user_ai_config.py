@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """每用户 AI 助手配置（多厂商 OpenAI 兼容）
 
 每个用户一行（user_id 为主键）：
@@ -8,8 +7,10 @@
 - base_url: 自定义/部分厂商的 OpenAI 兼容 base_url（custom 必填）
 - enabled:  是否启用该配置
 """
-from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey
 from datetime import datetime, timezone
+
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Text
+
 from app.core.database import Base, UTCDateTime
 
 

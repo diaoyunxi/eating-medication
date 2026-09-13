@@ -1,9 +1,10 @@
-﻿# -*- coding: utf-8 -*-
+﻿import logging
 from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
-from app.websocket.manager import manager
+
 from app.services.user_service import UserService
-import logging
+from app.websocket.manager import manager
 
 logger = logging.getLogger(__name__)
 

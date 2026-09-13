@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """阶段D step1：验证 config 副作用已外移至 bootstrap_config 且可正确编排。
 
 通过 monkeypatch bootstrap 命名空间内的两个副作用函数，断言 bootstrap_config()
@@ -7,7 +6,6 @@
 """
 import app.core.bootstrap as bootstrap_mod
 import app.core.config as cfg_mod
-import pytest
 
 
 def test_bootstrap_config_orchestration(monkeypatch):

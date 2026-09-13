@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """硬件与网络端口抽象（Protocol）。
 
 定义老人端与具体硬件/网络实现之间的接口边界，使业务工作流（workflow/）
@@ -8,7 +7,7 @@
 只要方法签名匹配即满足接口；@runtime_checkable 仅用于可选的运行时校验。
 """
 
-from typing import List, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -85,7 +84,7 @@ class LedPort(Protocol):
 class CameraPort(Protocol):
     """摄像头（HuskyLens）：拍照并返回本地路径。"""
 
-    def capture_image(self, config) -> Optional[str]:
+    def capture_image(self, config) -> str | None:
         ...
 
 
@@ -97,7 +96,7 @@ class BarcodeScannerPort(Protocol):
     识别失败/超时统一返回 None，调用方据此播报提示。
     """
 
-    def scan(self, timeout: Optional[float] = None) -> Optional[str]:
+    def scan(self, timeout: float | None = None) -> str | None:
         ...
 
     def close(self) -> None:
@@ -142,7 +141,7 @@ class FaceRecognizerPort(Protocol):
     def is_available(self) -> bool:
         ...
 
-    def recognize(self) -> List[int]:
+    def recognize(self) -> list[int]:
         """识别当前帧人脸，返回已学习的人脸 ID 列表（空表示未检测到）。"""
         ...
 

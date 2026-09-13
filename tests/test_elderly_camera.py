@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """camera.py 拍照取回逻辑单元测试。
 
 验证修复点：二哈（HuskyLens V2）拍照后仅返回 SD 卡文件名，需从 M10 可访问的

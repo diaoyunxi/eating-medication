@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 通用安全工具：密码哈希、JWT 令牌、设备 ID 脱敏。
 与 server/app/core/security.py 对外接口兼容，但配置通过参数（而非模块级 import）注入。
@@ -8,19 +7,20 @@
 - JWT 配置（secret_key/algorithm/expire_minutes）通过调用方传入，
   而非在 common 内部 import settings，避免反向依赖
 """
-import bcrypt
 import secrets
+
+import bcrypt
 
 try:
     # bcrypt 的 Rust 绑定（pyo3）对畸形/损坏的哈希会触发原生 panic，
     # 抛出的 PanicException 是 BaseException 子类，需显式捕获
     from pyo3_runtime import PanicException as _PanicException
-except Exception:  # noqa: BLE001
+except Exception:
     # 纯 C 版 bcrypt / pyo3_runtime 不可直接导入时，用 BaseException 兜底：
     # pyo3 的 PanicException 是 BaseException 子类，只有 BaseException 才能兜住它
     _PanicException = BaseException
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 def hash_password(password: str, rounds: int = 12) -> str:
@@ -62,10 +62,10 @@ def mask_device_id(device_id: str) -> str:
 
 
 def create_access_token(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     secret_key: str,
     algorithm: str = "HS256",
-    expires_delta: Optional[timedelta] = None,
+    expires_delta: timedelta | None = None,
 ) -> str:
     """创建 JWT access token
 
@@ -86,7 +86,7 @@ def create_access_token(
     return jwt.encode(to_encode, secret_key, algorithm=algorithm)
 
 
-def decode_token(token: str, secret_key: str, algorithm: str = "HS256") -> Dict[str, Any]:
+def decode_token(token: str, secret_key: str, algorithm: str = "HS256") -> dict[str, Any]:
     """解码 JWT token"""
     from jose import jwt
     from jose.exceptions import JWTError as _JWTError

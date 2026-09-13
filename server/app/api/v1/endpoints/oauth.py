@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """OAuth 第三方登录（GitHub / Gitee）基于 fastapi-oauth20 重构
 
 本模块使用 fastapi-oauth20 提供的 GitHubOAuth20 / GiteeOAuth20 客户端完成
@@ -12,35 +11,32 @@ authorization_code 换取 access_token，并借助 FastAPIOAuth20 回调依赖�
 业务侧（state 校验、pending 令牌、账号绑定/登录、302 跳转目标）保持不变，
 仅将「构造授权地址 / code 换 token / 拉用户信息」三段 OAuth 机械流程委托给 fastapi-oauth20。
 """
-import secrets
 import logging
-from typing import Any, Optional
-from urllib.parse import quote
+import secrets
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse, JSONResponse
-from sqlalchemy.orm import Session
-
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi_oauth20 import (
-    GitHubOAuth20,
-    GiteeOAuth20,
     FastAPIOAuth20,
+    GiteeOAuth20,
+    GitHubOAuth20,
     OAuth20AuthorizeCallbackError,
 )
 from fastapi_oauth20.errors import AccessTokenError, GetUserInfoError
+from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db
 from app.core.config import settings
+from app.core.dependencies import get_db
 from app.core.security import (
-    create_oauth_state_token,
-    verify_oauth_state_token,
-    create_oauth_pending_token,
     create_access_token,
+    create_oauth_state_token,
     decode_token,
+    verify_oauth_state_token,
 )
-from app.services.auth_service import AuthService, _mask_email
 from app.models.user import User
+from app.services.auth_service import AuthService, _mask_email
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -61,7 +57,11 @@ OAUTH_HTTP_TIMEOUT = httpx.Timeout(connect=15, read=30, write=15, pool=15)
 try:
     from updater import (
         _GITHUB_PROXY as _OAUTH_PROXY,
+    )
+    from updater import (
         _IS_MIRROR as _OAUTH_IS_MIRROR,
+    )
+    from updater import (
         _MIRROR_BASE as _OAUTH_MIRROR_BASE,
     )
 except Exception:  # 代理模块不可用/未配置时退化为直连
@@ -229,7 +229,7 @@ def _clear_and_redirect(cookie_name: str, target: str) -> RedirectResponse:
     return resp
 
 
-async def _fetch_email(emails_api: str, access_token: str, auth_header: str) -> Optional[str]:
+async def _fetch_email(emails_api: str, access_token: str, auth_header: str) -> str | None:
     """拉取第三方邮箱（Gitee 主邮箱为空时补充调用 /emails）"""
     headers = {
         "Accept": "application/json",
@@ -271,7 +271,7 @@ async def _normalize_user(cfg: dict, raw: dict, access_token: str) -> dict:
 
 # ===================== 通用流程实现 =====================
 async def _authorize(
-    provider: str, error_url: Optional[str] = None
+    provider: str, error_url: str | None = None
 ) -> RedirectResponse:
     """发起第三方授权：设 state cookie 并 302 跳转授权页
 
@@ -363,8 +363,8 @@ async def _bind_authorize(provider: str, request: Request) -> RedirectResponse:
 
 async def _callback(
     provider: str,
-    code: Optional[str],
-    state: Optional[str],
+    code: str | None,
+    state: str | None,
     request: Request,
     db: Session,
 ) -> RedirectResponse:
@@ -549,8 +549,8 @@ async def github_bind(request: Request) -> RedirectResponse:
 
 @router.get("/oauth/github/callback")
 async def github_callback(
-    code: Optional[str] = None,
-    state: Optional[str] = None,
+    code: str | None = None,
+    state: str | None = None,
     request: Request = None,
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
@@ -580,8 +580,8 @@ async def gitee_bind(request: Request) -> RedirectResponse:
 
 @router.get("/oauth/gitee/callback")
 async def gitee_callback(
-    code: Optional[str] = None,
-    state: Optional[str] = None,
+    code: str | None = None,
+    state: str | None = None,
     request: Request = None,
     db: Session = Depends(get_db),
 ) -> RedirectResponse:

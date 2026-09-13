@@ -1,13 +1,20 @@
-# -*- coding: utf-8 -*-
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
-from typing import List
-from app.schemas.user import UserOut, UserUpdate, BindFamilyReq, ElderlyOut, CreateElderlyReq, FaceIdReq
-from app.services.user_service import UserService
+from app.schemas.user import (
+    BindFamilyReq,
+    CreateElderlyReq,
+    ElderlyOut,
+    FaceIdReq,
+    UserOut,
+    UserUpdate,
+)
 from app.services.device_service import DeviceService
+from app.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/users", tags=["用户"])
@@ -184,7 +191,7 @@ def create_elderly(
     )
 
 
-@router.get("/elderly", response_model=List[ElderlyOut])
+@router.get("/elderly", response_model=list[ElderlyOut])
 def list_elderly(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

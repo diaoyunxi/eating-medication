@@ -1,9 +1,8 @@
-﻿# -*- coding: utf-8 -*-
-import base64
+﻿import base64
+from typing import Any
+
 import httpx
-import hashlib
-import time
-from typing import Dict, Any
+
 from app.core.config import settings
 
 
@@ -11,7 +10,7 @@ class VisionService:
     """药品图片识别服务"""
 
     @staticmethod
-    async def _recognize_baidu(image_data: bytes) -> Dict[str, Any]:
+    async def _recognize_baidu(image_data: bytes) -> dict[str, Any]:
         """调用百度OCR识别
 
         :return: {"configured": True, "text": "..."} 或配置缺失时 {"configured": False, "reason": "..."}
@@ -61,22 +60,21 @@ class VisionService:
         except Exception as e:
             if str(e).startswith("百度"):
                 raise
-            raise Exception(f"百度OCR调用失败: {str(e)}")
+            raise Exception(f"百度OCR调用失败: {e!s}")
 
     @staticmethod
-    async def _recognize_tencent(image_data: bytes) -> Dict[str, Any]:
+    async def _recognize_tencent(image_data: bytes) -> dict[str, Any]:
         """调用腾讯OCR识别"""
         return {"configured": False, "reason": "腾讯云 OCR 功能尚未实现"}
 
     @staticmethod
-    async def _recognize_aliyun(image_data: bytes) -> Dict[str, Any]:
+    async def _recognize_aliyun(image_data: bytes) -> dict[str, Any]:
         """调用阿里云OCR识别"""
         return {"configured": False, "reason": "阿里云 OCR 功能尚未实现"}
 
     @staticmethod
     async def _extract_drug_name(text: str) -> str:
         """从识别的文本中提取药品名称"""
-        import re
         
         drug_keywords = [
             '片', '胶囊', '颗粒', '丸', '散', '膏', '贴', '气雾剂',
@@ -98,7 +96,7 @@ class VisionService:
         return lines[0] if lines else '识别失败'
 
     @staticmethod
-    async def recognize(image_data: bytes) -> Dict[str, Any]:
+    async def recognize(image_data: bytes) -> dict[str, Any]:
         """识别药品图片，返回药名和置信度
 
         OCR 未配置或不可用时返回 {"configured": False, "reason": "..."}（降级，不抛异常），

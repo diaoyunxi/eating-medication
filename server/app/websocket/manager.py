@@ -1,7 +1,6 @@
-﻿# -*- coding: utf-8 -*-
-from typing import Dict, List
+﻿import logging
+
 from fastapi import WebSocket
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ class ConnectionManager:
 
     def __init__(self):
         # 存储用户的所有活动连接（一个用户可能有多个设备连接）
-        self.active_connections: Dict[int, List[WebSocket]] = {}
+        self.active_connections: dict[int, list[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, user_id: int):
         """接受 WebSocket 连接并存储"""

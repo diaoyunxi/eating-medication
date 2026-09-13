@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 HTTP 客户端模块
 负责与服务器通信：设备注册、用药计划轮询、服药确认等
@@ -13,8 +12,8 @@ from datetime import datetime
 import requests
 from requests.exceptions import (
     ConnectionError as RequestsConnectionError,
-    ConnectTimeout,
-    ReadTimeout,
+)
+from requests.exceptions import (
     Timeout,
 )
 
@@ -157,12 +156,22 @@ class HTTPClient:
         代理错误等），业务层 HTTP 状态码（4xx/5xx）不在此列，由调用方按业务处理。
         """
         from requests.exceptions import (
-            ConnectionError as _ConnErr,
-            ConnectTimeout as _ConnTO,
-            ReadTimeout as _ReadTO,
-            Timeout as _TO,
             ChunkedEncodingError as _Chunked,
+        )
+        from requests.exceptions import (
+            ConnectionError as _ConnErr,
+        )
+        from requests.exceptions import (
+            ConnectTimeout as _ConnTO,
+        )
+        from requests.exceptions import (
             ProxyError as _Proxy,
+        )
+        from requests.exceptions import (
+            ReadTimeout as _ReadTO,
+        )
+        from requests.exceptions import (
+            Timeout as _TO,
         )
         return isinstance(exc, (_ConnErr, _ConnTO, _ReadTO, _TO, _Chunked, _Proxy))
 
@@ -186,7 +195,7 @@ class HTTPClient:
             try:
                 resp = requests.request(method, url, **kwargs)
                 break
-            except Exception as e:  # noqa: BLE001 - 需捕获 requests 全部传输层异常
+            except Exception as e:
                 last_exc = e
                 if attempt < retries and self._is_transient_error(e):
                     backoff = _RETRY_BACKOFF * (2 ** attempt)
@@ -524,7 +533,7 @@ class HTTPClient:
             else:
                 return f'抱歉，AI 服务出错了 (状态码: {resp.status_code})'
         except Exception as e:
-            return f'抱歉，AI 服务暂时不可用: {str(e)}'
+            return f'抱歉，AI 服务暂时不可用: {e!s}'
 
     def get_device_id(self):
         """返回当前设备标识符"""

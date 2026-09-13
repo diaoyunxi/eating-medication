@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
-from typing import Optional
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
+from sqlalchemy.orm import Session
+
 from app.core.database import SessionLocal
 from app.core.security import decode_token
 from app.models.user import User
@@ -53,7 +52,7 @@ async def get_current_user(
 async def get_current_user_optional(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
-) -> Optional[User]:
+) -> User | None:
     """可选认证：返回当前登录用户或 None（不抛 401）。
 
     用于登录页等公开场景：未携带/无效 token 时返回 None，由调用方决定

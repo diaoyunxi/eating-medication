@@ -1,21 +1,27 @@
-# -*- coding: utf-8 -*-
+import logging
+
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+
 from app.core.config import settings
-from app.core.dependencies import get_db
+from app.core.dependencies import get_current_user, get_current_user_optional, get_db
 from app.core.security import verify_oauth_pending_token
+from app.models.user import User
 from app.schemas.auth import (
-    RegisterReq, LoginReq, TokenResp, EmailSendCodeReq, EmailCodeLoginReq,
-    BindPhoneReq, BindEmailReq, BindEmailSendCodeReq,
+    BindEmailReq,
+    BindEmailSendCodeReq,
+    BindPhoneReq,
+    EmailCodeLoginReq,
+    EmailSendCodeReq,
+    LoginReq,
+    RegisterReq,
+    TokenResp,
 )
 from app.services.auth_service import AuthService
-from app.core.dependencies import get_current_user, get_current_user_optional, get_db
-from app.models.user import User
+from app.utils import email_code as email_code_store
 from app.utils.rate_limit import check_rate_limit
 from app.utils.request_utils import get_client_ip
-from app.utils import email_code as email_code_store
-import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["认证"])

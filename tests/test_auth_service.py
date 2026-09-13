@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """app.services.auth_service 单元测试（需要 sqlalchemy / pydantic-settings）。
 
 AuthService 方法均为同步，依赖注入的 db 为 SQLAlchemy Session。
@@ -16,8 +15,8 @@ os.environ.setdefault("DEBUG", "true")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./data/test_elderly_care.db")
 
 try:
-    from app.services.auth_service import AuthService
     from app.schemas.auth import RegisterReq
+    from app.services.auth_service import AuthService
     _HAVE = True
 except Exception:  # pragma: no cover
     _HAVE = False

@@ -1,32 +1,32 @@
-# -*- coding: utf-8 -*-
 """老人端药品扫码与离线回退纯逻辑测试（无硬件/网络依赖，使用 Fake 替身）。"""
 import json
 import os
-import shutil
 import sys
 import tempfile
 import unittest
-import unittest.mock as mock
 from pathlib import Path
+from unittest import mock
 
 # 将 elderly_assistant 加入 sys.path，使其顶层包 workflow / hardware / core 可导入
 EA = Path(__file__).resolve().parent.parent / "elderly_assistant"
 if str(EA) not in sys.path:
     sys.path.insert(0, str(EA))
 
-from tests._helpers import load_module  # noqa: E402
-
-from workflow.actions import find_plan_by_product_code, handle_scan_medication  # noqa: E402
-from workflow.reminder import MedicationPoller  # noqa: E402
-from hardware.fakes import FakeBarcodeScanner, FakeSpeech  # noqa: E402
-from services.http_client import HTTPClient  # noqa: E402
-from services.schedule_cache import CACHE_PATH  # noqa: E402
+import services.http_client as _http_client_module
 
 # 模块加载时即保存 schedule_cache 模块对象：pytest 的 prepend 导入模式可能使
 # 测试在运行期的 sys.modules 中找不到 "services.schedule_cache"（命名空间包歧义），
 # 故在导入期固化引用，供 setUp 打桩使用
-import services.schedule_cache as _schedule_cache_module  # noqa: E402
-import services.http_client as _http_client_module  # noqa: E402
+import services.schedule_cache as _schedule_cache_module
+from hardware.fakes import FakeBarcodeScanner, FakeSpeech
+from services.http_client import HTTPClient
+from workflow.actions import (
+    find_plan_by_product_code,
+    handle_scan_medication,
+)
+from workflow.reminder import MedicationPoller
+
+from tests._helpers import load_module
 
 # 以唯一名加载 elderly_assistant/core/barcode.py，规避与 family_monitor 同名顶层包冲突
 # （test_elderly_camera 采用相同做法；直接 `from core.barcode import ...` 在 CI 中
@@ -201,7 +201,7 @@ class TestPollerOfflineFallback(unittest.TestCase):
 
     def test_cache_loader_exception_is_tolerated(self):
         def boom():
-            raise IOError("磁盘错误")
+            raise OSError("磁盘错误")
 
         poller = MedicationPoller(None, poll_interval=1, cache_loader=boom)
         self.assertEqual(poller.schedules, [])

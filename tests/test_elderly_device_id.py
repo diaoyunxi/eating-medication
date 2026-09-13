@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 """elderly_assistant 设备 ID 纯逻辑测试。
 
 设备 ID 直接取 `uuid.getnode()`（网卡 MAC 地址整数值），
 不再使用 uuid5 派生、pinpong 兼容分支与本地持久化兜底。
 """
 import unittest
-import unittest.mock  # noqa: F401  使 unittest.mock 作为属性可用（Python 3.x 不会随 import unittest 自动加载）
+import unittest.mock
 import uuid
 from pathlib import Path
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """app.core.security 单元测试（需要 jose 与 pydantic-settings）。
 
 本文件在导入任何 app 模块前注入测试环境变量，避免配置校验 sys.exit。
@@ -21,14 +20,14 @@ os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 
 try:
     from app.core.security import (
-        hash_password,
-        verify_password,
         create_access_token,
-        decode_token,
-        create_oauth_state_token,
-        verify_oauth_state_token,
         create_oauth_pending_token,
+        create_oauth_state_token,
+        decode_token,
+        hash_password,
         verify_oauth_pending_token,
+        verify_oauth_state_token,
+        verify_password,
     )
     _HAVE_SECURITY = True
 except Exception:  # pragma: no cover - 依赖缺失时跳过

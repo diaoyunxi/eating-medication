@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 公开端点 - 供老人端设备使用。
 除 device_id 外，还需通过 X-Device-Token 头校验设备令牌，
@@ -7,25 +6,25 @@
 路由层仅负责 I/O（请求模型、Header、响应）；设备身份解析、注册/心跳、下线、状态、
 上传、服药确认等纯逻辑已抽至 app.services.device_service.DeviceService。
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from fastapi.concurrency import run_in_threadpool
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Optional
-from app.core.dependencies import get_db, get_current_user
-from app.models.user import User
-from app.core.security import mask_device_id
-from app.models.medication_plan import MedicationPlan
-from app.models.ai_query_log import AIQueryLog
-from app.services.medication_service import MedicationService
-from app.services.ai_service import AIService
-from app.services.ai_config_service import get_effective_config
-from app.services.device_service import DeviceService
-from app.schemas.medication import MedicationPlanCreate
-from app.utils.rate_limit import check_rate_limit
-from app.utils.request_utils import get_client_ip
 import logging
 from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.core.dependencies import get_db
+from app.core.security import mask_device_id
+from app.models.ai_query_log import AIQueryLog
+from app.models.medication_plan import MedicationPlan
+from app.schemas.medication import MedicationPlanCreate
+from app.services.ai_config_service import get_effective_config
+from app.services.ai_service import AIService
+from app.services.device_service import DeviceService
+from app.services.medication_service import MedicationService
+from app.utils.rate_limit import check_rate_limit
+from app.utils.request_utils import get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +39,13 @@ class DeviceMessage(BaseModel):
     device_id: str
     message_type: str = "info"  # info, medication, emergency, ai
     content: str = ""
-    data: Optional[dict] = None
+    data: dict | None = None
 
 
 class DeviceRegister(BaseModel):
     """设备注册"""
     device_id: str
-    device_name: Optional[str] = None
+    device_name: str | None = None
 
 
 class DeviceOffline(BaseModel):
@@ -57,7 +56,7 @@ class DeviceOffline(BaseModel):
 class AIQuestion(BaseModel):
     """AI提问"""
     question: str
-    device_id: Optional[str] = None
+    device_id: str | None = None
 
 
 class FamilyMedicationPlan(BaseModel):
@@ -66,7 +65,7 @@ class FamilyMedicationPlan(BaseModel):
     drug_name: str
     dosage: str = "1片"
     # 药品编号/条形码（可选，非必填）：供老人端扫码识别
-    product_code: Optional[str] = None
+    product_code: str | None = None
     frequency: str = "每日"
     schedule_times: list  # ["08:00", "12:00", "18:00"]
     total_quantity: float = 30.0
@@ -74,7 +73,7 @@ class FamilyMedicationPlan(BaseModel):
     unit: str = "片"
     low_stock_threshold: int = 5
     # 多老人：该计划归属的老人 ID（网页用药设置下拉选择「哪个老人吃」），缺省回退设备主体
-    elderly_id: Optional[int] = None
+    elderly_id: int | None = None
 
 
 @router.post("/device/register")
@@ -102,7 +101,7 @@ async def device_offline(
     req: DeviceOffline,
     request: Request,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """设备主动下线通知
 
@@ -132,7 +131,7 @@ async def device_offline(
 async def device_message(
     req: DeviceMessage,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """接收设备上报消息（校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
@@ -152,18 +151,18 @@ class DeviceUpload(BaseModel):
     """设备上传图片（base64 编码）"""
     device_id: str
     image_base64: str
-    note: Optional[str] = None
-    plan_id: Optional[int] = None
-    scheduled_time: Optional[str] = None
+    note: str | None = None
+    plan_id: int | None = None
+    scheduled_time: str | None = None
     # 多老人：照片归属的老人 ID（由老人端拍照前身份识别确定），缺省回退设备主体
-    elderly_id: Optional[int] = None
+    elderly_id: int | None = None
 
 
 @router.post("/device/upload")
 async def device_upload(
     req: DeviceUpload,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """接收设备上传的服药照片（base64 解码后落盘，HuskyLens 采集）
 
@@ -184,7 +183,7 @@ async def device_upload(
 async def get_device_status(
     device_id: str,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """获取设备状态信息（供子女端查询，校验 device_id 与 X-Device-Token）"""
     logger.info(f"查询设备状态: {mask_device_id(device_id or '')}")
@@ -197,7 +196,7 @@ async def ai_ask(
     req: AIQuestion,
     request: Request,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """AI问答（设备端，基于 IP 限流，每分钟每 IP 最多 10 次）
 
@@ -235,7 +234,7 @@ async def ai_ask(
 async def check_device(
     device_id: str,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """检查设备是否已注册（供子女端绑定时校验，仅返回 exists，不泄露敏感信息）
 
@@ -254,7 +253,7 @@ async def check_device(
 async def get_device_schedule(
     device_id: str,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """获取设备的用药计划（供老人端每分钟轮询，校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
@@ -271,7 +270,7 @@ async def get_device_schedule(
 async def set_device_medication_plan(
     req: FamilyMedicationPlan,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """家属通过设备ID设置用药计划（校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
@@ -304,7 +303,7 @@ async def set_device_medication_plan(
 async def get_device_plans(
     device_id: str,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """获取设备的所有用药计划（供子女端查看，校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
@@ -317,7 +316,7 @@ async def get_device_records(
     device_id: str,
     limit: int = 100,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """获取设备的服药记录（供子女端 BFF 调用，校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
@@ -330,7 +329,7 @@ async def get_device_chat_history(
     device_id: str,
     limit: int = 50,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """获取设备相关的聊天历史（供子女端 BFF 调用，校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
@@ -343,7 +342,7 @@ async def delete_device_medication_plan(
     plan_id: int,
     device_id: str,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """删除用药计划（校验 device_id 与 X-Device-Token 及设备归属）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
@@ -364,7 +363,7 @@ async def update_device_medication_plan(
     plan_id: int,
     req: FamilyMedicationPlan,
     db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    device_token: str | None = Header(None, alias="X-Device-Token"),
 ):
     """更新用药计划（校验 device_id 与 X-Device-Token 及设备归属）"""
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)

@@ -1,14 +1,12 @@
-# -*- coding: utf-8 -*-
 """二哈（HuskyLens V2）人脸识别封装：用于老人端服药前的身份核验与家属录入人脸。
 
 复用 core.camera 的 HuskyLens 单例与硬件操作锁，避免与拍照/扫码并发冲突。
 无硬件或库缺失时优雅降级（recognize 返回空、learn 返回 False），不阻塞主流程。
 """
-from typing import List
 
 from utils.logger import setup_logger
 
-from core.camera import get_huskylens, _HUSKYLENS_OP_LOCK
+from core.camera import _HUSKYLENS_OP_LOCK, get_huskylens
 
 logger = setup_logger()
 
@@ -42,7 +40,7 @@ class FaceRecognizer:
             logger.warning("二哈人脸识别不可用（将降级）: %s", e)
             return False
 
-    def recognize(self) -> List[int]:
+    def recognize(self) -> list[int]:
         """识别当前帧中的人脸，返回已学习的人脸 ID 列表。
 
         空列表表示：未检测到人脸、未录入任何人脸，或摄像头不可用（严格模式下据此提示）。
@@ -57,7 +55,7 @@ class FaceRecognizer:
                     hl.switchAlgorithm(algo)
                 count = hl.getResult(algo) if hasattr(hl, "getResult") else 0
                 logger.debug("二哈人脸识别: getResult=%s", count)
-                ids: List[int] = []
+                ids: list[int] = []
                 if hasattr(hl, "getCachedResultByID"):
                     for i in range(count or 0):
                         block = hl.getCachedResultByID(algo, i)

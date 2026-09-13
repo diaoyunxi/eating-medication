@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """老人端 HTTPClient 心跳超时解析测试（无网络/硬件依赖）。
 
 PR #45：heartbeat_timeout 仅接受有限正数，拒绝 inf/-inf/nan/非数值/非正值，
@@ -6,8 +5,8 @@ PR #45：heartbeat_timeout 仅接受有限正数，拒绝 inf/-inf/nan/非数值
 """
 import sys
 import unittest
-import unittest.mock as mock
 from pathlib import Path
+from unittest import mock
 
 EA = Path(__file__).resolve().parent.parent / "elderly_assistant"
 if str(EA) not in sys.path:

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """子女看护Web端 - 主程序
 
 本地以纯 HTTP 监听，对外访问方式（公网域名与 HTTPS）由 setup.sh / setup.ps1 统一配置。
@@ -88,22 +87,20 @@ if _venv_py.exists() and not _in_venv():
 # 启动前检查依赖，缺失则调用 common/install.py 安装
 _check_and_install_dependencies()
 
+import logging
 import struct
 import time
-import uvicorn
 from contextlib import asynccontextmanager
-from typing import Optional
-from fastapi import FastAPI, Request
-from common.server_client import BaseServerClient
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, JSONResponse, Response
+
+import uvicorn
 from core import config
-from routes import home_router
-from routes import chat_router
-from routes import auth_router
-from routes import ai_config_router
-import logging
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
+from routes import ai_config_router, auth_router, chat_router, home_router
+
+from common.server_client import BaseServerClient
 from updater import __version__ as __app_version__
 
 # 使用 uvicorn.error logger，确保启动阶段的 info/warning 日志能随 uvicorn 输出
@@ -122,8 +119,8 @@ async def lifespan(app: FastAPI):
     logger.info(f" {config.APP_NAME} 启动中...")
     logger.info(f" 服务地址: http://{config.SERVER_HOST}:{config.SERVER_PORT}")
     logger.info(f" 老人端地址: {config.ELDERLY_SERVER_URL}")
-    logger.info(f" 认证系统: JWT（由 server 统一认证，转发验证）")
-    logger.info(f" 人机验证: Cloudflare Turnstile")
+    logger.info(" 认证系统: JWT（由 server 统一认证，转发验证）")
+    logger.info(" 人机验证: Cloudflare Turnstile")
     logger.info(f" 路径前缀: {PATH_PREFIX or '(无，根路径)'}")
     logger.info("=" * 60)
 
@@ -342,7 +339,7 @@ async def auth_middleware(request: Request, call_next):
     return response
 
 
-async def _verify_jwt_via_server(access_token: str) -> Optional[tuple]:
+async def _verify_jwt_via_server(access_token: str) -> tuple | None:
     """转发 JWT 到 server /api/v1/users/me 验证，返回 (username, user_id)
 
     复用全局 httpx 客户端并对验证结果做 30 秒短期缓存，避免每个请求都新建连接、
@@ -493,7 +490,7 @@ def main():
     # 执行并退出，删除用户密码库与老人端设备数据等本地文件，
     # 仅保留 .env / logs，使工作树接近全新 clone 状态
     if "--reset" in sys.argv:
-        from updater import reset_runtime_data, confirm_reset, _print_diagnostics
+        from updater import _print_diagnostics, confirm_reset, reset_runtime_data
         print("=" * 60)
         print(" 重置运行时数据模式 (--reset)")
         if not confirm_reset():

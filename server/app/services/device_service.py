@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """设备服务：封装老人端设备相关的业务逻辑。
 
 从 public.py 抽离的纯逻辑（设备身份解析、注册/心跳、下线、状态计算、图片上传、
@@ -11,20 +10,19 @@ import base64
 import logging
 import os
 import secrets
-from datetime import datetime, timezone, timedelta
-from typing import Optional, Tuple
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, mask_device_id
-from app.utils.datetime_utils import hhmm_to_today
 from app.models.chat_message import ChatMessage
 from app.models.medication_plan import MedicationPlan
 from app.models.medication_record import MedicationRecord
 from app.models.user import User
 from app.schemas.medication import TakeMedicationRequest
 from app.services.medication_service import MedicationService
+from app.utils.datetime_utils import hhmm_to_today
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +70,7 @@ class DeviceService:
     @staticmethod
     def find_device_accounts(
         db: Session, device_id: str
-    ) -> "tuple[Optional[User], Optional[User]]":
+    ) -> "tuple[User | None, User | None]":
         """按 device_id 查找「设备-用户」的两个候选，集中维护查询模式。
 
         返回 ``(by_device_id_field, by_username)``：
@@ -109,7 +107,7 @@ class DeviceService:
 
     @staticmethod
     def get_device_user_authed(
-        db: Session, device_id: str, device_token: Optional[str]
+        db: Session, device_id: str, device_token: str | None
     ) -> User:
         """查找设备用户并校验 X-Device-Token
 
@@ -129,7 +127,7 @@ class DeviceService:
 
     @staticmethod
     def register_or_heartbeat(
-        db: Session, device_id: str, device_name: Optional[str] = None
+        db: Session, device_id: str, device_name: str | None = None
     ):
         """设备注册 / 心跳上报
 
@@ -174,8 +172,8 @@ class DeviceService:
 
     @staticmethod
     def get_device_user_for_offline(
-        db: Session, device_id: str, device_token: Optional[str]
-    ) -> Tuple[Optional[User], Optional[str]]:
+        db: Session, device_id: str, device_token: str | None
+    ) -> tuple[User | None, str | None]:
         """按 device_id 定位用户以执行「设备下线通知」，对令牌缺失做安全降级。
 
         安全模型（修复 issue #43 的接线错误——原实现在公开端点自助签发长期设备
@@ -393,8 +391,8 @@ class DeviceService:
         字段对齐子女端 get_reminders 的期望：id/plan_id/drug_name/planned_time/
         status/taken_time/note。
         """
+
         from app.utils.datetime_utils import hhmm_to_today
-        from datetime import datetime as _dt
 
         limit = max(1, min(limit, 200))
         now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -452,10 +450,10 @@ class DeviceService:
         db: Session,
         user: User,
         image_base64: str,
-        note: Optional[str] = None,
-        plan_id: Optional[int] = None,
-        scheduled_time: Optional[str] = None,
-        elderly_id: Optional[int] = None,
+        note: str | None = None,
+        plan_id: int | None = None,
+        scheduled_time: str | None = None,
+        elderly_id: int | None = None,
     ) -> str:
         """保存设备上传的服药照片（base64 解码后落盘），并将照片关联到对应服药记录。
 
@@ -603,7 +601,7 @@ class DeviceService:
         return ids or [user.id]
 
     @staticmethod
-    def _resolve_elderly(db: Session, device_user: User, elderly_id: Optional[int]) -> User:
+    def _resolve_elderly(db: Session, device_user: User, elderly_id: int | None) -> User:
         """解析服药/照片归属的老人用户
 
         elderly_id 为空或非法时回退到设备主体用户（单老人兼容）；
