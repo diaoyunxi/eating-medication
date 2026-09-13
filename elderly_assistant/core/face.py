@@ -42,7 +42,7 @@ class FaceRecognizer:
             logger.warning("二哈人脸识别不可用（将降级）: %s", e)
             return False
 
-    def recognize(self) -> List[int]:
+    def recognize(self) -> list[int]:
         """识别当前帧中的人脸，返回已学习的人脸 ID 列表。
 
         空列表表示：未检测到人脸、未录入任何人脸，或摄像头不可用（严格模式下据此提示）。
@@ -57,7 +57,7 @@ class FaceRecognizer:
                     hl.switchAlgorithm(algo)
                 count = hl.getResult(algo) if hasattr(hl, "getResult") else 0
                 logger.debug("二哈人脸识别: getResult=%s", count)
-                ids: List[int] = []
+                ids: list[int] = []
                 if hasattr(hl, "getCachedResultByID"):
                     for i in range(count or 0):
                         block = hl.getCachedResultByID(algo, i)

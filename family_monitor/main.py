@@ -342,7 +342,7 @@ async def auth_middleware(request: Request, call_next):
     return response
 
 
-async def _verify_jwt_via_server(access_token: str) -> Optional[tuple]:
+async def _verify_jwt_via_server(access_token: str) -> tuple | None:
     """转发 JWT 到 server /api/v1/users/me 验证，返回 (username, user_id)
 
     复用全局 httpx 客户端并对验证结果做 30 秒短期缓存，避免每个请求都新建连接、

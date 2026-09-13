@@ -10,14 +10,14 @@ class ChatMessageCreate(BaseModel):
     移除客户端传入的 sender_name，改为服务端从 current_user.username 获取，
     防止客户端伪造发送者姓名。
     """
-    receiver_id: Optional[int] = None
+    receiver_id: int | None = None
     content: str
 
 
 class ChatMessageOut(BaseModel):
     id: int
     sender_id: int
-    receiver_id: Optional[int] = None
+    receiver_id: int | None = None
     sender_name: str
     content: str
     created_at: datetime

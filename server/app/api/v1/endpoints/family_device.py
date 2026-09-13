@@ -41,7 +41,7 @@ _ONLINE_THRESHOLD_SECONDS = 60
 class FamilyBindReq(BaseModel):
     """家属绑定设备请求"""
     device_id: str
-    device_name: Optional[str] = None
+    device_name: str | None = None
 
 
 class FamilyMedicationPlan(BaseModel):
@@ -50,7 +50,7 @@ class FamilyMedicationPlan(BaseModel):
     drug_name: str
     dosage: str = "1片"
     # 药品编号/条形码（可选，非必填）：供老人端扫码识别
-    product_code: Optional[str] = None
+    product_code: str | None = None
     frequency: str = "每日"
     schedule_times: list  # ["08:00", "12:00", "18:00"]
     total_quantity: float = 30.0
@@ -58,7 +58,7 @@ class FamilyMedicationPlan(BaseModel):
     unit: str = "片"
     low_stock_threshold: int = 5
     # 多老人：该计划归属的老人 ID（网页用药设置下拉选择「哪个老人吃」），缺省回退设备主体
-    elderly_id: Optional[int] = None
+    elderly_id: int | None = None
 
 
 def _require_bound_device(current_user: User, db: Session, device_id: str) -> User:

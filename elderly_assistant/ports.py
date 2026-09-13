@@ -85,7 +85,7 @@ class LedPort(Protocol):
 class CameraPort(Protocol):
     """摄像头（HuskyLens）：拍照并返回本地路径。"""
 
-    def capture_image(self, config) -> Optional[str]:
+    def capture_image(self, config) -> str | None:
         ...
 
 
@@ -97,7 +97,7 @@ class BarcodeScannerPort(Protocol):
     识别失败/超时统一返回 None，调用方据此播报提示。
     """
 
-    def scan(self, timeout: Optional[float] = None) -> Optional[str]:
+    def scan(self, timeout: float | None = None) -> str | None:
         ...
 
     def close(self) -> None:
@@ -142,7 +142,7 @@ class FaceRecognizerPort(Protocol):
     def is_available(self) -> bool:
         ...
 
-    def recognize(self) -> List[int]:
+    def recognize(self) -> list[int]:
         """识别当前帧人脸，返回已学习的人脸 ID 列表（空表示未检测到）。"""
         ...
 

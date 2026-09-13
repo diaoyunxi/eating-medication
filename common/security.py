@@ -62,10 +62,10 @@ def mask_device_id(device_id: str) -> str:
 
 
 def create_access_token(
-    data: Dict[str, Any],
+    data: dict[str, Any],
     secret_key: str,
     algorithm: str = "HS256",
-    expires_delta: Optional[timedelta] = None,
+    expires_delta: timedelta | None = None,
 ) -> str:
     """创建 JWT access token
 
@@ -86,7 +86,7 @@ def create_access_token(
     return jwt.encode(to_encode, secret_key, algorithm=algorithm)
 
 
-def decode_token(token: str, secret_key: str, algorithm: str = "HS256") -> Dict[str, Any]:
+def decode_token(token: str, secret_key: str, algorithm: str = "HS256") -> dict[str, Any]:
     """解码 JWT token"""
     from jose import jwt
     from jose.exceptions import JWTError as _JWTError

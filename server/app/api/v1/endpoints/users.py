@@ -184,7 +184,7 @@ def create_elderly(
     )
 
 
-@router.get("/elderly", response_model=List[ElderlyOut])
+@router.get("/elderly", response_model=list[ElderlyOut])
 def list_elderly(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

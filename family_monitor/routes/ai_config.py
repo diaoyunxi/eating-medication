@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _bound_device_id() -> Optional[str]:
+def _bound_device_id() -> str | None:
     """获取当前账号已绑定的老人端设备ID（用于按设备指定被照护老人的 AI 配置）"""
     bound = elderly_client.get_bound_device()
     if bound:
