@@ -125,6 +125,7 @@ def check_and_install_dependencies():
             capture_output=False,
             text=True,
             cwd=project_root,
+            check=False,
         )
     except KeyboardInterrupt:
         # 用户中断安装，不应视为崩溃；退出码 128+SIGINT(2)=130
