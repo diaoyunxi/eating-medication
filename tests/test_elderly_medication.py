@@ -64,7 +64,7 @@ class TestMedicationManager(unittest.TestCase):
         self.assertTrue(mgr.consume("布洛芬", "两片"))
         self.assertEqual(mgr.medications[0]["remaining"], 8)
         # 服用后 remaining=8, dosage=2 -> 4 天 < 5 -> 触发低库存
-        name, days = mgr.check_low(mgr.medications[0])
+        name, _days = mgr.check_low(mgr.medications[0])
         self.assertEqual(name, "布洛芬")
 
     def test_consume_unknown(self):
