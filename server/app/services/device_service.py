@@ -11,20 +11,20 @@ import base64
 import logging
 import os
 import secrets
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, mask_device_id
-from app.utils.datetime_utils import hhmm_to_today
 from app.models.chat_message import ChatMessage
 from app.models.medication_plan import MedicationPlan
 from app.models.medication_record import MedicationRecord
 from app.models.user import User
 from app.schemas.medication import TakeMedicationRequest
 from app.services.medication_service import MedicationService
+from app.utils.datetime_utils import hhmm_to_today
 
 logger = logging.getLogger(__name__)
 
@@ -393,8 +393,9 @@ class DeviceService:
         字段对齐子女端 get_reminders 的期望：id/plan_id/drug_name/planned_time/
         status/taken_time/note。
         """
-        from app.utils.datetime_utils import hhmm_to_today
         from datetime import datetime as _dt
+
+        from app.utils.datetime_utils import hhmm_to_today
 
         limit = max(1, min(limit, 200))
         now = datetime.now(timezone.utc).replace(tzinfo=None)

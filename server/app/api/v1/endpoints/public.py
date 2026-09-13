@@ -7,25 +7,27 @@
 路由层仅负责 I/O（请求模型、Header、响应）；设备身份解析、注册/心跳、下线、状态、
 上传、服药确认等纯逻辑已抽至 app.services.device_service.DeviceService。
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from fastapi.concurrency import run_in_threadpool
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Optional
-from app.core.dependencies import get_db, get_current_user
-from app.models.user import User
-from app.core.security import mask_device_id
-from app.models.medication_plan import MedicationPlan
-from app.models.ai_query_log import AIQueryLog
-from app.services.medication_service import MedicationService
-from app.services.ai_service import AIService
-from app.services.ai_config_service import get_effective_config
-from app.services.device_service import DeviceService
-from app.schemas.medication import MedicationPlanCreate
-from app.utils.rate_limit import check_rate_limit
-from app.utils.request_utils import get_client_ip
 import logging
 from datetime import datetime, timezone
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.core.dependencies import get_current_user, get_db
+from app.core.security import mask_device_id
+from app.models.ai_query_log import AIQueryLog
+from app.models.medication_plan import MedicationPlan
+from app.models.user import User
+from app.schemas.medication import MedicationPlanCreate
+from app.services.ai_config_service import get_effective_config
+from app.services.ai_service import AIService
+from app.services.device_service import DeviceService
+from app.services.medication_service import MedicationService
+from app.utils.rate_limit import check_rate_limit
+from app.utils.request_utils import get_client_ip
 
 logger = logging.getLogger(__name__)
 

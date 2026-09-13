@@ -1,20 +1,25 @@
 ﻿# -*- coding: utf-8 -*-
-import sys
 import os
+import sys
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # 将项目根目录添加到 Python 路径，以便导入 app 模块
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from app.core.database import Base, ensure_database_exists
 from app.core.config import settings
+from app.core.database import Base, ensure_database_exists
+
 # 删除不存在的 purchase_suggestion 引用
-from app.models import user, medication_plan, medication_record, ai_query_log, chat_message
+from app.models import (
+    ai_query_log,
+    chat_message,
+    medication_plan,
+    medication_record,
+    user,
+)
 
 # 这是 Alembic 使用的 MetaData 对象，用于自动生成迁移脚本
 target_metadata = Base.metadata

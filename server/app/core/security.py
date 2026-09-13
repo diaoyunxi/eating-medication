@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
+
 import bcrypt
 from jose import jwt
 from jose.exceptions import JWTError
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, Optional
-import secrets
+
 from app.core.config import settings
-from common.security import mask_device_id  # 与 common/security.py 共享同一实现，消除重复定义
+from common.security import (
+    mask_device_id,  # 与 common/security.py 共享同一实现，消除重复定义
+)
 
 # 移除 passlib（与 bcrypt 4.x 不兼容），改用 bcrypt 原生 API
 # 密码哈希 rounds 固定为 12，与原 passlib 配置一致

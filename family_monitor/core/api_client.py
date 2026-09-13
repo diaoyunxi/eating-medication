@@ -13,10 +13,10 @@ import logging
 import os
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
-from core.config import config
 from common.server_client import BaseServerClient, encode_device_id
+from core.config import config
 
 logger = logging.getLogger(__name__)
 

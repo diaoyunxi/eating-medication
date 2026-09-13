@@ -13,6 +13,8 @@ from datetime import datetime
 import requests
 from requests.exceptions import (
     ConnectionError as RequestsConnectionError,
+)
+from requests.exceptions import (
     ConnectTimeout,
     ReadTimeout,
     Timeout,
@@ -157,12 +159,22 @@ class HTTPClient:
         代理错误等），业务层 HTTP 状态码（4xx/5xx）不在此列，由调用方按业务处理。
         """
         from requests.exceptions import (
-            ConnectionError as _ConnErr,
-            ConnectTimeout as _ConnTO,
-            ReadTimeout as _ReadTO,
-            Timeout as _TO,
             ChunkedEncodingError as _Chunked,
+        )
+        from requests.exceptions import (
+            ConnectionError as _ConnErr,
+        )
+        from requests.exceptions import (
+            ConnectTimeout as _ConnTO,
+        )
+        from requests.exceptions import (
             ProxyError as _Proxy,
+        )
+        from requests.exceptions import (
+            ReadTimeout as _ReadTO,
+        )
+        from requests.exceptions import (
+            Timeout as _TO,
         )
         return isinstance(exc, (_ConnErr, _ConnTO, _ReadTO, _TO, _Chunked, _Proxy))
 

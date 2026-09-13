@@ -9,9 +9,13 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from app.schemas.auth import (  # noqa: E402
+    EmailCodeLoginReq,
+    EmailSendCodeReq,
+    LoginReq,
+    RegisterReq,
+)
 from pydantic import ValidationError  # noqa: E402
-
-from app.schemas.auth import RegisterReq, LoginReq, EmailSendCodeReq, EmailCodeLoginReq  # noqa: E402
 
 
 class TestRegisterReq(unittest.TestCase):

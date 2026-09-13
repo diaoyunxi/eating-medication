@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import Column, Integer, String, Boolean, LargeBinary, Text, ForeignKey
-from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
+
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, LargeBinary, String, Text
+from sqlalchemy.orm import relationship
+
 from app.core.database import Base, UTCDateTime
 
 

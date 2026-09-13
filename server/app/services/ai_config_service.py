@@ -6,11 +6,13 @@
 2. 同家庭组（group_id 一致）中家属(family)用户的配置（兜底）；
 3. 均无则返回 None，交由 AIService.ask 回退到全局 settings.ZHIPUAI_*。
 """
+import logging
+
 from sqlalchemy.orm import Session
+
+from app.core.crypto import decrypt_text
 from app.models.user import User
 from app.models.user_ai_config import UserAIConfig
-from app.core.crypto import decrypt_text
-import logging
 
 logger = logging.getLogger(__name__)
 

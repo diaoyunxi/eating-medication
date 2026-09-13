@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-from typing import Optional
-from app.core.config import settings
+import asyncio
 import logging
 import threading
-import asyncio
+from typing import Optional
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 

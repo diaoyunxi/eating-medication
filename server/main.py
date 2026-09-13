@@ -5,16 +5,15 @@
 仿照老人端 main.py 的风格：自动检查依赖、创建必要目录、启动服务
 """
 
-import sys
+import importlib
+import json
+import logging
 import os
 import re
 import subprocess
-import importlib
-import json
+import sys
 import traceback
-import logging
 from pathlib import Path
-
 
 # 确保仓库根目录在 sys.path（以便 import common 共享包）
 # 注意：必须 append 而非 insert(0)。仓库根目录下存在统一启动入口 main.py，
@@ -234,7 +233,7 @@ def main():
     # 仅保留 .env / config.json / logs，使工作树接近全新 clone 状态
     if "--reset" in sys.argv:
         _root = str(Path(__file__).resolve().parent.parent)
-        from updater import reset_runtime_data, confirm_reset
+        from updater import confirm_reset, reset_runtime_data
         print("=" * 60)
         print(" 重置运行时数据模式 (--reset)")
         if not confirm_reset():

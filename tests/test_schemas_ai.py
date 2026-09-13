@@ -6,8 +6,8 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from app.schemas.ai import AIAnswer, AIQuestion
 from pydantic import ValidationError
-from app.schemas.ai import AIQuestion, AIAnswer
 
 
 class TestAIQuestion(unittest.TestCase):

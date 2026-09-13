@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
+
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
+from sqlalchemy.orm import Session
+
 from app.core.database import SessionLocal
 from app.core.security import decode_token
 from app.models.user import User

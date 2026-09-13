@@ -11,11 +11,11 @@
 import logging
 from datetime import datetime
 
+from core import config
 from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from core import config
 from common.server_client import BaseServerClient
 
 logger = logging.getLogger(__name__)

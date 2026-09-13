@@ -12,7 +12,7 @@ import unittest
 
 try:
     import sqlalchemy
-    from sqlalchemy import create_engine, inspect, Column, Integer, Text, String
+    from sqlalchemy import Column, Integer, String, Text, create_engine, inspect
     from sqlalchemy.orm import declarative_base
     _HAS_SA = True
 except ImportError:

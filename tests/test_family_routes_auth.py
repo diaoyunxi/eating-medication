@@ -61,6 +61,7 @@ _HAS = all(importlib.util.find_spec(m) is not None
 
 if _HAS:
     import httpx
+
     from common.server_client import _ResponseAdapter
     from tests._helpers import load_module
     auth = load_module("family_routes_auth", "family_monitor/routes/auth.py")

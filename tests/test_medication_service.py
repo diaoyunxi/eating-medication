@@ -5,9 +5,9 @@ take_medication 为 async，但底层使用同步 Session，故以 MagicMock 模
 并以 asyncio.run 驱动；服药通知通过 patch app.websocket.notifier.notifier 隔离。
 依赖缺失时整体跳过。
 """
+import asyncio
 import os
 import sys
-import asyncio
 import unittest
 from datetime import datetime, timezone
 from unittest import mock
@@ -19,8 +19,8 @@ os.environ.setdefault("DEBUG", "true")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./data/test_elderly_care.db")
 
 try:
-    from app.services.medication_service import MedicationService
     from app.schemas.medication import TakeMedicationRequest
+    from app.services.medication_service import MedicationService
     _HAVE = True
 except Exception:  # pragma: no cover
     _HAVE = False

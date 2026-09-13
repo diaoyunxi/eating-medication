@@ -4,8 +4,8 @@ Revision ID: 20260812_001
 Revises: 20260809_001
 Create Date: 2026-08-12
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # 修订版本标识
 revision = "20260812_001"

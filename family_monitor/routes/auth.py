@@ -10,12 +10,13 @@
 """
 
 import os
+
 import httpx
+from core.config import config
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from core.config import config
 from common.server_client import BaseServerClient
 
 router = APIRouter()

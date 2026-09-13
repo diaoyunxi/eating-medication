@@ -21,14 +21,14 @@ os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 
 try:
     from app.core.security import (
-        hash_password,
-        verify_password,
         create_access_token,
-        decode_token,
-        create_oauth_state_token,
-        verify_oauth_state_token,
         create_oauth_pending_token,
+        create_oauth_state_token,
+        decode_token,
+        hash_password,
         verify_oauth_pending_token,
+        verify_oauth_state_token,
+        verify_password,
     )
     _HAVE_SECURITY = True
 except Exception:  # pragma: no cover - 依赖缺失时跳过

@@ -9,8 +9,8 @@ Create Date: 2026-07-23
 - users.gitee_id：Gitee 唯一 ID（唯一索引，与 github_id 对称）
 - users.email ：第三方 OAuth 返回的邮箱（如 Gitee 已授权 emails 权限），本地注册为 NULL
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # 修订版本标识
 revision = "20260723_001"

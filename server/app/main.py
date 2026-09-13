@@ -5,32 +5,42 @@ FastAPI 应用入口 - 最终版
 """
 
 import logging
-import sys
 import os
+import sys
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import (
+    get_redoc_html,
     get_swagger_ui_html,
     get_swagger_ui_oauth2_redirect_html,
-    get_redoc_html,
 )
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
+from app.api.v1.endpoints import (
+    ai,
+    ai_config,
+    auth,
+    chat,
+    medication,
+    oauth,
+    public,
+    users,
+    vision,
+)
 from app.core.config import settings
-from app.core.database import engine, Base, ensure_database_exists
-from updater import __version__ as __server_version__
-from app.middleware.logging import LoggingMiddleware
-from app.middleware.exception_handler import add_exception_handlers
+from app.core.database import Base, engine, ensure_database_exists
+
 # 改用统一的 setup_cors 配置 CORS
 from app.middleware.cors import setup_cors
-from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.middleware.request_size_limit import RequestSizeLimitMiddleware
+from app.middleware.exception_handler import add_exception_handlers
+from app.middleware.logging import LoggingMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
-from app.api.v1.endpoints import (
-    auth, users, medication, ai, vision, public, chat, oauth, ai_config
-)
-from app.tasks.stock_checker import start_scheduler, shutdown_scheduler
+from app.middleware.request_size_limit import RequestSizeLimitMiddleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.tasks.stock_checker import shutdown_scheduler, start_scheduler
+from updater import __version__ as __server_version__
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
@@ -89,9 +99,10 @@ async def lifespan(app: FastAPI):
     # 创建数据库表（如果不存在）
     # 优先使用 Alembic 迁移管理表结构，失败则回退 create_all（兼容现有部署）
     try:
-        from alembic.config import Config
-        from alembic import command
         import os as _os
+
+        from alembic import command
+        from alembic.config import Config
         alembic_ini = _os.path.join(_os.path.dirname(__file__), "migrations", "alembic.ini")
         if _os.path.exists(alembic_ini):
             alembic_cfg = Config(alembic_ini)
@@ -215,6 +226,7 @@ add_exception_handlers(app)
 api_prefix = settings.API_V1_PREFIX
 app.include_router(auth.router, prefix=api_prefix)
 from app.api.v1.endpoints import totp, webauthn
+
 # TOTP / WebAuthn 第二因子与通行密钥端点统一挂在 /auth 前缀下：
 # 与 OAuth 端点保持一致，并匹配 family_monitor 代理转发的 /auth/totp/*、/auth/webauthn/* 约定。
 # 此前漏写 /auth 段，导致 family_monitor 转发请求在 server 侧 404。
@@ -230,12 +242,14 @@ app.include_router(chat.router, prefix=api_prefix)
 # 家属设备接口：已登录家属用 JWT 访问其绑定设备的数据，替代此前复用设备
 # 令牌接口（设备令牌仅存于老人端本机，已注册设备不再下发，导致子女端 403）
 from app.api.v1.endpoints.family_device import router as family_device_router
+
 app.include_router(family_device_router, prefix=api_prefix)
 # OAuth 路由统一带 /auth 前缀，真实路径为 /api/v1/auth/oauth/...
 # 与 family_monitor 的 _server_url("/auth/oauth/...") 调用及回调配置保持一致
 app.include_router(oauth.router, prefix=f"{api_prefix}/auth")
 # 更新信息端点：供 family 前端轮询展示版本与更新状态（详见 endpoints/updater.py）
 from app.api.v1.endpoints.updater import router as updater_router
+
 app.include_router(updater_router, prefix=api_prefix)
 
     # 移除冲突的 ws_router（/ws 与 chat.py 的 /chat/ws/{user_id} 重叠）

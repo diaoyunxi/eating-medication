@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import json
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 
 class NotificationSettings(BaseModel):
     """用户通知偏好设置

@@ -4,10 +4,17 @@
 增加 /chat/history BFF 代理接口，从服务端获取聊天历史
 """
 
+from core import config, elderly_client
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from core import config, elderly_client
-from routes.web_helpers import templates, require_login, login_redirect, unauthorized_json, family_client
+
+from routes.web_helpers import (
+    family_client,
+    login_redirect,
+    require_login,
+    templates,
+    unauthorized_json,
+)
 
 router = APIRouter()
 

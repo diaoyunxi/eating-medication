@@ -88,22 +88,21 @@ if _venv_py.exists() and not _in_venv():
 # 启动前检查依赖，缺失则调用 common/install.py 安装
 _check_and_install_dependencies()
 
+import logging
 import struct
 import time
-import uvicorn
 from contextlib import asynccontextmanager
 from typing import Optional
-from fastapi import FastAPI, Request
-from common.server_client import BaseServerClient
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, JSONResponse, Response
+
+import uvicorn
 from core import config
-from routes import home_router
-from routes import chat_router
-from routes import auth_router
-from routes import ai_config_router
-import logging
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
+from routes import ai_config_router, auth_router, chat_router, home_router
+
+from common.server_client import BaseServerClient
 from updater import __version__ as __app_version__
 
 # 使用 uvicorn.error logger，确保启动阶段的 info/warning 日志能随 uvicorn 输出
@@ -493,7 +492,7 @@ def main():
     # 执行并退出，删除用户密码库与老人端设备数据等本地文件，
     # 仅保留 .env / logs，使工作树接近全新 clone 状态
     if "--reset" in sys.argv:
-        from updater import reset_runtime_data, confirm_reset, _print_diagnostics
+        from updater import _print_diagnostics, confirm_reset, reset_runtime_data
         print("=" * 60)
         print(" 重置运行时数据模式 (--reset)")
         if not confirm_reset():

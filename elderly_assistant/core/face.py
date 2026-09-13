@@ -8,7 +8,7 @@ from typing import List
 
 from utils.logger import setup_logger
 
-from core.camera import get_huskylens, _HUSKYLENS_OP_LOCK
+from core.camera import _HUSKYLENS_OP_LOCK, get_huskylens
 
 logger = setup_logger()
 

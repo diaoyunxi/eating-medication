@@ -162,8 +162,8 @@ class TestSpeechSerialPlayback(unittest.TestCase):
         sp._edge_tts = None
         sp._edge_available = False
         sp._pyttsx_engine = _FakeEngine(fail=pyttsx_fail) if with_engine else None
-        import threading
         import queue
+        import threading
         sp._speak_queue = queue.Queue(maxsize=20)
         sp._stop_event = threading.Event()
         sp._speak_lock = threading.Lock()

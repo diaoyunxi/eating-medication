@@ -10,12 +10,14 @@
 现已统一为单一 .env 配置源，消除「同一字段两处可配、优先级不可预测」的混乱。
 """
 
-import os
-import sys
-import secrets
 import logging
+import os
+import secrets
+import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
+
 from common.envfile import write_env_text
 
 logger = logging.getLogger(__name__)

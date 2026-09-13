@@ -10,11 +10,11 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from app.utils.validators import (
-    is_valid_phone,
-    is_valid_username,
-    is_valid_password,
-    is_valid_time_format,
     is_valid_email,
+    is_valid_password,
+    is_valid_phone,
+    is_valid_time_format,
+    is_valid_username,
 )
 
 

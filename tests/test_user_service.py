@@ -15,13 +15,12 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("APP_SKIP_ENV_FILE", "1")
 
 try:
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-
     from app.core.database import Base
     from app.models.user import User
     from app.schemas.user import UserOut, UserUpdate
     from app.services.user_service import UserService
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
 
     _HAVE = True
 except Exception:  # pragma: no cover

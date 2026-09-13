@@ -22,17 +22,16 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("APP_SKIP_ENV_FILE", "1")
 
 try:
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from sqlalchemy.pool import StaticPool
-
     from app.api.v1.endpoints import auth
     from app.core.database import Base
     from app.core.dependencies import get_db
     from app.models.user import User
     from app.utils import email_code
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
 
     _HAVE = True
 except Exception:  # pragma: no cover
