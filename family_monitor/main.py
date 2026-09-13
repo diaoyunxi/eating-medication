@@ -275,10 +275,7 @@ async def auth_middleware(request: Request, call_next):
     wellknown_prefix = f"{PATH_PREFIX}/.well-known" if PATH_PREFIX else "/.well-known"
     is_public = (
         path in public_paths
-        or path.startswith(static_prefix)
-        or path.startswith(wellknown_prefix)
-        or path.startswith("/static/")
-        or path.startswith("/.well-known/")
+        or path.startswith((static_prefix, wellknown_prefix, "/static/", "/.well-known/"))
     )
 
     request.state.user = None

@@ -172,7 +172,7 @@ def detect_unihiker():
     is_debian = distro_id == "debian" or "debian" in id_like
     # VERSION_ID 形如 "10"，也兼容 "10.13" 这类带小版本号的写法
     is_v10 = bool(re.match(r"^10(\.|$)", version_id)) or codename == "buster"
-    is_arm = machine.startswith("aarch64") or machine.startswith("arm")
+    is_arm = machine.startswith(("aarch64", "arm"))
 
     if is_debian and is_v10 and is_arm:
         reasons.append(

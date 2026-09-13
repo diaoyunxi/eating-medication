@@ -83,7 +83,7 @@ def _oauth_rewrite_url(url: str) -> str:
     正向代理/无代理时原样返回。
     """
     if _OAUTH_IS_MIRROR and _OAUTH_MIRROR_BASE and (
-        url.startswith("https://github.com/") or url.startswith("https://api.github.com/")
+        url.startswith(("https://github.com/", "https://api.github.com/"))
     ):
         return f"{_OAUTH_MIRROR_BASE}/{url}"
     return url
