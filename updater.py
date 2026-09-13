@@ -575,7 +575,7 @@ def _restart_services():
         cmd = ["sudo", "-n"] + cmd
     logger.info(f"[更新] 即将重启服务以应用新版本: {', '.join(service_names)}")
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=False)
         if proc.returncode == 0:
             logger.info(f"[更新] 已向 systemd 提交重启请求: {', '.join(service_names)}")
             return True
@@ -625,6 +625,7 @@ def _run_post_update_cmd():
             capture_output=True,
             text=True,
             timeout=300,
+            check=False,
             cwd=str(Path(__file__).resolve().parent),
         )
         if proc.returncode != 0:
@@ -746,6 +747,7 @@ def _reset_via_git(repo_root: Path, deleted: list, skipped: list) -> bool:
             capture_output=True,
             text=True,
             timeout=60,
+            check=False,
         )
     except Exception:
         return False
