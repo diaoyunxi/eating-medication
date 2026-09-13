@@ -62,16 +62,22 @@ class TestAccessToken(unittest.TestCase):
 
     def test_wrong_secret_raises(self):
         token, _ = self._roundtrip({"sub": "1"})
-        with self.assertRaises(Exception):
+        from jose.exceptions import JWTError
+
+        with self.assertRaises(JWTError):
             decode_token(token, "wrong-secret")
 
     def test_expired_token_raises(self):
         token = create_access_token({"sub": "1"}, "k", "HS256", expires_delta=timedelta(seconds=-1))
-        with self.assertRaises(Exception):
+        from jose.exceptions import JWTError
+
+        with self.assertRaises(JWTError):
             decode_token(token, "k")
 
     def test_bad_token_raises(self):
-        with self.assertRaises(Exception):
+        from jose.exceptions import JWTError
+
+        with self.assertRaises(JWTError):
             decode_token("not.a.jwt", "k")
 
 
