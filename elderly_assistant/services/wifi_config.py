@@ -87,7 +87,8 @@ class WiFiConfigManager:
         try:
             result = subprocess.run(
                 ["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi", "list"],
-                capture_output=True, text=True, timeout=15
+                capture_output=True, text=True, timeout=15,
+                check=False,
             )
             if result.returncode == 0:
                 seen = set()
@@ -131,7 +132,8 @@ class WiFiConfigManager:
             # 使用列表形式传递参数，避免 shell 注入
             result = subprocess.run(
                 ["nmcli", "dev", "wifi", "connect", safe_ssid, "password", safe_password],
-                capture_output=True, text=True, timeout=30
+                capture_output=True, text=True, timeout=30,
+                check=False,
             )
             if result.returncode == 0:
                 self.status = "success"
