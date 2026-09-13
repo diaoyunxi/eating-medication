@@ -122,8 +122,8 @@ async def lifespan(app: FastAPI):
     logger.info(f" {config.APP_NAME} 启动中...")
     logger.info(f" 服务地址: http://{config.SERVER_HOST}:{config.SERVER_PORT}")
     logger.info(f" 老人端地址: {config.ELDERLY_SERVER_URL}")
-    logger.info(f" 认证系统: JWT（由 server 统一认证，转发验证）")
-    logger.info(f" 人机验证: Cloudflare Turnstile")
+    logger.info(" 认证系统: JWT（由 server 统一认证，转发验证）")
+    logger.info(" 人机验证: Cloudflare Turnstile")
     logger.info(f" 路径前缀: {PATH_PREFIX or '(无，根路径)'}")
     logger.info("=" * 60)
 
