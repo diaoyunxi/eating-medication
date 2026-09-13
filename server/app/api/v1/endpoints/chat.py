@@ -60,7 +60,7 @@ async def send_message(
     return db_msg
 
 
-@router.get("/history/{user_id}", response_model=List[ChatMessageOut])
+@router.get("/history/{user_id}", response_model=list[ChatMessageOut])
 async def get_history(
     user_id: int,
     limit: int = Query(50, ge=1, le=200),  # 限制 limit 范围 1~200
@@ -89,7 +89,7 @@ async def get_history(
 
 
 @router.websocket("/ws/{user_id}")
-async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Query(None)):
+async def ws_chat(websocket: WebSocket, user_id: int, token: str | None = Query(None)):
     """WebSocket聊天连接（从 query 参数读取 token 校验，使用 token 中的 user_id）
 
     JWT sub 字段是 username（字符串），不能直接 int() 转换，

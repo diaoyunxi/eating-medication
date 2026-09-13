@@ -47,7 +47,7 @@ _REQUIRE_BASE_URL = {"custom", "doubao"}
 
 
 def _resolve_target_user(
-    db: Session, current_user: User, device_id: Optional[str], user_id: Optional[int]
+    db: Session, current_user: User, device_id: str | None, user_id: int | None
 ) -> User:
     """解析被操作的目标用户，并校验授权。
 
@@ -73,7 +73,7 @@ def _resolve_target_user(
     raise HTTPException(status_code=403, detail="无权配置该用户的 AI 设置")
 
 
-def _to_out(row: Optional[UserAIConfig]) -> UserAIConfigOut:
+def _to_out(row: UserAIConfig | None) -> UserAIConfigOut:
     """将数据库行转为对外响应（不回传明文 api_key）"""
     if not row:
         return UserAIConfigOut(
@@ -92,8 +92,8 @@ def _to_out(row: Optional[UserAIConfig]) -> UserAIConfigOut:
 async def get_ai_config(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-    device_id: Optional[str] = Query(None, description="目标设备ID（家属为被照护老人配置）"),
-    user_id: Optional[int] = Query(None, description="目标用户ID"),
+    device_id: str | None = Query(None, description="目标设备ID（家属为被照护老人配置）"),
+    user_id: int | None = Query(None, description="目标用户ID"),
 ):
     """读取 AI 配置（api_key 不回传明文，仅返回 has_api_key 标识）"""
     target = _resolve_target_user(db, current_user, device_id, user_id)
@@ -106,8 +106,8 @@ async def upsert_ai_config(
     payload: UserAIConfigIn,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-    device_id: Optional[str] = Query(None, description="目标设备ID（家属为被照护老人配置）"),
-    user_id: Optional[int] = Query(None, description="目标用户ID"),
+    device_id: str | None = Query(None, description="目标设备ID（家属为被照护老人配置）"),
+    user_id: int | None = Query(None, description="目标用户ID"),
 ):
     """新增或更新 AI 配置（api_key 加密存储）"""
     provider = (payload.provider or "zhipuai").lower()

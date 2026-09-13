@@ -24,7 +24,7 @@ def create_plan(
         raise HTTPException(status_code=403, detail="只有老人可以创建用药计划")
     return MedicationService.create_plan(db, current_user.id, plan_data)
 
-@router.get("/plans", response_model=List[MedicationPlanOut])
+@router.get("/plans", response_model=list[MedicationPlanOut])
 def list_plans(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -56,10 +56,10 @@ async def take_medication(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/history", response_model=List[MedicationRecordOut])
+@router.get("/history", response_model=list[MedicationRecordOut])
 def get_history(
-    start: Optional[datetime] = Query(None),
-    end: Optional[datetime] = Query(None),
+    start: datetime | None = Query(None),
+    end: datetime | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

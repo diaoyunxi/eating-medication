@@ -17,7 +17,7 @@ class UserAIConfigIn(BaseModel):
     provider: str = "zhipuai"
     api_key: str = ""
     model: str = ""
-    base_url: Optional[str] = None
+    base_url: str | None = None
     enabled: bool = True
 
 
@@ -25,7 +25,7 @@ class UserAIConfigOut(BaseModel):
     """每用户 AI 配置（返回，api_key 不回传明文，仅告知是否已配置）"""
     provider: str
     model: str
-    base_url: Optional[str] = None
+    base_url: str | None = None
     enabled: bool
     has_api_key: bool = False
 

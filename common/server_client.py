@@ -40,7 +40,7 @@ class _ResponseAdapter:
 
     __slots__ = ("status_code", "text", "_parsed", "_parse_exc")
 
-    def __init__(self, status_code: int, text: str, parsed: Any, parse_exc: Optional[Exception]):
+    def __init__(self, status_code: int, text: str, parsed: Any, parse_exc: Exception | None):
         self.status_code = status_code
         self.text = text
         self._parsed = parsed
@@ -94,7 +94,7 @@ class BaseServerClient:
         self.timeout = timeout
         self._ssl_context = self._create_ssl_context()
 
-    def _create_ssl_context(self) -> Optional[ssl.SSLContext]:
+    def _create_ssl_context(self) -> ssl.SSLContext | None:
         """创建 SSL 上下文（HTTPS 连接验证，使用系统默认信任库）。"""
         if self.base_url.startswith('https://'):
             try:
@@ -104,7 +104,7 @@ class BaseServerClient:
                 return None
         return None
 
-    def _auth_headers(self) -> Dict[str, str]:
+    def _auth_headers(self) -> dict[str, str]:
         """返回认证请求头，子类按需重写（如 X-Device-ID / Authorization）。"""
         return {}
 
@@ -128,9 +128,9 @@ class BaseServerClient:
         method: str,
         path: str,
         *,
-        params: Optional[Dict[str, Any]] = None,
-        json_body: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
+        params: dict[str, Any] | None = None,
+        json_body: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
         retries: int = 0,
     ) -> _ResponseAdapter:
         """统一执行 HTTP 请求，返回 ``_ResponseAdapter``。
@@ -156,7 +156,7 @@ class BaseServerClient:
             merged_headers.update(headers)
 
         verify = self._ssl_context if self._ssl_context else True
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(retries + 1):
             try:
                 async with httpx.AsyncClient(timeout=self.timeout, verify=verify) as client:
@@ -172,7 +172,7 @@ class BaseServerClient:
                     text = response.text
                     try:
                         parsed: Any = json.loads(text) if text else None
-                        parse_exc: Optional[Exception] = None
+                        parse_exc: Exception | None = None
                     except Exception as e:  # JSON 解析失败时保留异常，供 json() 复抛
                         parsed = None
                         parse_exc = e

@@ -47,8 +47,8 @@ class AIService:
     _lock = threading.Lock()
 
     @classmethod
-    def _resolve(cls, provider: Optional[str], api_key: Optional[str],
-                 model: Optional[str], base_url: Optional[str]):
+    def _resolve(cls, provider: str | None, api_key: str | None,
+                 model: str | None, base_url: str | None):
         """解析并归一化一组 AI 配置，返回 (provider, api_key, base_url, model)。"""
         prov = (provider or "zhipuai").lower()
         key = api_key if api_key else settings.ZHIPUAI_API_KEY
@@ -86,10 +86,10 @@ class AIService:
 
     @classmethod
     async def ask(cls, question: str,
-                  provider: Optional[str] = None,
-                  api_key: Optional[str] = None,
-                  model: Optional[str] = None,
-                  base_url: Optional[str] = None) -> str:
+                  provider: str | None = None,
+                  api_key: str | None = None,
+                  model: str | None = None,
+                  base_url: str | None = None) -> str:
         """向 AI 提问，返回回答。
 
         :param question: 用户问题

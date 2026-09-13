@@ -142,7 +142,7 @@ class FakeFaceRecognizer:
     def __init__(
         self,
         available: bool = True,
-        detected: Optional[List[int]] = None,
+        detected: list[int] | None = None,
         learn_result: bool = True,
     ) -> None:
         self.available = available
@@ -153,7 +153,7 @@ class FakeFaceRecognizer:
     def is_available(self) -> bool:
         return self.available
 
-    def recognize(self) -> List[int]:
+    def recognize(self) -> list[int]:
         return list(self.detected)
 
     def learn(self, face_id: int) -> bool:

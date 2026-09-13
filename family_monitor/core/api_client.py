@@ -43,10 +43,10 @@ class ElderlyAPIClient(BaseServerClient):
         # 此时改用 /api/v1/family/device/* 接口（JWT 鉴权 + 设备绑定校验），
         # 不再依赖老人端设备令牌（设备令牌仅存于老人端本机，已注册设备不再
         # 下发，导致子女端此前拿到空令牌、/device/status 返回 403）。
-        self._jwt_token: Optional[str] = None
+        self._jwt_token: str | None = None
         self._family_auth: bool = False
 
-    def set_jwt_token(self, token: Optional[str]) -> None:
+    def set_jwt_token(self, token: str | None) -> None:
         """设置子女端登录家属的 JWT（来自登录 cookie），用于家属授权接口。"""
         self._jwt_token = token
         if token:
@@ -58,7 +58,7 @@ class ElderlyAPIClient(BaseServerClient):
     def _family_mode(self) -> bool:
         return self._family_auth and bool(self._jwt_token)
 
-    async def _resolve_family_device_id(self) -> Optional[str]:
+    async def _resolve_family_device_id(self) -> str | None:
         """在 family 模式下，从服务端解析当前家属账号真实绑定的 device_id。
 
         权威来源是服务端 /api/v1/users/me 返回的 device_id（家属绑定设备时写入
@@ -88,7 +88,7 @@ class ElderlyAPIClient(BaseServerClient):
             logger.warning("从服务端解析家属绑定设备ID失败: %s", e)
         return None
 
-    def _auth_headers(self) -> Dict[str, str]:
+    def _auth_headers(self) -> dict[str, str]:
         """返回携带设备ID和设备令牌的请求头"""
         headers = {}
         if self._device_id:
@@ -99,14 +99,14 @@ class ElderlyAPIClient(BaseServerClient):
             headers["X-Device-Token"] = self._device_token
         return headers
 
-    def _jwt_headers(self) -> Dict[str, str]:
+    def _jwt_headers(self) -> dict[str, str]:
         """返回携带登录家属 JWT 的请求头（家属授权接口使用）。"""
         headers = {}
         if self._jwt_token:
             headers["Authorization"] = f"Bearer {self._jwt_token}"
         return headers
 
-    async def bind_device_family(self, device_id: str, device_name: str = "") -> Dict[str, Any]:
+    async def bind_device_family(self, device_id: str, device_name: str = "") -> dict[str, Any]:
         """通过家属授权接口绑定设备并获取设备令牌（解决空令牌 403 根因）。
 
         已登录家属调用 /api/v1/family/device/bind，server 端校验设备已注册后
@@ -128,7 +128,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception as e:
             return {"status": "error", "msg": f"绑定请求异常: {str(e)}"}
 
-    async def unbind_device_family(self) -> Dict[str, Any]:
+    async def unbind_device_family(self) -> dict[str, Any]:
         """通过家属授权接口解绑当前设备（JWT 鉴权）。
 
         调用 /api/v1/family/device/unbind，服务端将当前家属账号的 device_id 置空。
@@ -147,7 +147,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception as e:
             return {"status": "error", "msg": f"解绑请求异常: {str(e)}"}
 
-    async def _status_via_family(self) -> Dict[str, Any]:
+    async def _status_via_family(self) -> dict[str, Any]:
         # 以服务端绑定关系为准解析 device_id，避免本地文件残留导致的假绑定
         if not await self._resolve_family_device_id():
             return {'connected': False, 'device_id': None,
@@ -176,7 +176,7 @@ class ElderlyAPIClient(BaseServerClient):
             return {'connected': False, 'device_id': self._device_id,
                     'device_name': '设备离线', 'status': 'offline'}
 
-    async def _plans_via_family(self) -> Dict[str, Any]:
+    async def _plans_via_family(self) -> dict[str, Any]:
         if not await self._resolve_family_device_id():
             return {'device_id': None, 'plans': []}
         try:
@@ -189,7 +189,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception:
             return {'device_id': self._device_id, 'plans': []}
 
-    async def _records_via_family(self, limit: int = 100) -> Dict[str, Any]:
+    async def _records_via_family(self, limit: int = 100) -> dict[str, Any]:
         if not await self._resolve_family_device_id():
             return {'device_id': None, 'records': []}
         try:
@@ -203,7 +203,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception:
             return {'device_id': self._device_id, 'records': []}
 
-    async def get_record_photo(self, record_id: int, device_id: str) -> Optional[bytes]:
+    async def get_record_photo(self, record_id: int, device_id: str) -> bytes | None:
         """获取某条记录的服药照片字节（家属侧，按绑定设备鉴权）"""
         try:
             response = await self._execute(
@@ -217,7 +217,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception:
             return None
 
-    async def _chat_history_via_family(self, limit: int = 50) -> Dict[str, Any]:
+    async def _chat_history_via_family(self, limit: int = 50) -> dict[str, Any]:
         if not await self._resolve_family_device_id():
             return {'device_id': None, 'messages': []}
         try:
@@ -231,7 +231,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception:
             return {'device_id': self._device_id, 'messages': []}
 
-    async def _reminders_via_family(self, limit: int = 50) -> Dict[str, Any]:
+    async def _reminders_via_family(self, limit: int = 50) -> dict[str, Any]:
         """家属模式下获取绑定设备的今日提醒（/family/device/reminders）。"""
         if not await self._resolve_family_device_id():
             return {'device_id': None, 'reminders': []}
@@ -249,8 +249,8 @@ class ElderlyAPIClient(BaseServerClient):
     async def _set_plan_via_family(self, drug_name: str, dosage: str, frequency: str,
                                    schedule_times: list, total_quantity: float,
                                    remaining_quantity: float, unit: str,
-                                   product_code: Optional[str], low_stock_threshold: int,
-                                   elderly_id: Optional[int] = None) -> Dict[str, Any]:
+                                   product_code: str | None, low_stock_threshold: int,
+                                   elderly_id: int | None = None) -> dict[str, Any]:
         if not await self._resolve_family_device_id():
             return {"success": False, "error": "当前账号尚未绑定设备，请先在设置页绑定"}
         payload = {
@@ -275,8 +275,8 @@ class ElderlyAPIClient(BaseServerClient):
     async def _update_plan_via_family(self, plan_id: int, drug_name: str, dosage: str,
                                       frequency: str, schedule_times: list, total_quantity: float,
                                       remaining_quantity: float, unit: str,
-                                      product_code: Optional[str], low_stock_threshold: int,
-                                      elderly_id: Optional[int] = None) -> Dict[str, Any]:
+                                      product_code: str | None, low_stock_threshold: int,
+                                      elderly_id: int | None = None) -> dict[str, Any]:
         if not await self._resolve_family_device_id():
             return {"success": False, "error": "当前账号尚未绑定设备，请先在设置页绑定"}
         payload = {
@@ -299,7 +299,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _delete_plan_via_family(self, plan_id: int) -> Dict[str, Any]:
+    async def _delete_plan_via_family(self, plan_id: int) -> dict[str, Any]:
         if not await self._resolve_family_device_id():
             return {"success": False, "error": "当前账号尚未绑定设备，请先在设置页绑定"}
         try:
@@ -339,7 +339,7 @@ class ElderlyAPIClient(BaseServerClient):
             pass
         return f"服务端返回状态码: {response.status_code}"
 
-    def _load_bound_device_id(self) -> Optional[str]:
+    def _load_bound_device_id(self) -> str | None:
         """加载已绑定的设备ID"""
         device_file = config.DATA_DIR / "bound_device.json"
         if device_file.exists():
@@ -351,7 +351,7 @@ class ElderlyAPIClient(BaseServerClient):
                 pass
         return None
 
-    def _load_device_token(self) -> Optional[str]:
+    def _load_device_token(self) -> str | None:
         """加载已绑定的设备令牌"""
         device_file = config.DATA_DIR / "bound_device.json"
         if device_file.exists():
@@ -384,7 +384,7 @@ class ElderlyAPIClient(BaseServerClient):
         self._device_id = device_id
         self._device_token = device_token if device_token else None
 
-    def get_bound_device(self) -> Optional[Dict[str, str]]:
+    def get_bound_device(self) -> dict[str, str] | None:
         """获取已绑定的设备信息"""
         device_file = config.DATA_DIR / "bound_device.json"
         if device_file.exists():
@@ -407,7 +407,7 @@ class ElderlyAPIClient(BaseServerClient):
         self._device_id = None
         self._device_token = None
 
-    async def register_device(self, device_id: str, device_name: str = "") -> Dict[str, Any]:
+    async def register_device(self, device_id: str, device_name: str = "") -> dict[str, Any]:
         """向服务端注册/绑定设备"""
         try:
             response = await self._execute(
@@ -425,7 +425,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def check_device(self, device_id: str) -> Dict[str, Any]:
+    async def check_device(self, device_id: str) -> dict[str, Any]:
         """检查设备是否已在服务端注册
 
         调用 GET /api/v1/public/device/check/{device_id}
@@ -442,7 +442,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def get_device_plans(self) -> List[Dict[str, Any]]:
+    async def get_device_plans(self) -> list[dict[str, Any]]:
         """获取当前绑定设备的所有用药计划
 
         调用 GET /api/v1/public/device/plans/{self._device_id}
@@ -469,15 +469,15 @@ class ElderlyAPIClient(BaseServerClient):
         self,
         drug_name: str,
         dosage: str,
-        schedule_times: List[str],
+        schedule_times: list[str],
         frequency: str = "daily",
         total_quantity: int = 0,
-        remaining_quantity: Optional[int] = None,
+        remaining_quantity: int | None = None,
         unit: str = "片",
         low_stock_threshold: int = 5,
-        product_code: Optional[str] = None,
-        elderly_id: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        product_code: str | None = None,
+        elderly_id: int | None = None,
+    ) -> dict[str, Any]:
         """设置/添加用药计划
 
         调用 POST /api/v1/public/device/medication_plan
@@ -522,7 +522,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def delete_medication_plan(self, plan_id: int) -> Dict[str, Any]:
+    async def delete_medication_plan(self, plan_id: int) -> dict[str, Any]:
         """删除用药计划
 
         调用 DELETE /api/v1/public/device/medication_plan/{plan_id}
@@ -546,15 +546,15 @@ class ElderlyAPIClient(BaseServerClient):
         plan_id: int,
         drug_name: str,
         dosage: str,
-        schedule_times: List[str],
+        schedule_times: list[str],
         frequency: str = "daily",
         total_quantity: int = 0,
-        remaining_quantity: Optional[int] = None,
+        remaining_quantity: int | None = None,
         unit: str = "片",
         low_stock_threshold: int = 5,
-        product_code: Optional[str] = None,
-        elderly_id: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        product_code: str | None = None,
+        elderly_id: int | None = None,
+    ) -> dict[str, Any]:
         """更新用药计划
 
         调用 PUT /api/v1/public/device/medication_plan/{plan_id}
@@ -598,7 +598,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def get_device_info(self) -> Dict[str, Any]:
+    async def get_device_info(self) -> dict[str, Any]:
         """从服务端获取老人端设备信息"""
         if self._family_mode():
             return await self._status_via_family()
@@ -643,7 +643,7 @@ class ElderlyAPIClient(BaseServerClient):
                 'status': 'offline'
             }
 
-    async def get_reminders(self) -> List[Dict[str, Any]]:
+    async def get_reminders(self) -> list[dict[str, Any]]:
         """获取提醒列表（实为用药计划 plans）。
 
         /reminders 页面展示的是「用药计划（plans）」，而非「今日提醒（reminders）」。
@@ -691,7 +691,7 @@ class ElderlyAPIClient(BaseServerClient):
             })
         return normalized
 
-    async def get_medication_records(self) -> List[Dict[str, Any]]:
+    async def get_medication_records(self) -> list[dict[str, Any]]:
         """获取用药记录（改用公开接口 /device/records）"""
         if self._family_mode():
             data = await self._records_via_family()
@@ -709,7 +709,7 @@ class ElderlyAPIClient(BaseServerClient):
             pass
         return []
 
-    async def get_dashboard_data(self) -> Dict[str, Any]:
+    async def get_dashboard_data(self) -> dict[str, Any]:
         """获取仪表板数据（基于真实提醒和记录计算，无虚假数据）"""
         try:
             reminders = await self.get_reminders()
@@ -921,7 +921,7 @@ class ElderlyAPIClient(BaseServerClient):
             'medications': []
         }
 
-    async def get_chat_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_chat_history(self, limit: int = 50) -> list[dict[str, Any]]:
         """获取聊天历史（通过公开接口获取）"""
         if self._family_mode():
             data = await self._chat_history_via_family(limit)
@@ -942,7 +942,7 @@ class ElderlyAPIClient(BaseServerClient):
             pass
         return []
 
-    async def get_server_status(self) -> Dict[str, Any]:
+    async def get_server_status(self) -> dict[str, Any]:
         """获取服务器状态"""
         is_connected = await self.check_connection()
         bound = self.get_bound_device()
@@ -956,7 +956,7 @@ class ElderlyAPIClient(BaseServerClient):
 
     # ---------- 多老人管理（家属 JWT 调用 /api/v1/users/elderly） ----------
 
-    async def list_elderly(self) -> List[Dict[str, Any]]:
+    async def list_elderly(self) -> list[dict[str, Any]]:
         """列出本家庭组所有老人（网页老人管理列表 / 用药设置老人下拉）"""
         try:
             response = await self._execute(
@@ -968,7 +968,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception:
             return []
 
-    async def create_elderly(self, name: str) -> Dict[str, Any]:
+    async def create_elderly(self, name: str) -> dict[str, Any]:
         """家属创建同家庭组老人（网页「增加老年人」）"""
         try:
             response = await self._execute(
@@ -981,7 +981,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def delete_elderly(self, user_id: int) -> Dict[str, Any]:
+    async def delete_elderly(self, user_id: int) -> dict[str, Any]:
         """家属删除本家庭组老人（网页「减少老年人」，复用 /users/{user_id} 删除接口）"""
         try:
             response = await self._execute(
@@ -993,7 +993,7 @@ class ElderlyAPIClient(BaseServerClient):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def set_elderly_face_id(self, user_id: int, face_id: int) -> Dict[str, Any]:
+    async def set_elderly_face_id(self, user_id: int, face_id: int) -> dict[str, Any]:
         """网页端为老人填写二哈显示的人脸 ID（用户已自行在二哈录入人脸）"""
         try:
             response = await self._execute(
