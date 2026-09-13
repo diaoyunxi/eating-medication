@@ -20,7 +20,10 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
+
+from app.utils.rate_limit import check_rate_limit
+from app.utils.request_utils import get_client_ip
 
 # 复用根目录统一迁移的 updater.py（与 server/main.py / family_monitor/main.py 一致）
 from updater import check_for_update
@@ -29,10 +32,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# 更新端点限流——每分钟每 IP 最多 2 次（防止滥用触发反复下载与重启）
+_UPDATER_RATE_LIMIT = 2
+
 
 @router.get("/updater")
-async def updater_status():
-    """访问即触发更新检查与安装（无需鉴权）。
+async def updater_status(request: Request):
+    """访问即触发更新检查与安装（无需鉴权，但限制频率）。
 
     若远端存在更新版本且根目录 .env 的 AUTO_PULL=true，则下载完整发布包、
     做 SHA256 校验并安全复制到项目根目录（保留 .env / data / logs 等保护文件）。
@@ -40,17 +46,23 @@ async def updater_status():
 
     :return: 更新信息字典（含 current_version / latest_version / update_available 等）
     """
+    client_ip = get_client_ip(request)
+    if not check_rate_limit(f"updater:{client_ip}", _UPDATER_RATE_LIMIT):
+        raise HTTPException(status_code=429, detail="更新请求过于频繁，请稍后再试")
     # check_for_update 含网络 IO 与文件复制，置于线程池避免阻塞事件循环
     return await asyncio.to_thread(check_for_update)
 
 
 @router.post("/updater")
-async def updater_trigger():
-    """触发一次更新检查与安装（无需鉴权）。
+async def updater_trigger(request: Request):
+    """触发一次更新检查与安装（无需鉴权，但限制频率）。
 
     行为与 GET /updater 完全一致，提供 POST 方法以便 CI 脚本区分语义。
 
     :return: 更新信息字典（含 current_version / latest_version / update_available 等）
     """
+    client_ip = get_client_ip(request)
+    if not check_rate_limit(f"updater:{client_ip}", _UPDATER_RATE_LIMIT):
+        raise HTTPException(status_code=429, detail="更新请求过于频繁，请稍后再试")
     # check_for_update 含网络 IO 与文件复制，置于线程池避免阻塞事件循环
     return await asyncio.to_thread(check_for_update)
