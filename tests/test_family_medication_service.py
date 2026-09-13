@@ -18,11 +18,11 @@ class TestValidateAndBuild(unittest.TestCase):
         self.assertEqual(fields, {})
 
     def test_missing_dosage(self):
-        fields, err = validate_and_build({"drug_name": "阿司匹林", "schedule_times": ["08:00"]})
+        _, err = validate_and_build({"drug_name": "阿司匹林", "schedule_times": ["08:00"]})
         self.assertEqual(err, "请填写剂量")
 
     def test_missing_schedule(self):
-        fields, err = validate_and_build({"drug_name": "阿司匹林", "dosage": "1片"})
+        _, err = validate_and_build({"drug_name": "阿司匹林", "dosage": "1片"})
         self.assertEqual(err, "请至少添加一个服药时间")
 
     def test_filters_empty_times(self):

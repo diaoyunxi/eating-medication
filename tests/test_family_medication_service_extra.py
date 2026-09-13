@@ -47,22 +47,22 @@ class TestValidateAndBuildExtra(unittest.TestCase):
         self.assertEqual(fields, {})
 
     def test_missing_dosage(self):
-        fields, error = med.validate_and_build({"drug_name": "x",
-                                                "schedule_times": ["08:00"]})
+        _, error = med.validate_and_build({"drug_name": "x",
+                                           "schedule_times": ["08:00"]})
         self.assertEqual(error, "请填写剂量")
 
     def test_missing_schedule(self):
-        fields, error = med.validate_and_build({"drug_name": "x", "dosage": "1"})
+        _, error = med.validate_and_build({"drug_name": "x", "dosage": "1"})
         self.assertEqual(error, "请至少添加一个服药时间")
 
     def test_schedule_not_list(self):
-        fields, error = med.validate_and_build({"drug_name": "x", "dosage": "1",
-                                                "schedule_times": "08:00"})
+        _, error = med.validate_and_build({"drug_name": "x", "dosage": "1",
+                                           "schedule_times": "08:00"})
         self.assertEqual(error, "请至少添加一个服药时间")
 
     def test_schedule_filtered_empty(self):
-        fields, error = med.validate_and_build({"drug_name": "x", "dosage": "1",
-                                                "schedule_times": ["", "  "]})
+        _, error = med.validate_and_build({"drug_name": "x", "dosage": "1",
+                                           "schedule_times": ["", "  "]})
         self.assertEqual(error, "请至少添加一个服药时间")
 
     def test_schedule_filters_mixed(self):
