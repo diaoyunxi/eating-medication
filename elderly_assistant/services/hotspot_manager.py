@@ -9,7 +9,6 @@
 """
 import logging
 import subprocess
-import time
 import secrets
 
 logger = logging.getLogger("ElderlyAssistant")

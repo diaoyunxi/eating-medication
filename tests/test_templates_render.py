@@ -9,7 +9,6 @@
 不依赖浏览器，纯服务端渲染校验。
 """
 import os
-import sys
 import types
 
 import pytest

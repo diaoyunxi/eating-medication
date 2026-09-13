@@ -2,7 +2,6 @@
 """老人端药品扫码与离线回退纯逻辑测试（无硬件/网络依赖，使用 Fake 替身）。"""
 import json
 import os
-import shutil
 import sys
 import tempfile
 import unittest
@@ -20,7 +19,6 @@ from workflow.actions import find_plan_by_product_code, handle_scan_medication  
 from workflow.reminder import MedicationPoller  # noqa: E402
 from hardware.fakes import FakeBarcodeScanner, FakeSpeech  # noqa: E402
 from services.http_client import HTTPClient  # noqa: E402
-from services.schedule_cache import CACHE_PATH  # noqa: E402
 
 # 模块加载时即保存 schedule_cache 模块对象：pytest 的 prepend 导入模式可能使
 # 测试在运行期的 sys.modules 中找不到 "services.schedule_cache"（命名空间包歧义），

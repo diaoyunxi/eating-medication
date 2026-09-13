@@ -21,7 +21,6 @@ os.environ.setdefault("DEBUG", "true")
 try:
     from app.api.v1.endpoints import totp
     from app.core.crypto import decrypt_text, encrypt_text
-    from app.core.security import create_access_token, verify_mfa_token
     _HAVE = True
 except Exception:  # pragma: no cover
     _HAVE = False
