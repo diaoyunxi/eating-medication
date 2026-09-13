@@ -69,7 +69,9 @@ class TestAccessToken(unittest.TestCase):
         from datetime import timedelta
 
         token = create_access_token({"sub": "alice"}, expires_delta=timedelta(seconds=-1))
-        with self.assertRaises(Exception):
+        from jose.exceptions import JWTError
+
+        with self.assertRaises(JWTError):
             decode_token(token)
 
 

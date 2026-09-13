@@ -192,7 +192,9 @@ class TestExecute(unittest.TestCase):
             c = BaseServerClient(base_url="https://x.com")
             resp = asyncio.run(c._execute("GET", "/x"))
             self.assertEqual(resp.status_code, 200)
-            with self.assertRaises(Exception):
+            import json
+
+            with self.assertRaises(json.JSONDecodeError):
                 resp.json()
 
     def test_execute_propagates_network_error(self):
