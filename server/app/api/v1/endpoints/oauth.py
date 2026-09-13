@@ -14,6 +14,7 @@ authorization_code 换取 access_token，并借助 FastAPIOAuth20 回调依赖�
 """
 import secrets
 import logging
+import asyncio
 from typing import Any, Optional
 from urllib.parse import quote
 
@@ -240,7 +241,14 @@ async def _fetch_email(emails_api: str, access_token: str, auth_header: str) -> 
     try:
         # Gitee 稳定，保持直连；仅 GitHub 目标应用根目录 GITHUB_PROXY
         _kwargs = {} if "gitee.com" in emails_api else _oauth_proxy_kwargs()
-        resp = httpx.get(_oauth_rewrite_url(emails_api), headers=headers, timeout=OAUTH_HTTP_TIMEOUT, **_kwargs)
+        # 同步 httpx.get 会阻塞事件循环，改用线程池执行
+        resp = await asyncio.to_thread(
+            httpx.get,
+            _oauth_rewrite_url(emails_api),
+            headers=headers,
+            timeout=OAUTH_HTTP_TIMEOUT,
+            **_kwargs,
+        )
         emails = resp.json()
         if isinstance(emails, list) and emails:
             # 优先取「主邮箱且已验证」，否则取列表首个
