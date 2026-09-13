@@ -8,8 +8,9 @@
 - JWT 配置（secret_key/algorithm/expire_minutes）通过调用方传入，
   而非在 common 内部 import settings，避免反向依赖
 """
-import bcrypt
 import secrets
+
+import bcrypt
 
 try:
     # bcrypt 的 Rust 绑定（pyo3）对畸形/损坏的哈希会触发原生 panic，

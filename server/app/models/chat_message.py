@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
 from datetime import datetime, timezone
+
+from sqlalchemy import Column, ForeignKey, Integer, String, Text
+
 from app.core.database import Base, UTCDateTime
 
 

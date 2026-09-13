@@ -2,6 +2,7 @@
 import re
 from typing import Optional
 
+
 def is_valid_phone(phone: Optional[str]) -> bool:
     """验证手机号格式（中国大陆）"""
     if not phone:

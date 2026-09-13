@@ -6,8 +6,8 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from app.schemas.user import BindFamilyReq, UserOut, UserUpdate
 from pydantic import ValidationError
-from app.schemas.user import UserUpdate, UserOut, BindFamilyReq
 
 
 class TestUserUpdate(unittest.TestCase):

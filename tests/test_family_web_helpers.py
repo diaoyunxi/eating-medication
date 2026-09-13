@@ -41,6 +41,7 @@ class _FakeRequest:
 
 def _real_user_api_client():
     from core import config
+
     from common.server_client import BaseServerClient
     return BaseServerClient(
         base_url=f"{config.ELDERLY_SERVER_URL.rstrip('/')}/api/v1",

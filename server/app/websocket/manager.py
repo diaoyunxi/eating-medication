@@ -1,7 +1,8 @@
 ﻿# -*- coding: utf-8 -*-
-from typing import Dict, List
-from fastapi import WebSocket
 import logging
+from typing import Dict, List
+
+from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
 

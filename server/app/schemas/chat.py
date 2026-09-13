@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-from pydantic import BaseModel, ConfigDict
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict
 
 
 class ChatMessageCreate(BaseModel):

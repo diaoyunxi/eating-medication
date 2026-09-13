@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-from pydantic import BaseModel, Field, field_validator
 from typing import Optional
+
+from pydantic import BaseModel, Field, field_validator
+
 # register schema 中调用 validators 进行格式校验
-from app.utils.validators import is_valid_phone, is_valid_password, is_valid_email
+from app.utils.validators import is_valid_email, is_valid_password, is_valid_phone
 
 
 class RegisterReq(BaseModel):

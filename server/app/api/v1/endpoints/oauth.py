@@ -12,35 +12,34 @@ authorization_code 换取 access_token，并借助 FastAPIOAuth20 回调依赖�
 业务侧（state 校验、pending 令牌、账号绑定/登录、302 跳转目标）保持不变，
 仅将「构造授权地址 / code 换 token / 拉用户信息」三段 OAuth 机械流程委托给 fastapi-oauth20。
 """
-import secrets
 import logging
+import secrets
 from typing import Any, Optional
 from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse, JSONResponse
-from sqlalchemy.orm import Session
-
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi_oauth20 import (
-    GitHubOAuth20,
-    GiteeOAuth20,
     FastAPIOAuth20,
+    GiteeOAuth20,
+    GitHubOAuth20,
     OAuth20AuthorizeCallbackError,
 )
 from fastapi_oauth20.errors import AccessTokenError, GetUserInfoError
+from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db
 from app.core.config import settings
+from app.core.dependencies import get_db
 from app.core.security import (
-    create_oauth_state_token,
-    verify_oauth_state_token,
-    create_oauth_pending_token,
     create_access_token,
+    create_oauth_pending_token,
+    create_oauth_state_token,
     decode_token,
+    verify_oauth_state_token,
 )
-from app.services.auth_service import AuthService, _mask_email
 from app.models.user import User
+from app.services.auth_service import AuthService, _mask_email
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -61,7 +60,11 @@ OAUTH_HTTP_TIMEOUT = httpx.Timeout(connect=15, read=30, write=15, pool=15)
 try:
     from updater import (
         _GITHUB_PROXY as _OAUTH_PROXY,
+    )
+    from updater import (
         _IS_MIRROR as _OAUTH_IS_MIRROR,
+    )
+    from updater import (
         _MIRROR_BASE as _OAUTH_MIRROR_BASE,
     )
 except Exception:  # 代理模块不可用/未配置时退化为直连

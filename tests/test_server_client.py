@@ -12,8 +12,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from common.server_client import (
     BaseServerClient,
-    encode_device_id,
     _is_httpx_transient_error,
+    encode_device_id,
 )
 
 

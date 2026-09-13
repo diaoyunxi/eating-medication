@@ -1,16 +1,25 @@
 # -*- coding: utf-8 -*-
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+import logging
 from typing import List, Optional
-from app.core.dependencies import get_db, get_current_user
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
+from sqlalchemy import and_, or_
+from sqlalchemy.orm import Session
+
 from app.core.database import SessionLocal
+from app.core.dependencies import get_current_user, get_db
 from app.core.security import decode_token
-from app.models.user import User
 from app.models.chat_message import ChatMessage
+from app.models.user import User
 from app.schemas.chat import ChatMessageCreate, ChatMessageOut
 from app.websocket.manager import manager
-import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["聊天"])

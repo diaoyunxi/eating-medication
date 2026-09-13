@@ -16,20 +16,21 @@
 路由层仅负责 I/O（请求模型、Header、响应）；设备状态/计划/记录等纯逻辑
 复用 app.services.device_service.DeviceService，避免重复实现。
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
+import logging
 from typing import Optional
 
-from app.core.dependencies import get_db, get_current_user
-from app.models.user import User
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.core.dependencies import get_current_user, get_db
 from app.core.security import mask_device_id
 from app.models.medication_plan import MedicationPlan
-from app.services.medication_service import MedicationService
-from app.services.device_service import DeviceService
-from app.services.user_service import UserService
+from app.models.user import User
 from app.schemas.medication import MedicationPlanCreate
-import logging
+from app.services.device_service import DeviceService
+from app.services.medication_service import MedicationService
+from app.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
 

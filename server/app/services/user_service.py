@@ -6,14 +6,16 @@
 """
 import json
 import logging
+from typing import List, Optional
+
 from sqlalchemy.orm import Session
-from typing import Optional, List
-from app.models.user import User
-from app.models.medication_plan import MedicationPlan
-from app.models.medication_record import MedicationRecord
+
 from app.models.ai_query_log import AIQueryLog
 from app.models.chat_message import ChatMessage
-from app.schemas.user import UserUpdate, NotificationSettings
+from app.models.medication_plan import MedicationPlan
+from app.models.medication_record import MedicationRecord
+from app.models.user import User
+from app.schemas.user import NotificationSettings, UserUpdate
 
 logger = logging.getLogger(__name__)
 

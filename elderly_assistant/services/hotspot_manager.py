@@ -8,9 +8,9 @@
 - 密码: 启动时随机生成（WPA2）
 """
 import logging
+import secrets
 import subprocess
 import time
-import secrets
 
 logger = logging.getLogger("ElderlyAssistant")
 

@@ -4,11 +4,19 @@
 """
 
 import logging
-from fastapi import APIRouter, Request, Form, HTTPException
-from fastapi.responses import JSONResponse
+
 from core import config, elderly_client
+from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import JSONResponse
 from services.medication_service import validate_and_build
-from routes.web_helpers import templates, require_login, login_redirect, unauthorized_json, family_client
+
+from routes.web_helpers import (
+    family_client,
+    login_redirect,
+    require_login,
+    templates,
+    unauthorized_json,
+)
 
 logger = logging.getLogger(__name__)
 

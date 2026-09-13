@@ -12,18 +12,17 @@ import os
 import secrets
 import tempfile
 import uuid
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock
-
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
 from app.core.database import Base
 from app.core.security import mask_device_id
-from app.models.user import User
 from app.models.medication_plan import MedicationPlan
+from app.models.user import User
 from app.services import device_service
 from app.services.device_service import DeviceService
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 # ---------------- 纯函数：脱敏与时间解析 ----------------

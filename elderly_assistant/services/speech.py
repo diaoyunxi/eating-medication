@@ -18,8 +18,8 @@ import subprocess
 import tempfile
 import threading
 import time
-from utils.logger import setup_logger
 
+from utils.logger import setup_logger
 
 # edge-tts 使用的中文神经语音
 EDGE_TTS_VOICE = "zh-CN-XiaoxiaoNeural"

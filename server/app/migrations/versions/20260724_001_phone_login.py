@@ -10,9 +10,8 @@ Create Date: 2026-07-24
 - username 改为昵称（展示名）：去除唯一约束、允许为空、长度扩到 50
 - 删除 full_name 列（昵称统一使用 username）
 """
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "20260724_001"
 down_revision = "20260723_001"

@@ -7,10 +7,10 @@
 import logging
 from typing import Optional
 
+from core import elderly_client
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from core import elderly_client
 from routes.web_helpers import require_login, unauthorized_json, user_api_request
 
 logger = logging.getLogger(__name__)

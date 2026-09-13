@@ -4,11 +4,11 @@ import unittest
 from datetime import timedelta
 
 from common.security import (
-    hash_password,
-    verify_password,
-    mask_device_id,
     create_access_token,
     decode_token,
+    hash_password,
+    mask_device_id,
+    verify_password,
 )
 
 

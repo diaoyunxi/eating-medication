@@ -23,7 +23,7 @@ import logging
 import threading
 import time
 
-from core.camera import get_huskylens, _HUSKYLENS_OP_LOCK
+from core.camera import _HUSKYLENS_OP_LOCK, get_huskylens
 
 logger = logging.getLogger("ElderlyAssistant")
 

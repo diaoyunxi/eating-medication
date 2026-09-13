@@ -7,8 +7,8 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from pydantic import ValidationError
 from app.schemas.chat import ChatMessageCreate, ChatMessageOut
+from pydantic import ValidationError
 
 
 class TestChatMessageCreate(unittest.TestCase):

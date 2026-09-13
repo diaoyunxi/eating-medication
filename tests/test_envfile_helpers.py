@@ -11,10 +11,10 @@ import unittest
 from pathlib import Path
 
 from common.envfile import (
-    write_env_text,
     ensure_env_template,
     read_env_dict,
     update_env_fields,
+    write_env_text,
 )
 
 

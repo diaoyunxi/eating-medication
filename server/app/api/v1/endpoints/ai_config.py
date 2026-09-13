@@ -8,23 +8,23 @@
 授权模型：默认操作「当前登录用户」自身配置；可通过 device_id / user_id 指定目标用户，
 仅当目标用户与当前用户同属一个家庭组（group_id 一致，即家属为被照护老人配置）时允许。
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+import logging
 from typing import Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from app.core.crypto import decrypt_text, encrypt_text
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.core.crypto import encrypt_text, decrypt_text
-from app.models.user import User
-from app.services.device_service import DeviceService
 from app.models.user_ai_config import UserAIConfig
-from app.schemas.ai import UserAIConfigIn, UserAIConfigOut, AIProviderPreset
+from app.schemas.ai import AIProviderPreset, UserAIConfigIn, UserAIConfigOut
 from app.services.ai_service import (
-    SUPPORTED_PROVIDERS,
-    PROVIDER_DEFAULT_MODELS,
     PROVIDER_BASE_URLS,
+    PROVIDER_DEFAULT_MODELS,
+    SUPPORTED_PROVIDERS,
 )
-import logging
+from app.services.device_service import DeviceService
 
 logger = logging.getLogger(__name__)
 

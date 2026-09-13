@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
-import time
-import logging
 import json
+import logging
+import time
+
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
+
 from app.core.config import settings
 
 # 使用独立的 logger 而不是 uvicorn.access
