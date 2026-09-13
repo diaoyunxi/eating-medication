@@ -106,7 +106,7 @@ def _load_root_env():
 
     .env 为扁平 key=value 格式；处于引导阶段不引入额外依赖（common.envfile 仅标准库）。
     """
-    from common.envfile import read_env_dict, write_env_text, ensure_env_template
+    from common.envfile import read_env_dict
     return read_env_dict(_CONFIG_PATH)
 
 

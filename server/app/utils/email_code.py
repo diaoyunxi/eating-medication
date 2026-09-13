@@ -6,7 +6,6 @@
   （与项目内 rate_limit 的单进程实现风格一致）。
 - 邮件发送使用标准 smtplib；未配置 MAIL_* 时回退为日志输出，便于本地开发调试。
 """
-import os
 import random
 import time
 import smtplib
