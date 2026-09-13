@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """邮箱验证码登录接口测试（FastAPI TestClient）。
 
 覆盖：

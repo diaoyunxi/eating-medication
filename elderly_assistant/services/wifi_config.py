@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 WiFi 配网 Web 服务模块
 用于 M10 设备：在热点上运行 HTTP 服务器（端口 8088），提供配网页面。

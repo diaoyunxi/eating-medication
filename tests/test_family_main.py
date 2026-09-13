@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """family_monitor.main 应用装配冒烟测试。
 
 通过 tests._helpers.load_module 加载完整应用，验证中间件、公开路由、

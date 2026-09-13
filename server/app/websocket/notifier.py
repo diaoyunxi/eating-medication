@@ -1,5 +1,4 @@
-﻿# -*- coding: utf-8 -*-
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.websocket.manager import manager
 from app.services.user_service import UserService

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """TOTP 第二因子端点。
 
 登录流程：手机号+密码 → 若已开启 mfa_enabled，返回 mfa_required + mfa_token，

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """common.server_client.BaseServerClient 单元测试（纯逻辑 + httpx 替身，无外部依赖）。"""
 import asyncio
 import sys

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import List, Optional
 from datetime import datetime

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """family_monitor 路由共享工具（routes.web_helpers）单元测试。
 
 验证从 home/chat/ai_config 抽出的共享鉴权三件套与用户 JWT 服务端请求封装。

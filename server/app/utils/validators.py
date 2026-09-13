@@ -1,5 +1,4 @@
-﻿# -*- coding: utf-8 -*-
-import re
+﻿import re
 from typing import Optional
 
 def is_valid_phone(phone: Optional[str]) -> bool:

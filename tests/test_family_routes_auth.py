@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """family_monitor.routes.auth 单元测试 + 端点冒烟（TestClient）。
 
 通过 tests._helpers.load_module 按文件路径加载，避免触发 routes 包 __init__

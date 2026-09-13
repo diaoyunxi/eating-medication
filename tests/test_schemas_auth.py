@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """server/app/schemas/auth.py 单元测试。
 
 覆盖 RegisterReq / LoginReq 的字段校验（角色、手机号、昵称、密码规则）。

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """server 端日期时间工具函数，消除跨文件重复（_hhmm_to_today、_utcnow 等）。"""
 from datetime import datetime, timezone
 
