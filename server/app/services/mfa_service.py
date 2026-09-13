@@ -8,6 +8,9 @@
 - WebAuthn 挑战（challenge）不落库：签发短期签名令牌（webauthn_challenge）随响应下发，
   客户端回传后校验，避免服务端会话存储（与现有无状态 JWT 架构一致）。
 """
+import logging
+
+logger = logging.getLogger(__name__)
 import io
 import json
 import secrets
@@ -73,7 +76,7 @@ def verify_totp_code(secret: str, code: str) -> bool:
     try:
         cleaned = code.strip().replace(" ", "")
         return pyotp.TOTP(secret).verify(cleaned, valid_window=1)
-    except Exception:
+    except (ValueError, TypeError, AttributeError):
         return False
 
 
@@ -97,14 +100,14 @@ def verify_backup_code(hashed_json: str, code: str) -> bool:
         return False
     try:
         hashed_list = json.loads(hashed_json)
-    except Exception:
+    except (json.JSONDecodeError, ValueError, TypeError):
         return False
     code = code.strip()
     for h in hashed_list:
         try:
             if bcrypt.checkpw(code.encode("utf-8"), h.encode("utf-8")):
                 return True
-        except Exception:
+        except (ValueError, TypeError):
             continue
     return False
 
@@ -115,7 +118,7 @@ def consume_backup_code(hashed_json: str, code: str) -> str:
         return hashed_json
     try:
         hashed_list = json.loads(hashed_json)
-    except Exception:
+    except (json.JSONDecodeError, ValueError, TypeError):
         return hashed_json
     code = code.strip()
     new_list = []
@@ -183,7 +186,8 @@ def verify_registration(credential: dict, challenge_token: str) -> tuple:
             expected_rp_id=_rp_id,
             require_user_verification=False,
         )
-    except Exception:
+    except Exception as e:
+        logger.warning("WebAuthn registration verification failed: %s", e)
         return (False, "", b"", 0)
     cred_id_b64 = bytes_to_base64url(verified.credential_id)
     return (True, cred_id_b64, verified.credential_public_key, verified.sign_count)
@@ -227,6 +231,7 @@ def verify_authentication(
             credential_current_sign_count=sign_count,
             require_user_verification=False,
         )
-    except Exception:
+    except Exception as e:
+        logger.warning("WebAuthn authentication verification failed: %s", e)
         return (False, 0)
     return (True, verified.new_sign_count)

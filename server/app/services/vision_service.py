@@ -1,10 +1,13 @@
 ﻿# -*- coding: utf-8 -*-
 import base64
 import httpx
-import hashlib
-import time
-from typing import Dict, Any
+from typing import Any
 from app.core.config import settings
+
+
+class VisionServiceError(Exception):
+    """Vision service specific error."""
+    pass
 
 
 class VisionService:
@@ -33,10 +36,10 @@ class VisionService:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 token_resp = await client.get(token_url, params=token_params)
                 if token_resp.status_code != 200:
-                    raise Exception(f"获取百度访问令牌失败，状态码: {token_resp.status_code}")
+                    raise VisionServiceError(f"获取百度访问令牌失败，状态码: {token_resp.status_code}")
                 access_token = token_resp.json().get('access_token')
                 if not access_token:
-                    raise Exception(f"获取百度访问令牌失败: {token_resp.text}")
+                    raise VisionServiceError(f"获取百度访问令牌失败: {token_resp.text}")
 
                 ocr_url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic?access_token={access_token}"
                 image_base64 = base64.b64encode(image_data).decode('utf-8')
@@ -48,7 +51,7 @@ class VisionService:
                 if ocr_resp.status_code == 200:
                     result = ocr_resp.json()
                     if result.get('error_code'):
-                        raise Exception(f"百度OCR识别失败: {result.get('error_msg')}")
+                        raise VisionServiceError(f"百度OCR识别失败: {result.get('error_msg')}")
                     if result.get('words_result'):
                         text = '\n'.join([word['words'] for word in result['words_result']])
                         return {
@@ -56,12 +59,12 @@ class VisionService:
                             'text': text,
                             'words': [word['words'] for word in result['words_result']]
                         }
-                    raise Exception("未识别到任何文字")
-                raise Exception(f"百度OCR请求失败，状态码: {ocr_resp.status_code}")
+                    raise VisionServiceError("未识别到任何文字")
+                raise VisionServiceError(f"百度OCR请求失败，状态码: {ocr_resp.status_code}")
         except Exception as e:
             if str(e).startswith("百度"):
                 raise
-            raise Exception(f"百度OCR调用失败: {str(e)}")
+            raise VisionServiceError(f"百度OCR调用失败: {str(e)}")
 
     @staticmethod
     async def _recognize_tencent(image_data: bytes) -> Dict[str, Any]:
