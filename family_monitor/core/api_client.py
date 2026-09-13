@@ -126,7 +126,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return data
             return {"status": "error", "msg": f"绑定失败 status={response.status_code}"}
         except Exception as e:
-            return {"status": "error", "msg": f"绑定请求异常: {str(e)}"}
+            logger.warning("绑定请求异常: %s", e); return {"status": "error", "msg": "绑定请求失败，请稍后重试"}
 
     async def unbind_device_family(self) -> Dict[str, Any]:
         """通过家属授权接口解绑当前设备（JWT 鉴权）。
@@ -145,7 +145,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return {"status": "ok", "msg": "设备已解绑"}
             return {"status": "error", "msg": f"解绑失败 status={response.status_code}"}
         except Exception as e:
-            return {"status": "error", "msg": f"解绑请求异常: {str(e)}"}
+            logger.warning("解绑请求异常: %s", e); return {"status": "error", "msg": "解绑请求失败，请稍后重试"}
 
     async def _status_via_family(self) -> Dict[str, Any]:
         # 以服务端绑定关系为准解析 device_id，避免本地文件残留导致的假绑定
@@ -270,7 +270,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return {"success": True, "data": response.json()}
             return {"success": False, "error": self._extract_error(response)}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.warning("API请求异常: %s", e); return {"success": False, "error": "服务连接失败，请稍后重试"}
 
     async def _update_plan_via_family(self, plan_id: int, drug_name: str, dosage: str,
                                       frequency: str, schedule_times: list, total_quantity: float,
@@ -297,7 +297,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return {"success": True, "data": response.json()}
             return {"success": False, "error": self._extract_error(response)}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.warning("API请求异常: %s", e); return {"success": False, "error": "服务连接失败，请稍后重试"}
 
     async def _delete_plan_via_family(self, plan_id: int) -> Dict[str, Any]:
         if not await self._resolve_family_device_id():
@@ -311,7 +311,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return {"success": True, "data": response.json()}
             return {"success": False, "error": self._extract_error(response)}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.warning("API请求异常: %s", e); return {"success": False, "error": "服务连接失败，请稍后重试"}
 
     @staticmethod
     def _extract_error(response) -> str:
@@ -423,7 +423,7 @@ class ElderlyAPIClient(BaseServerClient):
             else:
                 return {"success": False, "error": f"状态码: {response.status_code}"}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.warning("API请求异常: %s", e); return {"success": False, "error": "服务连接失败，请稍后重试"}
 
     async def check_device(self, device_id: str) -> Dict[str, Any]:
         """检查设备是否已在服务端注册
@@ -440,7 +440,7 @@ class ElderlyAPIClient(BaseServerClient):
             else:
                 return {"success": False, "error": f"状态码: {response.status_code}"}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.warning("API请求异常: %s", e); return {"success": False, "error": "服务连接失败，请稍后重试"}
 
     async def get_device_plans(self) -> List[Dict[str, Any]]:
         """获取当前绑定设备的所有用药计划
@@ -520,7 +520,7 @@ class ElderlyAPIClient(BaseServerClient):
             else:
                 return {"success": False, "error": self._extract_error(response)}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.warning("API请求异常: %s", e); return {"success": False, "error": "服务连接失败，请稍后重试"}
 
     async def delete_medication_plan(self, plan_id: int) -> Dict[str, Any]:
         """删除用药计划
@@ -539,7 +539,7 @@ class ElderlyAPIClient(BaseServerClient):
             else:
                 return {"success": False, "error": self._extract_error(response)}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.warning("API请求异常: %s", e); return {"success": False, "error": "服务连接失败，请稍后重试"}
 
     async def update_medication_plan(
         self,
@@ -596,7 +596,7 @@ class ElderlyAPIClient(BaseServerClient):
             else:
                 return {"success": False, "error": self._extract_error(response)}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.warning("API请求异常: %s", e); return {"success": False, "error": "服务连接失败，请稍后重试"}
 
     async def get_device_info(self) -> Dict[str, Any]:
         """从服务端获取老人端设备信息"""
@@ -979,7 +979,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return {"success": True, "data": response.json()}
             return {"success": False, "error": self._extract_error(response)}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.warning("API请求异常: %s", e); return {"success": False, "error": "服务连接失败，请稍后重试"}
 
     async def delete_elderly(self, user_id: int) -> Dict[str, Any]:
         """家属删除本家庭组老人（网页「减少老年人」，复用 /users/{user_id} 删除接口）"""
@@ -991,7 +991,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return {"success": True, "data": response.json()}
             return {"success": False, "error": self._extract_error(response)}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.warning("API请求异常: %s", e); return {"success": False, "error": "服务连接失败，请稍后重试"}
 
     async def set_elderly_face_id(self, user_id: int, face_id: int) -> Dict[str, Any]:
         """网页端为老人填写二哈显示的人脸 ID（用户已自行在二哈录入人脸）"""
@@ -1005,7 +1005,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return {"success": True, "data": response.json()}
             return {"success": False, "error": self._extract_error(response)}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.warning("API请求异常: %s", e); return {"success": False, "error": "服务连接失败，请稍后重试"}
 
 
 # 全局客户端实例
