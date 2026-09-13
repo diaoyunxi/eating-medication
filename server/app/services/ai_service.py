@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Optional
+from typing import ClassVar, Optional
 from app.core.config import settings
 import logging
 import threading
@@ -43,7 +43,7 @@ class AIService:
     """
 
     # 按 (provider, api_key) 缓存 OpenAI 客户端，避免重复初始化
-    _clients: dict = {}
+    _clients: ClassVar[dict] = {}
     _lock = threading.Lock()
 
     @classmethod
