@@ -102,7 +102,7 @@ class MedicationPoller:
         if not schedules:
             return None
         if now is None:
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
         now_hm = now.strftime("%H:%M")
         upcoming = []
         for s in schedules:
@@ -151,7 +151,7 @@ class ReminderState:
         self.elderly_id = elderly_id
         self.elderly_name = elderly_name
         self.husky_face_id = husky_face_id
-        self.triggered_at = datetime.now()
+        self.triggered_at = datetime.now(timezone.utc)
 
     def confirm(self):
         self.active = False

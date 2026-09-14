@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from utils.logger import setup_logger
 
 # 中文数字映射，用于解析中文剂量（如"两片"、"半片"）
@@ -88,7 +88,7 @@ class MedicationManager:
             "dosage_per_use": dosage_per_use,
             "remaining": total_quantity,
             "reminder_days": reminder_days,
-            "last_updated": datetime.now().isoformat()
+            "last_updated": datetime.now(timezone.utc).isoformat()
         })
         self.save()
 
@@ -103,7 +103,7 @@ class MedicationManager:
             for med in self.medications:
                 if med.get('name') == med_name:
                     med['remaining'] = max(0, med.get('remaining', 0) - dose)
-                    med['last_updated'] = datetime.now().isoformat()
+                    med['last_updated'] = datetime.now(timezone.utc).isoformat()
                     self.logger.info(f"药品消耗: {med_name} -{dose}, 剩余 {med['remaining']}")
                     self.check_low(med)
                     self.save()
