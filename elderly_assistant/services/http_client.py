@@ -8,7 +8,7 @@ import logging
 import math
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import requests
 from requests.exceptions import (
@@ -411,7 +411,7 @@ class HTTPClient:
         items: 可选，列表，每项含 plan_id/drug_name/dosage/scheduled_time(HH:MM)，用于服务端精确落库
         """
         if taken_at is None:
-            taken_at = datetime.now().isoformat()
+            taken_at = datetime.now(timezone.utc).isoformat()
         url = f"{self.base_url}/api/v1/public/device/message"
         data = {
             "device_id": self.device_id,

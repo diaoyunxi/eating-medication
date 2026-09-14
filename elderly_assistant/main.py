@@ -26,7 +26,7 @@ import logging
 import importlib
 import subprocess
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # 模块级 logger，供 signal_handler 等非 main() 函数使用
@@ -430,7 +430,7 @@ def main():
     logger.info("进入主循环")
     try:
         while True:
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
 
             # ---- 每秒更新时间显示 ----
             if (now.timestamp() - last_time_update) >= 1.0:
@@ -463,12 +463,12 @@ def main():
 
             # ---- 本地重复提醒音：提醒触发后每 60 秒老人仍未确认则再次响铃 ----
             if reminder_state.active and reminder_state.triggered_at is not None:
-                if (datetime.now() - reminder_state.triggered_at).total_seconds() >= 60:
+                if (datetime.now(timezone.utc) - reminder_state.triggered_at).total_seconds() >= 60:
                     try:
                         buzzer.play_reminder()
                     except Exception:
                         pass
-                    reminder_state.triggered_at = datetime.now()
+                    reminder_state.triggered_at = datetime.now(timezone.utc)
 
             # 注：原物理按钮 A/B 检测已移除，确认/问AI 均由屏幕触摸按钮触发
             #     （display.set_action_handlers 注入回调，回调解耦合与硬件无关）
