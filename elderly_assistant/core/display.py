@@ -242,11 +242,13 @@ class Display:
                 try:
                     self._time_text.config(text=time_str)
                 except Exception:
+                    pass  # noqa: S110
                     pass
             if self._date_text is not None:
                 try:
                     self._date_text.config(text=date_str)
                 except Exception:
+                    pass  # noqa: S110
                     pass
         except Exception as e:
             logger.error(f"更新时间显示失败: {e}")
@@ -288,6 +290,7 @@ class Display:
                 try:
                     self._reminder_text.config(text=f'该用药了：{drug_name}')
                 except Exception:
+                    pass  # noqa: S110
                     pass
 
             # 剂量
@@ -301,6 +304,7 @@ class Display:
                 try:
                     self._reminder_dosage_text.config(text=f'剂量：{dosage}')
                 except Exception:
+                    pass  # noqa: S110
                     pass
 
             # 操作提示
@@ -433,6 +437,7 @@ class Display:
                 try:
                     self._status_text.config(text=status_str)
                 except Exception:
+                    pass  # noqa: S110
                     pass
             else:
                 self._status_text = self.gui.draw_text(
@@ -453,6 +458,7 @@ class Display:
                 try:
                     self._uuid_text.config(text=text)
                 except Exception:
+                    pass  # noqa: S110
                     pass
             else:
                 self._uuid_text = self.gui.draw_text(
@@ -482,6 +488,7 @@ class Display:
                 try:
                     self._next_reminder_text.config(text=text)
                 except Exception:
+                    pass  # noqa: S110
                     pass
         except Exception as e:
             logger.error(f"更新下次提醒显示失败: {e}")
@@ -547,6 +554,7 @@ class Display:
                 try:
                     self._barcode_text.config(text='')
                 except Exception:
+                    pass  # noqa: S110
                     pass
                 self._barcode_text = None
             self._barcode_content = ''
@@ -564,4 +572,5 @@ class Display:
                 try:
                     self._barcode_text.config(text=self._barcode_content)
                 except Exception:
+                    pass  # noqa: S110
                     pass

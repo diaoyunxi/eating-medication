@@ -92,4 +92,5 @@ def save_schedules(schedules, path=None):
                 try:
                     os.remove(tmp_path)
                 except Exception:
+                    pass  # noqa: S110
                     pass

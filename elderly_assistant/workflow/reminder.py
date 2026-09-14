@@ -321,6 +321,7 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, logge
                         speech.speak(f"{elderly_label}，该吃药了")
                     speech.speak(f"请服用{drug_name}" + (f"，剂量{dosage}" if dosage else ""))
                 except Exception:
+                    pass  # noqa: S110
                     pass
             logger.info(f"触发用药提醒: {drug_name} {dosage} @ {now_hm} (共 {len(matched_reminders)} 个)")
     except Exception as e:

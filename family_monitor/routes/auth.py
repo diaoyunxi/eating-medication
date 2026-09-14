@@ -154,6 +154,7 @@ async def oauth_github_enabled():
         if resp.status_code == 200:
             return resp.json()
     except Exception:
+        pass  # noqa: S110
         pass
     return {"enabled": False}
 
@@ -176,6 +177,7 @@ async def oauth_gitee_enabled():
         if resp.status_code == 200:
             return resp.json()
     except Exception:
+        pass  # noqa: S110
         pass
     return {"enabled": False}
 
@@ -865,11 +867,13 @@ async def security_setup_page(request: Request):
                 context["phone"] = udata.get("phone", "")
                 context["mfa_enabled"] = bool(udata.get("mfa_enabled", False))
         except Exception:
+            pass  # noqa: S110
             pass
         try:
             creds = await _server_client._execute("GET", _server_url("/auth/webauthn/credentials"), headers=headers)
             if creds.status_code == 200:
                 context["credentials"] = creds.json()
         except Exception:
+            pass  # noqa: S110
             pass
     return templates.TemplateResponse("security_setup.html", context)

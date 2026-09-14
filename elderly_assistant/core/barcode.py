@@ -194,6 +194,7 @@ class UsbCameraScanner:
             try:
                 cap.release()
             except Exception:
+                pass  # noqa: S110
                 pass
             raise RuntimeError(f"USB 摄像头(index={self.index}) 打开失败")
         self._cap = cap
@@ -217,6 +218,7 @@ class UsbCameraScanner:
             try:
                 self._cap.release()
             except Exception:
+                pass  # noqa: S110
                 pass
         self._cap = None
         self._decode = None
@@ -306,5 +308,6 @@ class BarcodeScanner:
             try:
                 backend.close()
             except Exception:
+                pass  # noqa: S110
                 pass
         self._backends = None

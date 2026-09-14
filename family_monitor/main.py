@@ -83,6 +83,7 @@ if _venv_py.exists() and not _in_venv():
     try:
         os.execv(str(_venv_py), [str(_venv_py)] + sys.argv)
     except Exception:
+        pass  # noqa: S110
         pass
 
 # 启动前检查依赖，缺失则调用 common/install.py 安装

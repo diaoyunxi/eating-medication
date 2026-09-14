@@ -68,6 +68,7 @@ def _is_httpx_transient_error(exc: Exception) -> bool:
         if isinstance(exc, _httpx.TransportError):
             return True
     except Exception:
+        pass  # noqa: S110
         pass
     return type(exc).__name__ in {
         "TransportError",

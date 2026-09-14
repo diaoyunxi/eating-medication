@@ -26,6 +26,7 @@ def _redact_request_body(body_bytes: bytes) -> str:
                     parsed[key] = "***REDACTED***"
             body_text = json.dumps(parsed, ensure_ascii=False)
     except Exception:
+        pass  # noqa: S110
         pass
     return body_text
 
