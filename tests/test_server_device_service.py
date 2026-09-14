@@ -311,13 +311,13 @@ def test_save_upload_rejects_invalid_encoding():
     from fastapi import HTTPException
     db = _make_session()
     user = _make_user(db)
-    with tempfile.TemporaryDirectory() as tmp:
-        with patch.object(device_service, "_UPLOAD_ROOT", tmp):
-            try:
-                DeviceService.save_upload(db, user, "!!!not-base64!!!")
-                assert False, "应抛 400"
-            except HTTPException as e:
-                assert e.status_code == 400
+    with tempfile.TemporaryDirectory() as tmp, \
+         patch.object(device_service, "_UPLOAD_ROOT", tmp):
+        try:
+            DeviceService.save_upload(db, user, "!!!not-base64!!!")
+            assert False, "应抛 400"
+        except HTTPException as e:
+            assert e.status_code == 400
 
 
 def test_save_upload_rejects_non_image():
@@ -325,14 +325,14 @@ def test_save_upload_rejects_non_image():
     from fastapi import HTTPException
     db = _make_session()
     user = _make_user(db)
-    with tempfile.TemporaryDirectory() as tmp:
-        with patch.object(device_service, "_UPLOAD_ROOT", tmp):
-            try:
-                # 合法 base64，但解码后不是图片头
-                DeviceService.save_upload(db, user, "aGVsbG8gd29ybGQ=")
-                assert False, "应抛 400"
-            except HTTPException as e:
-                assert e.status_code == 400
+    with tempfile.TemporaryDirectory() as tmp, \
+         patch.object(device_service, "_UPLOAD_ROOT", tmp):
+        try:
+            # 合法 base64，但解码后不是图片头
+            DeviceService.save_upload(db, user, "aGVsbG8gd29ybGQ=")
+            assert False, "应抛 400"
+        except HTTPException as e:
+            assert e.status_code == 400
 
 
 def test_save_upload_uses_exclusive_create_and_retries_on_collision():
