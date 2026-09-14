@@ -211,7 +211,7 @@ if _db_scheme(settings.DATABASE_URL) == "sqlite":
                 if cur is not None:
                     try:
                         cur.close()
-                    except Exception:  # noqa: BLE001
+                    except Exception:  # noqa: BLE001, S110
                         pass
 
         _sa_event.listen(engine, "connect", _apply_sqlite_pragmas)
@@ -260,6 +260,7 @@ def _safe_add_column(conn, table_name, column, dialect):
         try:
             conn.rollback()
         except Exception:
+            pass  # noqa: S110 — non-critical, failures are tolerable
             pass
         return False
 

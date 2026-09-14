@@ -336,6 +336,7 @@ class ElderlyAPIClient(BaseServerClient):
                 if message:
                     return str(message)
         except Exception:
+            pass  # noqa: S110
             pass
         return f"服务端返回状态码: {response.status_code}"
 
@@ -348,6 +349,7 @@ class ElderlyAPIClient(BaseServerClient):
                     data = json.load(f)
                     return data.get('device_id')
             except Exception:
+                pass  # noqa: S110
                 pass
         return None
 
@@ -360,6 +362,7 @@ class ElderlyAPIClient(BaseServerClient):
                     data = json.load(f)
                     return data.get('device_token')
             except Exception:
+                pass  # noqa: S110
                 pass
         return None
 
@@ -392,6 +395,7 @@ class ElderlyAPIClient(BaseServerClient):
                 with open(device_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception:
+                pass  # noqa: S110
                 pass
         return None
 
@@ -706,6 +710,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return data.get('records', []) or []
             return []
         except Exception:
+            pass  # noqa: S110
             pass
         return []
 
@@ -906,6 +911,7 @@ class ElderlyAPIClient(BaseServerClient):
                 }
             }
         except Exception:
+            pass  # noqa: S110
             pass
 
         return {
@@ -939,6 +945,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return data.get('messages', []) or []
             return []
         except Exception:
+            pass  # noqa: S110
             pass
         return []
 

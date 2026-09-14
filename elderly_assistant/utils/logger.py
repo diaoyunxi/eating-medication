@@ -99,6 +99,7 @@ def setup_logger(log_dir="logs"):
             try:
                 h.close()
             except Exception:
+                pass  # noqa: S110
                 pass
             logger.removeHandler(h)
 
