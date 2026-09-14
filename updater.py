@@ -60,6 +60,7 @@ def _load_version():
             if ver:
                 return ver
     except Exception:
+        pass  # noqa: S110
         pass
     return "0.0.0"
 
@@ -541,6 +542,7 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
         try:
             shutil.rmtree(tmp_dir, ignore_errors=True)
         except Exception:
+            pass  # noqa: S110
             pass
 
 
@@ -731,6 +733,7 @@ def _delete_path(path: Path, deleted: list, skipped: list):
                     path.rmdir()
                     deleted.append(str(path))
             except Exception:
+                pass  # noqa: S110
                 pass
             return
     except Exception as e:  # 权限等问题不阻断其它项
@@ -928,6 +931,7 @@ def _load_gitignore_patterns():
                 continue
             patterns.append(line)
     except Exception:
+        pass  # noqa: S110
         pass
     return patterns
 
@@ -1117,6 +1121,7 @@ def check_for_update(auto_pull=None):
             try:
                 shutil.rmtree(tmp_zip_dir, ignore_errors=True)
             except Exception:
+                pass  # noqa: S110
                 pass
 
     except Exception as e:

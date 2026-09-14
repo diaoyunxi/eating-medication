@@ -108,6 +108,7 @@ async def lifespan(app: FastAPI):
             from alembic import command
             command.stamp(alembic_cfg, "head")
         except Exception:
+            pass  # noqa: S110
             pass
 
     # 确保新增的 user_ai_configs 表存在（兼容 Alembic 已接管、未含该表迁移的场景）

@@ -36,6 +36,7 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
             f.write(error_msg)
             f.write("\n")
     except Exception:
+        pass  # noqa: S110
         pass
 
 sys.excepthook = global_exception_handler

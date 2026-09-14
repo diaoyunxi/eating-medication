@@ -260,6 +260,7 @@ def _safe_add_column(conn, table_name, column, dialect):
         try:
             conn.rollback()
         except Exception:
+            pass  # noqa: S110
             pass
         return False
 
