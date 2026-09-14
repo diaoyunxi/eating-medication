@@ -325,13 +325,12 @@ def _find_release_zip(release_data):
 def _download_file(url, target_path):
     """下载文件到 target_path"""
     try:
-        with _open_url(url, 300) as resp:
-            with open(target_path, "wb") as f:
-                while True:
-                    chunk = resp.read(65536)
-                    if not chunk:
-                        break
-                    f.write(chunk)
+        with _open_url(url, 300) as resp, open(target_path, "wb") as f:
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                f.write(chunk)
         return True
     except Exception as e:
         logger.warning(f"[更新检查] 下载文件失败: {e}")

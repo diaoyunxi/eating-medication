@@ -166,11 +166,11 @@ class TestCaptureImage(unittest.TestCase):
     @patch.object(camera, "get_huskylens")
     def test_capture_image_returns_none_on_import_error(self, mock_get_hl):
         """未安装 dfrobot_huskylensv2 库时返回 None。"""
-        with patch.dict("sys.modules", {"dfrobot_huskylensv2": None}):
+        with patch.dict("sys.modules", {"dfrobot_huskylensv2": None}), \
+             patch.object(camera, "_init_huskylens", side_effect=ImportError("未安装")):
             # 强制触发 ImportError
-            with patch.object(camera, "_init_huskylens", side_effect=ImportError("未安装")):
-                result = camera.capture_image(self._make_config())
-                self.assertIsNone(result)
+            result = camera.capture_image(self._make_config())
+            self.assertIsNone(result)
 
 
 if __name__ == "__main__":
