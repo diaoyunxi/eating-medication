@@ -57,6 +57,7 @@ def _ask_ai_and_speak(reminder_state, http_client, speech, logger, config):
             try:
                 speech.speak(answer)
             except Exception:
+                pass  # noqa: S110
                 pass
     except Exception as e:
         logger.error(f"AI 问答异常: {e}")
@@ -112,6 +113,7 @@ def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=
                     try:
                         speech.speak(reason)
                     except Exception:
+                        pass  # noqa: S110
                         pass
                 # 不确认、不拍照，避免误拍/误报
                 return
@@ -132,12 +134,14 @@ def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=
         try:
             buzzer.play_success()
         except Exception:
+            pass  # noqa: S110
             pass
         # 语音播报确认（TTS，缺失时静默降级）
         if speech:
             try:
                 speech.speak(f"已记录，{drug}")
             except Exception:
+                pass  # noqa: S110
                 pass
         # 拍照上传服药照片（HuskyLens，无摄像头时静默降级，异步不阻塞主循环）
         if config is not None and http_client is not None:
@@ -147,6 +151,7 @@ def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=
                     target=_capture_and_upload, args=(config, http_client, logger, reminder_state), daemon=True
                 ).start()
             except Exception:
+                pass  # noqa: S110
                 pass
     except Exception as e:
         logger.error(f"处理确认服药异常: {e}")

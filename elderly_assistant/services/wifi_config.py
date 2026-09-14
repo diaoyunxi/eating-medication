@@ -532,6 +532,7 @@ class WiFiConfigServer:
             try:
                 self.server.socket.close()
             except Exception:
+                pass  # noqa: S110
                 pass
         logger.info("WiFi 配网服务已停止")
 

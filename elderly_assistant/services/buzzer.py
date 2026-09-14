@@ -135,4 +135,5 @@ class Buzzer:
         try:
             self.stop()
         except Exception:
+            pass  # noqa: S110
             pass

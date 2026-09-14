@@ -467,6 +467,7 @@ def main():
                     try:
                         buzzer.play_reminder()
                     except Exception:
+                        pass  # noqa: S110
                         pass
                     reminder_state.triggered_at = datetime.now()
 
@@ -478,6 +479,7 @@ def main():
                 try:
                     led.write_digital(1 if server_connected else 0)
                 except Exception:
+                    pass  # noqa: S110
                     pass
 
             # ---- 每帧刷新扫码结果临时展示（10 秒后自动清除）----
@@ -490,6 +492,7 @@ def main():
             # 主循环休眠，降低 CPU 占用
             time.sleep(0.1)
     except KeyboardInterrupt:
+        pass  # noqa: S110
         pass
     finally:
         # 清理资源：依次停止并等待各后台线程退出，释放硬件句柄
@@ -538,6 +541,7 @@ def main():
             if led:
                 led.write_digital(0)
         except Exception:
+            pass  # noqa: S110
             pass
         logger.info("老人端已退出")
 

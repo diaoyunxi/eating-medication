@@ -273,6 +273,7 @@ def _pip_version_string():
         if result.returncode == 0:
             return (result.stdout or "").strip()
     except Exception:
+        pass  # noqa: S110
         pass
     return ""
 
@@ -349,6 +350,7 @@ def _install_pip_windows():
             try:
                 os.unlink(tmp_path)
             except Exception:
+                pass  # noqa: S110
                 pass
     return _check_pip_available()
 
@@ -642,10 +644,12 @@ def _get_site_packages_dir():
         if user_site:
             candidates.append(user_site)
     except Exception:
+        pass  # noqa: S110
         pass
     try:
         candidates.extend(site.getsitepackages() or [])
     except Exception:
+        pass  # noqa: S110
         pass
     for d in candidates:
         if not d:

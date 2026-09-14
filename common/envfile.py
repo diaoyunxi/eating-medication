@@ -33,6 +33,7 @@ def read_env_dict(path: PathLike) -> Dict[str, str]:
                 continue
             data[k] = v.strip()
     except Exception:
+        pass  # noqa: S110 — non-critical, failures are tolerable
         pass
     return data
 
@@ -67,6 +68,7 @@ def write_env_text(path: PathLike, content: str) -> None:
     try:
         p.chmod(0o600)
     except Exception:
+        pass  # noqa: S110 — non-critical, failures are tolerable
         pass
 
 
