@@ -3,7 +3,7 @@
 import os
 import sys
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -34,7 +34,7 @@ class TestChatMessageOut(unittest.TestCase):
             receiver_id = 2
             sender_name = "Alice"
             content = "hi"
-            created_at = datetime(2026, 1, 1)
+            created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
         out = ChatMessageOut.model_validate(FakeMsg())
         self.assertEqual(out.id, 10)

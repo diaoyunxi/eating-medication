@@ -46,7 +46,7 @@ def test_parse_dt():
 
 
 def test_hhmm_to_today():
-    now = datetime(2024, 1, 1, 12, 0, 0)
+    now = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     dt = device_service.hhmm_to_today("08:30", now)
     assert dt is not None and dt.hour == 8 and dt.minute == 30 and dt.date() == now.date()
     assert device_service.hhmm_to_today("bad", now) is None
