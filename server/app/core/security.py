@@ -42,7 +42,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # mask_device_id 由 common.security 导入（见上方 import），全仓统一实现，避免重复定义
 
 
-def create_access_token(data: Dict[str, Any], expires_delta: timedelta = None) -> str:
+def create_access_token(data: Dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """创建 JWT access token"""
     to_encode = data.copy()
     # 统一 sub 为字符串类型

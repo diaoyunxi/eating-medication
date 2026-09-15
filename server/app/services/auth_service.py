@@ -30,7 +30,7 @@ class AuthService:
     """认证服务"""
 
     @staticmethod
-    def register(db: Session, req: RegisterReq, oauth_pending: dict = None) -> str:
+    def register(db: Session, req: RegisterReq, oauth_pending: dict | None = None) -> str:
         """用户注册，返回 access_token
 
         :param oauth_pending: OAuth 待补全身份令牌载荷（dict），非空表示第三方 OAuth 注册，

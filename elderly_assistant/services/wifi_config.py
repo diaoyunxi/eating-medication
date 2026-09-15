@@ -110,11 +110,11 @@ class WiFiConfigManager:
                 self.scanned_networks, key=lambda x: x["signal"], reverse=True
             )
             self.status = "idle"
-            self.status_message = "找到 %d 个 WiFi 网络" % len(self.scanned_networks)
+            self.status_message = f"找到 {len(self.scanned_networks)} 个 WiFi 网络"
         except Exception as e:
             logger.error(f"扫描 WiFi 失败: {e}")
             self.status = "failed"
-            self.status_message = "扫描失败: %s" % str(e)
+            self.status_message = f"扫描失败: {e}"
 
         return self.scanned_networks
 
@@ -124,7 +124,7 @@ class WiFiConfigManager:
         safe_password = sanitize_password(password)
 
         self.status = "connecting"
-        self.status_message = "正在连接 %s..." % safe_ssid
+        self.status_message = f"正在连接 {safe_ssid}..."
         self.current_ssid = safe_ssid
 
         try:
@@ -135,14 +135,14 @@ class WiFiConfigManager:
             )
             if result.returncode == 0:
                 self.status = "success"
-                self.status_message = "成功连接到 %s" % safe_ssid
+                self.status_message = f"成功连接到 {safe_ssid}"
                 return True
             else:
                 raise Exception(result.stderr or "连接失败")
         except Exception as e:
             logger.error(f"连接 WiFi 失败: {e}")
             self.status = "failed"
-            self.status_message = "连接失败: %s" % str(e)
+            self.status_message = f"连接失败: {e}"
             return False
 
     def register_device_to_server(self, server_url):
@@ -478,7 +478,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         """自定义日志格式"""
-        logger.info("HTTP %s - %s" % (self.address_string(), format % args))
+        logger.info(f"HTTP {self.address_string()} - {format % args}")
 
 
 class WiFiConfigServer:

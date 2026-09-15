@@ -68,7 +68,7 @@ class UTCDateTime(TypeDecorator):
 # ---------------------------------------------------------------------------
 # 自动建库：检测不到数据库时创建
 # ---------------------------------------------------------------------------
-def ensure_database_exists(database_url: str = None):
+def ensure_database_exists(database_url: str | None = None):
     """确保目标数据库存在；不存在时自动建库。
 
     - SQLite：文件型，引擎会自动创建，这里仅确保父目录存在。
