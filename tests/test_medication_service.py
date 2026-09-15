@@ -54,7 +54,7 @@ class TestTakeMedication(unittest.TestCase):
         pq = mock.MagicMock()
         pq.filter.return_value.first.return_value = None
         db.query.side_effect = [pq, mock.MagicMock()]
-        req = TakeMedicationRequest(plan_id=1, scheduled_time=datetime(2026, 1, 1, 8, 0))
+        req = TakeMedicationRequest(plan_id=1, scheduled_time=datetime(2026, 1, 1, 8, 0, tzinfo=timezone.utc))
         with self.assertRaises(ValueError):
             asyncio.run(MedicationService.take_medication(db, 1, req))
 
@@ -63,8 +63,8 @@ class TestTakeMedication(unittest.TestCase):
         db = _make_db(plan, existing_record=None, rowcount=1)
         req = TakeMedicationRequest(
             plan_id=1,
-            scheduled_time=datetime(2026, 1, 1, 8, 0),
-            taken_time=datetime(2026, 1, 1, 8, 5),
+            scheduled_time=datetime(2026, 1, 1, 8, 0, tzinfo=timezone.utc),
+            taken_time=datetime(2026, 1, 1, 8, 5, tzinfo=timezone.utc),
         )
         with mock.patch("app.websocket.notifier.notifier") as notifier:
             notifier.notify_taken_medication = mock.AsyncMock()
@@ -80,8 +80,8 @@ class TestTakeMedication(unittest.TestCase):
         db = _make_db(plan, existing_record=None, rowcount=0)
         req = TakeMedicationRequest(
             plan_id=1,
-            scheduled_time=datetime(2026, 1, 1, 8, 0),
-            taken_time=datetime(2026, 1, 1, 8, 5),
+            scheduled_time=datetime(2026, 1, 1, 8, 0, tzinfo=timezone.utc),
+            taken_time=datetime(2026, 1, 1, 8, 5, tzinfo=timezone.utc),
         )
         record = asyncio.run(MedicationService.take_medication(db, 1, req))
         self.assertEqual(record.status, "taken")
@@ -95,8 +95,8 @@ class TestTakeMedication(unittest.TestCase):
         db = _make_db(plan, existing_record=existing, rowcount=1)
         req = TakeMedicationRequest(
             plan_id=1,
-            scheduled_time=datetime(2026, 1, 1, 8, 0),
-            taken_time=datetime(2026, 1, 1, 8, 5),
+            scheduled_time=datetime(2026, 1, 1, 8, 0, tzinfo=timezone.utc),
+            taken_time=datetime(2026, 1, 1, 8, 5, tzinfo=timezone.utc),
         )
         with mock.patch("app.websocket.notifier.notifier") as notifier:
             notifier.notify_taken_medication = mock.AsyncMock()
@@ -110,7 +110,7 @@ class TestTakeMedication(unittest.TestCase):
         db = _make_db(plan, existing_record=None, rowcount=0)
         req = TakeMedicationRequest(
             plan_id=1,
-            scheduled_time=datetime(2099, 1, 1, 8, 0),
+            scheduled_time=datetime(2099, 1, 1, 8, 0, tzinfo=timezone.utc),
             taken_time=None,
         )
         record = asyncio.run(MedicationService.take_medication(db, 1, req))

@@ -3,7 +3,7 @@
 import sys
 import unittest
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # 将 elderly_assistant 加入 sys.path，使其顶层包 workflow / hardware / core 可导入
@@ -48,7 +48,7 @@ class TestCheckMedicationTrigger(unittest.TestCase):
     def _now(self, hhmm):
         y, m, d = 2026, 7, 28
         h, mi = map(int, hhmm.split(":"))
-        return datetime(y, m, d, h, mi, 0)
+        return datetime(y, m, d, h, mi, 0, tzinfo=timezone.utc)
 
     def test_triggers_at_match(self):
         poller = FakePoller([{"time": "12:00", "drug_name": "阿司匹林", "dosage": "1片", "plan_id": 1}])
