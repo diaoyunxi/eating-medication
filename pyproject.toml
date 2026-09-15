@@ -1,0 +1,147 @@
+# =============================================================================
+# pyproject.toml — eating-medication 项目级配置
+# =============================================================================
+# 统一 ruff / pytest / coverage 等工具的配置入口，
+# 避免各工具配置文件散落在仓库根目录。
+# =============================================================================
+
+[project]
+name = "eating-medication"
+version = "2.44.0"
+description = "面向独居老人的智能用药管理系统"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+    { name = "diaoyunxi" },
+]
+
+# =============================================================================
+# ruff — Python linter & formatter
+# =============================================================================
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+# 启用的规则集
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "UP",     # pyupgrade
+    "SIM",    # flake8-simplify
+    "RUF",    # ruff-specific rules
+    "C4",     # flake8-comprehensions
+    "PIE",    # flake8-pie
+    "RET",    # flake8-return
+    "PLW",    # pylint warnings
+    "PLE",    # pylint errors
+]
+
+# 注：以下规则集建议逐步启用（当前作为渐进目标列出）：
+# "B"      — flake8-bugbear（B008 Depends 误报较多，待排除后启用）
+# "S"      — flake8-bandit（安全规则，需逐条审核）
+# "TCH"    — flake8-type-checking
+# "PL"     — pylint 完整规则
+# "TRY"    — tryceratops
+# "DTZ"    — flake8-datetimez
+# "BLE"    — flake8-blind-except（331 处待修复）
+# "ASYNC"  — flake8-async
+
+# 忽略的规则（附理由）
+ignore = [
+    # E501: line too long — 中文注释与长 docstring 导致大量误报
+    "E501",
+    # S101: assert used — pytest 中使用 assert 是标准做法
+    "S101",
+    # B008: mutable default argument — FastAPI Depends() 等模式大量使用
+    "B008",
+    # PLR2004: magic value comparison — 项目中大量合理的数字常量
+    "PLR2004",
+    # RUF001/RUF002/RUF003: ambiguous unicode in string — 中文项目正常使用全角标点
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # CPY001: missing copyright — 开源项目非必需
+    "CPY001",
+    # D: pydocstyle — docstring 风格规则，当前项目已有自己的注释风格
+    "D",
+    # T201: print found — 启动脚本与 CLI 工具中 print 是合理的
+    "T201",
+    # EXE002: executable but no shebang — 历史遗留权限，不影响功能
+    "EXE002",
+    # ANN: flake8-annotations — 渐进式类型标注，暂不强制
+    "ANN",
+    # FIX002: line contains TODO — 允许 TODO 注释
+    "FIX002",
+    # TD002/TD003: TODO format — 不强制 TODO 格式
+    "TD002",
+    "TD003",
+]
+
+# 按目录覆盖配置
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",    # assert in tests
+    "S105",    # hardcoded password string in tests
+    "S106",    # hardcoded password function argument in tests
+    "BLE001",  # broad exception in test setup
+    "B017",    # assertRaises(Exception) in tests
+    "S110",    # try-except-pass in test teardown
+    "PLR2004", # magic values in tests
+]
+"updater.py" = [
+    "S603",    # subprocess call with variable input (intentional)
+    "S607",    # starting a process with a partial executable path
+]
+"common/install.py" = [
+    "S603",    # subprocess call with variable input (intentional)
+    "S607",    # starting a process with a partial executable path
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "common", "elderly_assistant", "family_monitor"]
+
+# =============================================================================
+# pytest
+# =============================================================================
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks integration tests",
+]
+
+# =============================================================================
+# coverage
+# =============================================================================
+[tool.coverage.run]
+source = ["server/app", "common", "elderly_assistant", "family_monitor"]
+omit = [
+    "tests/*",
+    "*/migrations/*",
+    "*/__pycache__/*",
+    "setup.*",
+    "conftest.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+fail_under = 0
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
