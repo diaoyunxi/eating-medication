@@ -524,7 +524,7 @@ class HTTPClient:
             else:
                 return f'抱歉，AI 服务出错了 (状态码: {resp.status_code})'
         except Exception as e:
-            return f'抱歉，AI 服务暂时不可用: {str(e)}'
+            return f'抱歉，AI 服务暂时不可用: {e!s}'
 
     def get_device_id(self):
         """返回当前设备标识符"""

@@ -6,7 +6,7 @@ import shutil
 import sys
 import tempfile
 import unittest
-import unittest.mock as mock
+from unittest import mock
 from pathlib import Path
 
 # 将 elderly_assistant 加入 sys.path，使其顶层包 workflow / hardware / core 可导入
@@ -201,7 +201,7 @@ class TestPollerOfflineFallback(unittest.TestCase):
 
     def test_cache_loader_exception_is_tolerated(self):
         def boom():
-            raise IOError("磁盘错误")
+            raise OSError("磁盘错误")
 
         poller = MedicationPoller(None, poll_interval=1, cache_loader=boom)
         self.assertEqual(poller.schedules, [])

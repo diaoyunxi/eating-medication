@@ -126,7 +126,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return data
             return {"status": "error", "msg": f"绑定失败 status={response.status_code}"}
         except Exception as e:
-            return {"status": "error", "msg": f"绑定请求异常: {str(e)}"}
+            return {"status": "error", "msg": f"绑定请求异常: {e!s}"}
 
     async def unbind_device_family(self) -> Dict[str, Any]:
         """通过家属授权接口解绑当前设备（JWT 鉴权）。
@@ -145,7 +145,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return {"status": "ok", "msg": "设备已解绑"}
             return {"status": "error", "msg": f"解绑失败 status={response.status_code}"}
         except Exception as e:
-            return {"status": "error", "msg": f"解绑请求异常: {str(e)}"}
+            return {"status": "error", "msg": f"解绑请求异常: {e!s}"}
 
     async def _status_via_family(self) -> Dict[str, Any]:
         # 以服务端绑定关系为准解析 device_id，避免本地文件残留导致的假绑定

@@ -13,7 +13,7 @@ CodeRabbit 建议：用 pinpong.board 替身（而非直接设置 _pin）注入�
 import sys
 import threading
 import unittest
-import unittest.mock as mock
+from unittest import mock
 from pathlib import Path
 
 EA = Path(__file__).resolve().parent.parent / "elderly_assistant"
