@@ -34,7 +34,7 @@ class _FakeEngine:
     def runAndWait(self):
         if self._fail:
             raise RuntimeError("engine boom")
-        return None
+        return
 
 
 class _FakeInitEngine:

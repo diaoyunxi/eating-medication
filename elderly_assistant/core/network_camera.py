@@ -68,7 +68,7 @@ def _is_host_reachable(ip: str, port: int, timeout: float = 2.0) -> bool:
         sock = socket.create_connection((ip, port), timeout=timeout)
         sock.close()
         return True
-    except (socket.timeout, socket.error, OSError):
+    except (socket.timeout, OSError):
         return False
 
 

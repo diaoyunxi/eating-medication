@@ -6,7 +6,7 @@ PR #45：heartbeat_timeout 仅接受有限正数，拒绝 inf/-inf/nan/非数值
 """
 import sys
 import unittest
-import unittest.mock as mock
+from unittest import mock
 from pathlib import Path
 
 EA = Path(__file__).resolve().parent.parent / "elderly_assistant"

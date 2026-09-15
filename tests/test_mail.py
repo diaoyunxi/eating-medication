@@ -28,11 +28,11 @@ except Exception:  # pragma: no cover
 @unittest.skipUnless(_HAVE, "需要 httpx / smtplib（标准库）")
 class TestMailEnabled(unittest.TestCase):
     def _patch(self, **kwargs):
-        defaults = dict(
-            MAIL_PROVIDER=None, MAIL_HOST=None, MAIL_PORT=None,
-            MAIL_USERNAME=None, MAIL_PASSWORD=None, MAIL_FROM=None,
-            MAIL_API_URL=None, MAIL_API_KEY=None,
-        )
+        defaults = {
+            "MAIL_PROVIDER": None, "MAIL_HOST": None, "MAIL_PORT": None,
+            "MAIL_USERNAME": None, "MAIL_PASSWORD": None, "MAIL_FROM": None,
+            "MAIL_API_URL": None, "MAIL_API_KEY": None,
+        }
         defaults.update(kwargs)
         return mock.patch.multiple(mail.settings, **defaults)
 

@@ -462,8 +462,7 @@ def main():
             )
 
             # ---- 本地重复提醒音：提醒触发后每 60 秒老人仍未确认则再次响铃 ----
-            if reminder_state.active and reminder_state.triggered_at is not None:
-                if (datetime.now() - reminder_state.triggered_at).total_seconds() >= 60:
+            if reminder_state.active and reminder_state.triggered_at is not None and (datetime.now() - reminder_state.triggered_at).total_seconds() >= 60:
                     try:
                         buzzer.play_reminder()
                     except Exception:

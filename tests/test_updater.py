@@ -360,7 +360,7 @@ class TestRunPostUpdateCmd(unittest.TestCase):
 
         def fake_run(*a, **k):
             called["n"] += 1
-            return None
+            return
         self._call_with(None, fake_run)
         self.assertEqual(called["n"], 0)
 
