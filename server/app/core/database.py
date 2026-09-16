@@ -15,6 +15,7 @@
    MySQL/pymysql 对带时区 datetime 的报错，读取行为与 SQLite 一致。
 """
 import logging
+import re
 from datetime import timezone
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -26,6 +27,24 @@ from sqlalchemy.types import TypeDecorator, DateTime
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# SQL 标识符安全校验（防 DDL 注入）
+# ---------------------------------------------------------------------------
+_SAFE_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _safe_identifier(name: str, label: str = "identifier") -> str:
+    """校验 SQL 标识符（数据库名/表名/列名）是否安全。
+
+    仅允许字母、数字、下划线，且必须以字母或下划线开头。
+    不符合规则的标识符直接抛出 ValueError，阻止 DDL 注入。
+    """
+    if not name or not _SAFE_IDENT_RE.match(name):
+        raise ValueError(
+            f"不安全的 SQL {label}: {name!r}（仅允许字母、数字、下划线，且以字母或下划线开头）"
+        )
+    return name
 
 
 # ---------------------------------------------------------------------------
@@ -133,12 +152,12 @@ def ensure_database_exists(database_url: str = None):
                 if scheme in ("mysql", "mariadb"):
                     conn.execute(
                         text(
-                            f"CREATE DATABASE `{db_name}` "
+                            f"CREATE DATABASE `{_safe_identifier(db_name, '数据库名')}` "
                             f"CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
                         )
                     )
                 else:  # postgresql
-                    conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+                    conn.execute(text(f'CREATE DATABASE "{_safe_identifier(db_name, '数据库名')}"'))
             logger.info(f"已自动创建数据库 '{db_name}'")
         admin_engine.dispose()
     except Exception as e:  # noqa: BLE001
@@ -246,6 +265,8 @@ def _safe_add_column(conn, table_name, column, dialect):
             elif isinstance(arg, str):
                 col_default = f" DEFAULT '{arg}'"
         nullable = "" if column.nullable else " NOT NULL"
+        _safe_identifier(table_name, '表名')
+        _safe_identifier(column.name, '列名')
         stmt = text(
             f'ALTER TABLE "{table_name}" ADD COLUMN "{column.name}" {sqltype}{col_default}{nullable}'
         )
