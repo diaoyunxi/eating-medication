@@ -99,7 +99,7 @@ def _send_email(email, code):
             f"您的邮箱验证码为：{code}（{_CODE_TTL // 60} 分钟内有效，请勿泄露给他人）。"
         )
         msg = MIMEText(body, "plain", "utf-8")
-        msg["Subject"] = Header(subject, "utf-8")
+        msg["Subject"] = Header(subject, "utf-8")  # noqa: B008
         msg["From"] = frm
         msg["To"] = email
 

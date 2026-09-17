@@ -176,7 +176,7 @@ async def get_settings(request: Request):
 
 
 @router.post("/settings/bind_device")
-async def bind_device(request: Request, device_id: str = Form(...), device_name: str = Form("")):
+async def bind_device(request: Request, device_id: str = Form(...), device_name: str = Form("")):  # noqa: B008
     """绑定设备（通过device_id）
 
     绑定前先调用服务端的 check_device 接口校验设备是否已注册，

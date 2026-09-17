@@ -13,15 +13,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/users", tags=["用户"])
 
 @router.get("/me", response_model=UserOut)
-def read_current_user(current_user: User = Depends(get_current_user)):
+def read_current_user(current_user: User = Depends(get_current_user)):  # noqa: B008
     """获取当前用户信息"""
     return current_user
 
 @router.put("/me", response_model=UserOut)
 def update_current_user(
     update_data: UserUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user)  # noqa: B008
 ):
     """更新当前用户信息"""
     updated = UserService.update_user(db, current_user.id, update_data)
@@ -32,8 +32,8 @@ def update_current_user(
 @router.post("/bind")
 def bind_family(
     req: BindFamilyReq,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user)  # noqa: B008
 ):
     """家属绑定老人（组成家庭组，并把 device_id 关联到真实老人）
 
@@ -89,8 +89,8 @@ def bind_family(
 
 @router.delete("/me")
 def delete_current_user(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user)  # noqa: B008
 ):
     """注销当前用户账号（硬删除，会级联删除用药计划/记录/AI日志）"""
     if not UserService.delete_user(db, current_user.id):
@@ -103,8 +103,8 @@ def delete_current_user(
 @router.delete("/{user_id}")
 def delete_user_by_family(
     user_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user)  # noqa: B008
 ):
     """家属删除同家庭组的老人账号（硬删除）"""
     # 仅家属可调用
@@ -142,8 +142,8 @@ def delete_user_by_family(
 @router.post("/elderly", response_model=ElderlyOut)
 def create_elderly(
     req: CreateElderlyReq,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user),  # noqa: B008
 ):
     """家属创建同家庭组老人（网页「增加老年人」）
 
@@ -186,8 +186,8 @@ def create_elderly(
 
 @router.get("/elderly", response_model=List[ElderlyOut])
 def list_elderly(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user),  # noqa: B008
 ):
     """列出本家庭组所有老人（网页老人管理列表 / 用药设置老人下拉数据源）"""
     if current_user.role != "family":
@@ -210,8 +210,8 @@ def list_elderly(
 def set_elderly_face_id(
     user_id: int,
     req: FaceIdReq,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user),  # noqa: B008
 ):
     """网页端为老人填写二哈显示的人脸 ID（用户已自行在二哈录入人脸）
 

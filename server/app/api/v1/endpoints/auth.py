@@ -70,7 +70,7 @@ def verify_turnstile(token: str) -> bool:
 def register(
     req: RegisterReq,
     request: Request,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """用户注册（老人或家属，基于 IP 限流 + Turnstile 人机验证）
 
@@ -97,7 +97,7 @@ def register(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/login")
-def login(req: LoginReq, request: Request, db: Session = Depends(get_db)):
+def login(req: LoginReq, request: Request, db: Session = Depends(get_db)):  # noqa: B008
     """用户登录（Turnstile 人机验证 + 限流）
 
     已开启 TOTP 第二因子的账号：密码校验通过后返回 {mfa_required: true, mfa_token}，
@@ -119,7 +119,7 @@ def login(req: LoginReq, request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/email/send-code")
-def email_send_code(req: EmailSendCodeReq, request: Request, db: Session = Depends(get_db)):
+def email_send_code(req: EmailSendCodeReq, request: Request, db: Session = Depends(get_db)):  # noqa: B008
     """邮箱验证码 - 发送验证码（Turnstile 人机验证 + 限流 + 安全策略）
 
     无论邮箱是否已注册都发送验证码（不泄露账号存在性）；具体登录/注册在 /email/code-login 处理。
@@ -141,7 +141,7 @@ def email_send_code(req: EmailSendCodeReq, request: Request, db: Session = Depen
 
 
 @router.post("/email/code-login")
-def email_code_login(req: EmailCodeLoginReq, request: Request, db: Session = Depends(get_db)):
+def email_code_login(req: EmailCodeLoginReq, request: Request, db: Session = Depends(get_db)):  # noqa: B008
     """邮箱验证码 - 登录 / 自动注册（Turnstile 人机验证 + 限流）
 
     - 验证码校验通过但邮箱未注册：自动创建账号并登录。
@@ -173,8 +173,8 @@ def email_code_login(req: EmailCodeLoginReq, request: Request, db: Session = Dep
 
 @router.get("/login-methods")
 def get_login_methods(
-    current_user: User = Depends(get_current_user_optional),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_optional),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """查询登录方式状态（公开，登录前即可访问，BUG-C07 修复）
 
@@ -188,8 +188,8 @@ def get_login_methods(
 @router.post("/bind-phone")
 def bind_phone(
     req: BindPhoneReq,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """绑定手机号（需同时设置密码，绑定后可用手机号+密码登录）"""
     try:
@@ -203,8 +203,8 @@ def bind_phone(
 def bind_email_send_code(
     req: BindEmailSendCodeReq,
     request: Request,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """绑定邮箱 - 发送验证码（需登录）
 
@@ -233,8 +233,8 @@ def bind_email_send_code(
 @router.post("/bind-email")
 def bind_email(
     req: BindEmailReq,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """绑定邮箱（需先通过验证码校验）"""
     # 校验验证码
@@ -249,8 +249,8 @@ def bind_email(
 
 @router.delete("/unbind-phone")
 def unbind_phone(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """解绑手机号（至少保留一种登录方式）"""
     try:
@@ -262,8 +262,8 @@ def unbind_phone(
 
 @router.delete("/unbind-email")
 def unbind_email(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """解绑邮箱（至少保留一种登录方式）"""
     try:
@@ -276,8 +276,8 @@ def unbind_email(
 @router.delete("/unbind-oauth/{provider}")
 def unbind_oauth(
     provider: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """解绑第三方 OAuth（至少保留一种登录方式）
 

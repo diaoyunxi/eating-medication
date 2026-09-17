@@ -41,8 +41,8 @@ def _sanitize_question(raw: str) -> str:
 @router.post("/chat", response_model=AIAnswer)
 async def chat(
     req: AIQuestion,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """向AI健康助手提问（需要认证，使用当前用户各自的 AI 配置）"""
     question = _sanitize_question(req.question)

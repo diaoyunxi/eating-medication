@@ -90,10 +90,10 @@ def _to_out(row: Optional[UserAIConfig]) -> UserAIConfigOut:
 
 @router.get("/user/ai-config", response_model=UserAIConfigOut)
 async def get_ai_config(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    device_id: Optional[str] = Query(None, description="目标设备ID（家属为被照护老人配置）"),
-    user_id: Optional[int] = Query(None, description="目标用户ID"),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
+    device_id: Optional[str] = Query(None, description="目标设备ID（家属为被照护老人配置）"),  # noqa: B008
+    user_id: Optional[int] = Query(None, description="目标用户ID"),  # noqa: B008
 ):
     """读取 AI 配置（api_key 不回传明文，仅返回 has_api_key 标识）"""
     target = _resolve_target_user(db, current_user, device_id, user_id)
@@ -104,10 +104,10 @@ async def get_ai_config(
 @router.put("/user/ai-config", response_model=UserAIConfigOut)
 async def upsert_ai_config(
     payload: UserAIConfigIn,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    device_id: Optional[str] = Query(None, description="目标设备ID（家属为被照护老人配置）"),
-    user_id: Optional[int] = Query(None, description="目标用户ID"),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
+    device_id: Optional[str] = Query(None, description="目标设备ID（家属为被照护老人配置）"),  # noqa: B008
+    user_id: Optional[int] = Query(None, description="目标用户ID"),  # noqa: B008
 ):
     """新增或更新 AI 配置（api_key 加密存储）"""
     provider = (payload.provider or "zhipuai").lower()
@@ -165,7 +165,7 @@ async def upsert_ai_config(
 
 
 @router.get("/providers", response_model=list[AIProviderPreset])
-async def list_providers(current_user: User = Depends(get_current_user)):
+async def list_providers(current_user: User = Depends(get_current_user)):  # noqa: B008
     """公开：返回前端下拉所需的厂商预设列表"""
     presets = []
     for pid in SUPPORTED_PROVIDERS:

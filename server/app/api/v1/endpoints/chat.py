@@ -19,8 +19,8 @@ router = APIRouter(prefix="/chat", tags=["聊天"])
 @router.post("/send", response_model=ChatMessageOut)
 async def send_message(
     msg: ChatMessageCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # 加认证
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user),  # 加认证  # noqa: B008
 ):
     """发送聊天消息
 
@@ -63,9 +63,9 @@ async def send_message(
 @router.get("/history/{user_id}", response_model=List[ChatMessageOut])
 async def get_history(
     user_id: int,
-    limit: int = Query(50, ge=1, le=200),  # 限制 limit 范围 1~200
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # 加认证
+    limit: int = Query(50, ge=1, le=200),  # 限制 limit 范围 1~200  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user),  # 加认证  # noqa: B008
 ):
     """获取用户聊天历史"""
     # 校验当前用户必须是消息参与者
@@ -89,7 +89,7 @@ async def get_history(
 
 
 @router.websocket("/ws/{user_id}")
-async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Query(None)):
+async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Query(None)):  # noqa: B008
     """WebSocket聊天连接（从 query 参数读取 token 校验，使用 token 中的 user_id）
 
     JWT sub 字段是 username（字符串），不能直接 int() 转换，

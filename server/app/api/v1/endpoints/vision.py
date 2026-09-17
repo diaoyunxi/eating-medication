@@ -14,8 +14,8 @@ router = APIRouter(prefix="/vision", tags=["药名识别"])
 
 @router.post("/recognize", response_model=ImageRecognitionResp)
 async def recognize_drug(
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user)
+    file: UploadFile = File(...),  # noqa: B008
+    current_user: User = Depends(get_current_user)  # noqa: B008
 ):
     """上传药品图片，识别药名"""
     if not file.content_type.startswith("image/"):

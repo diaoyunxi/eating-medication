@@ -21,8 +21,8 @@ def get_db():
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    credentials: HTTPAuthorizationCredentials = Depends(security),  # noqa: B008
+    db: Session = Depends(get_db)  # noqa: B008
 ) -> User:
     """
     从 JWT token 获取当前登录用户，如果无效则抛出 401 异常
@@ -51,8 +51,8 @@ async def get_current_user(
 
 
 async def get_current_user_optional(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ) -> Optional[User]:
     """可选认证：返回当前登录用户或 None（不抛 401）。
 

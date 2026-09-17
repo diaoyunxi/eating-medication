@@ -80,8 +80,8 @@ def _require_bound_device(current_user: User, db: Session, device_id: str) -> Us
 @router.post("/bind")
 async def bind_device(
     req: FamilyBindReq,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """家属绑定设备并合法获取设备令牌。
 
@@ -143,8 +143,8 @@ async def bind_device(
 
 @router.post("/unbind")
 async def family_device_unbind(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """家属解绑当前设备（JWT 鉴权）。
 
@@ -166,8 +166,8 @@ async def family_device_unbind(
 @router.get("/status/{device_id}")
 async def family_device_status(
     device_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """获取绑定设备的状态（供子女端查询，JWT 鉴权 + 设备绑定校验）"""
     logger.info(f"家属查询设备状态: {mask_device_id(device_id or '')} user={current_user.id}")
@@ -178,8 +178,8 @@ async def family_device_status(
 @router.get("/plans/{device_id}")
 async def family_device_plans(
     device_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """获取绑定设备的所有用药计划（JWT 鉴权 + 设备绑定校验）"""
     user = _require_bound_device(current_user, db, device_id)
@@ -191,8 +191,8 @@ async def family_device_plans(
 async def family_device_records(
     device_id: str,
     limit: int = 100,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """获取绑定设备的服药记录（JWT 鉴权 + 设备绑定校验）"""
     user = _require_bound_device(current_user, db, device_id)
@@ -204,8 +204,8 @@ async def family_device_records(
 async def family_device_record_photo(
     record_id: int,
     device_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """获取绑定设备某条服药记录的照片（JWT 鉴权 + 设备绑定校验 + 记录归属校验）。
 
@@ -236,8 +236,8 @@ async def family_device_record_photo(
 async def family_device_chat_history(
     device_id: str,
     limit: int = 50,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """获取绑定设备相关的聊天历史（JWT 鉴权 + 设备绑定校验）"""
     user = _require_bound_device(current_user, db, device_id)
@@ -249,8 +249,8 @@ async def family_device_chat_history(
 async def family_device_reminders(
     device_id: str,
     limit: int = 50,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """获取绑定设备的今日提醒（供子女端仪表盘，JWT 鉴权 + 设备绑定校验）。
 
@@ -264,8 +264,8 @@ async def family_device_reminders(
 @router.post("/medication_plan")
 async def family_set_medication_plan(
     req: FamilyMedicationPlan,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """家属为绑定设备设置用药计划（JWT 鉴权 + 设备绑定校验）"""
     user = _require_bound_device(current_user, db, req.device_id)
@@ -298,8 +298,8 @@ async def family_set_medication_plan(
 async def family_update_medication_plan(
     plan_id: int,
     req: FamilyMedicationPlan,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """更新绑定设备的用药计划（JWT 鉴权 + 设备绑定校验）"""
     user = _require_bound_device(current_user, db, req.device_id)
@@ -335,8 +335,8 @@ async def family_update_medication_plan(
 async def family_delete_medication_plan(
     plan_id: int,
     device_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """删除绑定设备的用药计划（JWT 鉴权 + 设备绑定校验）"""
     user = _require_bound_device(current_user, db, device_id)

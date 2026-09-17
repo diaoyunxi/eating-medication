@@ -16,8 +16,8 @@ router = APIRouter(prefix="/medication", tags=["用药管理"])
 @router.post("/plan", response_model=MedicationPlanOut, status_code=201)
 def create_plan(
     plan_data: MedicationPlanCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user)  # noqa: B008
 ):
     """创建用药计划（仅老人）"""
     if current_user.role != "elderly":
@@ -26,8 +26,8 @@ def create_plan(
 
 @router.get("/plans", response_model=List[MedicationPlanOut])
 def list_plans(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user)  # noqa: B008
 ):
     """获取当前用户的用药计划（老人自己的；家属看到同组老人的）"""
     if current_user.role == "elderly":
@@ -41,8 +41,8 @@ def list_plans(
 @router.post("/take")
 async def take_medication(
     req: TakeMedicationRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user)  # noqa: B008
 ):
     """记录服药（仅老人）
 
@@ -58,10 +58,10 @@ async def take_medication(
 
 @router.get("/history", response_model=List[MedicationRecordOut])
 def get_history(
-    start: Optional[datetime] = Query(None),
-    end: Optional[datetime] = Query(None),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    start: Optional[datetime] = Query(None),  # noqa: B008
+    end: Optional[datetime] = Query(None),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
+    current_user: User = Depends(get_current_user)  # noqa: B008
 ):
     """获取服药历史记录"""
     return MedicationService.get_history(db, current_user, start, end)

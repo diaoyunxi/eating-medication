@@ -39,8 +39,8 @@ class TOTPVerifyIn(BaseModel):
 
 @router.post("/totp/setup", response_model=TOTPSetupOut)
 def totp_setup(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """生成 TOTP 密钥并暂存（加密，未启用）；返回供 Authenticator 扫码的 URI 与二维码。
     """
@@ -59,8 +59,8 @@ def totp_setup(
 @router.post("/totp/enable", response_model=BackupCodesOut)
 def totp_enable(
     in_: TOTPCodeIn,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """校验动态码后正式启用 TOTP，返回一次性备用恢复码（请妥善保存）。"""
     if current_user.mfa_enabled:
@@ -81,8 +81,8 @@ def totp_enable(
 @router.post("/totp/disable")
 def totp_disable(
     in_: TOTPCodeIn,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """关闭 TOTP（需提供动态码或备用码以确认身份）。"""
     if not current_user.mfa_enabled:
@@ -102,7 +102,7 @@ def totp_disable(
 
 
 @router.post("/totp/verify", response_model=TokenResp)
-def totp_verify(in_: TOTPVerifyIn, db: Session = Depends(get_db)):
+def totp_verify(in_: TOTPVerifyIn, db: Session = Depends(get_db)):  # noqa: B008
     """MFA 第二步：校验动态码或备用码，成功签发正式 JWT。"""
     user_id = verify_mfa_token(in_.mfa_token)
     if user_id is None:
