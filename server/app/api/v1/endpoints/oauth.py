@@ -552,7 +552,7 @@ async def github_callback(
     code: Optional[str] = None,
     state: Optional[str] = None,
     request: Request = None,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db),  # noqa: B008
 ) -> RedirectResponse:
     return await _callback("github", code, state, request, db)
 
@@ -583,6 +583,6 @@ async def gitee_callback(
     code: Optional[str] = None,
     state: Optional[str] = None,
     request: Request = None,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db),  # noqa: B008
 ) -> RedirectResponse:
     return await _callback("gitee", code, state, request, db)

@@ -80,7 +80,7 @@ class FamilyMedicationPlan(BaseModel):
 @router.post("/device/register")
 async def register_device(
     req: DeviceRegister,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """设备注册/心跳上报
 
@@ -101,8 +101,8 @@ async def register_device(
 async def device_offline(
     req: DeviceOffline,
     request: Request,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """设备主动下线通知
 
@@ -131,8 +131,8 @@ async def device_offline(
 @router.post("/device/message")
 async def device_message(
     req: DeviceMessage,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """接收设备上报消息（校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
@@ -162,8 +162,8 @@ class DeviceUpload(BaseModel):
 @router.post("/device/upload")
 async def device_upload(
     req: DeviceUpload,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """接收设备上传的服药照片（base64 解码后落盘，HuskyLens 采集）
 
@@ -183,8 +183,8 @@ async def device_upload(
 @router.get("/device/status/{device_id}")
 async def get_device_status(
     device_id: str,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """获取设备状态信息（供子女端查询，校验 device_id 与 X-Device-Token）"""
     logger.info(f"查询设备状态: {mask_device_id(device_id or '')}")
@@ -196,8 +196,8 @@ async def get_device_status(
 async def ai_ask(
     req: AIQuestion,
     request: Request,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """AI问答（设备端，基于 IP 限流，每分钟每 IP 最多 10 次）
 
@@ -234,8 +234,8 @@ async def ai_ask(
 @router.get("/device/check/{device_id}")
 async def check_device(
     device_id: str,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """检查设备是否已注册（供子女端绑定时校验，仅返回 exists，不泄露敏感信息）
 
@@ -253,8 +253,8 @@ async def check_device(
 @router.get("/device/schedule/{device_id}")
 async def get_device_schedule(
     device_id: str,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """获取设备的用药计划（供老人端每分钟轮询，校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
@@ -270,8 +270,8 @@ async def get_device_schedule(
 @router.post("/device/medication_plan")
 async def set_device_medication_plan(
     req: FamilyMedicationPlan,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """家属通过设备ID设置用药计划（校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)
@@ -303,8 +303,8 @@ async def set_device_medication_plan(
 @router.get("/device/plans/{device_id}")
 async def get_device_plans(
     device_id: str,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """获取设备的所有用药计划（供子女端查看，校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
@@ -316,8 +316,8 @@ async def get_device_plans(
 async def get_device_records(
     device_id: str,
     limit: int = 100,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """获取设备的服药记录（供子女端 BFF 调用，校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
@@ -329,8 +329,8 @@ async def get_device_records(
 async def get_device_chat_history(
     device_id: str,
     limit: int = 50,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """获取设备相关的聊天历史（供子女端 BFF 调用，校验 device_id 与 X-Device-Token）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
@@ -342,8 +342,8 @@ async def get_device_chat_history(
 async def delete_device_medication_plan(
     plan_id: int,
     device_id: str,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """删除用药计划（校验 device_id 与 X-Device-Token 及设备归属）"""
     user = DeviceService.get_device_user_authed(db, device_id, device_token)
@@ -363,8 +363,8 @@ async def delete_device_medication_plan(
 async def update_device_medication_plan(
     plan_id: int,
     req: FamilyMedicationPlan,
-    db: Session = Depends(get_db),
-    device_token: Optional[str] = Header(None, alias="X-Device-Token"),
+    db: Session = Depends(get_db),  # noqa: B008
+    device_token: Optional[str] = Header(None, alias="X-Device-Token"),  # noqa: B008
 ):
     """更新用药计划（校验 device_id 与 X-Device-Token 及设备归属）"""
     user = DeviceService.get_device_user_authed(db, req.device_id, device_token)

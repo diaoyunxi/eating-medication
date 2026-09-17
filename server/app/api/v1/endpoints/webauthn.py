@@ -42,8 +42,8 @@ class WebAuthnOptionsOut(BaseModel):
 
 @router.post("/webauthn/register/options", response_model=WebAuthnOptionsOut)
 def wa_register_options(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """构造通行密钥登记选项（已排除本用户已有凭证）。"""
     existing = [c.credential_id for c in current_user.webauthn_credentials]
@@ -54,8 +54,8 @@ def wa_register_options(
 @router.post("/webauthn/register")
 def wa_register(
     in_: WebAuthnRegisterIn,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """校验登记响应并保存凭证。"""
     ok, cred_id, pub_key, sign_count = mfa_service.verify_registration(
@@ -78,14 +78,14 @@ def wa_register(
 
 
 @router.post("/webauthn/login/options", response_model=WebAuthnOptionsOut)
-def wa_login_options(db: Session = Depends(get_db)):
+def wa_login_options(db: Session = Depends(get_db)):  # noqa: B008
     """构造无用户名登录断言选项（allow_credentials 留空，依赖 discoverable 凭证）。"""
     options_json, challenge_token = mfa_service.build_authentication_options()
     return WebAuthnOptionsOut.from_json(options_json, challenge_token)
 
 
 @router.post("/webauthn/login", response_model=TokenResp)
-def wa_login(in_: WebAuthnLoginIn, db: Session = Depends(get_db)):
+def wa_login(in_: WebAuthnLoginIn, db: Session = Depends(get_db)):  # noqa: B008
     """校验通行密钥断言，按 credential_id 反查用户并签发 JWT。"""
     raw_id = in_.credential.get("rawId")
     if not raw_id:
@@ -111,8 +111,8 @@ def wa_login(in_: WebAuthnLoginIn, db: Session = Depends(get_db)):
 
 @router.get("/webauthn/credentials")
 def wa_list_credentials(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """列出当前用户已登记的通行密钥。"""
     creds = (
@@ -136,8 +136,8 @@ def wa_list_credentials(
 @router.delete("/webauthn/credentials/{cred_id}")
 def wa_delete_credential(
     cred_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # noqa: B008
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     """删除指定通行密钥。"""
     cred = (
