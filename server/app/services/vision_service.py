@@ -1,8 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 import base64
 import httpx
-import hashlib
-import time
 from typing import Dict, Any
 from app.core.config import settings
 
@@ -76,7 +74,6 @@ class VisionService:
     @staticmethod
     async def _extract_drug_name(text: str) -> str:
         """从识别的文本中提取药品名称"""
-        import re
         
         drug_keywords = [
             '片', '胶囊', '颗粒', '丸', '散', '膏', '贴', '气雾剂',

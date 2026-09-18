@@ -6,7 +6,6 @@ CI 工作流 `.github/workflows/python-app.yml` 在仓库根执行 `pytest`，
 """
 import importlib.util
 import os
-import tempfile
 import unittest
 from pathlib import Path
 

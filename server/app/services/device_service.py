@@ -394,7 +394,6 @@ class DeviceService:
         status/taken_time/note。
         """
         from app.utils.datetime_utils import hhmm_to_today
-        from datetime import datetime as _dt
 
         limit = max(1, min(limit, 200))
         now = datetime.now(timezone.utc).replace(tzinfo=None)

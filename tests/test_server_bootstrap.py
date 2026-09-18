@@ -7,7 +7,6 @@
 """
 import app.core.bootstrap as bootstrap_mod
 import app.core.config as cfg_mod
-import pytest
 
 
 def test_bootstrap_config_orchestration(monkeypatch):

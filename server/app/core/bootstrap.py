@@ -11,7 +11,6 @@
 import logging
 
 from app.core.config import (
-    BASE_DIR,
     Settings,
     _ensure_default_env,
     validate_mandatory_config,

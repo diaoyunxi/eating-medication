@@ -8,7 +8,6 @@ from app.models.user import User
 from app.schemas.auth import RegisterReq
 from app.core.security import hash_password, verify_password, create_access_token, create_mfa_token
 from app.core.config import settings
-from app.utils import email_code as email_code_store
 from app.utils.validators import is_valid_phone, is_valid_email
 
 logger = logging.getLogger(__name__)
