@@ -397,7 +397,7 @@ def _get_webrtc_frame(cfg: dict) -> Optional[bytes]:
     """
     try:
         from aiortc import RTCPeerConnection, RTCSessionDescription
-        from aiortc.contrib.media import MediaPlayer
+        from aiortc.contrib.media import MediaPlayer  # noqa: F401
     except ImportError:
         logger.warning("aiortc 未安装，跳过 WebRTC 图传（pip install aiortc）")
         return None

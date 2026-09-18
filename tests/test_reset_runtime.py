@@ -6,7 +6,6 @@
 - 保留 .env / logs（含子目录中的同名文件）
 - 不误删已跟踪的源码文件
 """
-import os
 import shutil
 import subprocess
 import sys

@@ -6,7 +6,6 @@
 2. edge-tts 失败时明确记录 last_error 并转出/或记录，不再静默吞掉。
 """
 import sys
-import time
 import unittest
 from pathlib import Path
 
@@ -95,7 +94,6 @@ class TestPyttsxEngineInitValidation(unittest.TestCase):
     """CodeRabbit 回归：发布引擎前必须校验 volume/rate/voice 并捕获延迟失败。"""
 
     def _init_engine_with(self, fake_engine):
-        import importlib
 
         # 临时把 pyttsx3.init 指向构造假引擎，模拟后端
         mod = __import__("elderly_assistant.services.speech", fromlist=["speech"])

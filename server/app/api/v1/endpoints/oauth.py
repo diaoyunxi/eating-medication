@@ -15,7 +15,6 @@ authorization_code 换取 access_token，并借助 FastAPIOAuth20 回调依赖�
 import secrets
 import logging
 from typing import Any, Optional
-from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Depends, Request
@@ -35,7 +34,6 @@ from app.core.config import settings
 from app.core.security import (
     create_oauth_state_token,
     verify_oauth_state_token,
-    create_oauth_pending_token,
     create_access_token,
     decode_token,
 )

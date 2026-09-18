@@ -11,7 +11,7 @@ Base 上复现自愈逻辑，校验 _safe_add_column + 按列对齐的行为正�
 import unittest
 
 try:
-    import sqlalchemy
+    import sqlalchemy  # noqa: F401
     from sqlalchemy import create_engine, inspect, Column, Integer, Text, String
     from sqlalchemy.orm import declarative_base
     _HAS_SA = True

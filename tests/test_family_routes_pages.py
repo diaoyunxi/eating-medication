@@ -5,7 +5,6 @@
 并以 FakeClient / FakeApiRequest 替换模块级 elderly_client / user_api_request /
 require_login 等依赖，覆盖各分支。
 """
-import asyncio
 import importlib.util
 import unittest
 from pathlib import Path
