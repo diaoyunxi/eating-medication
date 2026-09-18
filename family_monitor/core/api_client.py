@@ -810,7 +810,6 @@ class ElderlyAPIClient(BaseServerClient):
                 calendar_data.append([date_str, count])
 
             # ---- 药品 × 星期 热力矩阵 ----
-            weekday_labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
             drug_names_list = [m['name'] for m in medications] if medications else []
             heat_matrix = []
             if drug_names_list:
