@@ -21,8 +21,9 @@ logger = logging.getLogger(__name__)
 
 _CODE_TTL = 300  # 验证码有效期（秒）
 _CODE_LEN = 6
+_MAX_ATTEMPTS = 5  # 最大尝试次数，超过后验证码失效（防暴力破解）
 
-# 进程内存存储：email(lower) -> (code, expire_ts)
+# 进程内存存储：email(lower) -> (code, expire_ts, attempts)
 _store = {}
 
 
@@ -41,7 +42,7 @@ def send_code(email):
         return False, "邮箱不能为空"
     email = email.strip().lower()
     code = _gen_code()
-    _store[email] = (code, time.time() + _CODE_TTL)
+    _store[email] = (code, time.time() + _CODE_TTL, 0)
     logger.info(f"[邮箱验证码] 已为 {email} 生成验证码（{_CODE_TTL}s 有效）")
 
     ok, err = _send_email(email, code)
@@ -53,6 +54,8 @@ def send_code(email):
 def verify_code(email, code):
     """校验验证码，校验成功后立即失效（一次性使用）。
 
+    防暴力破解：每个验证码最多允许 {_MAX_ATTEMPTS} 次尝试，超过后自动失效。
+
     :param email: 邮箱
     :param code: 待校验验证码
     :return: bool
@@ -63,11 +66,19 @@ def verify_code(email, code):
     item = _store.get(email)
     if not item:
         return False
-    stored_code, expire = item
+    stored_code, expire, attempts = item
     if time.time() > expire:
         _store.pop(email, None)
         return False
+    # 尝试次数超限，清除验证码并拒绝
+    if attempts >= _MAX_ATTEMPTS:
+        _store.pop(email, None)
+        logger.warning(f"[邮箱验证码] {email} 尝试次数超限（{_MAX_ATTEMPTS}次），验证码已失效")
+        return False
+    # 递增尝试次数并回写
+    attempts += 1
     if str(code).strip() != stored_code:
+        _store[email] = (stored_code, expire, attempts)
         return False
     _store.pop(email, None)  # 一次性使用
     return True
