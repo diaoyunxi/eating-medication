@@ -56,6 +56,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             dq = _store[ip][path]
             while dq and dq[0] <= now - window:
                 dq.popleft()
+            # 清理空 deque，防止 IP+路径组合积累导致内存泄漏
+            if not dq:
+                del _store[ip][path]
+                if not _store[ip]:
+                    del _store[ip]
             if len(dq) >= max_count:
                 return JSONResponse(
                     status_code=429,
