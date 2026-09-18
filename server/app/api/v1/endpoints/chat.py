@@ -100,15 +100,19 @@ async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Que
     if token:
         try:
             payload = decode_token(token)
-            sub = payload.get("sub")
-            if sub is not None:
-                # JWT sub 字段存储的是 user.id（数字字符串），
-                # 原代码用 User.username == sub 查询，导致所有 WebSocket 连接
-                # 认证失败返回 403。改为用 User.id == int(sub) 查询。
-                with SessionLocal() as db:
-                    user = db.query(User).filter(User.id == int(sub)).first()
-                    if user:
-                        authenticated_user_id = user.id
+            # 校验 token 类型：仅接受 access token，拒绝 mfa / oauth_state 等短期令牌
+            if payload.get("type") != "access":
+                authenticated_user_id = None
+            else:
+                sub = payload.get("sub")
+                if sub is not None:
+                    # JWT sub 字段存储的是 user.id（数字字符串），
+                    # 原代码用 User.username == sub 查询，导致所有 WebSocket 连接
+                    # 认证失败返回 403。改为用 User.id == int(sub) 查询。
+                    with SessionLocal() as db:
+                        user = db.query(User).filter(User.id == int(sub)).first()
+                        if user:
+                            authenticated_user_id = user.id
         except (ValueError, TypeError):
             # sub 不是有效的数字 ID
             authenticated_user_id = None
