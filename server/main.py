@@ -91,7 +91,7 @@ def check_and_install_dependencies():
 
     # 解析出全部需检测的 PyPI 包名
     pkg_names = []
-    with open(req_path, "r", encoding="utf-8-sig") as f:
+    with open(req_path, encoding="utf-8-sig") as f:
         for line in f:
             name = _clean_pkg_name(line)
             if name:

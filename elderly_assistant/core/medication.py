@@ -32,7 +32,7 @@ class MedicationManager:
         """加载药品数据，若文件不存在或损坏则返回空列表并修复文件"""
         try:
             if os.path.exists(self.data_path):
-                with open(self.data_path, 'r', encoding='utf-8') as f:
+                with open(self.data_path, encoding='utf-8') as f:
                     content = f.read().strip()
                     if content:
                         data = json.loads(content)

@@ -476,9 +476,9 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
          .replace("__CONFIG_TOKEN__", safe_config_token)
         return html_content
 
-    def log_message(self, format, *args):
+    def log_message(self, fmt, *args):  # noqa: A002 – overriding BaseHTTPRequestHandler
         """自定义日志格式"""
-        logger.info("HTTP %s - %s" % (self.address_string(), format % args))
+        logger.info("HTTP %s - %s" % (self.address_string(), fmt % args))
 
 
 class WiFiConfigServer:

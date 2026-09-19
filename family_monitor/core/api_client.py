@@ -344,7 +344,7 @@ class ElderlyAPIClient(BaseServerClient):
         device_file = config.DATA_DIR / "bound_device.json"
         if device_file.exists():
             try:
-                with open(device_file, 'r', encoding='utf-8') as f:
+                with open(device_file, encoding='utf-8') as f:
                     data = json.load(f)
                     return data.get('device_id')
             except Exception:
@@ -356,7 +356,7 @@ class ElderlyAPIClient(BaseServerClient):
         device_file = config.DATA_DIR / "bound_device.json"
         if device_file.exists():
             try:
-                with open(device_file, 'r', encoding='utf-8') as f:
+                with open(device_file, encoding='utf-8') as f:
                     data = json.load(f)
                     return data.get('device_token')
             except Exception:
@@ -389,7 +389,7 @@ class ElderlyAPIClient(BaseServerClient):
         device_file = config.DATA_DIR / "bound_device.json"
         if device_file.exists():
             try:
-                with open(device_file, 'r', encoding='utf-8') as f:
+                with open(device_file, encoding='utf-8') as f:
                     return json.load(f)
             except Exception:
                 pass
