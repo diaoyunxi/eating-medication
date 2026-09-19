@@ -159,7 +159,7 @@ async def path_prefix_middleware(request: Request, call_next):
     - 请求阶段：设置 scope["root_path"] = PATH_PREFIX，让 Starlette 自动处理前缀剥离
     - 响应阶段：给 3xx 重定向的 Location 头补回前缀
     本地直连（PATH_PREFIX 为空）时直接放行。
-    
+
     通过 root_path 告知 Starlette 存在路径前缀，由框架统一处理前缀剥离（而非手动修改 scope["path"]），确保 Mount 路由与 StaticFiles 拿到干净路径。
     Starlette 在 Mount 路由匹配时会正确处理前缀剥离，StaticFiles 拿到的路径就是干净的。
     """

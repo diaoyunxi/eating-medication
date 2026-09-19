@@ -36,8 +36,8 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 # 配置更详细的日志
 logging.basicConfig(
-    level=logging.INFO if not settings.DEBUG else logging.DEBUG,     
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",   
+    level=logging.INFO if not settings.DEBUG else logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
     ]
@@ -45,7 +45,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # 设置第三方库的日志级别
-logging.getLogger("uvicorn.access").setLevel(logging.WARNING)        
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.error").setLevel(logging.INFO)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
