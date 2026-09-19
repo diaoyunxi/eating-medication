@@ -29,7 +29,7 @@ class VisionService:
                 'client_id': settings.OCR_API_KEY,
                 'client_secret': settings.OCR_SECRET_KEY
             }
-            
+
             async with httpx.AsyncClient(timeout=10.0) as client:
                 token_resp = await client.get(token_url, params=token_params)
                 if token_resp.status_code != 200:
@@ -40,10 +40,10 @@ class VisionService:
 
                 ocr_url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic?access_token={access_token}"
                 image_base64 = base64.b64encode(image_data).decode('utf-8')
-                
+
                 headers = {'Content-Type': 'application/x-www-form-urlencoded'}
                 data = {'image': image_base64}
-                
+
                 ocr_resp = await client.post(ocr_url, headers=headers, data=data)
                 if ocr_resp.status_code == 200:
                     result = ocr_resp.json()
@@ -77,7 +77,7 @@ class VisionService:
     async def _extract_drug_name(text: str) -> str:
         """从识别的文本中提取药品名称"""
         import re
-        
+
         drug_keywords = [
             '片', '胶囊', '颗粒', '丸', '散', '膏', '贴', '气雾剂',
             'mg', 'g', 'ml', '毫克', '克', '毫升',
@@ -85,7 +85,7 @@ class VisionService:
             '阿司匹林', '布洛芬', '对乙酰氨基酚', '阿莫西林', '头孢',
             '维生素', '钙片', '降压', '降糖', '感冒', '消炎'
         ]
-        
+
         lines = text.split('\n')
         for line in lines:
             line = line.strip()
@@ -94,7 +94,7 @@ class VisionService:
             for keyword in drug_keywords:
                 if keyword in line:
                     return line
-        
+
         return lines[0] if lines else '识别失败'
 
     @staticmethod
