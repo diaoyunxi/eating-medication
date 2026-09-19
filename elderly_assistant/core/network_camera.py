@@ -101,7 +101,8 @@ def discover_huskylens_on_network(subnet: str = "192.168.1", timeout: float = 3.
                     if resp.status_code in (200, 301, 302):
                         logger.info("发现可能的二哈设备: %s:%d", ip, port)
                         return ip
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"设备探测失败 ({ip}:{port}): {e}")
                     continue
     logger.warning("未在网络中检测到二哈设备")
     return None

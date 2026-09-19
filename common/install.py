@@ -653,7 +653,8 @@ def _get_site_packages_dir():
         try:
             os.makedirs(d, exist_ok=True)
             return d
-        except Exception:
+        except Exception as e:
+            logger.debug(f"路径检查失败: {e}")
             continue
     return None
 
