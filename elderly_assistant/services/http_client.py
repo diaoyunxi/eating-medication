@@ -176,6 +176,8 @@ class HTTPClient:
         对瞬时网络错误（连接被重置/对端断开/超时等）做指数退避重试，
         缓解 #38「偶发服务端连接失败」：网络本身正常时，单次抖动不应被判定为断线。
         """
+        # S113: 确保所有请求都有超时，防止无限阻塞
+        kwargs.setdefault("timeout", (_CONNECT_TIMEOUT, _READ_TIMEOUT))
         req_headers = kwargs.get("headers") or {}
         safe_headers = self._mask_headers(req_headers)
         safe_body = self._redact_body(kwargs.get("json"))
