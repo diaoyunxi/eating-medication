@@ -526,9 +526,9 @@ class DeviceService:
                 db.query(MedicationRecord)
                 .filter(
                     MedicationRecord.user_id == owner_id,
-                    MedicationRecord.taken_time != None,
+                    MedicationRecord.taken_time.isnot(None),
                     MedicationRecord.taken_time >= cutoff,
-                    MedicationRecord.photo == None,
+                    MedicationRecord.photo.is_(None),
                 )
                 .order_by(MedicationRecord.taken_time.desc())
                 .first()
