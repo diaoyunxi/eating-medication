@@ -104,7 +104,8 @@ def verify_backup_code(hashed_json: str, code: str) -> bool:
         try:
             if bcrypt.checkpw(code.encode("utf-8"), h.encode("utf-8")):
                 return True
-        except Exception:
+        except Exception as e:
+            logger.debug(f"MFA 验证条目处理失败: {e}")
             continue
     return False
 
