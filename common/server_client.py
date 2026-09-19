@@ -190,8 +190,9 @@ class BaseServerClient:
                     continue
                 break
         # 重试耗尽仍未成功，抛出最后一次异常
-        assert last_exc is not None
-        raise last_exc
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("重试耗尽但未捕获异常")
 
     async def check_connection(self, health_path: str = "/health") -> bool:
         """检查服务端连通性（默认请求 /health）。"""
