@@ -536,7 +536,7 @@ def install_requirements(requirements_path):
     print("=" * 50)
     packages = []
     # utf-8-sig: 兼容 Windows 记事本等写入的带 BOM 文件, 避免首包名混入 \ufeff
-    with open(req_path, "r", encoding="utf-8-sig") as f:
+    with open(req_path, encoding="utf-8-sig") as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith("#"):
@@ -599,7 +599,7 @@ def _is_valid_huskylens_file(path):
     try:
         if not os.path.isfile(path):
             return False
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(path, encoding="utf-8", errors="ignore") as f:
             text = f.read()
     except Exception:
         return False

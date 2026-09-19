@@ -44,7 +44,7 @@ def load_schedules(path=None):
         try:
             if not os.path.exists(path):
                 return []
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
         except Exception as e:
             logger.warning(f"读取本地用药计划缓存失败: {e}")

@@ -55,7 +55,7 @@ def _load_device_token():
     """从本地文件加载设备令牌"""
     try:
         if os.path.exists(_TOKEN_FILE):
-            with open(_TOKEN_FILE, 'r') as f:
+            with open(_TOKEN_FILE) as f:
                 token = f.read().strip()
                 if token:
                     return token

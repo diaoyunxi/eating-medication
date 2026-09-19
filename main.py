@@ -71,7 +71,7 @@ def _read_os_release():
     try:
         if not path.is_file():
             return info
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(path, encoding="utf-8", errors="ignore") as f:
             for line in f:
                 line = line.strip()
                 # 跳过空行与注释行，避免把 `# comment` 误解析成键值对
