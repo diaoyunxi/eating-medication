@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """子女看护Web端 - 主程序
 
 本地以纯 HTTP 监听，对外访问方式（公网域名与 HTTPS）由 setup.sh / setup.ps1 统一配置。

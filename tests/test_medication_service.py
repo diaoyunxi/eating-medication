@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """app.services.medication_service 单元测试（需要 sqlalchemy / pydantic-settings）。
 
 take_medication 为 async，但底层使用同步 Session，故以 MagicMock 模拟 db 即可，

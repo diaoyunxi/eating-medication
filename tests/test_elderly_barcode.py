@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """老人端药品扫码与离线回退纯逻辑测试（无硬件/网络依赖，使用 Fake 替身）。"""
 import json
 import os

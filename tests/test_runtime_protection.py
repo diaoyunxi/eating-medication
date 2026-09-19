@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """common.runtime_protection 单一事实来源的回归测试。
 
 验证两组判定：

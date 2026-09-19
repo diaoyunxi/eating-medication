@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """server/app/schemas/medication.py 单元测试。
 
 覆盖 MedicationPlanCreate 的库存/时间格式校验规则。
