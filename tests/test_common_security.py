@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """common.security 纯函数测试（密码哈希/JWT/设备ID脱敏）。"""
 import unittest
 from datetime import timedelta

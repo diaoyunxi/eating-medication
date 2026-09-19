@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import logging
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse

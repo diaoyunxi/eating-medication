@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """新增 Gitee OAuth 绑定字段与邮箱字段
 
 Revision ID: 20260723_001

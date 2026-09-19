@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """模式自愈 sync_schema_with_models 单元测试。
 
 复现生产故障：alembic_version 已 stamp 到 head，但 users 表实际缺列

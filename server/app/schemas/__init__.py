@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from app.schemas.user import UserOut, UserUpdate
 from app.schemas.auth import RegisterReq, LoginReq, TokenResp
 from app.schemas.medication import MedicationPlanCreate, MedicationPlanOut, TakeMedicationRequest, MedicationRecordOut

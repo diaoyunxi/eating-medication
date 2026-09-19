@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """跨端共享：扁平 .env 文件的读取与就地更新（保留注释与其它字段）。
 
 避免三端各自手写一遍 key=value 解析逻辑（common/install.py / updater.py /

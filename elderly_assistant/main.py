@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 老人端主程序（行空板 M10）
 - 使用 pinpong 库控制硬件（蜂鸣器、光线传感器、LED 指示灯）
