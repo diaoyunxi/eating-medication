@@ -318,6 +318,7 @@ def _install_pip_windows():
     print("  [Windows] 下载 get-pip.py 引导安装 ...")
     print("    URL:", GET_PIP_URL)
     try:
+        _validate_download_url(GET_PIP_URL)
         with urllib.request.urlopen(GET_PIP_URL, timeout=120) as resp:
             data = resp.read()
     except Exception as e:
@@ -614,6 +615,7 @@ def _download_huskylens(target_path):
     url = _huskylens_download_url()
     print("    下载地址:", url)
     try:
+        _validate_download_url(url)
         with urllib.request.urlopen(url, timeout=120) as resp:
             data = resp.read()
     except Exception as e:
