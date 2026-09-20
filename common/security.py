@@ -91,7 +91,4 @@ def decode_token(token: str, secret_key: str, algorithm: str = "HS256") -> Dict[
     from jose import jwt
     from jose.exceptions import JWTError as _JWTError
 
-    try:
-        return jwt.decode(token, secret_key, algorithms=[algorithm])
-    except _JWTError:
-        raise
+    return jwt.decode(token, secret_key, algorithms=[algorithm])
