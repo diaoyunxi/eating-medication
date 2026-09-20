@@ -146,7 +146,7 @@
 | 22 | HTTP GET        | `api.github.com/.../releases/latest`      | 启动时自动更新检查（含 Release Attestation 校验）         | 启动时                                                       |
 | 23 | 内部调度        | APScheduler`AsyncIOScheduler`             | 库存不足检查，向家庭组广播`low_stock`          | 每天 02:00 自动执行                                          |
 
-#### 子女端 → 服务端（HTTP，由 BFF 后端 `core/api_client.py` 发起）
+#### 子女端 → 服务端（HTTP，由 BFF 后端 `family_monitor/core/api_client.py` 发起）
 
 | #  | 方法   | 路径（相对`ELDERLY_SERVER_URL`）                  | 用途               | 触发时机                                    |
 | -- | ------ | --------------------------------------------------- | ------------------ | ------------------------------------------- |
@@ -192,7 +192,7 @@
 ├── elderly_assistant/             # 老人端
 │   ├── main.py                    # 程序入口（行空板 M10 GUI 主流程）
 │   ├── updater.py                 # 自动更新检查模块
-│   ├── install.py                 # 依赖自动安装
+│   ├── install.py                 # 依赖自动安装（实际位置：common/install.py）
 │   ├── .env.example                # 配置文件示例（扁平 .env）
 │   ├── requirements.txt           # 依赖清单
 │   ├── core/                      # 核心业务逻辑
@@ -223,7 +223,7 @@
 ├── server/                        # 服务端
 │   ├── main.py                    # 启动脚本（uvicorn:1059）
 │   ├── updater.py                 # 自动更新检查（含 Release Attestation 校验）
-│   ├── install.py                 # 依赖自动安装
+│   ├── install.py                 # 依赖自动安装（实际位置：common/install.py）
 │   ├── requirements.txt           # 运行依赖
 │   ├── requirements-dev.txt       # 测试依赖
 │   ├── app/                       # FastAPI 应用
@@ -242,12 +242,12 @@
 ├── family_monitor/                # 家属看护端
 │   ├── main.py                    # FastAPI 应用 + 中间件链（JWT 转发验证 + Turnstile）
 │   ├── updater.py                 # 自动更新检查
-│   ├── install.py                 # 依赖自动安装
+│   ├── install.py                 # 依赖自动安装（实际位置：common/install.py）
 │   ├── .env                        # 配置文件（单一 .env 源，已忽略）
 │   ├── requirements.txt
 │   ├── core/                      # 配置 / BFF 客户端 / 遗留模块
 │   │   ├── api_client.py          # 调用老人端服务端的 BFF 客户端
-│   │   ├── config.py              # 配置加载（含 Turnstile Site Key）
+│   │   ├── config.py              # 配置加载（实际位置：core/config.py）（含 Turnstile Site Key）
 │   │   ├── auth.py                # （遗留）本地用户管理，已改用 server JWT 认证
 │   │   └── session.py             # （遗留）会话管理，已改用 JWT HttpOnly Cookie
 │   ├── routes/                    # 路由（home/auth/chat）
@@ -582,8 +582,8 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 
 - **TOTP**：基于时间的一次性密码（`pyotp`），绑定二维码以 SVG 渲染（`qrcode`，无需 Pillow）。
 - **WebAuthn / Passkey**：基于 `webauthn` 库的生物识别 / 硬件密钥登记与断言校验。
-- **登录限流与弱密钥防护**：生产环境弱 `SECRET_KEY` 拒绝启动（`config.py` 维护 `_WEAK_SECRET_KEYS` 黑名单）；JWT 解码固定算法白名单，防 `alg=none` 降级。
-- **设备令牌时序安全比较**：`device_service.py` 使用 `secrets.compare_digest` 比较设备令牌，防时序侧信道。
+- **登录限流与弱密钥防护**：生产环境弱 `SECRET_KEY` 拒绝启动（`server/app/core/config.py` 维护 `_WEAK_SECRET_KEYS` 黑名单）；JWT 解码固定算法白名单，防 `alg=none` 降级。
+- **设备令牌时序安全比较**：`server/app/services/device_service.py` 使用 `secrets.compare_digest` 比较设备令牌，防时序侧信道。
 
 > 家庭成员（family 角色）可在账户设置中绑定 TOTP 与 Passkey；老人端（elderly）由家属代为管理。
 
