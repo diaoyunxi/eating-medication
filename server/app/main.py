@@ -319,7 +319,7 @@ if __name__ == "__main__":
     logger.info("="*60)
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
+        host=settings.SERVER_HOST,
         port=8000,
         reload=settings.DEBUG,
         log_level="info",

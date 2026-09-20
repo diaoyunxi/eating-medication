@@ -39,7 +39,7 @@ class Config:
         load_dotenv(self.env_path)
 
         # ===== 服务监听 =====
-        self.SERVER_HOST = os.getenv('SERVER_HOST', '0.0.0.0')
+        self.SERVER_HOST = os.getenv('SERVER_HOST', '127.0.0.1')
         self.SERVER_PORT = int(os.getenv('SERVER_PORT', '4430'))
 
         # 老人端（服务端）地址，默认走 Cloudflare 隧道公网域名
@@ -125,7 +125,7 @@ class Config:
             f"# 自动生成的环境配置文件（首次运行，已包含全部可配置字段）\n"
             f"# 生产部署时请将 DEBUG 改为 false，COOKIE_SECURE 改为 true\n\n"
             f"# ===== 服务监听 =====\n"
-            f"SERVER_HOST=0.0.0.0\n"
+            f"SERVER_HOST=127.0.0.1\n"
             f"SERVER_PORT=4430\n\n"
             f"# ===== 老人端（服务端）地址 =====\n"
             f"# 服务端 API 基址，默认走 Cloudflare 隧道公网域名\n"
