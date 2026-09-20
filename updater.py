@@ -59,7 +59,7 @@ def _load_version():
             ver = version_file.read_text(encoding="utf-8").strip()
             if ver:
                 return ver
-    except Exception:
+    except (OSError, subprocess.SubprocessError, ValueError, RuntimeError):  # noqa: BLE001
         pass
     return "0.0.0"
 
@@ -119,7 +119,7 @@ def _ensure_env_template():
         from common.envfile import ensure_env_template
         if ensure_env_template(_CONFIG_PATH, _ENV_DEFAULT_CONTENT):
             logger.info(f"[更新检查] 已生成配置模板: {_CONFIG_PATH}（默认 AUTO_PULL=true，可手动编辑）")
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
         logger.warning(f"[更新检查] 生成 .env 模板失败: {e}")
 
 
@@ -290,7 +290,7 @@ def _fetch_latest_version():
     try:
         data = _fetch_latest_release()
         return data.get("tag_name"), data.get("html_url"), data
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
         logger.warning(f"获取 Release 失败: {e}")
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/tags"
@@ -298,7 +298,7 @@ def _fetch_latest_version():
         if data:
             tag = data[0].get("name")
             return tag, f"https://github.com/{GITHUB_REPO}/releases/tag/{tag}", None
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
         logger.warning(f"获取 Tags 失败: {e}")
     return None, None, None
 
@@ -333,7 +333,7 @@ def _download_file(url, target_path):
                         break
                     f.write(chunk)
         return True
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
         logger.warning(f"[更新检查] 下载文件失败: {e}")
         if os.path.exists(target_path):
             os.remove(target_path)
@@ -357,7 +357,7 @@ def _verify_release_attestation(file_path, repo="diaoyunxi/eating-medication"):
         else:
             logger.warning(f"[更新检查] Release Attestation 验证失败: {proc.stderr}")
             return False
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
         logger.warning(f"[更新检查] Attestation 验证异常: {e}")
         return False
 
@@ -399,7 +399,7 @@ def _copy_file_safe(src: Path, dst: Path):
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
         return True
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
         logger.warning(f"[更新检查] 复制文件失败 {src} -> {dst}: {e}")
         return False
 
@@ -427,7 +427,7 @@ def _purge_pycache(project_dir: Path):
         try:
             shutil.rmtree(cache_dir, ignore_errors=True)
             purged += 1
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
             logger.debug(f"[更新检查] 清除 __pycache__ 失败 {cache_dir}: {e}")
     if purged:
         logger.info(f"[更新检查] 已清除 {purged} 个 __pycache__ 目录")
@@ -523,7 +523,7 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
         logger.info("[更新] 完成，已清理备份")
         return True, updated_count, skipped_count
 
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
         logger.error(f"[更新] 失败，回滚: {e}")
         # 原子回滚：先重命名当前目录，再移入备份；避免「已删除但未恢复」的中间态
         # 若备份移入失败则尝试还原旧目录，保证项目目录始终存在可用版本。
@@ -531,7 +531,7 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
         shutil.move(str(project_dir), _old_dir)
         try:
             shutil.move(str(backup_dir), str(project_dir))
-        except Exception:
+        except (OSError, subprocess.SubprocessError, ValueError, RuntimeError):  # noqa: BLE001
             shutil.move(_old_dir, str(project_dir))
             raise
         shutil.rmtree(_old_dir, ignore_errors=True)
@@ -540,7 +540,7 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
         # 清理临时目录
         try:
             shutil.rmtree(tmp_dir, ignore_errors=True)
-        except Exception:
+        except (OSError, subprocess.SubprocessError, ValueError, RuntimeError):  # noqa: BLE001
             pass
 
 
@@ -586,7 +586,7 @@ def _restart_services():
     except subprocess.TimeoutExpired:
         logger.warning("[更新] 重启服务命令超时")
         return False
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
         logger.warning(f"[更新] 重启服务异常: {e}")
         return False
 
@@ -635,7 +635,7 @@ def _run_post_update_cmd():
             logger.info("[更新] POST_UPDATE_CMD 执行完成")
     except subprocess.TimeoutExpired:
         logger.warning("[更新] POST_UPDATE_CMD 执行超时（300s），已中止")
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
         logger.warning(f"[更新] POST_UPDATE_CMD 执行异常: {e}")
 
 
@@ -668,7 +668,7 @@ def get_update_info():
         info["release_url"] = release_url
         if latest and _compare_versions(latest, current_ver) > 0:
             info["update_available"] = True
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
         logger.warning(f"[更新检查] 查询更新信息失败: {e}")
     return info
 
@@ -730,10 +730,10 @@ def _delete_path(path: Path, deleted: list, skipped: list):
                 if not any(path.iterdir()):
                     path.rmdir()
                     deleted.append(str(path))
-            except Exception:
+            except (OSError, subprocess.SubprocessError, ValueError, RuntimeError):  # noqa: BLE001
                 pass
             return
-    except Exception as e:  # 权限等问题不阻断其它项
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001  # 权限等问题不阻断其它项
         skipped.append(f"{path} ({e})")
 
 
@@ -747,7 +747,7 @@ def _reset_via_git(repo_root: Path, deleted: list, skipped: list) -> bool:
             text=True,
             timeout=60,
         )
-    except Exception:
+    except (OSError, subprocess.SubprocessError, ValueError, RuntimeError):  # noqa: BLE001
         return False
     if out.returncode != 0:
         return False
@@ -927,7 +927,7 @@ def _load_gitignore_patterns():
             if not line or line.startswith("#"):
                 continue
             patterns.append(line)
-    except Exception:
+    except (OSError, subprocess.SubprocessError, ValueError, RuntimeError):  # noqa: BLE001
         pass
     return patterns
 
@@ -1009,7 +1009,7 @@ def force_update():
         else:
             logger.error("[强制更新] 失败，请手动更新")
         return info
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
         logger.warning(f"[强制更新] 失败: {e}")
         info["error"] = str(e)
         return info
@@ -1116,10 +1116,10 @@ def check_for_update(auto_pull=None):
             # 清理临时 zip
             try:
                 shutil.rmtree(tmp_zip_dir, ignore_errors=True)
-            except Exception:
+            except (OSError, subprocess.SubprocessError, ValueError, RuntimeError):  # noqa: BLE001
                 pass
 
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, urllib.error.URLError, RuntimeError) as e:  # noqa: BLE001
         logger.warning(f"[更新检查] 检查更新失败: {e}")
         info["error"] = str(e)
     return info
