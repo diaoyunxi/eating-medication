@@ -273,8 +273,7 @@ def _pip_version_string():
         if result.returncode == 0:
             return (result.stdout or "").strip()
     except Exception:
-        pass
-    return ""
+        return ""
 
 
 def _install_pip_linux():
@@ -346,10 +345,8 @@ def _install_pip_windows():
         return False
     finally:
         if tmp_path:
-            try:
+            with contextlib.suppress(Exception):
                 os.unlink(tmp_path)
-            except Exception:
-                pass
     return _check_pip_available()
 
 
@@ -637,16 +634,12 @@ def _get_site_packages_dir():
     """返回当前环境可用的 site-packages 目录, 优先用户级, 回退系统级"""
     import site
     candidates = []
-    try:
+    with contextlib.suppress(Exception):
         user_site = site.getusersitepackages()
         if user_site:
             candidates.append(user_site)
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         candidates.extend(site.getsitepackages() or [])
-    except Exception:
-        pass
     for d in candidates:
         if not d:
             continue
