@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import bcrypt
-from jose import jwt
-from jose.exceptions import JWTError
+import jwt  # PyJWT (替代已停止维护的 python-jose, 修复 CVE)
+from jwt.exceptions import PyJWTError as JWTError
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 import secrets

@@ -4,7 +4,7 @@
 设计要点：
 - 不引入额外的密钥管理，直接复用服务端已有的 SECRET_KEY 派生出 Fernet 密钥，
   保证重启后密文可解密、且不与代码/配置一起明文泄露。
-- 依赖 cryptography 库（已由 python-jose[cryptography] 间接安装，requirements 显式声明）。
+- 依赖 cryptography 库（已由 PyJWT 间接安装，requirements 显式声明）。
 - 加解密函数内部惰性导入 cryptography，避免该库缺失时导致模块级 import 失败。
 """
 import base64

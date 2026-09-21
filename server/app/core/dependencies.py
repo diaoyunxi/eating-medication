@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from jose import JWTError
+from jwt.exceptions import PyJWTError as JWTError
 from app.core.database import SessionLocal
 from app.core.security import decode_token
 from app.models.user import User
