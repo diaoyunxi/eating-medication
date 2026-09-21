@@ -818,9 +818,9 @@ def _print_diagnostics(repo_root: Path, deleted: list, skipped: list):
         version = version_file.read_text(encoding="utf-8").strip()
         print(f"\n[1] 当前版本: {version}")
     else:
-        print(f"\n[1] ✗ VERSION 文件不存在!")
+        print("\n[1] ✗ VERSION 文件不存在!")
 
-    print(f"\n[2] 关键路由文件检查:")
+    print("\n[2] 关键路由文件检查:")
     all_ok = True
     for rel_path, required_imports in _CRITICAL_FILES.items():
         fpath = repo_root / rel_path
@@ -855,20 +855,20 @@ def _print_diagnostics(repo_root: Path, deleted: list, skipped: list):
         if "__pycache__" not in str(pyc):
             remaining_pyc.append(str(pyc))
 
-    print(f"\n[3] __pycache__ 清理状态:")
+    print("\n[3] __pycache__ 清理状态:")
     if not remaining_caches and not remaining_pyc:
         print("  ✓ 已全部清除，无残留缓存")
     else:
         print(f"  ✗ 仍有 {len(remaining_caches)} 个 __pycache__ 目录残留")
         print(f"  ✗ 仍有 {len(remaining_pyc)} 个 .pyc 文件残留")
         if remaining_caches:
-            print(f"    残留目录示例:")
+            print("    残留目录示例:")
             for c in remaining_caches[:5]:
                 print(f"      - {c}")
             print(f"  ⚠ 请手动执行: find {repo_root} -type d -name __pycache__ "
                   f"-not -path '*/.venv/*' -not -path '*/venv/*' -exec rm -rf {{}} +")
 
-    print(f"\n[4] .env 保留状态:")
+    print("\n[4] .env 保留状态:")
     env_files = list(repo_root.rglob(".env"))
     if not env_files:
         print("  ⚠ 未找到任何 .env 文件（首次运行时将由程序自动生成）")
@@ -880,15 +880,15 @@ def _print_diagnostics(repo_root: Path, deleted: list, skipped: list):
                 rel = ef
             print(f"  ✓ {rel} 已保留")
 
-    print(f"\n[5] 重置统计:")
+    print("\n[5] 重置统计:")
     print(f"  已删除: {len(deleted)} 项")
     print(f"  跳过: {len(skipped)} 项")
     if skipped:
-        print(f"  跳过详情（前 5 项）:")
+        print("  跳过详情（前 5 项）:")
         for s in skipped[:5]:
             print(f"    - {s}")
 
-    print(f"\n[6] 结论:")
+    print("\n[6] 结论:")
     issues = []
     if not all_ok:
         issues.append("关键路由文件导入不完整（可能导致 500 错误）")
@@ -1041,7 +1041,7 @@ def check_for_update(auto_pull=None):
     current_ver = info["current_version"]
     try:
         if not latest:
-            logger.warning(f"[更新检查] 无法获取最新版本（网络或 GitHub 异常），跳过检查")
+            logger.warning("[更新检查] 无法获取最新版本（网络或 GitHub 异常），跳过检查")
             return info
 
         if _compare_versions(latest, current_ver) <= 0:
