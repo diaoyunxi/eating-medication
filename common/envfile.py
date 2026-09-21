@@ -6,8 +6,11 @@ family_monitor/core/config.py / elderly_assistant/utils/config_loader.py 均有�
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Dict, Union
+
+_logger = logging.getLogger(__name__)
 
 PathLike = Union[str, Path]
 
@@ -32,8 +35,8 @@ def read_env_dict(path: PathLike) -> Dict[str, str]:
                 # 跳过形如 "=value"（无键）的非法行，避免产生空键
                 continue
             data[k] = v.strip()
-    except Exception:
-        pass
+    except (OSError, PermissionError) as e:
+        _logger.warning("读取 .env 文件失败 %s: %s", path, e)
     return data
 
 
@@ -66,8 +69,8 @@ def write_env_text(path: PathLike, content: str) -> None:
     p.write_text(content, encoding="utf-8")
     try:
         p.chmod(0o600)
-    except Exception:
-        pass
+    except OSError as e:
+        _logger.debug("chmod 0o600 failed for %s (expected on Windows): %s", path, e)
 
 
 def ensure_env_fields(path: PathLike, defaults: Dict[str, str]) -> bool:
@@ -94,7 +97,8 @@ def ensure_env_fields(path: PathLike, defaults: Dict[str, str]) -> bool:
             for k, v in missing.items():
                 f.write(f"{k}={v}\n")
         return True
-    except Exception:
+    except (OSError, PermissionError) as e:
+        _logger.warning("自动补全 .env 字段失败 %s: %s", path, e)
         return False
 
 
