@@ -27,10 +27,15 @@ I2C/UART 总线保留用途：
 """
 
 import io
+import asyncio
 import logging
+import asyncio
 import socket
+import asyncio
 import threading
+import asyncio
 import time
+import asyncio
 from typing import Optional
 
 logger = logging.getLogger("ElderlyAssistant")
@@ -436,7 +441,7 @@ def _get_webrtc_frame(cfg: dict) -> Optional[bytes]:
             # 发送 offer 到信令接口（HTTP POST）
             import requests
             try:
-                resp = requests.post(
+                resp = await asyncio.to_thread(requests.post,
                     f"http://{ip}:{http_port}{offer_path}",
                     json={"sdp": offer.sdp},
                     timeout=cfg["request_timeout"],
