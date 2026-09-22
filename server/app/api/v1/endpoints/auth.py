@@ -10,7 +10,7 @@ from app.schemas.auth import (
     BindPhoneReq, BindEmailReq, BindEmailSendCodeReq,
 )
 from app.services.auth_service import AuthService
-from app.core.dependencies import get_current_user, get_current_user_optional, get_db
+from app.core.dependencies import get_current_user, get_current_user_optional
 from app.models.user import User
 from app.utils.rate_limit import check_rate_limit
 from app.utils.request_utils import get_client_ip

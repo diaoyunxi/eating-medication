@@ -14,15 +14,13 @@ from typing import Optional
 
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.core.crypto import encrypt_text, decrypt_text
-from app.models.user import User
+from app.core.crypto import encrypt_text
 from app.services.device_service import DeviceService
 from app.models.user_ai_config import UserAIConfig
 from app.schemas.ai import UserAIConfigIn, UserAIConfigOut, AIProviderPreset
 from app.services.ai_service import (
     SUPPORTED_PROVIDERS,
     PROVIDER_DEFAULT_MODELS,
-    PROVIDER_BASE_URLS,
 )
 import logging
 
@@ -44,8 +42,6 @@ _PROVIDER_META = {
 
 # 需要用户显式填写 base_url 的厂商（custom 必填；火山方舟需推理接入点专属网关）
 _REQUIRE_BASE_URL = {"custom", "doubao"}
-
-
 def _resolve_target_user(
     db: Session, current_user: User, device_id: Optional[str], user_id: Optional[int]
 ) -> User:
@@ -71,8 +67,6 @@ def _resolve_target_user(
     if user.group_id and user.group_id == current_user.group_id:
         return user
     raise HTTPException(status_code=403, detail="无权配置该用户的 AI 设置")
-
-
 def _to_out(row: Optional[UserAIConfig]) -> UserAIConfigOut:
     """将数据库行转为对外响应（不回传明文 api_key）"""
     if not row:
@@ -86,8 +80,6 @@ def _to_out(row: Optional[UserAIConfig]) -> UserAIConfigOut:
         enabled=bool(row.enabled),
         has_api_key=bool(row.api_key),
     )
-
-
 @router.get("/user/ai-config", response_model=UserAIConfigOut)
 async def get_ai_config(
     current_user: User = Depends(get_current_user),
@@ -99,8 +91,6 @@ async def get_ai_config(
     target = _resolve_target_user(db, current_user, device_id, user_id)
     row = db.query(UserAIConfig).filter(UserAIConfig.user_id == target.id).first()
     return _to_out(row)
-
-
 @router.put("/user/ai-config", response_model=UserAIConfigOut)
 async def upsert_ai_config(
     payload: UserAIConfigIn,
@@ -162,8 +152,6 @@ async def upsert_ai_config(
     db.refresh(row)
     logger.info(f"✅ 已保存用户 {target.id} 的 AI 配置: provider={provider}, model={model}")
     return _to_out(row)
-
-
 @router.get("/providers", response_model=list[AIProviderPreset])
 async def list_providers(current_user: User = Depends(get_current_user)):
     """公开：返回前端下拉所需的厂商预设列表"""
