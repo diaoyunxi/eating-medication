@@ -14,15 +14,13 @@ from typing import Optional
 
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.core.crypto import encrypt_text, decrypt_text
-from app.models.user import User
+from app.core.crypto import encrypt_text
 from app.services.device_service import DeviceService
 from app.models.user_ai_config import UserAIConfig
 from app.schemas.ai import UserAIConfigIn, UserAIConfigOut, AIProviderPreset
 from app.services.ai_service import (
     SUPPORTED_PROVIDERS,
     PROVIDER_DEFAULT_MODELS,
-    PROVIDER_BASE_URLS,
 )
 import logging
 
