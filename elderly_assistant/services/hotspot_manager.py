@@ -55,9 +55,11 @@ class HotspotManager:
 
             if result.returncode == 0:
                 self.is_running = True
-                # 密码脱敏，日志不记录明文密码，仅终端 print 便于用户连接
                 logger.info(f"热点已创建: {self.ssid} (WPA2加密)")
-                print(f"[热点] SSID: {self.ssid}  密码: {self.password}")
+                # 密码脱敏：仅显示前2位和后2位，防止进程列表或日志泄露明文密码
+                masked = self.password[:2] + "***" + self.password[-2:] if len(self.password) > 4 else "***"
+                logger.info(f"热点凭据: SSID={self.ssid}, 密码={masked}（完整密码仅启动时终端显示一次）")
+                print(f"[热点] SSID: {self.ssid}  密码: {self.password}  ⚠️ 请记录后此输出将不再显示")
                 logger.info(
                     f"用户连接后可访问 http://{self.ip}:{self.web_port} 进行配网"
                 )
