@@ -498,8 +498,10 @@ class WiFiConfigServer:
             # 生成随机配网 token，所有 POST 请求需携带 X-Config-Token 校验
             self.config_token = secrets.token_urlsafe(16)
             WiFiConfigHandler.config_token = self.config_token
-            logger.info(f"配网服务 Token: {self.config_token}")
-            print(f"[配网] X-Config-Token: {self.config_token}")
+            # Token 仅通过 print 输出到终端一次供用户记录，logger 降级为 debug 并脱敏
+            masked_token = self.config_token[:4] + "***" + self.config_token[-4:]
+            logger.debug(f"配网服务 Token(脱敏): {masked_token}")
+            print(f"[配网] X-Config-Token: {self.config_token}  ⚠️ 请记录后此输出将不再显示")
 
             # 绑定热点接口 IP 10.0.0.1，避免暴露到所有网卡（0.0.0.0）
             server_address = ('10.0.0.1', self.port)
