@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """药品条码识别（一维条码）。
 
 提供两条互补的扫码通路，运行时按配置自动选择：
@@ -193,8 +192,9 @@ class UsbCameraScanner:
             # 打开失败必须释放句柄，避免设备被占用无法重试
             try:
                 cap.release()
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
             raise RuntimeError(f"USB 摄像头(index={self.index}) 打开失败")
         self._cap = cap
         self._decode = zbar_decode
@@ -216,8 +216,9 @@ class UsbCameraScanner:
         if self._cap is not None:
             try:
                 self._cap.release()
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
         self._cap = None
         self._decode = None
 
@@ -305,6 +306,7 @@ class BarcodeScanner:
         for backend in self._backends or []:
             try:
                 backend.close()
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
         self._backends = None

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """family_monitor 用药计划校验纯逻辑测试（无 IO 依赖）。"""
 import sys
 import unittest

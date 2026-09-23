@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 通用安全工具：密码哈希、JWT 令牌、设备 ID 脱敏。
 与 server/app/core/security.py 对外接口兼容，但配置通过参数（而非模块级 import）注入。

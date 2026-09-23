@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """用药确认/AI问答/拍照上传等工作流动作（纯逻辑，硬件以参数注入）。"""
 import logging
 from typing import List
@@ -56,8 +55,9 @@ def _ask_ai_and_speak(reminder_state, http_client, speech, logger, config):
         if speech is not None:
             try:
                 speech.speak(answer)
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
     except Exception as e:
         logger.error(f"AI 问答异常: {e}")
 
@@ -111,8 +111,9 @@ def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=
                 if speech is not None and reason:
                     try:
                         speech.speak(reason)
-                    except Exception:
-                        pass
+                    except Exception as e:
+
+                        logger.warning(f"Error: {e}")
                 # 不确认、不拍照，避免误拍/误报
                 return
         drug = reminder_state.drug_name
@@ -131,14 +132,16 @@ def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=
         # 播放成功提示音
         try:
             buzzer.play_success()
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")
         # 语音播报确认（TTS，缺失时静默降级）
         if speech:
             try:
                 speech.speak(f"已记录，{drug}")
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
         # 拍照上传服药照片（HuskyLens，无摄像头时静默降级，异步不阻塞主循环）
         if config is not None and http_client is not None:
             try:
@@ -146,8 +149,9 @@ def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=
                 _th.Thread(
                     target=_capture_and_upload, args=(config, http_client, logger, reminder_state), daemon=True
                 ).start()
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
     except Exception as e:
         logger.error(f"处理确认服药异常: {e}")
 

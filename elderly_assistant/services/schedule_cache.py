@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """用药计划本地缓存（离线回退）。
 
 老人端优先从服务器拉取用药计划；网络不可用时回退读取本地缓存，保证断网
@@ -91,5 +90,6 @@ def save_schedules(schedules, path=None):
             if tmp_path and os.path.exists(tmp_path):
                 try:
                     os.remove(tmp_path)
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.warning(f"Error: {e}")

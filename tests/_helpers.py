@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 测试辅助工具：按文件路径加载模块（规避 elderly_assistant 与 family_monitor
 同名顶层包 `core`/`utils`/`services` 的导入冲突）。

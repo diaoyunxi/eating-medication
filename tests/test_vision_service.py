@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """app.services.vision_service 单元测试（需要 pydantic-settings / httpx）。
 
 仅测试纯静态方法 _extract_drug_name（从模型/ OCR 文本中抽取药名），无需真实模型或网络。

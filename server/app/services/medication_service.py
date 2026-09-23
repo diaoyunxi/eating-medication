@@ -1,4 +1,3 @@
-﻿# -*- coding: utf-8 -*-
 import logging
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta

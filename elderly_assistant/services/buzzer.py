@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 蜂鸣器服务模块
 行空板M10专用：使用 pinpong 库的 buzzer 控制蜂鸣器
@@ -134,5 +133,6 @@ class Buzzer:
         """清理资源"""
         try:
             self.stop()
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")

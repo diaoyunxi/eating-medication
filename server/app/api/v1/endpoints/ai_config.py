@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """每用户 AI 助手配置接口（多厂商 OpenAI 兼容）
 
 - GET  /api/v1/user/ai-config   读取当前用户（或指定设备/用户）的 AI 配置（api_key 不回传明文）

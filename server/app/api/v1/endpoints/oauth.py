@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """OAuth 第三方登录（GitHub / Gitee）基于 fastapi-oauth20 重构
 
 本模块使用 fastapi-oauth20 提供的 GitHubOAuth20 / GiteeOAuth20 客户端完成

@@ -1,5 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """公共依赖安装脚本（位于 common/install.py，原仓库根目录 install.py 已迁移至此；各模块 main.py 检测到依赖缺失时调用）。
 
 执行流程:
@@ -272,8 +274,9 @@ def _pip_version_string():
         )
         if result.returncode == 0:
             return (result.stdout or "").strip()
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
     return ""
 
 
@@ -348,8 +351,9 @@ def _install_pip_windows():
         if tmp_path:
             try:
                 os.unlink(tmp_path)
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
     return _check_pip_available()
 
 
@@ -641,12 +645,14 @@ def _get_site_packages_dir():
         user_site = site.getusersitepackages()
         if user_site:
             candidates.append(user_site)
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
     try:
         candidates.extend(site.getsitepackages() or [])
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
     for d in candidates:
         if not d:
             continue

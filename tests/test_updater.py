@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """根目录 updater.py 纯函数单元测试（仅依赖标准库，可直接运行）。
 
 CI 工作流 `.github/workflows/python-app.yml` 在仓库根执行 `pytest`，

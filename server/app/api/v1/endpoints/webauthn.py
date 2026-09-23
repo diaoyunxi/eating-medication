@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """WebAuthn / Passkey 端点（无用户名 passkey 登录）。
 
 - 登记（绑定）：/auth/webauthn/register/options → /auth/webauthn/register（需登录态）

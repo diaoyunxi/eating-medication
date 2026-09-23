@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """语音播报串行性与失败兜底测试（无硬件/网络依赖）。
 
 聚焦「条形码识别到时没播报」的根因修复：
@@ -126,8 +125,9 @@ class TestPyttsxEngineInitValidation(unittest.TestCase):
                     pyttsx3.init = real_init
                 else:
                     sys.modules.pop("pyttsx3", None)
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
 
     def test_valid_engine_published(self):
         sp = self._init_engine_with(_FakeInitEngine())

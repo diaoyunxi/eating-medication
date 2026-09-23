@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """elderly_manage.html 模板渲染测试（回归 issue #35）。
 
 聚焦「人脸 ID 编辑框是否对所有老人渲染」：

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """family_monitor.core.api_client.ElderlyAPIClient 方法测试（mock _execute）。
 
 通过继承并替换异步 _execute 为可控返回，覆盖设备绑定、各 REST 调用、

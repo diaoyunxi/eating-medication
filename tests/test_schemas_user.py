@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """app.schemas.user 单元测试。"""
 import os
 import sys

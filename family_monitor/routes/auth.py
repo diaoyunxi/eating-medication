@@ -1,4 +1,6 @@
-# -*- coding: utf-8 -*-
+import logging
+
+logger = logging.getLogger(__name__)
 """认证路由
 
 子女端前端认证流程（方案C：全量改用 JWT，由 server 统一认证）：
@@ -153,8 +155,9 @@ async def oauth_github_enabled():
         resp = await _server_client._execute("GET", "/auth/oauth/github/config")
         if resp.status_code == 200:
             return resp.json()
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
     return {"enabled": False}
 
 
@@ -175,8 +178,9 @@ async def oauth_gitee_enabled():
         resp = await _server_client._execute("GET", "/auth/oauth/gitee/config")
         if resp.status_code == 200:
             return resp.json()
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
     return {"enabled": False}
 
 
@@ -864,12 +868,14 @@ async def security_setup_page(request: Request):
                 context["username"] = udata.get("username", "")
                 context["phone"] = udata.get("phone", "")
                 context["mfa_enabled"] = bool(udata.get("mfa_enabled", False))
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")
         try:
             creds = await _server_client._execute("GET", _server_url("/auth/webauthn/credentials"), headers=headers)
             if creds.status_code == 200:
                 context["credentials"] = creds.json()
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")
     return templates.TemplateResponse("security_setup.html", context)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import json
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -25,8 +24,9 @@ def _redact_request_body(body_bytes: bytes) -> str:
                 if any(s in key.lower() for s in _SENSITIVE_FIELDS):
                     parsed[key] = "***REDACTED***"
             body_text = json.dumps(parsed, ensure_ascii=False)
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
     return body_text
 
 

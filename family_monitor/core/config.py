@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """配置管理模块 - 单一 .env 配置源
 
 所有配置（含安全密钥与运行时项）统一从 family_monitor/.env 读取。

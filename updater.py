@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 项目级自动更新检查与安全更新模块（统一位于仓库根目录）
 
@@ -59,8 +58,9 @@ def _load_version():
             ver = version_file.read_text(encoding="utf-8").strip()
             if ver:
                 return ver
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
     return "0.0.0"
 
 
@@ -540,8 +540,9 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
         # 清理临时目录
         try:
             shutil.rmtree(tmp_dir, ignore_errors=True)
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")
 
 
 
@@ -730,8 +731,9 @@ def _delete_path(path: Path, deleted: list, skipped: list):
                 if not any(path.iterdir()):
                     path.rmdir()
                     deleted.append(str(path))
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
             return
     except Exception as e:  # 权限等问题不阻断其它项
         skipped.append(f"{path} ({e})")
@@ -927,8 +929,9 @@ def _load_gitignore_patterns():
             if not line or line.startswith("#"):
                 continue
             patterns.append(line)
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
     return patterns
 
 
@@ -1116,8 +1119,9 @@ def check_for_update(auto_pull=None):
             # 清理临时 zip
             try:
                 shutil.rmtree(tmp_zip_dir, ignore_errors=True)
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
 
     except Exception as e:
         logger.warning(f"[更新检查] 检查更新失败: {e}")

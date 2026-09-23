@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """用药提醒工作流：提醒状态机、计划轮询线程、心跳线程、触发检测（纯逻辑，无硬件依赖）。"""
 import logging
 import threading
@@ -320,8 +319,9 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, logge
                     if elderly_label:
                         speech.speak(f"{elderly_label}，该吃药了")
                     speech.speak(f"请服用{drug_name}" + (f"，剂量{dosage}" if dosage else ""))
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.warning(f"Error: {e}")
             logger.info(f"触发用药提醒: {drug_name} {dosage} @ {now_hm} (共 {len(matched_reminders)} 个)")
     except Exception as e:
         logger.error(f"检查触发异常: {e}")

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """子女看护Web端 - 主程序
 
 本地以纯 HTTP 监听，对外访问方式（公网域名与 HTTPS）由 setup.sh / setup.ps1 统一配置。
@@ -82,8 +81,9 @@ _venv_py = _venv_python_path()
 if _venv_py.exists() and not _in_venv():
     try:
         os.execv(str(_venv_py), [str(_venv_py)] + sys.argv)
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
 
 # 启动前检查依赖，缺失则调用 common/install.py 安装
 _check_and_install_dependencies()

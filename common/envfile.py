@@ -1,4 +1,6 @@
-# -*- coding: utf-8 -*-
+import logging
+
+logger = logging.getLogger(__name__)
 """跨端共享：扁平 .env 文件的读取与就地更新（保留注释与其它字段）。
 
 避免三端各自手写一遍 key=value 解析逻辑（common/install.py / updater.py /
@@ -32,8 +34,9 @@ def read_env_dict(path: PathLike) -> Dict[str, str]:
                 # 跳过形如 "=value"（无键）的非法行，避免产生空键
                 continue
             data[k] = v.strip()
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
     return data
 
 
@@ -66,8 +69,9 @@ def write_env_text(path: PathLike, content: str) -> None:
     p.write_text(content, encoding="utf-8")
     try:
         p.chmod(0o600)
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
 
 
 def ensure_env_fields(path: PathLike, defaults: Dict[str, str]) -> bool:
