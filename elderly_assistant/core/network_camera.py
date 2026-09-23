@@ -420,32 +420,57 @@ def _get_webrtc_frame(cfg: dict) -> Optional[bytes]:
             def on_track(track):
                 nonlocal received_frame
                 if track.kind == "video":
-                    # 读取第一帧
-                    try:
-                        frame = asyncio.get_event_loop().run_until_complete(
-                            asyncio.wait_for(track.recv(), timeout=5.0)
-                        )
-                        received_frame = frame
-                    except Exception as e:
-                        logger.warning("WebRTC 收帧异常: %s", e)
+                    # 读取第一帧：使用 create_task 调度协程，避免在运行中的事件循环中调用 run_until_complete
+                    async def _recv_frame():
+                        nonlocal received_frame
+                        try:
+                            frame = await asyncio.wait_for(track.recv(), timeout=5.0)
+                            received_frame = frame
+                        except Exception as e:
+                            logger.warning("WebRTC 收帧异常: %s", e)
+                    asyncio.get_event_loop().create_task(_recv_frame())
 
             # 生成 offer
             offer = await pc.createOffer()
             await pc.setLocalDescription(offer)
 
-            # 发送 offer 到信令接口（HTTP POST）
-            import requests
+            # 发送 offer 到信令接口（使用 asyncio 非阻塞 HTTP 请求，避免阻塞事件循环）
             try:
-                resp = requests.post(
-                    f"http://{ip}:{http_port}{offer_path}",
-                    json={"sdp": offer.sdp},
-                    timeout=cfg["request_timeout"],
-                )
-                if resp.status_code != 200:
-                    logger.warning("WebRTC offer 请求失败: HTTP %d", resp.status_code)
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f"http://{ip}:{http_port}{offer_path}",
+                        json={"sdp": offer.sdp},
+                        timeout=aiohttp.ClientTimeout(total=cfg["request_timeout"]),
+                    ) as resp:
+                        if resp.status != 200:
+                            logger.warning("WebRTC offer 请求失败: HTTP %d", resp.status)
+                            return None
+                        answer_data = await resp.json()
+                        answer = RTCSessionDescription(sdp=answer_data["sdp"], type="answer")
+            except ImportError:
+                # aiohttp 未安装时回退到线程池执行阻塞请求
+                import requests
+                import functools
+                loop = asyncio.get_event_loop()
+                try:
+                    resp = await loop.run_in_executor(
+                        None,
+                        functools.partial(
+                            requests.post,
+                            f"http://{ip}:{http_port}{offer_path}",
+                            json={"sdp": offer.sdp},
+                            timeout=cfg["request_timeout"],
+                        ),
+                    )
+                    if resp.status_code != 200:
+                        logger.warning("WebRTC offer 请求失败: HTTP %d", resp.status_code)
+                        return None
+                    answer_data = resp.json()
+                    answer = RTCSessionDescription(sdp=answer_data["sdp"], type="answer")
+                except Exception as e:
+                    logger.warning("WebRTC 信令交换失败: %s", e)
                     return None
-                answer_data = resp.json()
-                answer = RTCSessionDescription(sdp=answer_data["sdp"], type="answer")
             except Exception as e:
                 logger.warning("WebRTC 信令交换失败: %s", e)
                 return None
