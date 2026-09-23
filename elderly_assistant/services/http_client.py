@@ -181,7 +181,7 @@ class HTTPClient:
         safe_body = self._redact_body(kwargs.get("json"))
         logger.log(log_level, "[HTTP请求] %s %s | 请求头=%s | 请求体=%s",
                    method, url, safe_headers, safe_body)
-        last_exc = None
+        _last_exc = None
         for attempt in range(retries + 1):
             try:
                 resp = requests.request(method, url, **kwargs)
