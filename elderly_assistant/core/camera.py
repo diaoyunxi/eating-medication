@@ -70,7 +70,7 @@ def _init_huskylens(config):
         return hl
     except ImportError:
         raise ImportError("未安装 dfrobot_huskylensv2 库（条码/人脸功能不可用）")
-    except Exception as e:
+    except Exception:
         raise
 
 
@@ -124,7 +124,7 @@ def capture_image(config):
         logger.warning("网络图传失败，尝试回退到 I2C 拍照方案（已废弃）")
     except ImportError:
         logger.warning("network_camera 模块不可用，尝试回退到 I2C 拍照方案（已废弃）")
-    except Exception as e:
+    except Exception:
         logger.warning("网络图传异常: %s，尝试回退", e)
 
     # 回退：原有 I2C 拍照 + SD卡取回（兼容旧部署，建议逐步移除）
@@ -170,7 +170,7 @@ def _capture_image_legacy(config):
     except RuntimeError as e:
         logger.error(f"I2C 连接失败: {e}")
         return None
-    except Exception as e:
+    except Exception:
         logger.error(f"摄像头操作异常: {e}")
         return None
 
@@ -213,7 +213,7 @@ def _fetch_huskylens_photo(remote_name, save_path, cam_config, logger_inst):
     """将二哈 SD 卡上的照片复制到本地（兼容回退使用）。"""
     try:
         roots = _normalize_sd_search_paths(cam_config) + _discover_huskylens_storage(cam_config)
-    except Exception as e:
+    except Exception:
         logger_inst.debug("自动探测二哈 U 盘目录失败: %s", e)
         roots = _normalize_sd_search_paths(cam_config)
 
@@ -234,7 +234,7 @@ def _fetch_huskylens_photo(remote_name, save_path, cam_config, logger_inst):
                 shutil.copy2(src, dst)
                 logger_inst.info("已从二哈 SD 卡取回照片: %s -> %s", src, dst)
                 return dst
-            except Exception as e:
+            except Exception:
                 logger_inst.warning("复制二哈照片失败 %s: %s", src, e)
                 continue
     return None
