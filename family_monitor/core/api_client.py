@@ -900,6 +900,7 @@ class ElderlyAPIClient(BaseServerClient):
                     'drug_stats': dict(drug_stats),
                     'calendar': calendar_data,
                     'heat_matrix': heat_matrix,
+                    'weekday_labels': weekday_labels,
                     'drug_names': drug_names_list,
                     'gantt': gantt_data,
                     'funnel': funnel_data,
