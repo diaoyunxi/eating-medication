@@ -10,8 +10,11 @@
 """
 import io
 import json
+import logging
 import secrets
 import string
+
+logger = logging.getLogger(__name__)
 
 import bcrypt
 import pyotp
@@ -73,7 +76,8 @@ def verify_totp_code(secret: str, code: str) -> bool:
     try:
         cleaned = code.strip().replace(" ", "")
         return pyotp.TOTP(secret).verify(cleaned, valid_window=1)
-    except Exception:
+    except (ValueError, TypeError) as e:
+        logger.warning("MFA TOTP 验证失败（异常）: %s", e)
         return False
 
 
@@ -97,14 +101,16 @@ def verify_backup_code(hashed_json: str, code: str) -> bool:
         return False
     try:
         hashed_list = json.loads(hashed_json)
-    except Exception:
+    except (json.JSONDecodeError, TypeError) as e:
+        logger.warning("MFA 备用码 JSON 解析失败: %s", e)
         return False
     code = code.strip()
     for h in hashed_list:
         try:
             if bcrypt.checkpw(code.encode("utf-8"), h.encode("utf-8")):
                 return True
-        except Exception:
+        except (ValueError, TypeError) as e:
+            logger.debug("MFA 备用码校验异常: %s", e)
             continue
     return False
 
@@ -115,7 +121,8 @@ def consume_backup_code(hashed_json: str, code: str) -> str:
         return hashed_json
     try:
         hashed_list = json.loads(hashed_json)
-    except Exception:
+    except (json.JSONDecodeError, TypeError) as e:
+        logger.warning("MFA 备用码 JSON 解析失败（消费时）: %s", e)
         return hashed_json
     code = code.strip()
     new_list = []
@@ -183,7 +190,8 @@ def verify_registration(credential: dict, challenge_token: str) -> tuple:
             expected_rp_id=_rp_id,
             require_user_verification=False,
         )
-    except Exception:
+    except Exception as e:
+        logger.warning("WebAuthn 注册验证失败: %s", e)
         return (False, "", b"", 0)
     cred_id_b64 = bytes_to_base64url(verified.credential_id)
     return (True, cred_id_b64, verified.credential_public_key, verified.sign_count)
@@ -227,6 +235,7 @@ def verify_authentication(
             credential_current_sign_count=sign_count,
             require_user_verification=False,
         )
-    except Exception:
+    except Exception as e:
+        logger.warning("WebAuthn 认证验证失败: %s", e)
         return (False, 0)
     return (True, verified.new_sign_count)
