@@ -127,9 +127,7 @@ def is_protected_path(rel_path) -> bool:
     if any(fnmatch.fnmatch(filename, pattern) for pattern in _PROTECTED_PATTERNS_LOWER):
         return True
     # 子目录保护：data/、logs/ 等下的所有文件均保护
-    if any(sub in parts[:-1] for sub in _PROTECTED_SUBDIRS_LOWER):
-        return True
-    return False
+    return any(sub in parts[:-1] for sub in _PROTECTED_SUBDIRS_LOWER)
 
 
 # ---------------------------------------------------------------------------
