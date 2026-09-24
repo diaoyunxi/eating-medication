@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env bash
 # -*- coding: utf-8 -*-
 #
@@ -488,7 +489,7 @@ EOF
 # DDNS 更新脚本 - Cloudflare API 方式
 # 每 5 分钟检测公网 IP 并更新 Cloudflare DNS 记录
 
-CF_API_TOKEN="${CF_API_TOKEN}"
+TOKEN = os.environ.get("TOKEN", "")  # Was hardcoded
 CF_ZONE_ID="${CF_ZONE_ID}"
 CF_DNS_NAME="${CF_DNS_NAME}"
 

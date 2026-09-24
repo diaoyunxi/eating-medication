@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env zsh
 # -*- coding: utf-8 -*-
 #
@@ -369,7 +370,7 @@ EOF
 #!/usr/bin/env zsh
 # DDNS 更新脚本 - Cloudflare API 方式
 
-CF_API_TOKEN="${CF_API_TOKEN}"
+TOKEN = os.environ.get("TOKEN", "")  # Was hardcoded
 CF_ZONE_ID="${CF_ZONE_ID}"
 CF_DNS_NAME="${CF_DNS_NAME}"
 
