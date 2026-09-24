@@ -1,0 +1,45 @@
+# eating-medication 根目录依赖清单
+# 本文件聚合三端（server / elderly_assistant / family_monitor）的公共依赖，
+# 便于一次性安装或 CI 环境使用。
+#
+# 若只需某一端的依赖，请直接使用对应子目录的 requirements.txt：
+#   - server/requirements.txt
+#   - elderly_assistant/requirements.txt
+#   - family_monitor/requirements.txt
+
+# ========== 公共依赖 ==========
+python-dotenv>=1.0.0
+requests>=2.31.0
+bcrypt>=4.0
+
+# ========== Server ==========
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+sqlalchemy>=2.0.36
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+python-jose[cryptography]>=3.4.0
+httpx>=0.27.2
+fastapi-oauth20>=0.0.3
+aiofiles>=24.1.0
+python-multipart>=0.0.32
+apscheduler>=3.11.0
+alembic>=1.14.0
+openai>=1.40.0
+cryptography>=48.0.1
+pymysql>=1.1.0
+psycopg2-binary>=2.9.0
+pyotp>=2.9.0
+qrcode>=7.4.2
+webauthn>=2.2.0
+
+# ========== Elderly Assistant ==========
+pyttsx3>=2.90
+pinpong>=0.6.2
+pyzbar>=0.1.9
+opencv-python-headless>=4.10.0
+edge-tts>=7.2.8
+
+# ========== Family Monitor ==========
+jinja2>=3.1.6
+itsdangerous>=2.1.2
