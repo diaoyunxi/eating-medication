@@ -80,7 +80,7 @@ def _read_os_release():
                 key, _, value = line.partition("=")
                 info[key.strip()] = value.strip().strip('"').strip("'")
     except OSError:
-        # 权限不足 / IO 异常一律视为「无法识别」，交由后续特征兜底
+        pass  # TODO: add proper error handling
         return {}
     return info
 
@@ -238,7 +238,7 @@ def start_elderly(extra_args):
     try:
         os.execv(python_exe, argv)
     except OSError as e:
-        # execv 成功时不会返回；走到这里说明替换失败（如解释器路径失效）
+        pass  # TODO: add proper error handling
         print(f"[错误] 启动老人端失败: {e}")
         sys.exit(1)
 
@@ -402,6 +402,6 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        # 用户主动中断属正常退出，不打印堆栈
+        pass  # TODO: add proper error handling
         print("\n已取消。")
         sys.exit(130)

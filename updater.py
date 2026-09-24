@@ -60,7 +60,7 @@ def _load_version():
             if ver:
                 return ver
     except Exception:
-        pass
+        pass  # TODO: add proper error handling
     return "0.0.0"
 
 
@@ -268,7 +268,7 @@ def _fetch_json(url, timeout):
         with _open_url(url, timeout) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
-        # 4xx/5xx：尝试读取响应体以判断原因（如 403 限流、404 无 Release）
+        pass  # TODO: add proper error handling
         raise RuntimeError(f"HTTP {e.code} 请求 {url} 失败：{e.reason}")
     if not raw.strip():
         raise RuntimeError(f"请求 {url} 返回空响应（可能镜像/代理不支持该地址，或网络异常）")
@@ -541,7 +541,7 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
         try:
             shutil.rmtree(tmp_dir, ignore_errors=True)
         except Exception:
-            pass
+            pass  # TODO: add proper error handling
 
 
 
@@ -731,7 +731,7 @@ def _delete_path(path: Path, deleted: list, skipped: list):
                     path.rmdir()
                     deleted.append(str(path))
             except Exception:
-                pass
+                pass  # TODO: add proper error handling
             return
     except Exception as e:  # 权限等问题不阻断其它项
         skipped.append(f"{path} ({e})")
@@ -928,7 +928,7 @@ def _load_gitignore_patterns():
                 continue
             patterns.append(line)
     except Exception:
-        pass
+        pass  # TODO: add proper error handling
     return patterns
 
 
@@ -1117,7 +1117,7 @@ def check_for_update(auto_pull=None):
             try:
                 shutil.rmtree(tmp_zip_dir, ignore_errors=True)
             except Exception:
-                pass
+                pass  # TODO: add proper error handling
 
     except Exception as e:
         logger.warning(f"[更新检查] 检查更新失败: {e}")
