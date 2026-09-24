@@ -9,7 +9,7 @@
 统一后各路由文件只需 ``from .web_helpers import ...``，职责更清晰、行为一致。
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -27,7 +27,7 @@ templates.env.cache = {}
 # 注入路径前缀变量，供模板链接加前缀
 templates.env.globals["prefix"] = config.PATH_PREFIX
 # 注入当前年份变量，供页脚版权信息使用（替换原硬编码年份）
-templates.env.globals["current_year"] = datetime.now().year
+templates.env.globals["current_year"] = datetime.now(timezone.utc).year
 
 # 以当前登录用户 JWT 调用服务端 /api/v1 的共享客户端
 # （每次请求内部使用独立 httpx.AsyncClient，避免连接耗尽）
