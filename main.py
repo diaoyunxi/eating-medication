@@ -266,7 +266,7 @@ def _spawn_background(entry, log_path, extra_args):
     argv = [python_exe, entry.name] + extra_args
 
     # 以追加方式打开，保留历史日志便于回溯问题
-    log_file = open(log_path, "a", encoding="utf-8", errors="replace")
+    with open(log_path, "a", encoding="utf-8", errors="replace") as log_file:
     log_file.write(
         f"\n{'=' * 60}\n"
         f"工作目录: {entry.parent}\n"
