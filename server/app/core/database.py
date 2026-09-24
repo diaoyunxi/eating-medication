@@ -15,6 +15,7 @@
    MySQL/pymysql 对带时区 datetime 的报错，读取行为与 SQLite 一致。
 """
 import logging
+import re
 from datetime import timezone
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -138,6 +139,11 @@ def ensure_database_exists(database_url: str = None):
                         )
                     )
                 else:  # postgresql
+                    # 校验数据库名仅含合法标识符，防止 SQL 注入
+                    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', db_name):
+                        raise ValueError(
+                            f"数据库名 '{db_name}' 包含非法字符，仅允许字母、数字和下划线"
+                        )
                     conn.execute(text(f'CREATE DATABASE "{db_name}"'))
             logger.info(f"已自动创建数据库 '{db_name}'")
         admin_engine.dispose()
