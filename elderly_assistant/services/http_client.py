@@ -181,13 +181,16 @@ class HTTPClient:
         safe_body = self._redact_body(kwargs.get("json"))
         logger.log(log_level, "[HTTP请求] %s %s | 请求头=%s | 请求体=%s",
                    method, url, safe_headers, safe_body)
+        # 确保所有请求都有超时，防止无限阻塞 (B113)
+        if "timeout" not in kwargs:
+            kwargs["timeout"] = 30
         last_exc = None
         for attempt in range(retries + 1):
             try:
                 resp = requests.request(method, url, **kwargs)
                 break
             except Exception as e:  # noqa: BLE001 - 需捕获 requests 全部传输层异常
-                last_exc = e
+                _last_exc = e
                 if attempt < retries and self._is_transient_error(e):
                     backoff = _RETRY_BACKOFF * (2 ** attempt)
                     logger.log(log_level,
