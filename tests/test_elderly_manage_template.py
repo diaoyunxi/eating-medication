@@ -40,7 +40,7 @@ class TestElderlyManageTemplate(unittest.TestCase):
     def _render(self, elderly_list):
         from jinja2 import Environment, FileSystemLoader
 
-        env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
+        env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), autoescape=True)
         # base.html 可能引用 url_for 等 Starlette 注入的全局量，这里做无害占位
         env.globals.setdefault("url_for", lambda *a, **k: "#")
         template = env.get_template("elderly_manage.html")
