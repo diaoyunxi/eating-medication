@@ -68,7 +68,7 @@ def _is_httpx_transient_error(exc: Exception) -> bool:
         if isinstance(exc, _httpx.TransportError):
             return True
     except Exception:
-        pass
+        pass  # TODO: add proper error handling
     return type(exc).__name__ in {
         "TransportError",
         "TimeoutException",

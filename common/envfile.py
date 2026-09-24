@@ -33,7 +33,7 @@ def read_env_dict(path: PathLike) -> Dict[str, str]:
                 continue
             data[k] = v.strip()
     except Exception:
-        pass
+        pass  # TODO: add proper error handling
     return data
 
 
@@ -67,7 +67,7 @@ def write_env_text(path: PathLike, content: str) -> None:
     try:
         p.chmod(0o600)
     except Exception:
-        pass
+        pass  # TODO: add proper error handling
 
 
 def ensure_env_fields(path: PathLike, defaults: Dict[str, str]) -> bool:

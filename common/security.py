@@ -44,7 +44,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
         return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
     except (_PanicException, ValueError, TypeError):
-        # 畸形/损坏的哈希会让 bcrypt（pyo3 绑定）触发原生 panic 抛出 PanicException，
+        pass  # TODO: add proper error handling
         # 它并非 ValueError/TypeError 子类，统一兜底为验证失败，避免校验流程崩溃
         return False
 

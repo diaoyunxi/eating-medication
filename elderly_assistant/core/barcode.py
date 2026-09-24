@@ -194,7 +194,7 @@ class UsbCameraScanner:
             try:
                 cap.release()
             except Exception:
-                pass
+                pass  # TODO: add proper error handling
             raise RuntimeError(f"USB 摄像头(index={self.index}) 打开失败")
         self._cap = cap
         self._decode = zbar_decode
