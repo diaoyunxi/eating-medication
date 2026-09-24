@@ -315,7 +315,7 @@ def capture_image(config: dict) -> Optional[str]:
     :return: 本地保存的 .jpg 文件路径；失败返回 None
     """
     import os
-    from datetime import datetime
+    from datetime import datetime, timezone
     from uuid import uuid4
 
     frame = capture_frame(config)
@@ -325,7 +325,7 @@ def capture_image(config: dict) -> Optional[str]:
     save_path = config.get("camera", {}).get("save_path", "data/captures")
     os.makedirs(save_path, exist_ok=True)
 
-    filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{uuid4().hex}.jpg"
+    filename = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}_{uuid4().hex}.jpg"
     local_path = os.path.join(save_path, filename)
 
     try:

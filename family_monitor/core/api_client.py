@@ -12,7 +12,7 @@ import json
 import logging
 import os
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 
 from core.config import config
@@ -168,7 +168,7 @@ class ElderlyAPIClient(BaseServerClient):
                     'total_records': data.get('total_records', 0),
                     'status': data.get('status', 'offline'),
                     'last_heartbeat': data.get('last_heartbeat'),
-                    'last_check': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    'last_check': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
                 }
             return {'connected': False, 'device_id': self._device_id,
                     'device_name': '设备离线', 'status': 'offline'}
@@ -376,7 +376,7 @@ class ElderlyAPIClient(BaseServerClient):
             'device_id': device_id,
             'device_name': device_name,
             'device_token': device_token,
-            'bound_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            'bound_at': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         }
         with open(device_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -627,7 +627,7 @@ class ElderlyAPIClient(BaseServerClient):
                     'total_records': data.get('total_records', 0),
                     'status': data.get('status', 'offline'),
                     'last_heartbeat': data.get('last_heartbeat'),
-                    'last_check': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    'last_check': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
                 }
             return {
                 'connected': False,
@@ -746,7 +746,7 @@ class ElderlyAPIClient(BaseServerClient):
             plan_drug_map = {p.get('id'): p.get('drug_name', '未知药品') for p in reminders}
 
             # ---- 7天趋势：按日期分组统计 taken / missed / scheduled ----
-            today = datetime.now().date()
+            today = datetime.now(timezone.utc).date()
             date_labels = []
             trend_taken = []
             trend_scheduled = []
@@ -887,7 +887,7 @@ class ElderlyAPIClient(BaseServerClient):
                     'taken_today': taken_today,
                     'pending_today': pending_today,
                     'adherence_rate': adherence_rate,
-                    'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    'last_updated': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
                 },
                 'upcoming_reminders': upcoming,
                 'recent_activities': recent_activities,
@@ -913,7 +913,7 @@ class ElderlyAPIClient(BaseServerClient):
                 'total_reminders': 0, 'active_reminders': 0,
                 'taken_today': 0, 'pending_today': 0,
                 'adherence_rate': 0,
-                'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                'last_updated': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             },
             'upcoming_reminders': [],
             'recent_activities': [],
@@ -951,7 +951,7 @@ class ElderlyAPIClient(BaseServerClient):
             'url': self.base_url,
             'device_id': bound.get('device_id') if bound else None,
             'device_name': bound.get('device_name', '') if bound else '',
-            'last_check': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            'last_check': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         }
 
     # ---------- 多老人管理（家属 JWT 调用 /api/v1/users/elderly） ----------

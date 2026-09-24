@@ -3,7 +3,7 @@
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from logging.handlers import TimedRotatingFileHandler
 
 # 记录已配置的 log_dir，用于检测 log_dir 变化并重建 handler
@@ -102,7 +102,7 @@ def setup_logger(log_dir="logs"):
                 pass
             logger.removeHandler(h)
 
-    log_file = os.path.join(log_dir, f"assistant_{datetime.now().strftime('%Y%m%d')}.log")
+    log_file = os.path.join(log_dir, f"assistant_{datetime.now(timezone.utc).strftime('%Y%m%d')}.log")
     # TimedRotatingFileHandler：跨日自动轮转，保留最近 30 天日志
     # 文件始终保持纯文本（不上色），便于阅读与检索
     fh = TimedRotatingFileHandler(log_file, when='midnight', backupCount=30, encoding='utf-8')
