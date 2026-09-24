@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
@@ -168,8 +167,9 @@ async def ws_chat(websocket: WebSocket, user_id: int, token: Optional[str] = Que
                         })
             elif data.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
-    except WebSocketDisconnect:
-        pass
+    except WebSocketDisconnect as e:
+
+        logger.warning(f"Error: {e}")
     except Exception as e:
         logger.error(f"WebSocket 异常: {e}")
     finally:

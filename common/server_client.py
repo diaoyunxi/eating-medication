@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """跨端统一的服务端 HTTP 客户端基类。
 
 设计约束：
@@ -67,8 +66,9 @@ def _is_httpx_transient_error(exc: Exception) -> bool:
 
         if isinstance(exc, _httpx.TransportError):
             return True
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
     return type(exc).__name__ in {
         "TransportError",
         "TimeoutException",

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 定时任务：每天扫描低库存药品并推送通知
 使用 AsyncIOScheduler，任务函数为 async，可直接 await 异步通知。

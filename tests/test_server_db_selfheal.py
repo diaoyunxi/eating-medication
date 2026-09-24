@@ -1,4 +1,6 @@
-# -*- coding: utf-8 -*-
+import logging
+
+logger = logging.getLogger(__name__)
 """模式自愈 sync_schema_with_models 单元测试。
 
 复现生产故障：alembic_version 已 stamp 到 head，但 users 表实际缺列
@@ -48,8 +50,9 @@ def _safe_add_column(conn, table_name, column, dialect):
     except Exception:
         try:
             conn.rollback()
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")
         return False
 
 

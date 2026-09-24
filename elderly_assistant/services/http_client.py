@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 HTTP 客户端模块
 负责与服务器通信：设备注册、用药计划轮询、服药确认等
@@ -327,8 +326,9 @@ class HTTPClient:
                     if reissued:
                         _save_device_token(reissued)
                         logger.info("已持久化服务端重新签发的设备令牌")
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.warning(f"Error: {e}")
                 return True
             logger.warning(f"设备下线通知失败，状态码: {resp.status_code}")
             return False

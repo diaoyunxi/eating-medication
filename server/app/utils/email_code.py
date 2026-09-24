@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """邮箱验证码工具：生成、存储、发送与校验。
 
 说明：
@@ -8,6 +7,7 @@
 """
 import os
 import random
+import secrets
 import time
 import smtplib
 import ssl
@@ -28,7 +28,7 @@ _store = {}
 
 def _gen_code():
     """生成指定长度的数字验证码。"""
-    return "".join(random.choice("0123456789") for _ in range(_CODE_LEN))
+    return "".join(secrets.choice("0123456789") for _ in range(_CODE_LEN))
 
 
 def send_code(email):

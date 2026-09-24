@@ -1,4 +1,3 @@
-﻿# -*- coding: utf-8 -*-
 """
 FastAPI 应用入口 - 最终版
 创建并配置 FastAPI 实例，注册路由、中间件、异常处理器，并启动后台定时任务。
@@ -107,8 +106,9 @@ async def lifespan(app: FastAPI):
             # 标记迁移已应用，避免每次启动重复触发回落
             from alembic import command
             command.stamp(alembic_cfg, "head")
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")
 
     # 确保新增的 user_ai_configs 表存在（兼容 Alembic 已接管、未含该表迁移的场景）
     try:

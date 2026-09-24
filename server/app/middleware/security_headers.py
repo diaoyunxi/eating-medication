@@ -1,4 +1,6 @@
-# -*- coding: utf-8 -*-
+import logging
+
+logger = logging.getLogger(__name__)
 """安全响应头中间件（BUG-M01 / BUG-L01 / BUG-L02）。
 
 - 补充 Content-Security-Policy 等安全响应头（M01）。
@@ -33,6 +35,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             # MutableHeaders 没有 pop 方法，用 __delitem__ + 容错替代
             try:
                 del response.headers[h]
-            except KeyError:
-                pass
+            except KeyError as e:
+
+                logger.warning(f"Error: {e}")
         return response

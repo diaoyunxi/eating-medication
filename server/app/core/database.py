@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """数据库连接与引擎管理
 
 支持多种数据库后端（通过 settings.DATABASE_URL 切换）：
@@ -259,8 +258,9 @@ def _safe_add_column(conn, table_name, column, dialect):
         # 回滚可能因 ALTER 失败而开启的事务
         try:
             conn.rollback()
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")
         return False
 
 

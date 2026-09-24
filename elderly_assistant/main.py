@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 老人端主程序（行空板 M10）
 - 使用 pinpong 库控制硬件（蜂鸣器、光线传感器、LED 指示灯）
@@ -466,8 +465,9 @@ def main():
                 if (datetime.now() - reminder_state.triggered_at).total_seconds() >= 60:
                     try:
                         buzzer.play_reminder()
-                    except Exception:
-                        pass
+                    except Exception as e:
+
+                        logger.warning(f"Error: {e}")
                     reminder_state.triggered_at = datetime.now()
 
             # 注：原物理按钮 A/B 检测已移除，确认/问AI 均由屏幕触摸按钮触发
@@ -477,8 +477,9 @@ def main():
             if led:
                 try:
                     led.write_digital(1 if server_connected else 0)
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    logger.warning(f"Error: {e}")
 
             # ---- 每帧刷新扫码结果临时展示（10 秒后自动清除）----
             if display is not None:
@@ -489,8 +490,9 @@ def main():
 
             # 主循环休眠，降低 CPU 占用
             time.sleep(0.1)
-    except KeyboardInterrupt:
-        pass
+    except KeyboardInterrupt as e:
+
+        logger.warning(f"Error: {e}")
     finally:
         # 清理资源：依次停止并等待各后台线程退出，释放硬件句柄
         logger.info("正在清理资源...")
@@ -537,8 +539,9 @@ def main():
         try:
             if led:
                 led.write_digital(0)
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")
         logger.info("老人端已退出")
 
 

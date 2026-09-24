@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 服务端启动脚本
 仿照老人端 main.py 的风格：自动检查依赖、创建必要目录、启动服务
@@ -35,8 +34,9 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
         with open(log_dir / 'crash.log', 'a', encoding='utf-8') as f:
             f.write(error_msg)
             f.write("\n")
-    except Exception:
-        pass
+    except Exception as e:
+
+        logger.warning(f"Error: {e}")
 
 sys.excepthook = global_exception_handler
 

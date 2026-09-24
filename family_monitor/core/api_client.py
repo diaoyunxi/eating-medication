@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 老人端API客户端 - 支持 device_id 绑定
 HTTPS 连接由系统默认 SSL 上下文验证（Cloudflare 隧道公网证书）。
@@ -335,8 +334,9 @@ class ElderlyAPIClient(BaseServerClient):
                 message = body.get("message")
                 if message:
                     return str(message)
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")
         return f"服务端返回状态码: {response.status_code}"
 
     def _load_bound_device_id(self) -> Optional[str]:
@@ -347,8 +347,9 @@ class ElderlyAPIClient(BaseServerClient):
                 with open(device_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     return data.get('device_id')
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
         return None
 
     def _load_device_token(self) -> Optional[str]:
@@ -359,8 +360,9 @@ class ElderlyAPIClient(BaseServerClient):
                 with open(device_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     return data.get('device_token')
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
         return None
 
     def save_bound_device(self, device_id: str, device_name: str = "", device_token: str = ""):
@@ -391,8 +393,9 @@ class ElderlyAPIClient(BaseServerClient):
             try:
                 with open(device_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+
+                logger.warning(f"Error: {e}")
         return None
 
     def clear_bound_device(self):
@@ -705,8 +708,9 @@ class ElderlyAPIClient(BaseServerClient):
                 data = response.json()
                 return data.get('records', []) or []
             return []
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")
         return []
 
     async def get_dashboard_data(self) -> Dict[str, Any]:
@@ -905,8 +909,9 @@ class ElderlyAPIClient(BaseServerClient):
                     'funnel': funnel_data,
                 }
             }
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")
 
         return {
             'summary': {
@@ -938,8 +943,9 @@ class ElderlyAPIClient(BaseServerClient):
                 data = response.json()
                 return data.get('messages', []) or []
             return []
-        except Exception:
-            pass
+        except Exception as e:
+
+            logger.warning(f"Error: {e}")
         return []
 
     async def get_server_status(self) -> Dict[str, Any]:

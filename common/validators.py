@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 通用校验器 —— 从 server/app/utils/validators.py 提取，可供三端复用。
 """
