@@ -189,75 +189,80 @@
 
 ```
 .
+├── common/                        # 跨端共享模块
+│   ├── envfile.py                 # .env 文件读写
+│   ├── install.py                 # 通用依赖安装工具
+│   ├── runtime_protection.py      # 运行时防护
+│   ├── security.py                # 密码哈希 / JWT / 令牌生成
+│   ├── server_client.py           # 服务端 HTTP 客户端
+│   └── validators.py              # 共享校验函数
 ├── elderly_assistant/             # 老人端
 │   ├── main.py                    # 程序入口（行空板 M10 GUI 主流程）
-│   ├── updater.py                 # 自动更新检查模块
-│   ├── install.py                 # 依赖自动安装
-│   ├── .env.example                # 配置文件示例（扁平 .env）
+│   ├── ports.py                   # 端口常量
 │   ├── requirements.txt           # 依赖清单
 │   ├── core/                      # 核心业务逻辑
-│   │   ├── ai_assistant.py        # AI 助手交互
+│   │   ├── barcode.py             # 条形码扫描（用药识别）
 │   │   ├── camera.py              # 摄像头封装
 │   │   ├── display.py             # 屏幕显示
-│   │   ├── local_fallback.py      # 离线本地降级
+│   │   ├── face.py                # 人脸识别
 │   │   ├── medication.py          # 用药管理
-│   │   ├── network.py             # 网络连通性管理
-│   │   ├── reminder.py            # 提醒调度
-│   │   └── uploader.py            # 服药照片上传
+│   │   └── network_camera.py      # 网络摄像头（二哈识图）
+│   ├── hardware/                  # 硬件抽象层
+│   │   ├── board.py               # 行空板硬件封装
+│   │   └── fakes.py               # 硬件模拟（开发/测试）
 │   ├── services/                  # 底层服务
-│   │   ├── ai_client.py           # 大模型客户端（OpenAI 兼容）
 │   │   ├── buzzer.py              # 蜂鸣器
 │   │   ├── device_id.py           # 设备 ID 生成
 │   │   ├── hotspot_manager.py     # 热点创建（nmcli）
 │   │   ├── http_client.py         # HTTP 客户端
-│   │   ├── ocr_engine.py          # Tesseract OCR
+│   │   ├── schedule_cache.py      # 用药计划本地缓存
 │   │   ├── speech.py              # pyttsx3 TTS
-│   │   ├── wifi_config.py         # 配网 Web 服务（:8088）
-│   │   └── ws_client.py           # WebSocket 客户端
-│   ├── tui/                       # 终端界面（备用形态）
-│   │   └── tui_app.py
+│   │   └── wifi_config.py         # 配网 Web 服务（:8088）
+│   ├── workflow/                  # 工作流编排
+│   │   ├── actions.py             # 提醒动作（铃声/语音/显示）
+│   │   └── reminder.py            # 提醒调度核心
 │   ├── utils/                     # 工具模块
 │   │   ├── config_loader.py       # YAML 配置加载
-│   │   └── logger.py
-│   └── data/                      # 运行时数据（用药计划/计划模板）
+│   │   └── logger.py              # 日志配置
+│   └── assets/                    # 静态资源
 ├── server/                        # 服务端
 │   ├── main.py                    # 启动脚本（uvicorn:1059）
-│   ├── updater.py                 # 自动更新检查（含 Release Attestation 校验）
-│   ├── install.py                 # 依赖自动安装
 │   ├── requirements.txt           # 运行依赖
 │   ├── requirements-dev.txt       # 测试依赖
-│   ├── app/                       # FastAPI 应用
-│   │   ├── main.py                # 应用实例 + 路径前缀中间件
-│   │   ├── api/v1/endpoints/      # API 路由（auth/users/medication/ai/vision/public/chat）
-│   │   ├── api/v1/websocket.py    # 通用 WebSocket
-│   │   ├── core/                  # config/database/security/dependencies/exceptions
-│   │   ├── middleware/            # cors/logging/exception_handler
-│   │   ├── models/                # SQLAlchemy 数据模型
-│   │   ├── schemas/               # Pydantic 数据校验
-│   │   ├── services/              # 业务服务（ai/auth/medication/user/vision）
-│   │   ├── tasks/                 # 定时任务（stock_checker）
-│   │   ├── utils/                 # http_client/rate_limit/time_utils/validators
-│   │   ├── websocket/             # manager/notifier
-│   │   └── migrations/            # Alembic 迁移（已就位，生产建议启用）
+│   └── app/                       # FastAPI 应用
+│       ├── main.py                # 应用实例 + 路径前缀中间件
+│       ├── api/v1/endpoints/      # API 路由（auth/users/medication/ai/vision/oauth/totp/webauthn/...）
+│       ├── api/v1/websocket.py    # 通用 WebSocket
+│       ├── core/                  # config/database/security/crypto/bootstrap/dependencies/exceptions
+│       ├── middleware/            # cors/rate_limit/security_headers/request_size_limit/logging/exception_handler
+│       ├── models/                # SQLAlchemy 数据模型（user/medication/chat/ai 等）
+│       ├── schemas/               # Pydantic 数据校验
+│       ├── services/              # 业务服务（ai/auth/medication/user/vision/mfa/device/ai_config）
+│       ├── tasks/                 # 定时任务（stock_checker）
+│       ├── utils/                 # datetime_utils/rate_limit/request_utils/validators/email_code
+│       ├── websocket/             # manager/notifier
+│       └── migrations/            # Alembic 迁移（已就位，生产建议启用）
 ├── family_monitor/                # 家属看护端
 │   ├── main.py                    # FastAPI 应用 + 中间件链（JWT 转发验证 + Turnstile）
-│   ├── updater.py                 # 自动更新检查
-│   ├── install.py                 # 依赖自动安装
-│   ├── .env                        # 配置文件（单一 .env 源，已忽略）
 │   ├── requirements.txt
-│   ├── core/                      # 配置 / BFF 客户端 / 遗留模块
+│   ├── core/                      # 配置 / BFF 客户端
 │   │   ├── api_client.py          # 调用老人端服务端的 BFF 客户端
-│   │   ├── config.py              # 配置加载（含 Turnstile Site Key）
-│   │   ├── auth.py                # （遗留）本地用户管理，已改用 server JWT 认证
-│   │   └── session.py             # （遗留）会话管理，已改用 JWT HttpOnly Cookie
-│   ├── routes/                    # 路由（home/auth/chat）
-│   ├── static/css/                # 样式表
-│   └── templates/                 # 9 个 Jinja2 页面模板（含 Turnstile 登录/注册）
+│   │   └── config.py              # 配置加载（含 Turnstile Site Key）
+│   ├── routes/                    # 路由（home/auth/chat/ai_config/web_helpers）
+│   ├── services/                  # 业务服务（medication_service）
+│   └── templates/                 # Jinja2 页面模板（含 Turnstile 登录/注册）
+├── tests/                         # 集成测试
+├── conftest.py                    # pytest 共享 fixture
+├── main.py                        # 根目录入口（统一启动）
+├── updater.py                     # 根目录自动更新器
 ├── history.md                     # 项目开发历史记录（版本基准）
-├── VERSION                        # 当前版本号（v2.44.0）
+├── VERSION                        # 当前版本号
+├── PRIVACY.md                     # 隐私政策
+├── TERMS.md                       # 服务条款
 ├── deploy/                        # 部署辅助文件（一键脚本 + systemd 单元 + cloudflared 配置）
 │   ├── setup-linux.sh             # Linux 一键部署脚本（bash）
 │   ├── setup-mac.sh               # macOS 一键部署脚本（zsh）
+│   ├── setup.sh                   # 跨平台部署辅助
 │   ├── eating-medication-server.service
 │   ├── eating-medication-family.service
 │   ├── cloudflared.service
