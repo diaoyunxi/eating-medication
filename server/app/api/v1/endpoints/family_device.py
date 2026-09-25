@@ -96,7 +96,7 @@ async def bind_device(
     try:
         user = DeviceService.get_device_user(db, req.device_id)
     except HTTPException:
-        raise HTTPException(status_code=404, detail="设备未注册，请先让老人端开机联网")
+        raise HTTPException(status_code=404, detail="设备未注册，请先让老人端开机联网") from None
 
     # 弱保护：设备须曾上报过心跳（即老人端确实在线/存在），避免仅凭 device_id
     # 即可绑定一个从不在线、可能属他人的设备。device_id 本身为 15 位随机整数，
@@ -319,7 +319,7 @@ async def family_update_medication_plan(
     try:
         plan = MedicationService.update_plan(db, plan_id, owner.id, plan_data)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     logger.info(
         f"家属更新设备 {mask_device_id(req.device_id or '')} 用药计划 {plan_id}: {req.drug_name}"
     )

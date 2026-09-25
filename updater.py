@@ -269,14 +269,14 @@ def _fetch_json(url, timeout):
             raw = resp.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
         # 4xx/5xx：尝试读取响应体以判断原因（如 403 限流、404 无 Release）
-        raise RuntimeError(f"HTTP {e.code} 请求 {url} 失败：{e.reason}")
+        raise RuntimeError(f"HTTP {e.code} 请求 {url} 失败：{e.reason}") from e
     if not raw.strip():
         raise RuntimeError(f"请求 {url} 返回空响应（可能镜像/代理不支持该地址，或网络异常）")
     try:
         return json.loads(raw)
     except json.JSONDecodeError as e:
         snippet = raw[:200].replace("\n", " ")
-        raise RuntimeError(f"响应非 JSON（{url}）：{e}；响应片段：{snippet!r}")
+        raise RuntimeError(f"响应非 JSON（{url}）：{e}；响应片段：{snippet!r}") from e
 
 
 def _fetch_latest_release():

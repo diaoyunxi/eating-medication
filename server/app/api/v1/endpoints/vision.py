@@ -42,4 +42,4 @@ async def recognize_drug(
     except Exception:
         # 异常细节不返回客户端，仅记录详细日志
         logger.exception("识别失败")
-        raise HTTPException(status_code=500, detail="识别失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="识别失败，请稍后重试") from None
