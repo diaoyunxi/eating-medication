@@ -1,8 +1,9 @@
 ﻿# -*- coding: utf-8 -*-
+import asyncio
 import logging
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from app.models.user import User
 from app.models.medication_plan import MedicationPlan
 from app.models.medication_record import MedicationRecord
@@ -71,11 +72,12 @@ class MedicationService:
         return db.query(MedicationPlan).filter(MedicationPlan.user_id.in_(elderly_ids)).all()
 
     @staticmethod
-    async def take_medication(db: Session, user_id: int, req: TakeMedicationRequest) -> MedicationRecord:
-        """记录服药并扣减库存（原子扣减 + 去重 + 状态计算）
+    def _do_take_medication_sync(
+        db: Session, user_id: int, req: TakeMedicationRequest
+    ) -> Tuple[MedicationRecord, MedicationPlan, str]:
+        """同步执行服药记录与库存扣减（纯 DB 操作，可安全在 asyncio.to_thread 中运行）。
 
-        改为 async def，通知部分直接 await，避免同步函数中 asyncio.run
-        访问主事件循环导致 WebSocket 推送失败。
+        返回 (record, plan, status) 供调用方发送通知。
         """
         from sqlalchemy import update
 
@@ -142,8 +144,22 @@ class MedicationService:
         db.commit()
         db.refresh(record)
 
+        return record, plan, status
+
+    @staticmethod
+    async def take_medication(db: Session, user_id: int, req: TakeMedicationRequest) -> MedicationRecord:
+        """记录服药并扣减库存（原子扣减 + 去重 + 状态计算）
+
+        同步 DB 操作通过 asyncio.to_thread 在线程池中执行，
+        避免阻塞 FastAPI 事件循环（同步 SQLAlchemy Session 在 async
+        函数中直接调用会卡住事件循环，导致并发请求排队甚至死锁）。
+        通知部分在主事件循环中 await，保证 WebSocket 推送正常。
+        """
+        record, plan, status = await asyncio.to_thread(
+            MedicationService._do_take_medication_sync, db, user_id, req
+        )
+
         # 服药后通知家属（仅在确实服药时）
-        # 直接 await 异步通知，不再使用 asyncio.run
         if status == "taken":
             try:
                 from app.websocket.notifier import notifier
