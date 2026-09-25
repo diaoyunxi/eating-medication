@@ -60,7 +60,7 @@ def _load_version():
             if ver:
                 return ver
     except Exception:
-        pass
+        logger.warning("updater: 静默异常已捕获", exc_info=True)
     return "0.0.0"
 
 
@@ -541,7 +541,7 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
         try:
             shutil.rmtree(tmp_dir, ignore_errors=True)
         except Exception:
-            pass
+            logger.warning("updater: 静默异常已捕获", exc_info=True)
 
 
 
@@ -731,7 +731,7 @@ def _delete_path(path: Path, deleted: list, skipped: list):
                     path.rmdir()
                     deleted.append(str(path))
             except Exception:
-                pass
+                logger.warning("updater: 静默异常已捕获", exc_info=True)
             return
     except Exception as e:  # 权限等问题不阻断其它项
         skipped.append(f"{path} ({e})")
@@ -928,7 +928,7 @@ def _load_gitignore_patterns():
                 continue
             patterns.append(line)
     except Exception:
-        pass
+        logger.warning("updater: 静默异常已捕获", exc_info=True)
     return patterns
 
 
@@ -1117,7 +1117,7 @@ def check_for_update(auto_pull=None):
             try:
                 shutil.rmtree(tmp_zip_dir, ignore_errors=True)
             except Exception:
-                pass
+                logger.warning("updater: 静默异常已捕获", exc_info=True)
 
     except Exception as e:
         logger.warning(f"[更新检查] 检查更新失败: {e}")

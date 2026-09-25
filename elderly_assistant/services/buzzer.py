@@ -135,4 +135,4 @@ class Buzzer:
         try:
             self.stop()
         except Exception:
-            pass
+            logger.debug("buzzer: 静默异常已捕获", exc_info=True)

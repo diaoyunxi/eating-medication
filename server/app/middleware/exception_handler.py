@@ -26,7 +26,7 @@ def _redact_request_body(body_bytes: bytes) -> str:
                     parsed[key] = "***REDACTED***"
             body_text = json.dumps(parsed, ensure_ascii=False)
     except Exception:
-        pass
+        logger.error("exception_handler: 静默异常已捕获", exc_info=True)
     return body_text
 
 

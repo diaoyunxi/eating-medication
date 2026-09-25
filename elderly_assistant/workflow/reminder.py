@@ -321,7 +321,7 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, logge
                         speech.speak(f"{elderly_label}，该吃药了")
                     speech.speak(f"请服用{drug_name}" + (f"，剂量{dosage}" if dosage else ""))
                 except Exception:
-                    pass
+                    logger.warning("reminder: 静默异常已捕获", exc_info=True)
             logger.info(f"触发用药提醒: {drug_name} {dosage} @ {now_hm} (共 {len(matched_reminders)} 个)")
     except Exception as e:
         logger.error(f"检查触发异常: {e}")

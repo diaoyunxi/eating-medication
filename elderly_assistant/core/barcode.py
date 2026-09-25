@@ -194,7 +194,7 @@ class UsbCameraScanner:
             try:
                 cap.release()
             except Exception:
-                pass
+                logger.debug("barcode: 静默异常已捕获", exc_info=True)
             raise RuntimeError(f"USB 摄像头(index={self.index}) 打开失败")
         self._cap = cap
         self._decode = zbar_decode
@@ -217,7 +217,7 @@ class UsbCameraScanner:
             try:
                 self._cap.release()
             except Exception:
-                pass
+                logger.debug("barcode: 静默异常已捕获", exc_info=True)
         self._cap = None
         self._decode = None
 
@@ -306,5 +306,5 @@ class BarcodeScanner:
             try:
                 backend.close()
             except Exception:
-                pass
+                logger.debug("barcode: 静默异常已捕获", exc_info=True)
         self._backends = None

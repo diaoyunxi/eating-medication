@@ -36,7 +36,7 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
             f.write(error_msg)
             f.write("\n")
     except Exception:
-        pass
+        logger.error("main: 静默异常已捕获", exc_info=True)
 
 sys.excepthook = global_exception_handler
 

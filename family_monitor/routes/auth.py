@@ -9,6 +9,8 @@
 5. 后续请求由 auth_middleware 转发 JWT 到 server /api/v1/users/me 验证
 """
 
+import logging
+logger = logging.getLogger(__name__)
 import os
 import httpx
 from fastapi import APIRouter, Request, status
@@ -154,7 +156,7 @@ async def oauth_github_enabled():
         if resp.status_code == 200:
             return resp.json()
     except Exception:
-        pass
+        logger.warning("auth: 静默异常已捕获", exc_info=True)
     return {"enabled": False}
 
 
@@ -176,7 +178,7 @@ async def oauth_gitee_enabled():
         if resp.status_code == 200:
             return resp.json()
     except Exception:
-        pass
+        logger.warning("auth: 静默异常已捕获", exc_info=True)
     return {"enabled": False}
 
 
@@ -865,11 +867,11 @@ async def security_setup_page(request: Request):
                 context["phone"] = udata.get("phone", "")
                 context["mfa_enabled"] = bool(udata.get("mfa_enabled", False))
         except Exception:
-            pass
+            logger.warning("auth: 静默异常已捕获", exc_info=True)
         try:
             creds = await _server_client._execute("GET", _server_url("/auth/webauthn/credentials"), headers=headers)
             if creds.status_code == 200:
                 context["credentials"] = creds.json()
         except Exception:
-            pass
+            logger.warning("auth: 静默异常已捕获", exc_info=True)
     return templates.TemplateResponse("security_setup.html", context)

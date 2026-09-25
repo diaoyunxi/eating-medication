@@ -242,12 +242,12 @@ class Display:
                 try:
                     self._time_text.config(text=time_str)
                 except Exception:
-                    pass
+                    logger.debug("display: 静默异常已捕获", exc_info=True)
             if self._date_text is not None:
                 try:
                     self._date_text.config(text=date_str)
                 except Exception:
-                    pass
+                    logger.debug("display: 静默异常已捕获", exc_info=True)
         except Exception as e:
             logger.error(f"更新时间显示失败: {e}")
 
@@ -288,7 +288,7 @@ class Display:
                 try:
                     self._reminder_text.config(text=f'该用药了：{drug_name}')
                 except Exception:
-                    pass
+                    logger.debug("display: 静默异常已捕获", exc_info=True)
 
             # 剂量
             if self._reminder_dosage_text is None:
@@ -301,7 +301,7 @@ class Display:
                 try:
                     self._reminder_dosage_text.config(text=f'剂量：{dosage}')
                 except Exception:
-                    pass
+                    logger.debug("display: 静默异常已捕获", exc_info=True)
 
             # 操作提示
             if self._hint_text is None:
@@ -433,7 +433,7 @@ class Display:
                 try:
                     self._status_text.config(text=status_str)
                 except Exception:
-                    pass
+                    logger.debug("display: 静默异常已捕获", exc_info=True)
             else:
                 self._status_text = self.gui.draw_text(
                     x=self.CENTER_X, y=self.STATUS_TEXT_Y,
@@ -453,7 +453,7 @@ class Display:
                 try:
                     self._uuid_text.config(text=text)
                 except Exception:
-                    pass
+                    logger.debug("display: 静默异常已捕获", exc_info=True)
             else:
                 self._uuid_text = self.gui.draw_text(
                     x=self.CENTER_X, y=self.UUID_TEXT_Y,
@@ -482,7 +482,7 @@ class Display:
                 try:
                     self._next_reminder_text.config(text=text)
                 except Exception:
-                    pass
+                    logger.debug("display: 静默异常已捕获", exc_info=True)
         except Exception as e:
             logger.error(f"更新下次提醒显示失败: {e}")
 
@@ -547,7 +547,7 @@ class Display:
                 try:
                     self._barcode_text.config(text='')
                 except Exception:
-                    pass
+                    logger.debug("display: 静默异常已捕获", exc_info=True)
                 self._barcode_text = None
             self._barcode_content = ''
             self._barcode_expire = 0.0
@@ -564,4 +564,4 @@ class Display:
                 try:
                     self._barcode_text.config(text=self._barcode_content)
                 except Exception:
-                    pass
+                    logger.debug("display: 静默异常已捕获", exc_info=True)
