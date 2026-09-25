@@ -83,7 +83,7 @@ if _venv_py.exists() and not _in_venv():
     try:
         os.execv(str(_venv_py), [str(_venv_py)] + sys.argv)
     except Exception:
-        pass
+        logger.warning("main: 静默异常已捕获", exc_info=True)
 
 # 启动前检查依赖，缺失则调用 common/install.py 安装
 _check_and_install_dependencies()

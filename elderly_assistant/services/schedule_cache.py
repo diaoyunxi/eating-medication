@@ -92,4 +92,4 @@ def save_schedules(schedules, path=None):
                 try:
                     os.remove(tmp_path)
                 except Exception:
-                    pass
+                    logger.warning("schedule_cache: 静默异常已捕获", exc_info=True)

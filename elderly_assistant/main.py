@@ -467,7 +467,7 @@ def main():
                     try:
                         buzzer.play_reminder()
                     except Exception:
-                        pass
+                        logger.warning("main: 静默异常已捕获", exc_info=True)
                     reminder_state.triggered_at = datetime.now()
 
             # 注：原物理按钮 A/B 检测已移除，确认/问AI 均由屏幕触摸按钮触发
@@ -478,7 +478,7 @@ def main():
                 try:
                     led.write_digital(1 if server_connected else 0)
                 except Exception:
-                    pass
+                    logger.warning("main: 静默异常已捕获", exc_info=True)
 
             # ---- 每帧刷新扫码结果临时展示（10 秒后自动清除）----
             if display is not None:
@@ -490,7 +490,7 @@ def main():
             # 主循环休眠，降低 CPU 占用
             time.sleep(0.1)
     except KeyboardInterrupt:
-        pass
+        logger.warning("main: 静默异常已捕获", exc_info=True)
     finally:
         # 清理资源：依次停止并等待各后台线程退出，释放硬件句柄
         logger.info("正在清理资源...")
@@ -538,7 +538,7 @@ def main():
             if led:
                 led.write_digital(0)
         except Exception:
-            pass
+            logger.warning("main: 静默异常已捕获", exc_info=True)
         logger.info("老人端已退出")
 
 

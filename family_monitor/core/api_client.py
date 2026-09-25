@@ -336,7 +336,7 @@ class ElderlyAPIClient(BaseServerClient):
                 if message:
                     return str(message)
         except Exception:
-            pass
+            logger.warning("api_client: 静默异常已捕获", exc_info=True)
         return f"服务端返回状态码: {response.status_code}"
 
     def _load_bound_device_id(self) -> Optional[str]:
@@ -348,7 +348,7 @@ class ElderlyAPIClient(BaseServerClient):
                     data = json.load(f)
                     return data.get('device_id')
             except Exception:
-                pass
+                logger.warning("api_client: 静默异常已捕获", exc_info=True)
         return None
 
     def _load_device_token(self) -> Optional[str]:
@@ -360,7 +360,7 @@ class ElderlyAPIClient(BaseServerClient):
                     data = json.load(f)
                     return data.get('device_token')
             except Exception:
-                pass
+                logger.warning("api_client: 静默异常已捕获", exc_info=True)
         return None
 
     def save_bound_device(self, device_id: str, device_name: str = "", device_token: str = ""):
@@ -392,7 +392,7 @@ class ElderlyAPIClient(BaseServerClient):
                 with open(device_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception:
-                pass
+                logger.warning("api_client: 静默异常已捕获", exc_info=True)
         return None
 
     def clear_bound_device(self):
@@ -706,7 +706,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return data.get('records', []) or []
             return []
         except Exception:
-            pass
+            logger.warning("api_client: 静默异常已捕获", exc_info=True)
         return []
 
     async def get_dashboard_data(self) -> Dict[str, Any]:
@@ -906,7 +906,7 @@ class ElderlyAPIClient(BaseServerClient):
                 }
             }
         except Exception:
-            pass
+            logger.warning("api_client: 静默异常已捕获", exc_info=True)
 
         return {
             'summary': {
@@ -939,7 +939,7 @@ class ElderlyAPIClient(BaseServerClient):
                 return data.get('messages', []) or []
             return []
         except Exception:
-            pass
+            logger.warning("api_client: 静默异常已捕获", exc_info=True)
         return []
 
     async def get_server_status(self) -> Dict[str, Any]:

@@ -212,7 +212,7 @@ if _db_scheme(settings.DATABASE_URL) == "sqlite":
                     try:
                         cur.close()
                     except Exception:  # noqa: BLE001
-                        pass
+                        logger.error("database: 静默异常已捕获", exc_info=True)  # noqa: BLE001
 
         _sa_event.listen(engine, "connect", _apply_sqlite_pragmas)
         logger.info("SQLite 并发优化监听器已注册(WAL + busy_timeout 将于建立连接时应用)")
@@ -260,7 +260,7 @@ def _safe_add_column(conn, table_name, column, dialect):
         try:
             conn.rollback()
         except Exception:
-            pass
+            logger.error("database: 静默异常已捕获", exc_info=True)
         return False
 
 

@@ -99,7 +99,7 @@ def setup_logger(log_dir="logs"):
             try:
                 h.close()
             except Exception:
-                pass
+                logger.debug("logger: 静默异常已捕获", exc_info=True)
             logger.removeHandler(h)
 
     log_file = os.path.join(log_dir, f"assistant_{datetime.now().strftime('%Y%m%d')}.log")

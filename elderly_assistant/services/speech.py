@@ -128,7 +128,7 @@ class Speech:
                         if _DEFAULT_VOICE:
                             eng.setProperty('voice', _DEFAULT_VOICE)
                     except Exception:
-                        pass
+                        logger.debug("speech: 静默异常已捕获", exc_info=True)
                 # 用一次静默空播报触达发音后端，捕获潜在的延迟初始化失败
                 eng.say("")
                 eng.runAndWait()
@@ -140,7 +140,7 @@ class Speech:
             try:
                 eng.stop()
             except Exception:
-                pass
+                logger.debug("speech: 静默异常已捕获", exc_info=True)
             self._pyttsx_engine = None
             return
 
@@ -223,7 +223,7 @@ class Speech:
                         try:
                             self._init_engines()
                         except Exception:
-                            pass
+                            logger.debug("speech: 静默异常已捕获", exc_info=True)
                 else:
                     # 两个引擎均不可用/失败：明确记录，便于排查为何无声音
                     self.last_error = "无可用语音引擎"
@@ -258,7 +258,7 @@ class Speech:
                 try:
                     os.unlink(tmp_path)
                 except Exception:
-                    pass
+                    logger.debug("speech: 静默异常已捕获", exc_info=True)
 
     def _play_mp3(self, path):
         """用系统中可用的播放器播放 MP3；无可用播放器则抛错触发 pyttsx3 兜底。"""
@@ -296,7 +296,7 @@ class Speech:
         try:
             self._speak_queue.put_nowait(None)
         except queue.Full:
-            pass
+            logger.debug("speech: 静默异常已捕获", exc_info=True)
 
         if hasattr(self, '_worker_thread') and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=2)
@@ -305,7 +305,7 @@ class Speech:
             try:
                 self._pyttsx_engine.stop()
             except Exception:
-                pass
+                logger.debug("speech: 静默异常已捕获", exc_info=True)
             self._pyttsx_engine = None
         self._edge_tts = None
         self._edge_available = False

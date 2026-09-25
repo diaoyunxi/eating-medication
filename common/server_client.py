@@ -68,7 +68,7 @@ def _is_httpx_transient_error(exc: Exception) -> bool:
         if isinstance(exc, _httpx.TransportError):
             return True
     except Exception:
-        pass
+        logger.warning("server_client: 静默异常已捕获", exc_info=True)
     return type(exc).__name__ in {
         "TransportError",
         "TimeoutException",

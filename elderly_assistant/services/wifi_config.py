@@ -532,7 +532,7 @@ class WiFiConfigServer:
             try:
                 self.server.socket.close()
             except Exception:
-                pass
+                logger.warning("wifi_config: 静默异常已捕获", exc_info=True)
         logger.info("WiFi 配网服务已停止")
 
 

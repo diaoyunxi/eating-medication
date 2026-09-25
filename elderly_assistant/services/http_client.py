@@ -328,7 +328,7 @@ class HTTPClient:
                         _save_device_token(reissued)
                         logger.info("已持久化服务端重新签发的设备令牌")
                 except Exception:
-                    pass
+                    logger.warning("http_client: 静默异常已捕获", exc_info=True)
                 return True
             logger.warning(f"设备下线通知失败，状态码: {resp.status_code}")
             return False
