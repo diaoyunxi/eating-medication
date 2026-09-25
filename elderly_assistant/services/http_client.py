@@ -132,8 +132,9 @@ class HTTPClient:
         safe = {}
         for k, v in (headers or {}).items():
             if k.lower() == "x-device-token":
-                v = f"{str(v)[:6]}****" if v else "****"
-            safe[k] = v
+                safe[k] = f"{str(v)[:6]}****" if v else "****"
+            else:
+                safe[k] = v
         return safe
 
     @staticmethod

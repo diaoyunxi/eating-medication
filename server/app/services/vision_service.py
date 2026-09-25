@@ -88,12 +88,12 @@ class VisionService:
         
         lines = text.split('\n')
         for line in lines:
-            line = line.strip()
-            if len(line) < 3:
+            stripped = line.strip()
+            if len(stripped) < 3:
                 continue
             for keyword in drug_keywords:
-                if keyword in line:
-                    return line
+                if keyword in stripped:
+                    return stripped
         
         return lines[0] if lines else '识别失败'
 

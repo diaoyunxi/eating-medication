@@ -73,11 +73,11 @@ def _read_os_release():
             return info
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
-                line = line.strip()
+                stripped = line.strip()
                 # 跳过空行与注释行，避免把 `# comment` 误解析成键值对
-                if not line or line.startswith("#") or "=" not in line:
+                if not stripped or stripped.startswith("#") or "=" not in stripped:
                     continue
-                key, _, value = line.partition("=")
+                key, _, value = stripped.partition("=")
                 info[key.strip()] = value.strip().strip('"').strip("'")
     except OSError:
         # 权限不足 / IO 异常一律视为「无法识别」，交由后续特征兜底

@@ -923,10 +923,10 @@ def _load_gitignore_patterns():
         return patterns
     try:
         for line in p.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
                 continue
-            patterns.append(line)
+            patterns.append(stripped)
     except Exception:
         pass
     return patterns
