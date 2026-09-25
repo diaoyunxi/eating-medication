@@ -132,9 +132,9 @@ def _install_linux_system_deps():
     deps = ["espeak", "libzbar0", "mbrola", "mbrola-cn1", "mpg123"]
     try:
         print(f"正在尝试安装系统依赖（需 root/网络）: {', '.join(deps)}")
-        subprocess.run(["apt-get", "update"], capture_output=True, text=True, timeout=300)
+        subprocess.run(["apt-get", "update"], capture_output=True, text=True, timeout=300, check=False)
         subprocess.run(["apt-get", "install", "-y"] + deps,
-                       capture_output=True, text=True, timeout=600)
+                       capture_output=True, text=True, timeout=600, check=False)
         logger.info("已尝试安装系统依赖: " + ", ".join(deps))
     except Exception as e:
         logger.warning(f"系统依赖安装失败（已忽略，相关功能降级）: {e}")
@@ -178,7 +178,7 @@ def check_and_install_dependencies():
                     [_venv_python(), root_install, req_path,
                      "--huskylens", "--target", BASE_DIR],
                     capture_output=False, text=True, cwd=project_root,
-                )
+                , check=False)
                 if result.returncode != 0:
                     print("依赖安装可能未完全成功，尝试继续运行...")
                 else:

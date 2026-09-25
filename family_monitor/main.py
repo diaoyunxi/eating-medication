@@ -63,7 +63,7 @@ def _check_and_install_dependencies():
                 result = subprocess.run(
                     [venv_python, root_install, req_path],
                     capture_output=False, text=True, cwd=str(PROJECT_ROOT),
-                )
+                , check=False)
                 if result.returncode == 0:
                     print("依赖安装完成，正在重新启动服务...")
                     os.execv(venv_python, [venv_python] + sys.argv)

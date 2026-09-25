@@ -350,7 +350,7 @@ def _verify_release_attestation(file_path, repo="diaoyunxi/eating-medication"):
             ["gh", "attestation", "verify", str(file_path), "--repo", repo,
              "--signer-workflow", "github.com/diaoyunxi/eating-medication/.github/workflows/python-app.yml"],
             capture_output=True, text=True, timeout=60
-        )
+        , check=False)
         if proc.returncode == 0:
             logger.info("[更新检查] Release Attestation 验证通过")
             return True
@@ -575,7 +575,7 @@ def _restart_services():
         cmd = ["sudo", "-n"] + cmd
     logger.info(f"[更新] 即将重启服务以应用新版本: {', '.join(service_names)}")
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=False)
         if proc.returncode == 0:
             logger.info(f"[更新] 已向 systemd 提交重启请求: {', '.join(service_names)}")
             return True
@@ -626,7 +626,7 @@ def _run_post_update_cmd():
             text=True,
             timeout=300,
             cwd=str(Path(__file__).resolve().parent),
-        )
+        , check=False)
         if proc.returncode != 0:
             # 仅输出返回码与错误摘要，不回显命令内容、不打印 stdout（可能含敏感信息）
             err_tail = (proc.stderr or "").strip().splitlines()[-1:] or [""]
@@ -746,7 +746,7 @@ def _reset_via_git(repo_root: Path, deleted: list, skipped: list) -> bool:
             capture_output=True,
             text=True,
             timeout=60,
-        )
+        , check=False)
     except Exception:
         return False
     if out.returncode != 0:

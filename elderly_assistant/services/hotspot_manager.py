@@ -38,7 +38,7 @@ class HotspotManager:
             subprocess.run(
                 ["nmcli", "connection", "delete", self.ssid],
                 capture_output=True, timeout=5
-            )
+            , check=False)
 
             # 创建新的热点（带 WPA2 密码）
             # 使用列表形式传参，避免 shell 注入风险
@@ -79,7 +79,7 @@ class HotspotManager:
             subprocess.run(
                 ["nmcli", "connection", "delete", self.ssid],
                 capture_output=True, timeout=5
-            )
+            , check=False)
             self.is_running = False
             logger.info("热点已停止")
             return True
@@ -93,7 +93,7 @@ class HotspotManager:
             result = subprocess.run(
                 ["nmcli", "-t", "-f", "NAME", "connection", "show", "--active"],
                 capture_output=True, text=True, timeout=5
-            )
+            , check=False)
             return self.ssid in result.stdout
         except Exception:
             return False

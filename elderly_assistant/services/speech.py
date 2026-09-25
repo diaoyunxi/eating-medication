@@ -269,7 +269,7 @@ class Speech:
                     subprocess.run(
                         [exe] + extra + [path],
                         capture_output=True, text=True, timeout=30,
-                    )
+                    , check=False)
                     return
                 except Exception as e:
                     self.logger.warning(f"播放器 {player} 执行失败: {e}")
