@@ -61,7 +61,7 @@ class VisionService:
         except Exception as e:
             if str(e).startswith("百度"):
                 raise
-            raise Exception(f"百度OCR调用失败: {str(e)}")
+            raise Exception(f"百度OCR调用失败: {str(e)}") from e
 
     @staticmethod
     async def _recognize_tencent(image_data: bytes) -> Dict[str, Any]:
