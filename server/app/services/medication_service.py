@@ -138,6 +138,14 @@ class MedicationService:
                     "服药已确认(plan=%s)但库存扣减失败(库存为0或计划不存在)，"
                     "保留服药记录、未扣减库存", req.plan_id
                 )
+                # 通知家属：药品已耗尽（库存为 0 时扣减失败）
+                try:
+                    from app.websocket.notifier import notifier
+                    await notifier.notify_low_stock(
+                        db, user_id, plan.drug_name, 0, plan.low_stock_threshold
+                    )
+                except Exception as e:
+                    logger.error(f"库存耗尽通知发送失败: {e}")
 
         db.commit()
         db.refresh(record)
