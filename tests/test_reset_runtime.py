@@ -70,9 +70,9 @@ class TestResetRuntimeData(unittest.TestCase):
         cache.mkdir()
         (self.tmp / "server" / "x.pyc").write_text("", encoding="utf-8")
 
-        subprocess.run(["git", "init"], cwd=str(self.tmp), capture_output=True)
-        subprocess.run(["git", "add", "README.md"], cwd=str(self.tmp), capture_output=True)
-        subprocess.run(["git", "commit", "-m", "t"], cwd=str(self.tmp), capture_output=True)
+        subprocess.run(["git", "init"], cwd=str(self.tmp), capture_output=True, check=False)
+        subprocess.run(["git", "add", "README.md"], cwd=str(self.tmp), capture_output=True, check=False)
+        subprocess.run(["git", "commit", "-m", "t"], cwd=str(self.tmp), capture_output=True, check=False)
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)

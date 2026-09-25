@@ -135,7 +135,7 @@ def _apt_install_venv_tool():
                 proc = subprocess.run(
                     cmd, timeout=900,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                )
+                , check=False)
                 if proc.returncode == 0:
                     break
                 print(f"    失败 (返回码={proc.returncode})")
@@ -165,7 +165,7 @@ def _create_venv(venv_dir):
              str(venv_dir)],
             timeout=600,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        )
+        , check=False)
     except Exception as e:
         print(f"  创建虚拟环境失败: {e}")
         return False
@@ -257,7 +257,7 @@ def _check_pip_available():
         result = subprocess.run(
             [sys.executable, "-m", "pip", "--version"],
             capture_output=True, text=True, timeout=30,
-        )
+        , check=False)
         return result.returncode == 0
     except Exception:
         return False
@@ -269,7 +269,7 @@ def _pip_version_string():
         result = subprocess.run(
             [sys.executable, "-m", "pip", "--version"],
             capture_output=True, text=True, timeout=30,
-        )
+        , check=False)
         if result.returncode == 0:
             return (result.stdout or "").strip()
     except Exception:
@@ -295,7 +295,7 @@ def _install_pip_linux():
                 proc = subprocess.run(
                     cmd, timeout=900,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                )
+                , check=False)
                 if proc.returncode == 0:
                     break
                 print(f"    失败 (返回码={proc.returncode})")
@@ -334,7 +334,7 @@ def _install_pip_windows():
             [sys.executable, tmp_path],
             timeout=900,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        )
+        , check=False)
         if proc.returncode != 0:
             print(f"  get-pip.py 执行失败 (返回码={proc.returncode})")
             tail = (proc.stdout or b"")[-2000:].decode("utf-8", errors="ignore")
@@ -361,7 +361,7 @@ def _install_pip_ensurepip():
             [sys.executable, "-m", "ensurepip", "--upgrade"],
             timeout=300,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        )
+        , check=False)
         if proc.returncode != 0:
             tail = (proc.stdout or b"")[-2000:].decode("utf-8", errors="ignore")
             if tail:
@@ -436,7 +436,7 @@ def is_package_installed(pkg_name):
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "show", package_name],
                 capture_output=True, text=True, timeout=30,
-            )
+            , check=False)
             return result.returncode == 0
         except Exception:
             return False
@@ -449,7 +449,7 @@ def _run_pip(cmd):
     """执行一次 pip, 返回 (returncode, stdout, stderr)"""
     proc = subprocess.run(
         cmd, capture_output=True, text=True, timeout=1800,
-    )
+    , check=False)
     return proc.returncode, proc.stdout or "", proc.stderr or ""
 
 

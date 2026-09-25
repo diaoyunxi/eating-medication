@@ -88,7 +88,7 @@ class WiFiConfigManager:
             result = subprocess.run(
                 ["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi", "list"],
                 capture_output=True, text=True, timeout=15
-            )
+            , check=False)
             if result.returncode == 0:
                 seen = set()
                 lines = result.stdout.strip().split('\n')
@@ -132,7 +132,7 @@ class WiFiConfigManager:
             result = subprocess.run(
                 ["nmcli", "dev", "wifi", "connect", safe_ssid, "password", safe_password],
                 capture_output=True, text=True, timeout=30
-            )
+            , check=False)
             if result.returncode == 0:
                 self.status = "success"
                 self.status_message = "成功连接到 %s" % safe_ssid
