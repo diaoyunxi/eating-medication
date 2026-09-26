@@ -88,23 +88,23 @@ if _venv_py.exists() and not _in_venv():
 # 启动前检查依赖，缺失则调用 common/install.py 安装
 _check_and_install_dependencies()
 
-import struct
-import time
-import uvicorn
-from contextlib import asynccontextmanager
-from typing import Optional
-from fastapi import FastAPI, Request
-from common.server_client import BaseServerClient
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, JSONResponse, Response
-from core import config
-from routes import home_router
-from routes import chat_router
-from routes import auth_router
-from routes import ai_config_router
-import logging
-from updater import __version__ as __app_version__
+import struct  # noqa: E402
+import time  # noqa: E402
+import uvicorn  # noqa: E402
+from contextlib import asynccontextmanager  # noqa: E402
+from typing import Optional  # noqa: E402
+from fastapi import FastAPI, Request  # noqa: E402
+from common.server_client import BaseServerClient  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.responses import RedirectResponse, JSONResponse, Response  # noqa: E402
+from core import config  # noqa: E402
+from routes import home_router  # noqa: E402
+from routes import chat_router  # noqa: E402
+from routes import auth_router  # noqa: E402
+from routes import ai_config_router  # noqa: E402
+import logging  # noqa: E402
+from updater import __version__ as __app_version__  # noqa: E402
 
 # 使用 uvicorn.error logger，确保启动阶段的 info/warning 日志能随 uvicorn 输出
 # 否则默认 Python logging 只显示 WARNING+，应用层的 info 诊断日志将不可见
