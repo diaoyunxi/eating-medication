@@ -253,6 +253,13 @@
 │   ├── routes/                    # 路由（home/auth/chat）
 │   ├── static/css/                # 样式表
 │   └── templates/                 # 9 个 Jinja2 页面模板（含 Turnstile 登录/注册）
+├── common/                        # 跨端共享模块（服务端/老人端/家属端共用）
+│   ├── envfile.py                 # .env 文件解析与类型安全读取
+│   ├── install.py                 # 依赖自动安装（pip/apt/systemd）
+│   ├── runtime_protection.py      # 运行时受保护文件规则（更新/重置时不被覆盖/删除）
+│   ├── security.py                # 安全工具：密码哈希、JWT 令牌、设备 ID 脱敏
+│   ├── server_client.py           # 与服务端通信的 HTTP 客户端封装
+│   └── validators.py              # 输入校验工具（手机号/密码/验证码格式）
 ├── history.md                     # 项目开发历史记录（版本基准）
 ├── VERSION                        # 当前版本号（v2.44.0）
 ├── deploy/                        # 部署辅助文件（一键脚本 + systemd 单元 + cloudflared 配置）
