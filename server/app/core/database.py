@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """数据库连接与引擎管理
 
 支持多种数据库后端（通过 settings.DATABASE_URL 切换）：

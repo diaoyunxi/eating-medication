@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """app.services.auth_service 单元测试（需要 sqlalchemy / pydantic-settings）。
 
 AuthService 方法均为同步，依赖注入的 db 为 SQLAlchemy Session。

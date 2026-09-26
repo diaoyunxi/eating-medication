@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """common.validators 纯函数测试（与 server/app/utils/validators 同源但为独立模块）。"""
 import unittest
 

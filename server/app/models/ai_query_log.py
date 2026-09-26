@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from sqlalchemy import Column, Integer, String, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone

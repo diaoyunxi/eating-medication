@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """app.core.security 单元测试（需要 jose 与 pydantic-settings）。
 
 本文件在导入任何 app 模块前注入测试环境变量，避免配置校验 sys.exit。

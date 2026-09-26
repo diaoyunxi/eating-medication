@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """MFA（TOTP 第二因子）与 WebAuthn / Passkey 业务逻辑。
 
 设计要点：

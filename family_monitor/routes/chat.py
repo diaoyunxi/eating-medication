@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 消息路由
 增加 /chat/history BFF 代理接口，从服务端获取聊天历史

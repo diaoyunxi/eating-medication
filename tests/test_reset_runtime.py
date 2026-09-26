@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """reset_runtime 单元测试。
 
 验证 ``--reset`` 的运行时数据清理逻辑：

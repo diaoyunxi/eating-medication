@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """family_monitor.services.medication_service.validate_and_build 补充测试（超集）。
 
 原 tests/test_family_medication_service.py 已覆盖核心失败分支；本文件用
