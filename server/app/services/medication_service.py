@@ -152,6 +152,14 @@ class MedicationService:
             except Exception as e:
                 logger.error(f"服药通知发送失败: {e}")
 
+        # 库存不足时通知家属补药
+        if status == "taken" and plan.remaining_quantity <= (plan.low_stock_threshold or 5):
+            try:
+                from app.websocket.notifier import notifier
+                await notifier.notify_low_stock(db, user_id, plan.drug_name, plan.remaining_quantity)
+            except Exception as e:
+                logger.error(f"库存不足通知发送失败: {e}")
+
         return record
 
     @staticmethod
