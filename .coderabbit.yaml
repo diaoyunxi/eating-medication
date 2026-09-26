@@ -1,0 +1,14 @@
+language: zh
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: true
+  review_status: true
+  assess_linked_issues: true
+  auto_title_instructions: |
+    请使用 Conventional Commits 格式生成 PR 标题。语言中文
+    格式：<type>(<scope>): <subject>
+    其中 type 可选值：feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+chat:
+  auto_reply: true

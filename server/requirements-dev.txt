@@ -1,0 +1,4 @@
+# 开发/测试依赖（与运行时依赖分离）
+-r requirements.txt
+pytest==8.3.3
+pytest-asyncio==0.24.0

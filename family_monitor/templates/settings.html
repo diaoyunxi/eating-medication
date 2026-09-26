@@ -1,0 +1,1405 @@
+{% extends "base.html" %}
+{% block title %}系统设置 - {{ app_name }}{% endblock %}
+{% block head_extra %}
+<style>
+    /* 登录方式管理样式 */
+    .login-methods-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 12px;
+    }
+    .login-method-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border: 1px solid var(--border-color, #e5e7eb);
+        border-radius: 8px;
+        transition: border-color 0.15s ease;
+    }
+    .login-method-item.lm-bound {
+        border-color: #22c55e;
+        background: #f0fdf4;
+    }
+    .lm-icon {
+        font-size: 1.5rem;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: #f3f4f6;
+    }
+    .lm-bound .lm-icon {
+        background: #dcfce7;
+    }
+    .lm-info {
+        flex: 1;
+    }
+    .lm-title {
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+    .lm-status {
+        font-size: 0.85rem;
+        margin-top: 2px;
+    }
+    .lm-bound-text {
+        color: #16a34a;
+    }
+    .lm-unbound {
+        color: #9ca3af;
+    }
+    .lm-action-btn {
+        min-width: 60px;
+    }
+    .lm-action-btn.btn-danger {
+        background: #ef4444;
+        color: #fff;
+        border: none;
+    }
+    .lm-action-btn.btn-danger:hover {
+        background: #dc2626;
+    }
+
+    /* 弹窗样式 */
+    .modal-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    .modal-content {
+        background: #fff;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 400px;
+        padding: 0;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #6b7280;
+        padding: 0;
+        line-height: 1;
+    }
+    .modal-body {
+        padding: 20px;
+    }
+    .btn-sm {
+        padding: 6px 14px;
+        font-size: 0.85rem;
+    }
+</style>
+{% endblock %}
+{% block content %}
+    <!-- 页面头部 -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <h1 class="page-title">系统设置</h1>
+            <p class="page-subtitle">配置设备绑定与通知偏好</p>
+        </div>
+    </div>
+
+    <!-- 状态栏 -->
+    <div class="status-bar">
+        <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
+            <div class="status-info">
+                <div class="status-icon">
+                    {% if device_info and device_info.connected %}
+                        &#9679;
+                    {% else %}
+                        &#9675;
+                    {% endif %}
+                </div>
+                <div class="status-text">
+                    <div class="status-title">
+                        {{ device_info.device_name if device_info else "未知设备" }}
+                    </div>
+                    <div class="status-subtitle">
+                        {% if device_info and device_info.device_id %}
+                            设备ID: {{ device_info.device_id }}
+                        {% else %}
+                            未绑定设备
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="status-badge">
+                {% if device_info and device_info.connected %}
+                    <span class="status-badge-dot"></span> 设备在线
+                {% else %}
+                    <span class="status-badge-dot"></span> 设备离线
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容 -->
+    <main class="container">
+        <div class="card-grid">
+            <!-- 设备绑定 -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="card-title-icon">&#128241;</span>
+                        设备绑定
+                    </h2>
+                </div>
+                <div class="card-body">
+                    {% if bound_device %}
+                    <div class="info-box">
+                        <div class="info-icon">&#10004;</div>
+                        <div class="info-content">
+                            <div class="info-title">已绑定设备</div>
+                            <div class="info-text">
+                                <p><strong>设备ID：</strong>{{ bound_device.device_id }}</p>
+                                {% if bound_device.device_name %}
+                                <p><strong>设备名称：</strong>{{ bound_device.device_name }}</p>
+                                {% endif %}
+                                <p><strong>绑定时间：</strong>{{ bound_device.bound_at }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-danger btn-lg w-full mt-3" onclick="unbindDevice()">
+                        <span>解绑设备</span>
+                    </button>
+                    {% else %}
+                    <div class="form-group">
+                        <label class="form-label">设备ID</label>
+                        <input type="text" class="form-input" id="deviceId" name="device-id"
+                               inputmode="numeric" autocomplete="off" autocorrect="off"
+                               autocapitalize="off" spellcheck="false"
+                               placeholder="输入行空板M10的设备ID（如 218356669348204）">
+                        <p class="form-hint">设备ID 显示在老人端屏幕底部（形如 ID: 218356669348204），为一串纯数字</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">设备名称（可选）</label>
+                        <input type="text" class="form-input" id="deviceName" name="device-name"
+                               autocomplete="off" placeholder="如：父亲的M10">
+                    </div>
+                    <button class="btn btn-primary btn-lg w-full mt-3" onclick="bindDevice()">
+                        <span>绑定设备</span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 通知设置 -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="card-title-icon">&#128276;</span>
+                        通知设置
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <div class="toggle-group">
+                        <div class="toggle-item">
+                            <div class="toggle-content">
+                                <div class="toggle-title">用药提醒通知</div>
+                                <div class="toggle-desc">当老人需要服药时发送提醒</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="medicationReminder" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="toggle-item">
+                            <div class="toggle-content">
+                                <div class="toggle-title">漏服提醒通知</div>
+                                <div class="toggle-desc">当老人漏服药物时发送提醒</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="missedReminder" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="toggle-item">
+                            <div class="toggle-content">
+                                <div class="toggle-title">设备离线通知</div>
+                                <div class="toggle-desc">当老人端设备离线时发送提醒</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="offlineReminder" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="toggle-item">
+                            <div class="toggle-content">
+                                <div class="toggle-title">浏览器通知</div>
+                                <div class="toggle-desc">允许浏览器发送桌面通知</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="browserNotifications">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="toggle-item">
+                            <div class="toggle-content">
+                                <div class="toggle-title">声音提醒</div>
+                                <div class="toggle-desc">收到通知时播放提示音</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="soundAlert" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-lg w-full mt-3" onclick="saveNotificationSettings()">
+                        <span>保存通知设置</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- AI 助手设置 -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="card-title-icon">&#129302;</span>
+                        AI 助手设置
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <p class="form-hint">为老人端 AI 健康助手选择大模型厂商并填写密钥。配置按用户独立保存在服务端数据库中，不在本地配置文件中。</p>
+
+                    <div class="form-group">
+                        <label class="form-label">AI 厂商</label>
+                        <select class="form-input" id="aiProvider" onchange="onAIProviderChange()">
+                            <option value="">加载中...</option>
+                        </select>
+                        <p class="form-hint" id="aiProviderDoc"></p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">API 密钥</label>
+                        <input type="password" class="form-input" id="aiApiKey" name="ai-api-key-new"
+                               autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false"
+                               placeholder="粘贴厂商 API Key（留空则不修改已保存的密钥）">
+                        <p class="form-hint" id="aiKeyStatus">未配置</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">模型名称</label>
+                        <input type="text" class="form-input" id="aiModel" name="ai-model"
+                               autocomplete="off" placeholder="如 glm-4.7-flash">
+                        <p class="form-hint">部分厂商可留空以使用默认模型</p>
+                    </div>
+
+                    <div class="form-group" id="aiBaseUrlGroup" style="display:none;">
+                        <label class="form-label">Base URL（OpenAI 兼容地址）</label>
+                        <input type="text" class="form-input" id="aiBaseUrl" name="ai-base-url"
+                               autocomplete="off" placeholder="https://your-endpoint/v1">
+                        <p class="form-hint">自定义或指定厂商需填写兼容 OpenAI 的接口地址</p>
+                    </div>
+
+                    <div class="toggle-group">
+                        <div class="toggle-item">
+                            <div class="toggle-content">
+                                <div class="toggle-title">启用 AI 助手</div>
+                                <div class="toggle-desc">关闭后老人端将无法使用 AI 问答</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="aiEnabled" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-lg w-full mt-3" onclick="saveAIConfig()">
+                        <span>保存 AI 配置</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 登录方式管理 -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="card-title-icon">&#128275;</span>
+                        登录方式管理
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <p class="form-hint">管理所有已绑定的登录方式。绑定的方式显示为绿色，未绑定的显示为灰色。</p>
+                    <div id="loginMethodsList" class="login-methods-list">
+                        <div class="login-method-item" data-method="phone">
+                            <div class="lm-icon">&#128241;</div>
+                            <div class="lm-info">
+                                <div class="lm-title">手机号</div>
+                                <div class="lm-status lm-unbound">未绑定</div>
+                            </div>
+                            <button class="btn btn-sm lm-action-btn" onclick="handleLoginMethod('phone')">绑定</button>
+                        </div>
+                        <div class="login-method-item" data-method="email">
+                            <div class="lm-icon">&#9993;</div>
+                            <div class="lm-info">
+                                <div class="lm-title">邮箱</div>
+                                <div class="lm-status lm-unbound">未绑定</div>
+                            </div>
+                            <button class="btn btn-sm lm-action-btn" onclick="handleLoginMethod('email')">绑定</button>
+                        </div>
+                        <div class="login-method-item" data-method="github">
+                            <div class="lm-icon"><svg width="26" height="26" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M15.9971 0C7.16448 0 0.000411782 7.2028 0.000411782 16.0894C-0.0237699 19.4347 1.01764 22.7039 2.97925 25.4405C4.94085 28.1772 7.72472 30.2447 10.9422 31.3543C11.742 31.5016 12.0336 31.0049 12.0336 30.5788C12.0336 30.1968 12.0201 29.1854 12.0121 27.8426C7.56255 28.8148 6.62367 25.6857 6.62367 25.6857C5.89643 23.8275 4.84742 23.332 4.84742 23.332C3.39479 22.3338 4.95755 22.3537 4.95755 22.3537C5.46809 22.4277 5.95449 22.6158 6.37926 22.9033C6.80402 23.1908 7.15581 23.5702 7.40751 24.0121C8.83429 26.4702 11.1514 25.7623 12.0632 25.3489C12.1338 24.5372 12.4934 23.7757 13.079 23.198C9.52646 22.7925 5.78999 21.4123 5.78999 15.2469C5.76383 13.6557 6.35196 12.1137 7.43643 10.93C6.94808 9.54089 7.004 8.02324 7.59332 6.67232C7.59332 6.67232 8.93642 6.23961 11.9918 8.32169C14.611 7.59909 17.3826 7.59909 20.0018 8.32169C23.0554 6.23961 24.396 6.67232 24.396 6.67232C24.9865 8.02285 25.0434 9.54066 24.5554 10.93C25.64 12.1134 26.2276 13.6558 26.2 15.2469C26.2 21.4273 22.4598 22.7907 18.8962 23.1859C19.2798 23.5803 19.5746 24.0493 19.7617 24.5626C19.9488 25.0759 20.0239 25.6219 19.9822 26.1654C19.9822 28.3163 19.9625 30.0514 19.9625 30.5788C19.9625 31.0091 20.2504 31.5094 21.0626 31.3525C24.2777 30.2411 27.0591 28.1731 29.0189 25.437C30.9787 22.7009 32.0191 19.4331 31.9951 16.0894C31.9951 7.2028 24.8322 0 15.9971 0Z" fill="#0A0A0A"></path>
+                                <path d="M3.69812 13.962C3.69812 14.0157 3.70181 14.0688 3.70242 14.1232C3.70242 14.0598 3.69812 13.9964 3.69873 13.9337L3.69812 13.962Z" fill="#0A0A0A"></path>
+                                <path d="M32 13.962C32 13.9186 31.9969 13.8769 31.9969 13.8341C31.9969 13.9433 31.9969 14.0519 31.9969 14.1612C31.9957 14.0942 32 14.0308 32 13.962Z" fill="#0A0A0A"></path>
+                                <path d="M32 13.7484C32 13.7001 31.9951 13.6518 31.9938 13.6035C31.9938 13.6802 31.9994 13.7568 32 13.8341C31.9963 13.8051 32 13.7773 32 13.7484Z" fill="#0A0A0A"></path>
+                            </svg></div>
+                            <div class="lm-info">
+                                <div class="lm-title">GitHub</div>
+                                <div class="lm-status lm-unbound">未绑定</div>
+                            </div>
+                            <button class="btn btn-sm lm-action-btn" onclick="handleLoginMethod('github')">绑定</button>
+                        </div>
+                        <div class="login-method-item" data-method="gitee">
+                            <div class="lm-icon"><svg width="26" height="26" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M512 1024C229.2 1024 0 794.8 0 512S229.2 0 512 0s512 229.2 512 512-229.2 512-512 512z m259.4-669.9c-33.3-9.5-85.4-16.5-128.2-13.1-9.2 1.1-15.2 10.8-13.3 19.8 1.8 8.4 10.4 13.9 19.2 12.9 41.3-3 90.5 3.7 119.7 10.9 6.7 1.8 13.7-2.2 15.4-9 1.7-6.8-2.4-13.6-9.2-15.5h-3.6z m-55.6-43.1c-16.5-4.4-33.8-6.6-51.4-6.6-43.9 0-87.7 14-123.4 41.8-2.6 2.2-5.9 3.4-9.3 3.4-3.3 0-6.6-1.2-9.2-3.5-2.6-2.3-3.9-5.6-3.6-9 0.3-3.3 2.3-6.3 5.2-7.9 41.1-24.8 90.1-39.4 141.5-39.4 19.9 0 39.8 2.4 59 7.1 6.8 1.8 10.9 8.7 9.2 15.5-1.7 6.8-8.6 10.8-15.4 9z m-71.8-60.9c-5.8-1.5-11.9-2.3-18.1-2.3-50.9 0-100.8 19.9-137.1 56.1-2.4 2.4-3.7 5.6-3.6 9 0.1 3.3 1.8 6.4 4.6 8.2 2.8 1.8 6.3 2 9.2 0.5 38.4-22.3 83-34.5 129.9-34.5 9.6 0 19.2 0.6 28.6 1.9 7 0.9 11.9 7.4 10.9 14.4-1 7-7.6 11.7-14.6 10.7-8.4-1.2-16.9-1.8-25.4-1.8-40 0-78.9 10.6-113.2 30.6-2.8 1.6-6 2.4-9.2 2.4-3.1 0-6.2-0.8-8.9-2.4-2.7-1.6-4.6-4.3-5.3-7.4-0.7-3.1 0.1-6.3 2.1-8.8C285 229.9 369.6 170.9 462.3 170.9c64.7 0 126.8 19.4 179.5 56.1 2.7 1.9 4.5 5 4.9 8.3 0.4 3.3-1.1 6.6-3.8 8.8-2.7 2.2-6.2 3-9.6 2.2-44.2-11.4-90.4-17.3-137.4-17.3-9.6 0-19.2 0.3-28.6 0.9-7 0.4-12.3 6.4-11.9 13.4 0.4 7 6.5 12.2 13.5 11.8 9.3-0.6 18.7-0.9 28-0.9 45.1 0 89.3 7.2 130.9 21.2 6.9 2.4 10.4 9.7 8.1 16.6-2.4 6.9-9.6 10.4-16.5 8.1C483.5 305.6 437.6 298.8 392 298.8c-7.8 0-15.6 0.2-23.3 0.7-7.1 0.4-12.4 6.6-12 13.7 0.4 7 6.7 12.2 13.7 11.8 7.3-0.5 14.7-0.7 22-0.7 40.8 0 80.7 6.4 118.1 18.8 2.7 0.9 5 2.7 6.5 5.1 1.5 2.4 2 5.3 1.4 8.1-1.5 6.8-8.6 10.9-15.4 9.4-39.4-9-81.1-13.6-123.7-13.6-3.3 0-6.6 0-9.9 0.1-7.1 0.1-12.6 6.2-12.5 13.3 0.1 7 6.4 12.6 13.4 12.5 3.1-0.1 6.2-0.1 9.3-0.1 33.8 0 67 4 98.6 11.8 3.1 0.8 5.7 2.7 7.4 5.4 1.6 2.7 2.1 6 1.3 9.1-1.8 6.7-8.8 10.5-15.5 8.8C490 458.9 451.4 454 412 454c-5.5 0-11 0.1-16.4 0.3-7.1 0.3-12.5 6.5-12.1 13.6 0.3 7 6.6 12.2 13.6 11.9 5.3-0.2 10.6-0.3 15.9-0.3 31.5 0 62.5 3.6 92.1 10.6 3 0.7 5.5 2.5 7.1 5.1 1.6 2.6 2.1 5.9 1.3 8.9-2.2 6.6-9.1 10.1-15.7 8-29.8-7.4-61-11.2-93.1-11.2-4.3 0-8.7 0.1-13 0.3-7.1 0.3-12.5 6.5-12.1 13.6 0.3 7 6.7 12.2 13.7 11.9 4.1-0.2 8.2-0.3 12.3-0.3 21.4 0 42.6 2.6 63 7.7 3.2 0.8 5.9 2.7 7.6 5.5 1.7 2.7 2.2 6.1 1.4 9.2-2.5 6.5-9.3 9.6-15.8 7.1-19-7-39.5-10.6-60.5-10.6-3.3 0-6.6 0.1-9.9 0.2-7.1 0.2-12.4 6.4-12.1 13.5 0.3 7 6.7 12.2 13.7 11.9 3.1-0.1 6.2-0.2 9.3-0.2 12.5 0 24.9 1.5 36.9 4.5 3.3 0.8 6.1 2.8 7.8 5.7 1.7 2.9 2.1 6.4 1.2 9.6-2.8 6.4-9.6 9.1-15.9 6.3-7.4-3.2-15.2-5.4-23.3-6.5-7.1-0.9-13.6 4.2-14.4 11.3-0.7 7 4.3 13.4 11.3 14.4 9.2 1.3 18.7 4 27.8 8.2 3.4 1.6 5.9 4.5 7 8 1.1 3.5 0.7 7.3-1.2 10.4-3.6 5.6-11 7.2-16.6 3.6-10.4-7-22.1-11.6-34.5-13.3-7.2-1-13.6 4.3-14.3 11.5-0.7 7 4.3 13.4 11.3 14.4 13.3 1.9 27 6.8 38.6 14.6 3.3 2.3 5.3 6 5.4 10 0.1 4-1.7 7.7-4.8 10.1-4.7 3.5-11.4 2.6-15-2.1-13-17.4-30.8-29.6-50.9-35.9-7.4-2.4-15.3 1.5-17.8 8.9-2.5 7.4 1.6 15.4 9 17.8 23.6 7.8 44.8 22 61.7 41.2 3.1 3.6 3 9 0.1 12.5-3 3.5-8.3 4.2-12.3 1.7-9-5.8-18.6-10.2-28.7-13.1-7.5-2.3-15.5 1.8-17.9 9.3-2.4 7.5 1.9 15.5 9.4 17.9 14.2 4.5 29 11 42.1 20.1 3.2 2.2 4.4 6.3 3.1 9.8-1.2 3.5-4.6 5.8-8.3 5.7-3.7-0.1-7.1-2.3-8.6-5.8-9.4-20.6-24.7-37.4-43.6-48.3-7.7-4.5-17.6-1.9-22.1 5.8-4.5 7.7-1.9 17.6 5.8 22.1 21.6 13.2 39.4 32.6 51.3 56 2.8 5 9.3 6.6 14.1 3.5 4.8-3 6.4-9.3 3.5-14.1-9.3-17.1-22.8-31.4-39-42.4-7.4-4.7-17.2-2.6-21.9 4.8-4.7 7.4-2.6 17.2 4.8 21.9 17.9 11.2 32.7 27.3 43 46.5 2.5 4.7 8.5 6.4 13.1 3.7 4.6-2.7 6.2-8.6 3.5-13.2-7.3-13.8-17.2-25.6-29-35-7-5.2-17-3.5-22.2 3.5-5.2 7-3.5 17 3.5 22.2 12.5 9.4 23 21.5 31 35.4 2.2 4 7.6 5.4 11.7 3 4.1-2.4 5.6-7.6 3.2-11.7-5.7-10.3-13-19.3-21.8-26.7-6.6-6-16.9-5.5-22.9 1-6 6.6-5.5 16.9 1 22.9 10.3 9.5 18.8 21.1 25.3 34.2 1.9 4 7 5.6 11 3.7 4-1.9 5.7-6.9 3.8-11-4.6-10-10.7-19-18-26.7-6.1-5.9-16.2-5.7-22.1 0.4-5.9 6.1-5.7 16.2 0.4 22.1 8.4 8.4 15.4 18.3 20.8 29.3 1.6 3.5 6.2 5 9.7 3.3 3.5-1.6 5-6.2 3.3-9.7-4.2-9.4-9.6-17.9-16.2-25.4-5.6-5.9-15.5-6.3-21.4-0.8-5.9 5.6-6.3 15.1-0.8 21 7 7.6 12.7 16.3 17.3 25.7 1.3 2.9 5.3 4.1 8.3 2.7 3-1.4 4.2-5.2 2.8-8.2-3.6-8.3-8.4-15.8-14.3-22.4z" fill="#C71D23"/></svg></div>
+                            <div class="lm-info">
+                                <div class="lm-title">Gitee</div>
+                                <div class="lm-status lm-unbound">未绑定</div>
+                            </div>
+                            <button class="btn btn-sm lm-action-btn" onclick="handleLoginMethod('gitee')">绑定</button>
+                        </div>
+                        <div class="login-method-item" data-method="totp">
+                            <div class="lm-icon">&#128274;</div>
+                            <div class="lm-info">
+                                <div class="lm-title">TOTP 动态码</div>
+                                <div class="lm-status lm-unbound">未绑定</div>
+                            </div>
+                            <button class="btn btn-sm lm-action-btn" onclick="handleLoginMethod('totp')">绑定</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 绑定手机号弹窗 -->
+            <div id="bindPhoneModal" class="modal-overlay" style="display:none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>绑定手机号</h3>
+                        <button class="modal-close" onclick="closeModal('bindPhoneModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label class="form-label">手机号</label>
+                            <input type="tel" class="form-input" id="bindPhoneInput"
+                                   placeholder="请输入手机号" pattern="1[3-9]\d{9}" maxlength="11">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">密码</label>
+                            <input type="password" class="form-input" id="bindPhonePassword"
+                                   placeholder="设置登录密码（至少6位，含字母和数字）" minlength="6">
+                        </div>
+                        <button class="btn btn-primary btn-lg w-full" onclick="submitBindPhone()">确认绑定</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 绑定邮箱弹窗 -->
+            <div id="bindEmailModal" class="modal-overlay" style="display:none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>绑定邮箱</h3>
+                        <button class="modal-close" onclick="closeModal('bindEmailModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label class="form-label">邮箱</label>
+                            <input type="email" class="form-input" id="bindEmailInput" placeholder="请输入邮箱">
+                        </div>
+                        <div class="form-group" style="display:flex; gap:8px;">
+                            <input type="text" class="form-input" id="bindEmailCode" placeholder="验证码"
+                                   maxlength="8" style="flex:1;" inputmode="numeric">
+                            <button type="button" class="btn btn-secondary" id="bindEmailSendBtn"
+                                    style="white-space:nowrap;" onclick="sendBindEmailCode()">获取验证码</button>
+                        </div>
+                        <button class="btn btn-primary btn-lg w-full" onclick="submitBindEmail()">确认绑定</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TOTP 绑定弹窗 -->
+            <div id="totpSetupModal" class="modal-overlay" style="display:none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>绑定 TOTP 动态码</h3>
+                        <button class="modal-close" onclick="closeModal('totpSetupModal')">&times;</button>
+                    </div>
+                    <div class="modal-body" id="totpSetupStep1">
+                        <p class="form-hint">使用 Authenticator 应用扫描下方二维码或手动输入密钥，然后输入动态码完成绑定。</p>
+                        <div id="totpQr" style="text-align:center; margin:12px 0;"></div>
+                        <div class="form-group">
+                            <label class="form-label">密钥</label>
+                            <div style="display:flex; gap:8px;">
+                                <input type="text" class="form-input" id="totpSecret" readonly
+                                       style="flex:1; font-family:monospace;">
+                                <button type="button" class="btn btn-secondary" onclick="copyTotpSecret()">复制</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">动态验证码</label>
+                            <input type="text" class="form-input" id="totpCodeInput"
+                                   placeholder="6 位动态码" maxlength="6" inputmode="numeric">
+                        </div>
+                        <button class="btn btn-primary btn-lg w-full" onclick="submitTotpSetup()">验证并绑定</button>
+                    </div>
+                    <div class="modal-body" id="totpSetupStep2" style="display:none;">
+                        <p class="form-hint">TOTP 已绑定成功，请妥善保存以下备用恢复码（仅显示一次）：</p>
+                        <div id="totpBackupCodes" class="backup-codes-box"
+                             style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:12px 0;"></div>
+                        <button class="btn btn-primary btn-lg w-full" onclick="closeTotpSetup()">完成</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 关于 -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="card-title-icon">&#8505;</span>
+                        关于
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <div class="about-content">
+                        <h3 class="about-title">{{ app_name }}</h3>
+                        <p class="about-desc">
+                            一款专为家庭设计的老年人用药助手应用，帮助子女远程关注老人的用药情况，
+                            确保老人按时服药，维护健康生活。
+                        </p>
+
+                        <div class="about-links">
+                            <a href="https://github.com/diaoyunxi/eating-medication/wiki" target="_blank" rel="noopener noreferrer" class="about-link">&#128214; 使用文档</a>
+                            <a href="https://github.com/diaoyunxi/eating-medication/issues" target="_blank" rel="noopener noreferrer" class="about-link">&#128172; 反馈建议</a>
+                            <a href="https://github.com/diaoyunxi/eating-medication/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer" class="about-link">&#128190; 隐私政策</a>
+                            <a href="https://github.com/diaoyunxi/eating-medication/blob/main/TERMS.md" target="_blank" rel="noopener noreferrer" class="about-link">&#128191; 服务条款</a>
+                        </div>
+
+                        <div class="about-footer">
+                            <p>Made with &#9829; for families</p>
+                            <p class="about-copyright">&copy; {{ current_year }} {{ app_name }}. All rights reserved.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast通知 -->
+    <div id="toast" class="toast">
+        <div class="toast-icon" id="toastIcon">&#10004;</div>
+        <div class="toast-message" id="toastMessage">操作成功</div>
+    </div>
+
+    <script>
+        // 路径前缀（Jinja2 全局变量注入，可能为空字符串）
+        // 与 getCookie 在此定义后供 settings.html 所有 script 块共用（含通知设置保存/加载），
+        // 避免此前 saveNotificationSettings 引用未定义的 getCookie/prefix 导致 ReferenceError 保存失败
+        var prefix = '{{ prefix }}';
+        function getCookie(name) {
+            var m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+            return m ? m.pop() : '';
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastIcon = document.getElementById('toastIcon');
+            const toastMessage = document.getElementById('toastMessage');
+
+            const icons = {
+                success: '&#10004;',
+                error: '&#10008;',
+                warning: '&#9888;',
+                info: '&#8505;'
+            };
+
+            toast.className = 'toast toast-' + type;
+            toastIcon.innerHTML = icons[type];
+            toastMessage.textContent = message;
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        async function bindDevice() {
+            const deviceId = document.getElementById('deviceId').value.trim();
+            const deviceName = document.getElementById('deviceName').value.trim();
+            const bindBtn = document.querySelector('button[onclick="bindDevice()"]');
+
+            if (!deviceId) {
+                showToast('请输入设备ID', 'warning');
+                return;
+            }
+            
+            if (bindBtn) {
+                bindBtn.disabled = true;
+                bindBtn.style.opacity = '0.6';
+                bindBtn.style.cursor = 'not-allowed';
+            }
+
+            showToast('正在校验并绑定设备...', 'info');
+
+            try {
+                const response = await fetch('{{ prefix }}/settings/bind_device', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `device_id=${encodeURIComponent(deviceId)}&device_name=${encodeURIComponent(deviceName)}`
+                });
+
+                let data = {};
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    showToast('绑定失败：服务端响应异常', 'error');
+                    if (bindBtn) {
+                        bindBtn.disabled = false;
+                        bindBtn.style.opacity = '';
+                        bindBtn.style.cursor = '';
+                    }
+                    return;
+                }
+
+                if (data.success) {
+                    showToast(data.message || '设备绑定成功', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(data.message || '绑定失败', 'error');
+                    if (bindBtn) {
+                        bindBtn.disabled = false;
+                        bindBtn.style.opacity = '';
+                        bindBtn.style.cursor = '';
+                    }
+                }
+            } catch (error) {
+                showToast('绑定失败：' + error.message, 'error');
+                if (bindBtn) {
+                    bindBtn.disabled = false;
+                    bindBtn.style.opacity = '';
+                    bindBtn.style.cursor = '';
+                }
+            }
+        }
+
+        async function unbindDevice() {
+            const unbindBtn = document.querySelector('button[onclick="unbindDevice()"]');
+            if (!confirm('确定要解绑当前设备吗？')) return;
+            
+            if (unbindBtn) {
+                unbindBtn.disabled = true;
+                unbindBtn.style.opacity = '0.6';
+                unbindBtn.style.cursor = 'not-allowed';
+            }
+
+            showToast('正在解绑设备...', 'info');
+
+            try {
+                const response = await fetch('{{ prefix }}/settings/unbind_device', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast('解绑失败', 'error');
+                    if (unbindBtn) {
+                        unbindBtn.disabled = false;
+                        unbindBtn.style.opacity = '';
+                        unbindBtn.style.cursor = '';
+                    }
+                }
+            } catch (error) {
+                showToast('解绑失败：' + error.message, 'error');
+                if (unbindBtn) {
+                    unbindBtn.disabled = false;
+                    unbindBtn.style.opacity = '';
+                    unbindBtn.style.cursor = '';
+                }
+            }
+        }
+
+        // 会话过期统一处理：401 时提示并跳转登录页（auth 中间件对 AJAX 返回 401 JSON）
+        function _handleAuthFailure(resp) {
+            if (resp.status === 401) {
+                showToast('登录已过期，正在跳转登录页...', 'warning');
+                setTimeout(function () {
+                    window.location.href = prefix + '/login';
+                }, 800);
+                return true;
+            }
+            // 防御：若响应被 302 重定向到登录页（HTML），同样按会话过期处理
+            if (resp.redirected && /\/login(\?|$)/.test(resp.url)) {
+                showToast('登录已过期，正在跳转登录页...', 'warning');
+                setTimeout(function () {
+                    window.location.href = prefix + '/login';
+                }, 800);
+                return true;
+            }
+            return false;
+        }
+
+        // 安全解析 JSON：响应体非 JSON 时返回 null，避免 .json() 抛异常被吞
+        function _safeJson(resp) {
+            var ct = resp.headers.get('content-type') || '';
+            if (ct.indexOf('application/json') === -1) return null;
+            return resp.json().catch(function () { return null; });
+        }
+
+        function saveNotificationSettings() {
+            var saveBtn = document.querySelector('button[onclick="saveNotificationSettings()"]');
+            if (saveBtn) { saveBtn.disabled = true; saveBtn.style.opacity = '0.6'; saveBtn.style.cursor = 'not-allowed'; }
+            var payload = {
+                notification_settings: {
+                    medication_reminder: document.getElementById('medicationReminder').checked,
+                    missed_reminder: document.getElementById('missedReminder').checked,
+                    offline_reminder: document.getElementById('offlineReminder').checked,
+                    browser_notification: document.getElementById('browserNotifications').checked,
+                    sound_alert: document.getElementById('soundAlert').checked
+                }
+            };
+            fetch(prefix + '/auth/profile', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': 'Bearer ' + (getCookie('access_token') || '')
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(function (resp) {
+                if (_handleAuthFailure(resp)) return { ok: false, auth_fail: true };
+                return _safeJson(resp).then(function (d) { return { ok: resp.ok, data: d || {} }; });
+            })
+            .then(function (r) {
+                if (r.auth_fail) return; // 已跳转登录页
+                if (r.ok && (r.data.notification_settings || r.data.success !== false)) {
+                    showToast('通知设置已保存', 'success');
+                } else {
+                    showToast(r.data.detail || r.data.message || '保存失败', 'error');
+                }
+            })
+            .catch(function (e) {
+                showToast('保存失败：' + e.message, 'error');
+            })
+            .finally(function () {
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; saveBtn.style.cursor = ''; }
+            });
+        }
+
+        // 页面加载时拉取用户资料并还原通知开关状态
+        function loadNotificationSettings() {
+            fetch(prefix + '/auth/profile', {
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': 'Bearer ' + (getCookie('access_token') || '')
+                }
+            })
+            .then(function (resp) {
+                if (_handleAuthFailure(resp)) return null;
+                return _safeJson(resp);
+            })
+            .then(function (data) {
+                if (!data) return; // 会话过期已跳转
+                var ns = data.notification_settings || {};
+                var defaults = {
+                    medication_reminder: true,
+                    missed_reminder: true,
+                    offline_reminder: true,
+                    browser_notification: false,
+                    sound_alert: true
+                };
+                var merged = Object.assign({}, defaults, ns);
+                document.getElementById('medicationReminder').checked = !!merged.medication_reminder;
+                document.getElementById('missedReminder').checked = !!merged.missed_reminder;
+                document.getElementById('offlineReminder').checked = !!merged.offline_reminder;
+                document.getElementById('browserNotifications').checked = !!merged.browser_notification;
+                document.getElementById('soundAlert').checked = !!merged.sound_alert;
+            })
+            .catch(function (e) {
+                console.error('加载通知设置失败:', e);
+            });
+        }
+
+        document.getElementById('browserNotifications').addEventListener('change', async function() {
+            if (this.checked && 'Notification' in window) {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    showToast('浏览器通知已启用', 'success');
+                } else {
+                    this.checked = false;
+                    showToast('通知权限被拒绝', 'warning');
+                }
+            }
+        });
+    </script>
+    <!-- 导航栏用户菜单（移动端头像下拉） -->
+    <script>
+        (function () {
+            if (window.__navUserDropdownInit) return;
+            window.__navUserDropdownInit = true;
+
+            window.toggleNavUserDropdown = function (e) {
+                e.stopPropagation();
+                e.preventDefault();
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                var isOpen = dd.classList.toggle('show');
+                var btn = e.currentTarget;
+                if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            };
+
+            window.navLogout = function () {
+                fetch('{{ prefix }}/logout', {
+                    method: 'POST'
+                }).finally(function () {
+                    window.location.href = '{{ prefix }}/login';
+                });
+            };
+
+            document.addEventListener('click', function (e) {
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                if (!dd.parentElement.contains(e.target)) {
+                    dd.classList.remove('show');
+                    var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    var dd = document.getElementById('navUserDropdown');
+                    if (dd) {
+                        dd.classList.remove('show');
+                        var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                        if (btn) btn.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+        })();
+    </script>
+    <!-- 设备状态轮询（每15秒），失败降级显示离线 -->
+    <script>
+    (function(){
+        function refreshDeviceStatus(){
+            fetch('{{ prefix }}/status')
+                .then(function(r){return r.json();})
+                .then(function(data){
+                    var card = document.querySelector('.status-card');
+                    if(!card) return;
+                    var badge = card.querySelector('.status-badge');
+                    var title = card.querySelector('.status-title');
+                    var online = !!(data && data.connected);
+                    var hasDevice = !!(data && data.device_id);
+                    if(online){
+                        card.classList.remove('offline'); card.classList.add('online');
+                        if(title){ title.textContent = (data.device_name || '设备在线'); }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备在线'; }
+                    } else {
+                        card.classList.remove('online'); card.classList.add('offline');
+                        if(!hasDevice){
+                            if(title){ title.textContent = '未绑定设备'; }
+                        } else {
+                            if(title){ title.textContent = (data.device_name || '设备离线'); }
+                        }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
+                    }
+                })
+                .catch(function(e){
+                    console.error('状态刷新失败:', e);
+                    var card = document.querySelector('.status-card');
+                    if(card){
+                        card.classList.remove('online'); card.classList.add('offline');
+                        var badge = card.querySelector('.status-badge');
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
+                    }
+                });
+        }
+        setInterval(refreshDeviceStatus, 15000);
+    })();
+    </script>
+    <!-- AI 助手设置：加载厂商、读取与保存配置 -->
+    <script>
+        (function () {
+            if (window.__aiConfigInit) return;
+            window.__aiConfigInit = true;
+
+            var AI_PROVIDERS = {};
+
+            async function loadAIProviders() {
+                try {
+                    var resp = await fetch('{{ prefix }}/settings/ai-providers');
+                    var data = await resp.json();
+                    if (!data.success) return;
+                    var sel = document.getElementById('aiProvider');
+                    sel.innerHTML = '';
+                    (data.providers || []).forEach(function (p) {
+                        AI_PROVIDERS[p.id] = p;
+                        var opt = document.createElement('option');
+                        opt.value = p.id;
+                        opt.textContent = p.name;
+                        sel.appendChild(opt);
+                    });
+                } catch (e) {
+                    console.error('加载 AI 厂商失败', e);
+                }
+            }
+
+            async function loadAIConfig() {
+                try {
+                    var resp = await fetch('{{ prefix }}/settings/ai-config');
+                    var data = await resp.json();
+                    if (!data.success) return;
+                    var sel = document.getElementById('aiProvider');
+                    if (data.provider) sel.value = data.provider;
+                    document.getElementById('aiModel').value = data.model || '';
+                    document.getElementById('aiBaseUrl').value = data.base_url || '';
+                    document.getElementById('aiEnabled').checked = !!data.enabled;
+                    document.getElementById('aiKeyStatus').textContent = data.has_api_key
+                        ? '已配置密钥（修改时留空则不更改）'
+                        : '未配置密钥';
+                    onAIProviderChange();
+                } catch (e) {
+                    console.error('读取 AI 配置失败', e);
+                }
+            }
+
+            window.onAIProviderChange = function () {
+                var pid = document.getElementById('aiProvider').value;
+                var p = AI_PROVIDERS[pid];
+                var docEl = document.getElementById('aiProviderDoc');
+                var baseGroup = document.getElementById('aiBaseUrlGroup');
+                if (p) {
+                    if (p.doc_url) {
+                        docEl.innerHTML = '<a href="' + p.doc_url + '" target="_blank" rel="noopener noreferrer">查看申请地址</a>';
+                    } else {
+                        docEl.textContent = '';
+                    }
+                    baseGroup.style.display = p.requires_base_url ? 'block' : 'none';
+                    // 模型为空时自动填充默认模型
+                    var modelEl = document.getElementById('aiModel');
+                    if (!modelEl.value && p.default_model) {
+                        modelEl.placeholder = '默认: ' + p.default_model;
+                    }
+                } else {
+                    baseGroup.style.display = 'none';
+                    docEl.textContent = '';
+                }
+            };
+
+            window.saveAIConfig = async function () {
+                var provider = document.getElementById('aiProvider').value;
+                if (!provider) {
+                    showToast('请选择 AI 厂商', 'warning');
+                    return;
+                }
+                var saveBtn = document.querySelector('button[onclick="saveAIConfig()"]');
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.style.opacity = '0.6';
+                    saveBtn.style.cursor = 'not-allowed';
+                }
+                var payload = {
+                    provider: provider,
+                    api_key: document.getElementById('aiApiKey').value,
+                    model: document.getElementById('aiModel').value,
+                    base_url: document.getElementById('aiBaseUrl').value,
+                    enabled: document.getElementById('aiEnabled').checked
+                };
+                showToast('正在保存 AI 配置...', 'info');
+                try {
+                    var resp = await fetch('{{ prefix }}/settings/ai-config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    var data = await resp.json();
+                    if (data.success) {
+                        showToast(data.message || 'AI 配置已保存', 'success');
+                        document.getElementById('aiKeyStatus').textContent = data.has_api_key
+                            ? '已配置密钥（修改时留空则不更改）'
+                            : '未配置密钥';
+                        document.getElementById('aiApiKey').value = '';
+                    } else {
+                        showToast(data.message || '保存失败', 'error');
+                    }
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.style.opacity = '';
+                        saveBtn.style.cursor = '';
+                    }
+                } catch (e) {
+                    showToast('保存失败：' + e.message, 'error');
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.style.opacity = '';
+                        saveBtn.style.cursor = '';
+                    }
+                }
+            };
+
+            loadAIProviders().then(loadAIConfig);
+        })();
+    </script>
+    <!-- 登录方式管理 -->
+    <script>
+        (function () {
+            if (window.__loginMethodsInit) return;
+            window.__loginMethodsInit = true;
+
+            var loginMethodsData = {};
+
+            // 加载登录方式绑定状态
+            window.loadLoginMethods = async function () {
+                // 加载期间禁用所有按钮防止重复点击
+                ['phone', 'email', 'github', 'gitee', 'totp'].forEach(function (method) {
+                    var item = document.querySelector('.login-method-item[data-method="' + method + '"]');
+                    if (item) {
+                        var btnEl = item.querySelector('.lm-action-btn');
+                        if (btnEl) {
+                            btnEl.disabled = true;
+                            btnEl.textContent = '加载中...';
+                            btnEl.style.opacity = '0.6';
+                        }
+                    }
+                });
+                
+                try {
+                    var resp = await fetch(prefix + '/auth/login-methods', {
+                        headers: { 'Authorization': 'Bearer ' + (getCookie('access_token') || '') }
+                    });
+                    if (!resp.ok) {
+                        console.error('加载登录方式失败，HTTP 状态:', resp.status);
+                        // 非成功响应时重置数据和 UI 到未绑定状态
+                        loginMethodsData = {};
+                        ['phone', 'email', 'github', 'gitee', 'totp'].forEach(function (method) {
+                            var item = document.querySelector('.login-method-item[data-method="' + method + '"]');
+                            if (item) {
+                                var btnEl = item.querySelector('.lm-action-btn');
+                                var statusEl = item.querySelector('.lm-status');
+                                if (btnEl) {
+                                    btnEl.disabled = false;
+                                    btnEl.textContent = '绑定';
+                                    btnEl.style.opacity = '';
+                                    btnEl.className = 'btn btn-sm lm-action-btn';
+                                }
+                                if (statusEl) {
+                                    statusEl.className = 'lm-status lm-unbound';
+                                    statusEl.textContent = '未绑定';
+                                }
+                                item.classList.remove('lm-bound');
+                            }
+                        });
+                        return;
+                    }
+                    loginMethodsData = await resp.json();
+                    updateLoginMethodsUI(loginMethodsData);
+                    // 成功后恢复按钮状态
+                    ['phone', 'email', 'github', 'gitee', 'totp'].forEach(function (method) {
+                        var item = document.querySelector('.login-method-item[data-method="' + method + '"]');
+                        if (item) {
+                            var btnEl = item.querySelector('.lm-action-btn');
+                            if (btnEl) {
+                                btnEl.disabled = false;
+                                btnEl.style.opacity = '';
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.error('加载登录方式失败:', e);
+                    // 加载失败时恢复按钮
+                    ['phone', 'email', 'github', 'gitee', 'totp'].forEach(function (method) {
+                        var item = document.querySelector('.login-method-item[data-method="' + method + '"]');
+                        if (item) {
+                            var btnEl = item.querySelector('.lm-action-btn');
+                            if (btnEl) {
+                                btnEl.disabled = false;
+                                btnEl.textContent = '绑定';
+                                btnEl.style.opacity = '';
+                            }
+                        }
+                    });
+                }
+            };
+
+            function updateLoginMethodsUI(data) {
+                ['phone', 'email', 'github', 'gitee', 'totp'].forEach(function (method) {
+                    var item = document.querySelector('.login-method-item[data-method="' + method + '"]');
+                    if (!item) return;
+                    var info = data[method] || {};
+                    var statusEl = item.querySelector('.lm-status');
+                    var btnEl = item.querySelector('.lm-action-btn');
+
+                    if (info.bound) {
+                        item.classList.add('lm-bound');
+                        statusEl.className = 'lm-status lm-bound-text';
+                        statusEl.textContent = '已绑定' + (info.value ? '（' + info.value + '）' : '');
+                        btnEl.textContent = '解绑';
+                        btnEl.className = 'btn btn-sm lm-action-btn btn-danger';
+                    } else {
+                        item.classList.remove('lm-bound');
+                        statusEl.className = 'lm-status lm-unbound';
+                        statusEl.textContent = '未绑定';
+                        btnEl.textContent = '绑定';
+                        btnEl.className = 'btn btn-sm lm-action-btn';
+                    }
+                });
+            }
+
+            // 处理绑定/解绑操作
+            window.handleLoginMethod = function (method) {
+                var item = document.querySelector('.login-method-item[data-method="' + method + '"]');
+                if (!item) return;
+                var btnEl = item.querySelector('.lm-action-btn');
+                if (btnEl && btnEl.disabled) return; // 防止重复点击
+                
+                var info = loginMethodsData[method] || {};
+                if (info.bound) {
+                    // 解绑
+                    if (btnEl) btnEl.disabled = true;
+                    unbindMethod(method, btnEl);
+                } else {
+                    // 绑定
+                    bindMethod(method, btnEl);
+                }
+            };
+
+            function bindMethod(method, btnEl) {
+                if (btnEl) {
+                    btnEl.disabled = true;
+                    btnEl.textContent = '处理中...';
+                    btnEl.style.opacity = '0.6';
+                }
+                if (method === 'phone') {
+                    openModal('bindPhoneModal');
+                    if (btnEl) {
+                        btnEl.disabled = false;
+                        btnEl.textContent = '绑定';
+                        btnEl.style.opacity = '';
+                    }
+                } else if (method === 'email') {
+                    openModal('bindEmailModal');
+                    if (btnEl) {
+                        btnEl.disabled = false;
+                        btnEl.textContent = '绑定';
+                        btnEl.style.opacity = '';
+                    }
+                } else if (method === 'github' || method === 'gitee') {
+                    // 跳转到 OAuth 绑定流程
+                    window.location.href = prefix + '/oauth/' + method + '/bind';
+                } else if (method === 'totp') {
+                    setupTotp();
+                }
+            }
+
+            async function unbindMethod(method, btnEl) {
+                if (!confirm('确定要解绑' + getMethodName(method) + '吗？解绑后将无法使用该方式登录。')) {
+                    if (btnEl) {
+                        btnEl.disabled = false;
+                        btnEl.style.opacity = '';
+                    }
+                    return;
+                }
+                var url = prefix + '/auth/unbind-' + (method === 'github' || method === 'gitee' ? 'oauth/' + method : method);
+                try {
+                    var resp = await fetch(url, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
+                    });
+                    var data = await resp.json();
+                    if (resp.ok && data.success !== false) {
+                        showToast(data.message || '解绑成功', 'success');
+                        loadLoginMethods();
+                    } else {
+                        showToast(data.detail || data.message || '解绑失败', 'error');
+                        if (btnEl) {
+                            btnEl.disabled = false;
+                            btnEl.style.opacity = '';
+                        }
+                    }
+                } catch (e) {
+                    showToast('解绑失败：' + e.message, 'error');
+                    if (btnEl) {
+                        btnEl.disabled = false;
+                        btnEl.style.opacity = '';
+                    }
+                }
+            }
+
+            function getMethodName(method) {
+                return { phone: '手机号', email: '邮箱', github: 'GitHub', gitee: 'Gitee', totp: 'TOTP 动态码' }[method] || method;
+            }
+
+            // TOTP 绑定流程
+            async function setupTotp() {
+                openModal('totpSetupModal');
+                document.getElementById('totpSetupStep1').style.display = 'block';
+                document.getElementById('totpSetupStep2').style.display = 'none';
+                document.getElementById('totpQr').innerHTML = '加载中...';
+                try {
+                    var resp = await fetch(prefix + '/totp/setup', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + getCookie('access_token') }
+                    });
+                    var data = await resp.json();
+                    if (!resp.ok) {
+                        showToast(data.detail || data.message || '获取 TOTP 配置失败', 'error');
+                        closeModal('totpSetupModal');
+                        return;
+                    }
+                    document.getElementById('totpSecret').value = data.secret || '';
+                    document.getElementById('totpQr').innerHTML = data.qr_svg || '二维码生成失败';
+                } catch (e) {
+                    showToast('获取 TOTP 配置失败：' + e.message, 'error');
+                    closeModal('totpSetupModal');
+                }
+            }
+
+            function copyTotpSecret() {
+                var secret = document.getElementById('totpSecret').value;
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(secret).then(function () {
+                        showToast('密钥已复制', 'success');
+                    });
+                }
+            }
+
+            window.submitTotpSetup = async function () {
+                var code = document.getElementById('totpCodeInput').value.trim();
+                if (!code) { showToast('请输入动态验证码', 'warning'); return; }
+                var btn = document.querySelector('#totpSetupModal button[onclick="submitTotpSetup()"]');
+                if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+                try {
+                    var resp = await fetch(prefix + '/totp/enable', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getCookie('access_token')
+                        },
+                        body: JSON.stringify({ code: code })
+                    });
+                    var data = await resp.json();
+                    if (resp.ok && data.backup_codes) {
+                        document.getElementById('totpSetupStep1').style.display = 'none';
+                        document.getElementById('totpSetupStep2').style.display = 'block';
+                        var box = document.getElementById('totpBackupCodes');
+                        box.innerHTML = '';
+                        (data.backup_codes || []).forEach(function (c) {
+                            var d = document.createElement('div');
+                            d.className = 'backup-code-item';
+                            d.style.cssText = 'padding:6px 10px; background:#f3f4f6; border-radius:6px; font-family:monospace; text-align:center;';
+                            d.textContent = c;
+                            box.appendChild(d);
+                        });
+                        loadLoginMethods();
+                    } else {
+                        showToast(data.detail || data.message || '绑定失败', 'error');
+                    }
+                } catch (e) {
+                    showToast('绑定失败：' + e.message, 'error');
+                } finally {
+                    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+                }
+            };
+
+            function closeTotpSetup() {
+                closeModal('totpSetupModal');
+                loadLoginMethods();
+            }
+
+            // 弹窗控制
+            window.openModal = function (id) {
+                var el = document.getElementById(id);
+                if (!el) return;
+                el.style.display = 'flex';
+                /* 触发重排后添加 show 类，使 transition 动画生效 */
+                void el.offsetWidth;
+                el.classList.add('show');
+            };
+            window.closeModal = function (id) {
+                var el = document.getElementById(id);
+                if (!el) return;
+                el.classList.remove('show');
+                /* 动画结束后隐藏 display */
+                setTimeout(function () { el.style.display = 'none'; }, 200);
+            };
+
+            // 绑定手机号
+            window.submitBindPhone = async function () {
+                var phone = document.getElementById('bindPhoneInput').value.trim();
+                var password = document.getElementById('bindPhonePassword').value;
+                if (!phone || !password) { showToast('请填写手机号和密码', 'warning'); return; }
+                var submitBtn = document.querySelector('#bindPhoneModal button[onclick="submitBindPhone()"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.style.opacity = '0.6';
+                    submitBtn.style.cursor = 'not-allowed';
+                }
+                try {
+                    var resp = await fetch(prefix + '/auth/bind-phone', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getCookie('access_token')
+                        },
+                        body: JSON.stringify({ phone: phone, password: password })
+                    });
+                    var data = await resp.json();
+                    if (resp.ok && data.success !== false) {
+                        showToast(data.message || '绑定成功', 'success');
+                        closeModal('bindPhoneModal');
+                        loadLoginMethods();
+                    } else {
+                        showToast(data.detail || data.message || '绑定失败', 'error');
+                    }
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = '';
+                        submitBtn.style.cursor = '';
+                    }
+                } catch (e) {
+                    showToast('绑定失败：' + e.message, 'error');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = '';
+                        submitBtn.style.cursor = '';
+                    }
+                }
+            };
+
+            // 绑定邮箱 - 发送验证码
+            window.sendBindEmailCode = async function () {
+                var email = document.getElementById('bindEmailInput').value.trim();
+                if (!email) { showToast('请输入邮箱', 'warning'); return; }
+                var btn = document.getElementById('bindEmailSendBtn');
+                btn.disabled = true;
+                btn.textContent = '发送中...';
+                try {
+                    var resp = await fetch(prefix + '/auth/bind-email/send-code', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getCookie('access_token')
+                        },
+                        body: JSON.stringify({ email: email })
+                    });
+                    var data = await resp.json();
+                    if (resp.ok && data.success !== false) {
+                        showToast(data.message || '验证码已发送', 'success');
+                        var left = 60;
+                        var timer = setInterval(function () {
+                            left--;
+                            if (left <= 0) {
+                                clearInterval(timer);
+                                btn.disabled = false;
+                                btn.textContent = '获取验证码';
+                            } else {
+                                btn.textContent = left + ' 秒后可重发';
+                            }
+                        }, 1000);
+                    } else {
+                        showToast(data.detail || data.message || '发送失败', 'error');
+                        btn.disabled = false;
+                        btn.textContent = '获取验证码';
+                    }
+                } catch (e) {
+                    showToast('发送失败：' + e.message, 'error');
+                    btn.disabled = false;
+                    btn.textContent = '获取验证码';
+                }
+            };
+
+            // 绑定邮箱 - 提交
+            window.submitBindEmail = async function () {
+                var email = document.getElementById('bindEmailInput').value.trim();
+                var code = document.getElementById('bindEmailCode').value.trim();
+                if (!email || !code) { showToast('请填写邮箱和验证码', 'warning'); return; }
+                var submitBtn = document.querySelector('#bindEmailModal button[onclick="submitBindEmail()"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.style.opacity = '0.6';
+                    submitBtn.style.cursor = 'not-allowed';
+                }
+                try {
+                    var resp = await fetch(prefix + '/auth/bind-email', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getCookie('access_token')
+                        },
+                        body: JSON.stringify({ email: email, code: code })
+                    });
+                    var data = await resp.json();
+                    if (resp.ok && data.success !== false) {
+                        showToast(data.message || '绑定成功', 'success');
+                        closeModal('bindEmailModal');
+                        loadLoginMethods();
+                    } else {
+                        showToast(data.detail || data.message || '绑定失败', 'error');
+                    }
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = '';
+                        submitBtn.style.cursor = '';
+                    }
+                } catch (e) {
+                    showToast('绑定失败：' + e.message, 'error');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = '';
+                        submitBtn.style.cursor = '';
+                    }
+                }
+            };
+
+            // 页面加载时获取登录方式状态
+            loadLoginMethods();
+            // 页面加载时还原通知设置开关
+            loadNotificationSettings();
+
+            // 检查 URL 参数中的绑定结果消息
+            var params = new URLSearchParams(window.location.search);
+            if (params.get('error') === 'bind_fail') {
+                showToast('第三方绑定失败，请重试', 'error');
+            } else if (params.get('error') === 'already_bound') {
+                showToast('该第三方账号已绑定到其他用户', 'error');
+            } else if (params.get('error') === 'oauth_timeout') {
+                showToast('网络连接超时，服务器访问第三方可能受限，请稍后重试', 'error');
+            } else if (params.get('info') === 'already_bound') {
+                showToast('该第三方账号已绑定到当前账号', 'info');
+            }
+            if (params.has('error') || params.has('info')) {
+                history.replaceState(null, '', window.location.pathname);
+            }
+        })();
+    </script>
+{% endblock %}

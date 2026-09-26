@@ -1,0 +1,327 @@
+﻿# -*- coding: utf-8 -*-
+"""
+FastAPI 应用入口 - 最终版
+创建并配置 FastAPI 实例，注册路由、中间件、异常处理器，并启动后台定时任务。
+"""
+
+import logging
+import sys
+import os
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.openapi.docs import (
+    get_swagger_ui_html,
+    get_swagger_ui_oauth2_redirect_html,
+    get_redoc_html,
+)
+
+from app.core.config import settings
+from app.core.database import engine, Base, ensure_database_exists
+from updater import __version__ as __server_version__
+from app.middleware.logging import LoggingMiddleware
+from app.middleware.exception_handler import add_exception_handlers
+# 改用统一的 setup_cors 配置 CORS
+from app.middleware.cors import setup_cors
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.middleware.request_size_limit import RequestSizeLimitMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.api.v1.endpoints import (
+    auth, users, medication, ai, vision, public, chat, oauth, ai_config
+)
+from app.tasks.stock_checker import start_scheduler, shutdown_scheduler
+
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+
+# 配置更详细的日志
+logging.basicConfig(
+    level=logging.INFO if not settings.DEBUG else logging.DEBUG,     
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",   
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# 设置第三方库的日志级别
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)        
+logging.getLogger("uvicorn.error").setLevel(logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    管理应用生命周期：
+    - 启动时创建数据库表、启动后台任务
+    - 关闭时清理资源
+    """
+    logger.info("="*60)
+    logger.info(" 正在启动服务端...")
+    logger.info(f" 应用名称: {settings.APP_NAME}")
+    logger.info(f" 调试模式: {'开启' if settings.DEBUG else '关闭'}")
+    logger.info(f" ZhipuAI 配置: {'已配置' if settings.ZHIPUAI_API_KEY else '未配置'}")
+    if settings.ZHIPUAI_API_KEY:
+        logger.info(f"   - 模型: {settings.ZHIPUAI_MODEL}")
+
+    # Turnstile 配置检查——缺失 Secret Key 会导致生产环境登录/注册全部被拒
+    # Turnstile 需两把密钥：站点密钥(Site Key) 在 family_monitor/.env 渲染前端，
+    # 密钥(Secret Key) 在 server/.env 用于后端 siteverify 校验。两者必须分别配置。
+    if settings.TURNSTILE_SECRET_KEY:
+        logger.info(" Turnstile 配置: 已启用（后端 siteverify 校验）")
+    elif settings.DEBUG:
+        logger.warning(
+            "⚠ Turnstile 未配置 TURNSTILE_SECRET_KEY：开发环境将跳过人机验证；"
+            "生产环境（DEBUG=False）必须配置，否则所有登录/注册将被拒绝。"
+        )
+    else:
+        logger.error(
+            "⚠ 生产环境未配置 TURNSTILE_SECRET_KEY！所有登录/注册将被拒绝。"
+            "请在 server/.env 的 TURNSTILE_SECRET_KEY 填入 Cloudflare Turnstile 的 Secret Key 后重启服务。"
+        )
+
+    logger.info("="*60)
+
+    # 检测不到数据库时自动建库（MySQL / PostgreSQL 等远程数据库场景）
+    ensure_database_exists()
+
+    # 创建数据库表（如果不存在）
+    # 优先使用 Alembic 迁移管理表结构，失败则回退 create_all（兼容现有部署）
+    try:
+        from alembic.config import Config
+        from alembic import command
+        import os as _os
+        alembic_ini = _os.path.join(_os.path.dirname(__file__), "migrations", "alembic.ini")
+        if _os.path.exists(alembic_ini):
+            alembic_cfg = Config(alembic_ini)
+            command.upgrade(alembic_cfg, "head")
+            logger.info(" Alembic 迁移已执行")
+        else:
+            raise FileNotFoundError("alembic.ini 不存在")
+    except Exception as e:
+        logger.warning(f" Alembic 迁移跳过（{e}），回退到 create_all 建表")
+        Base.metadata.create_all(bind=engine)
+        logger.info(" 数据库表已通过 create_all 创建")
+        try:
+            # 标记迁移已应用，避免每次启动重复触发回落
+            from alembic import command
+            command.stamp(alembic_cfg, "head")
+        except Exception:
+            pass
+
+    # 确保新增的 user_ai_configs 表存在（兼容 Alembic 已接管、未含该表迁移的场景）
+    try:
+        from app.models.user_ai_config import UserAIConfig
+        UserAIConfig.__table__.create(bind=engine, checkfirst=True)
+    except Exception as e:
+        logger.warning(f" 确保 user_ai_configs 表存在失败（可忽略）: {e}")
+
+    # 模式自愈：兜底补齐 alembic 漏迁导致缺失的列（如 users.notification_settings）
+    # 背景：生产出现 alembic_version 已 stamp 到 head 但表实际缺列，User 查询直接
+    # OperationalError；此步骤按列级别对齐 ORM 模型与 DB，保证启动即可恢复
+    try:
+        from app.core.database import sync_schema_with_models
+        sync_schema_with_models()
+    except Exception as e:
+        logger.warning(f" 模式自愈检查失败（可忽略）: {e}")
+
+    # 启动后台定时任务（低库存检查等）
+    logger.info(" 启动后台定时任务...")
+    start_scheduler()
+    logger.info(" 后台定时任务已启动")
+
+    logger.info(" 服务端启动成功！")
+    logger.info("="*60)
+
+    yield
+
+    # 关闭时执行
+    logger.info("="*60)
+    logger.info(" 正在关闭服务端...")
+    shutdown_scheduler()
+    logger.info(" 后台定时任务已停止")
+    logger.info(" 再见！")
+    logger.info("="*60)
+
+
+# 路径前缀（Cloudflare 隧道子路径），本地直连设为空
+PATH_PREFIX = settings.PATH_PREFIX.rstrip("/")
+
+# 创建 FastAPI 实例（禁用默认文档，使用本地静态资源）
+# 生产环境完全禁用 API 文档，防止信息泄露
+_is_debug = settings.DEBUG
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=__server_version__,
+    description="老人用药管理智能助手后端 API",
+    debug=_is_debug,
+    lifespan=lifespan,
+    root_path=PATH_PREFIX,
+    docs_url=None,
+    redoc_url=None,
+    # 生产环境不暴露 openapi.json，开发环境暴露
+    openapi_url="/openapi.json" if _is_debug else None,
+)
+
+# ==================== 中间件配置 ====================
+
+# 使用统一的 setup_cors 配置 CORS（从环境变量 ALLOWED_ORIGINS 读取白名单）
+setup_cors(app)
+
+# 请求日志中间件
+app.add_middleware(LoggingMiddleware)
+
+# 安全响应头（CSP / 移除废弃头）、请求体大小限制、IP 速率限制
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestSizeLimitMiddleware)
+app.add_middleware(RateLimitMiddleware)
+
+# 路径前缀剥离中间件：Starlette 的 root_path 仅用于 URL 构建，不会自动剥离
+# scope["path"] 用于路由匹配。在 Cloudflare 隧道（保留完整路径转发）模式下，请求路径
+# 带 /eating-medication/server 前缀，若不手工剥离，路由以 /eating-medication/server/api/v1/...
+# 去匹配 /api/v1/... 会 404。此处条件剥离（仅当前缀匹配才剥），对 Caddy handle_path
+# 模式（路径已在代理层剥掉）无副作用。
+async def path_prefix_middleware(request: Request, call_next):
+    if PATH_PREFIX:
+        request.scope["root_path"] = PATH_PREFIX
+        raw_path = request.scope.get("path", "")
+        if raw_path.startswith(PATH_PREFIX + "/"):
+            request.scope["path"] = raw_path[len(PATH_PREFIX):]
+        elif raw_path == PATH_PREFIX or raw_path == PATH_PREFIX + "/":
+            request.scope["path"] = "/"
+        response = await call_next(request)
+        # 重定向 Location 补前缀，确保浏览器跟随到正确子路径
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("location", "")
+            if (location.startswith("/")
+                    and not location.startswith(PATH_PREFIX + "/")
+                    and location != PATH_PREFIX):
+                response.headers["location"] = PATH_PREFIX + location
+        return response
+    return await call_next(request)
+
+
+# 注意：path_prefix_middleware 是函数式中间件，必须用 app.middleware("http")(...)
+# 注册。若用 app.add_middleware(path_prefix_middleware)，Starlette 会以 app= 关键字
+# 实例化该函数，导致 TypeError（见 CodeRabbit review #25）。family 端同样使用此装饰器方式。
+app.middleware("http")(path_prefix_middleware)
+
+# 全局异常处理器
+add_exception_handlers(app)
+
+# ==================== 路由注册 ====================
+
+api_prefix = settings.API_V1_PREFIX
+app.include_router(auth.router, prefix=api_prefix)
+from app.api.v1.endpoints import totp, webauthn
+# TOTP / WebAuthn 第二因子与通行密钥端点统一挂在 /auth 前缀下：
+# 与 OAuth 端点保持一致，并匹配 family_monitor 代理转发的 /auth/totp/*、/auth/webauthn/* 约定。
+# 此前漏写 /auth 段，导致 family_monitor 转发请求在 server 侧 404。
+app.include_router(totp.router, prefix=f"{api_prefix}/auth")
+app.include_router(webauthn.router, prefix=f"{api_prefix}/auth")
+app.include_router(users.router, prefix=api_prefix)
+app.include_router(medication.router, prefix=api_prefix)
+app.include_router(ai.router, prefix=api_prefix)
+app.include_router(ai_config.router, prefix=api_prefix)
+app.include_router(vision.router, prefix=api_prefix)
+app.include_router(public.router, prefix=api_prefix)
+app.include_router(chat.router, prefix=api_prefix)
+# 家属设备接口：已登录家属用 JWT 访问其绑定设备的数据，替代此前复用设备
+# 令牌接口（设备令牌仅存于老人端本机，已注册设备不再下发，导致子女端 403）
+from app.api.v1.endpoints.family_device import router as family_device_router
+app.include_router(family_device_router, prefix=api_prefix)
+# OAuth 路由统一带 /auth 前缀，真实路径为 /api/v1/auth/oauth/...
+# 与 family_monitor 的 _server_url("/auth/oauth/...") 调用及回调配置保持一致
+app.include_router(oauth.router, prefix=f"{api_prefix}/auth")
+# 更新信息端点：供 family 前端轮询展示版本与更新状态（详见 endpoints/updater.py）
+from app.api.v1.endpoints.updater import router as updater_router
+app.include_router(updater_router, prefix=api_prefix)
+
+    # 移除冲突的 ws_router（/ws 与 chat.py 的 /chat/ws/{user_id} 重叠）
+    # WebSocket 聊天功能统一由 chat.py 的 ws_chat 提供
+
+# ==================== 静态文件服务 ====================
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# ==================== 自定义文档路由（使用本地静态资源） ====================
+# 生产环境不注册文档路由，防止 API 结构泄露
+docs_static_url = f"{PATH_PREFIX}/static/docs" if PATH_PREFIX else "/static/docs"
+openapi_full_url = f"{PATH_PREFIX}/openapi.json" if PATH_PREFIX else "/openapi.json"
+
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    """Swagger UI - 仅开发环境可用"""
+    if not _is_debug:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return get_swagger_ui_html(
+        openapi_url=openapi_full_url,
+        title=app.title + " - Swagger UI",
+        swagger_js_url=f"{docs_static_url}/js/swagger-ui-bundle.js",
+        swagger_css_url=f"{docs_static_url}/css/swagger-ui.css",
+        swagger_favicon_url=f"{docs_static_url}/img/favicon.png",
+        oauth2_redirect_url=f"{PATH_PREFIX}/docs/oauth2-redirect" if PATH_PREFIX else "/docs/oauth2-redirect",
+    )
+
+
+@app.get("/docs/oauth2-redirect", include_in_schema=False)
+async def swagger_ui_oauth2_redirect():
+    if not _is_debug:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return get_swagger_ui_oauth2_redirect_html()
+
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_html():
+    """ReDoc - 仅开发环境可用"""
+    if not _is_debug:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return get_redoc_html(
+        openapi_url=openapi_full_url,
+        title=app.title + " - ReDoc",
+        redoc_js_url=f"{docs_static_url}/js/redoc.standalone.js",
+        redoc_favicon_url=f"{docs_static_url}/img/favicon.png",
+        with_google_fonts=False,
+    )
+
+
+# ==================== 健康检查 ====================
+
+@app.get("/health")
+async def health_check():
+    """健康检查接口，用于容器编排或监控"""
+    # 健康检查高频调用，降为 debug 级别避免日志刷屏
+    logger.debug("健康检查被调用")
+    return JSONResponse(
+        content={"status": "ok", "service": settings.APP_NAME},
+        media_type="application/json; charset=utf-8"
+    )
+
+@app.get("/")
+async def root():
+    """根路径，返回简单提示"""
+    logger.debug("根路径被访问")
+    return JSONResponse(
+        content={
+            "message": f"欢迎使用 {settings.APP_NAME} API",
+            "docs": "/docs",
+            "health": "/health"
+        },
+        media_type="application/json; charset=utf-8"
+    )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    logger.info("="*60)
+    logger.info(" 正在启动服务端...")
+    logger.info("="*60)
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.DEBUG,
+        log_level="info",
+        access_log=False
+    )

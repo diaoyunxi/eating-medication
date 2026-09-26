@@ -1,0 +1,810 @@
+{% extends "base.html" %}
+{% block title %}登录 - {{ app_name }}{% endblock %}
+{% block head_extra %}
+    <!-- Cloudflare Turnstile 人机验证 JS 库，使用显式渲染模式（render=explicit） -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+    <style>
+        /* GitHub OAuth 登录按钮（参照 dash.cloudflare.com 风格） */
+        .oauth-github-btn {
+            display: flex;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            height: 40px;
+            background: #ffffff;
+            color: #0A0A0A;
+            border: 1px solid #d4d4d8 !important;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .oauth-github-btn:hover {
+            background: #f4f4f5;
+        }
+        /* Gitee OAuth 登录按钮（Gitee 品牌红） */
+        .oauth-gitee-btn {
+            display: flex;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            height: 40px;
+            background: #C71D23;
+            color: #ffffff;
+            border: 1px solid #C71D23 !important;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .oauth-gitee-btn:hover {
+            background: #a8171c;
+        }
+        .auth-divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 18px 0 14px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        .auth-divider::before,
+        .auth-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--border-color);
+        }
+        .auth-divider-text {
+            padding: 0 12px;
+        }
+        /* 登录方式手风琴：默认仅“激活”的方式展示详情，其余方式收起为按钮 */
+        .method-trigger {
+            display: none;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 44px;
+            padding: 8px 12px;
+            background: #ffffff;
+            color: #0A0A0A;
+            border: 1px solid #d4d4d8 !important;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s ease;
+            margin-bottom: 10px;
+        }
+        .method-trigger:hover {
+            background: #f4f4f5;
+        }
+        /* 非激活方式：显示折叠按钮，隐藏详情 */
+        .login-method:not(.is-active) .method-trigger {
+            display: flex;
+        }
+        .login-method.is-active .method-trigger {
+            display: none;
+        }
+        /* 激活方式：显示详情，隐藏折叠按钮 */
+        .method-body {
+            display: none;
+        }
+        .login-method.is-active .method-body {
+            display: block;
+        }
+    </style>
+{% endblock %}
+{% block nav %}{% endblock %}
+{% block content %}
+    <div class="bg-gradient">
+        <div class="container" style="display: flex; align-items: center; justify-content: center; min-height: 100vh;">
+            <div class="auth-card animate-fade-in">
+                <div class="auth-header">
+                    <img class="auth-logo" src="{{ prefix }}/static/img/auth-logo.png" alt="子女守护中心">
+                    <h1 class="auth-title">{{ app_name }}</h1>
+                    <p class="auth-subtitle">登录您的账户</p>
+                </div>
+
+                {% if error %}
+                <div class="alert alert-error">
+                    <span class="alert-icon">!</span>
+                    <span>{{ error }}</span>
+                </div>
+                {% endif %}
+
+                {% if success %}
+                <div class="alert alert-success">
+                    <span class="alert-icon">&#10003;</span>
+                    <span>{{ success }}</span>
+                </div>
+                {% endif %}
+
+                <!-- AJAX 提交失败时动态显示的错误信息容器（复用原有 alert-error 样式） -->
+                <div id="jsError" class="alert alert-error" style="display:none;">
+                    <span class="alert-icon">!</span>
+                    <span id="jsErrorMsg"></span>
+                </div>
+
+                <!-- AJAX 提交成功时动态显示的提示容器（如验证码已发送） -->
+                <div id="jsSuccess" class="alert alert-success" style="display:none;">
+                    <span class="alert-icon">&#10003;</span>
+                    <span id="jsSuccessMsg"></span>
+                </div>
+
+                <!-- 手机密码登录方式（默认激活展开） -->
+                <div class="login-method is-active" data-method="phone">
+                    <button type="button" class="method-trigger" data-target="phone">手机密码登录</button>
+                    <div class="method-body">
+                <form method="POST" action="{{ prefix }}/login" class="auth-form" id="loginForm">
+                    <div class="form-group">
+                        <label class="form-label" for="phone">手机号</label>
+                        <input type="tel" class="form-input" id="phone" name="phone"
+                               placeholder="请输入手机号" required autofocus
+                               pattern="1[3-9]\d{9}" maxlength="11" title="请输入11位手机号">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="password">密码</label>
+                        <input type="password" class="form-input" id="password" name="password"
+                               placeholder="请输入密码" required>
+                    </div>
+
+                    <!-- Cloudflare Turnstile 人机验证组件容器：位于密码输入框下方、提交按钮上方 -->
+                    <div class="form-group">
+                        <div id="turnstileContainer"></div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg w-full" id="submitBtn">
+                        <span id="submitBtnText">登录</span>
+                    </button>
+                </form>
+
+                <!-- TOTP 第二因子步骤（默认隐藏，密码正确且已开启 MFA 时显示） -->
+                <form class="auth-form" id="mfaStep" style="display:none; margin-top:4px;">
+                    <div class="form-group">
+                        <label class="form-label" for="totpCode">动态验证码</label>
+                        <input type="text" class="form-input" id="totpCode" name="totpCode"
+                               placeholder="请输入 Authenticator 中的 6 位动态码" inputmode="numeric"
+                               maxlength="6" autocomplete="one-time-code">
+                    </div>
+                    <button type="button" class="btn btn-primary btn-lg w-full" id="mfaVerifyBtn">
+                        <span id="mfaVerifyBtnText">验证并登录</span>
+                    </button>
+                </form>
+                    </div>
+                </div>
+
+                <!-- 通行密钥（Passkey）无用户名登录方式：直接可点击，无需展开 -->
+                <div class="form-group" style="margin-top:14px;">
+                    <button type="button" class="btn btn-secondary btn-lg w-full" id="passkeyLoginBtn">
+                        <span id="passkeyLoginBtnText">使用通行密钥登录</span>
+                    </button>
+                </div>
+
+                <!-- GitHub 登录（后端配置后由 JS 显示整块，单点直接跳转授权，逻辑同通行密钥） -->
+                <div id="githubLoginWrap" style="display:none; margin-top:10px;">
+                <div id="githubLoginBox">
+                    <div class="flex-1">
+                        <button data-kumo-component="Button" type="button" id="githubLoginBtn"
+                                aria-label="使用 GitHub 登录"
+                                class="group shrink-0 font-medium select-none border-0 shadow-xs focus:outline-none cursor-pointer h-10 gap-2 rounded-lg px-4 text-base w-full flex items-center justify-center oauth-github-btn">
+                            <svg width="15" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M15.9971 0C7.16448 0 0.000411782 7.2028 0.000411782 16.0894C-0.0237699 19.4347 1.01764 22.7039 2.97925 25.4405C4.94085 28.1772 7.72472 30.2447 10.9422 31.3543C11.742 31.5016 12.0336 31.0049 12.0336 30.5788C12.0336 30.1968 12.0201 29.1854 12.0121 27.8426C7.56255 28.8148 6.62367 25.6857 6.62367 25.6857C5.89643 23.8275 4.84742 23.332 4.84742 23.332C3.39479 22.3338 4.95755 22.3537 4.95755 22.3537C5.46809 22.4277 5.95449 22.6158 6.37926 22.9033C6.80402 23.1908 7.15581 23.5702 7.40751 24.0121C8.83429 26.4702 11.1514 25.7623 12.0632 25.3489C12.1338 24.5372 12.4934 23.7757 13.079 23.198C9.52646 22.7925 5.78999 21.4123 5.78999 15.2469C5.76383 13.6557 6.35196 12.1137 7.43643 10.93C6.94808 9.54089 7.004 8.02324 7.59332 6.67232C7.59332 6.67232 8.93642 6.23961 11.9918 8.32169C14.611 7.59909 17.3826 7.59909 20.0018 8.32169C23.0554 6.23961 24.396 6.67232 24.396 6.67232C24.9865 8.02285 25.0434 9.54066 24.5554 10.93C25.64 12.1134 26.2276 13.6558 26.2 15.2469C26.2 21.4273 22.4598 22.7907 18.8962 23.1859C19.2798 23.5803 19.5746 24.0493 19.7617 24.5626C19.9488 25.0759 20.0239 25.6219 19.9822 26.1654C19.9822 28.3163 19.9625 30.0514 19.9625 30.5788C19.9625 31.0091 20.2504 31.5094 21.0626 31.3525C24.2777 30.2411 27.0591 28.1731 29.0189 25.437C30.9787 22.7009 32.0191 19.4331 31.9951 16.0894C31.9951 7.2028 24.8322 0 15.9971 0Z" fill="#0A0A0A"></path>
+                                <path d="M3.69812 13.962C3.69812 14.0157 3.70181 14.0688 3.70242 14.1232C3.70242 14.0598 3.69812 13.9964 3.69873 13.9337L3.69812 13.962Z" fill="#0A0A0A"></path>
+                                <path d="M32 13.962C32 13.9186 31.9969 13.8769 31.9969 13.8341C31.9969 13.9433 31.9969 14.0519 31.9969 14.1612C31.9957 14.0942 32 14.0308 32 13.962Z" fill="#0A0A0A"></path>
+                                <path d="M32 13.7484C32 13.7001 31.9951 13.6518 31.9938 13.6035C31.9938 13.6802 31.9994 13.7568 32 13.8341C31.9963 13.8051 32 13.7773 32 13.7484Z" fill="#0A0A0A"></path>
+                            </svg>
+                            <span class="contents"><span>使用 GitHub 登录</span></span>
+                        </button>
+                    </div>
+                </div>
+                </div>
+
+                <!-- Gitee 登录（后端配置后由 JS 显示整块，单点直接跳转授权，逻辑同通行密钥） -->
+                <div id="giteeLoginWrap" style="display:none; margin-top:10px;">
+                <div id="giteeLoginBox">
+                    <div class="flex-1">
+                        <button data-kumo-component="Button" type="button" id="giteeLoginBtn"
+                                aria-label="使用 Gitee 登录"
+                                class="group shrink-0 font-medium select-none border-0 shadow-xs focus:outline-none cursor-pointer h-10 gap-2 rounded-lg px-4 text-base w-full flex items-center justify-center oauth-gitee-btn">
+                            <svg width="20" height="20" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M512 1024C229.2 1024 0 794.8 0 512S229.2 0 512 0s512 229.2 512 512-229.2 512-512 512z m259.4-669.9c-33.3-9.5-85.4-16.5-128.2-13.1-9.2 1.1-15.2 10.8-13.3 19.8 1.8 8.4 10.4 13.9 19.2 12.9 41.3-3 90.5 3.7 119.7 10.9 6.7 1.8 13.7-2.2 15.4-9 1.7-6.8-2.4-13.6-9.2-15.5h-3.6z m-55.6-43.1c-16.5-4.4-33.8-6.6-51.4-6.6-43.9 0-87.7 14-123.4 41.8-2.6 2.2-5.9 3.4-9.3 3.4-3.3 0-6.6-1.2-9.2-3.5-2.6-2.3-3.9-5.6-3.6-9 0.3-3.3 2.3-6.3 5.2-7.9 41.1-24.8 90.1-39.4 141.5-39.4 19.9 0 39.8 2.4 59 7.1 6.8 1.8 10.9 8.7 9.2 15.5-1.7 6.8-8.6 10.8-15.4 9z m-71.8-60.9c-5.8-1.5-11.9-2.3-18.1-2.3-50.9 0-100.8 19.9-137.1 56.1-2.4 2.4-3.7 5.6-3.6 9 0.1 3.3 1.8 6.4 4.6 8.2 2.8 1.8 6.3 2 9.2 0.5 38.4-22.3 83-34.5 129.9-34.5 9.6 0 19.2 0.6 28.6 1.9 7 0.9 11.9 7.4 10.9 14.4-1 7-7.6 11.7-14.6 10.7-8.4-1.2-16.9-1.8-25.4-1.8-40 0-78.9 10.6-113.2 30.6-2.8 1.6-6 2.4-9.2 2.4-3.1 0-6.2-0.8-8.9-2.4-2.7-1.6-4.6-4.3-5.3-7.4-0.7-3.1 0.1-6.3 2.1-8.8C285 229.9 369.6 170.9 462.3 170.9c64.7 0 126.8 19.4 179.5 56.1 2.7 1.9 4.5 5 4.9 8.3 0.4 3.3-1.1 6.6-3.8 8.8-2.7 2.2-6.2 3-9.6 2.2-44.2-11.4-90.4-17.3-137.4-17.3-9.6 0-19.2 0.3-28.6 0.9-7 0.4-12.3 6.4-11.9 13.4 0.4 7 6.5 12.2 13.5 11.8 9.3-0.6 18.7-0.9 28-0.9 45.1 0 89.3 7.2 130.9 21.2 6.9 2.4 10.4 9.7 8.1 16.6-2.4 6.9-9.6 10.4-16.5 8.1C483.5 305.6 437.6 298.8 392 298.8c-7.8 0-15.6 0.2-23.3 0.7-7.1 0.4-12.4 6.6-12 13.7 0.4 7 6.7 12.2 13.7 11.8 7.3-0.5 14.7-0.7 22-0.7 40.8 0 80.7 6.4 118.1 18.8 2.7 0.9 5 2.7 6.5 5.1 1.5 2.4 2 5.3 1.4 8.1-1.5 6.8-8.6 10.9-15.4 9.4-39.4-9-81.1-13.6-123.7-13.6-3.3 0-6.6 0-9.9 0.1-7.1 0.1-12.6 6.2-12.5 13.3 0.1 7 6.4 12.6 13.4 12.5 3.1-0.1 6.2-0.1 9.3-0.1 33.8 0 67 4 98.6 11.8 3.1 0.8 5.7 2.7 7.4 5.4 1.6 2.7 2.1 6 1.3 9.1-1.8 6.7-8.8 10.5-15.5 8.8C490 458.9 451.4 454 412 454c-5.5 0-11 0.1-16.4 0.3-7.1 0.3-12.5 6.5-12.1 13.6 0.3 7 6.6 12.2 13.6 11.9 5.3-0.2 10.6-0.3 15.9-0.3 31.5 0 62.5 3.6 92.1 10.6 3 0.7 5.5 2.5 7.1 5.1 1.6 2.6 2.1 5.9 1.3 8.9-2.2 6.6-9.1 10.1-15.7 8-29.8-7.4-61-11.2-93.1-11.2-4.3 0-8.7 0.1-13 0.3-7.1 0.3-12.5 6.5-12.1 13.6 0.3 7 6.7 12.2 13.7 11.9 4.1-0.2 8.2-0.3 12.3-0.3 21.4 0 42.6 2.6 63 7.7 3.2 0.8 5.9 2.7 7.6 5.5 1.7 2.7 2.2 6.1 1.4 9.2-2.5 6.5-9.3 9.6-15.8 7.1-19-7-39.5-10.6-60.5-10.6-3.3 0-6.6 0.1-9.9 0.2-7.1 0.2-12.4 6.4-12.1 13.5 0.3 7 6.7 12.2 13.7 11.9 3.1-0.1 6.2-0.2 9.3-0.2 12.5 0 24.9 1.5 36.9 4.5 3.3 0.8 6.1 2.8 7.8 5.7 1.7 2.9 2.1 6.4 1.2 9.6-2.8 6.4-9.6 9.1-15.9 6.3-7.4-3.2-15.2-5.4-23.3-6.5-7.1-0.9-13.6 4.2-14.4 11.3-0.7 7 4.3 13.4 11.3 14.4 9.2 1.3 18.7 4 27.8 8.2 3.4 1.6 5.9 4.5 7 8 1.1 3.5 0.7 7.3-1.2 10.4-3.6 5.6-11 7.2-16.6 3.6-10.4-7-22.1-11.6-34.5-13.3-7.2-1-13.6 4.3-14.3 11.5-0.7 7 4.3 13.4 11.3 14.4 13.3 1.9 27 6.8 38.6 14.6 3.3 2.3 5.3 6 5.4 10 0.1 4-1.7 7.7-4.8 10.1-4.7 3.5-11.4 2.6-15-2.1-13-17.4-30.8-29.6-50.9-35.9-7.4-2.4-15.3 1.5-17.8 8.9-2.5 7.4 1.6 15.4 9 17.8 23.6 7.8 44.8 22 61.7 41.2 3.1 3.6 3 9 0.1 12.5-3 3.5-8.3 4.2-12.3 1.7-9-5.8-18.6-10.2-28.7-13.1-7.5-2.3-15.5 1.8-17.9 9.3-2.4 7.5 1.9 15.5 9.4 17.9 14.2 4.5 29 11 42.1 20.1 3.2 2.2 4.4 6.3 3.1 9.8-1.2 3.5-4.6 5.8-8.3 5.7-3.7-0.1-7.1-2.3-8.6-5.8-9.4-20.6-24.7-37.4-43.6-48.3-7.7-4.5-17.6-1.9-22.1 5.8-4.5 7.7-1.9 17.6 5.8 22.1 21.6 13.2 39.4 32.6 51.3 56 2.8 5 9.3 6.6 14.1 3.5 4.8-3 6.4-9.3 3.5-14.1-9.3-17.1-22.8-31.4-39-42.4-7.4-4.7-17.2-2.6-21.9 4.8-4.7 7.4-2.6 17.2 4.8 21.9 17.9 11.2 32.7 27.3 43 46.5 2.5 4.7 8.5 6.4 13.1 3.7 4.6-2.7 6.2-8.6 3.5-13.2-7.3-13.8-17.2-25.6-29-35-7-5.2-17-3.5-22.2 3.5-5.2 7-3.5 17 3.5 22.2 12.5 9.4 23 21.5 31 35.4 2.2 4 7.6 5.4 11.7 3 4.1-2.4 5.6-7.6 3.2-11.7-5.7-10.3-13-19.3-21.8-26.7-6.6-6-16.9-5.5-22.9 1-6 6.6-5.5 16.9 1 22.9 10.3 9.5 18.8 21.1 25.3 34.2 1.9 4 7 5.6 11 3.7 4-1.9 5.7-6.9 3.8-11-4.6-10-10.7-19-18-26.7-6.1-5.9-16.2-5.7-22.1 0.4-5.9 6.1-5.7 16.2 0.4 22.1 8.4 8.4 15.4 18.3 20.8 29.3 1.6 3.5 6.2 5 9.7 3.3 3.5-1.6 5-6.2 3.3-9.7-4.2-9.4-9.6-17.9-16.2-25.4-5.6-5.9-15.5-6.3-21.4-0.8-5.9 5.6-6.3 15.1-0.8 21 7 7.6 12.7 16.3 17.3 25.7 1.3 2.9 5.3 4.1 8.3 2.7 3-1.4 4.2-5.2 2.8-8.2-3.6-8.3-8.4-15.8-14.3-22.4z" fill="#ffffff"/>
+                            </svg>
+                            <span class="contents"><span>使用 Gitee 登录</span></span>
+                        </button>
+                    </div>
+                </div>
+                </div>
+
+                <!-- 邮箱验证码登录方式 -->
+                <div class="login-method" data-method="email">
+                    <button type="button" class="method-trigger" data-target="email">邮箱验证码登录</button>
+                    <div class="method-body">
+                <div id="emailLoginBox">
+                    <div class="form-group">
+                        <label class="form-label" for="email">邮箱</label>
+                        <input type="email" class="form-input" id="email" name="email"
+                               placeholder="请输入邮箱" autocomplete="email">
+                    </div>
+                    <div class="form-group" style="display:flex; gap:8px;">
+                        <input type="text" class="form-input" id="emailCode" name="emailCode"
+                               placeholder="6 位验证码" maxlength="8" style="flex:1;"
+                               autocomplete="one-time-code" inputmode="numeric">
+                        <button type="button" class="btn btn-secondary" id="sendCodeBtn"
+                                style="white-space:nowrap;">获取验证码</button>
+                    </div>
+                    <!-- 邮箱验证码登录专用 Turnstile 组件容器 -->
+                    <div class="form-group">
+                        <div id="emailTurnstileContainer"></div>
+                    </div>
+                    <button type="button" class="btn btn-primary btn-lg w-full" id="emailLoginBtn">
+                        <span id="emailLoginBtnText">邮箱验证码登录</span>
+                    </button>
+                </div>
+
+                <!-- 邮箱登录 TOTP 第二因子步骤（默认隐藏，邮箱登录且已开启 MFA 时显示） -->
+                <form class="auth-form" id="emailMfaStep" style="display:none; margin-top:4px;">
+                    <div class="form-group">
+                        <label class="form-label" for="emailTotpCode">动态验证码</label>
+                        <input type="text" class="form-input" id="emailTotpCode" name="emailTotpCode"
+                               placeholder="请输入 Authenticator 中的 6 位动态码" inputmode="numeric"
+                               maxlength="6" autocomplete="one-time-code">
+                    </div>
+                    <button type="button" class="btn btn-primary btn-lg w-full" id="emailMfaVerifyBtn">
+                        <span id="emailMfaVerifyBtnText">验证并登录</span>
+                    </button>
+                </form>
+                    </div>
+                </div>
+
+                <div class="auth-footer">
+                    <p>还没有账户？<a href="{{ prefix }}/register" class="auth-link">立即注册</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 路径前缀（Jinja2 全局变量注入，可能为空字符串）
+        var prefix = "{{ prefix }}";
+        // Turnstile 组件 ID，渲染后赋值，用于后续获取 token / 重置
+        var widgetId = null;
+        // 邮箱验证码登录专用 Turnstile 组件 ID
+        var emailWidgetId = null;
+        // Turnstile 是否可用（JS 加载成功 + site_key 非空 + 渲染成功）
+        // 降级标志：为 false 时跳过 token 校验，允许直接提交（后端兜底）
+        var turnstileAvailable = false;
+        // 邮箱专用 Turnstile 是否可用
+        var emailTurnstileAvailable = false;
+
+        /**
+         * 显示 AJAX 错误信息（复用原有 alert-error 结构）
+         * @param {string} msg - 错误文案
+         */
+        function showJsError(msg) {
+            hideJsSuccess();
+            var box = document.getElementById('jsError');
+            document.getElementById('jsErrorMsg').textContent = msg;
+            // .alert 默认 display 为 flex
+            box.style.display = 'flex';
+        }
+
+        /**
+         * 隐藏 AJAX 错误信息
+         */
+        function hideJsError() {
+            document.getElementById('jsError').style.display = 'none';
+        }
+
+        /**
+         * 显示 AJAX 成功信息（如验证码已发送）
+         * @param {string} msg - 成功文案
+         */
+        function showJsSuccess(msg) {
+            hideJsError();
+            var box = document.getElementById('jsSuccess');
+            document.getElementById('jsSuccessMsg').textContent = msg;
+            box.style.display = 'flex';
+        }
+
+        /**
+         * 隐藏 AJAX 成功信息
+         */
+        function hideJsSuccess() {
+            document.getElementById('jsSuccess').style.display = 'none';
+        }
+
+        // 页面加载完成后：获取 site_key 并显式渲染 Turnstile
+        // ===== 登录方式手风琴切换 =====
+        function activateMethod(method) {
+            document.querySelectorAll('.login-method').forEach(function (el) {
+                el.classList.toggle('is-active', el.getAttribute('data-method') === method);
+            });
+            // 切回手机密码时重置 MFA 中间态，避免状态残留导致后续验证异常
+            if (method === 'phone') {
+                var lf = document.getElementById('loginForm');
+                var ms = document.getElementById('mfaStep');
+                if (lf) { lf.style.display = 'block'; }
+                if (ms) { ms.style.display = 'none'; }
+                window._mfaToken = null;
+            }
+            // 切换登录方式时重置邮箱 MFA 状态
+            if (method !== 'email') {
+                var efs = document.getElementById('emailMfaStep');
+                if (efs) { efs.style.display = 'none'; }
+                window._emailMfaToken = null;
+            }
+        }
+        document.querySelectorAll('.method-trigger').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                hideJsError();
+                hideJsSuccess();
+                activateMethod(btn.getAttribute('data-target'));
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // Turnstile JS 以 async/defer 加载，可能尚未就绪，轮询等待 window.turnstile 可用
+            var tryCount = 0;
+
+            function tryRender() {
+                if (window.turnstile && typeof window.turnstile.render === 'function') {
+                    renderTurnstile();
+                } else if (tryCount < 50) {
+                    tryCount++;
+                    setTimeout(tryRender, 100);
+                } else {
+                    // 降级：Turnstile JS 加载超时（网络问题/CSP 阻止等）
+                    // 允许用户继续提交，后端会根据 TURNSTILE_SECRET_KEY 配置决定是否放行
+                    turnstileAvailable = false;
+                    showJsError('人机验证组件加载超时，可尝试直接提交（后端将校验）');
+                }
+            }
+
+            function renderTurnstile() {
+                // 拉取后端下发的 site_key（GET {prefix}/turnstile/site-key）
+                fetch(prefix + '/turnstile/site-key', { method: 'GET' })
+                    .then(function (resp) {
+                        if (!resp.ok) {
+                            throw new Error('获取人机验证配置失败');
+                        }
+                        return resp.json();
+                    })
+                    .then(function (data) {
+                        var siteKey = data && data.site_key;
+                        if (!siteKey) {
+                            // 降级：site_key 未配置（开发环境），后端 TURNSTILE_SECRET_KEY
+                            // 通常也未配置，verify_turnstile 会直接返回 True
+                            turnstileAvailable = false;
+                            return;
+                        }
+                        // 显式渲染，保存 widgetId 供后续取 token / 重置
+                        widgetId = window.turnstile.render(
+                            document.getElementById('turnstileContainer'),
+                            { sitekey: siteKey, theme: 'auto' }
+                        );
+                        turnstileAvailable = true;
+                        // 邮箱验证码登录专用 Turnstile 组件
+                        var emailContainer = document.getElementById('emailTurnstileContainer');
+                        if (emailContainer) {
+                            emailWidgetId = window.turnstile.render(emailContainer, {
+                                sitekey: siteKey, theme: 'auto'
+                            });
+                            emailTurnstileAvailable = true;
+                        }
+                    })
+                    .catch(function (err) {
+                        // 降级：获取 site_key 失败，允许直接提交
+                        turnstileAvailable = false;
+                        showJsError('人机验证加载失败：' + err.message + '，可尝试直接提交');
+                    });
+            }
+
+            // OAuth 登录按钮：后端配置后显示对应方式的整个容器（按钮形态）
+            fetch(prefix + '/oauth/github/enabled')
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d && d.enabled) {
+                        var m = document.getElementById('githubLoginWrap');
+                        if (m) { m.style.display = 'block'; }
+                    }
+                })
+                .catch(function () { /* 忽略，按钮保持隐藏 */ });
+
+            fetch(prefix + '/oauth/gitee/enabled')
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d && d.enabled) {
+                        var m = document.getElementById('giteeLoginWrap');
+                        if (m) { m.style.display = 'block'; }
+                    }
+                })
+                .catch(function () { /* 忽略，按钮保持隐藏 */ });
+
+            var ghBtn = document.getElementById('githubLoginBtn');
+            if (ghBtn) {
+                ghBtn.addEventListener('click', function () {
+                    window.location.href = prefix + '/oauth/github/authorize';
+                });
+            }
+
+            var gtBtn = document.getElementById('giteeLoginBtn');
+            if (gtBtn) {
+                gtBtn.addEventListener('click', function () {
+                    window.location.href = prefix + '/oauth/gitee/authorize';
+                });
+            }
+
+            // ===== 邮箱验证码登录 =====
+            /**
+             * 获取邮箱专用 Turnstile token；组件不可用时返回空串（后端降级校验）
+             * @return {string}
+             */
+            function getEmailToken() {
+                if (emailTurnstileAvailable && emailWidgetId) {
+                    var t = window.turnstile.getResponse(emailWidgetId) || '';
+                    if (!t) {
+                        showJsError('请先完成人机验证');
+                        return null;
+                    }
+                    return t;
+                }
+                return '';
+            }
+
+            // 获取验证码按钮：点击后 60 秒倒计时禁用
+            var sendCodeBtn = document.getElementById('sendCodeBtn');
+            var emailCountdownTimer = null;
+            if (sendCodeBtn) {
+                sendCodeBtn.addEventListener('click', function () {
+                    hideJsError();
+                    var emailVal = document.getElementById('email').value.trim();
+                    if (!emailVal) {
+                        showJsError('请输入邮箱');
+                        return;
+                    }
+                    var token = getEmailToken();
+                    if (token === null) {
+                        return;  // 未完成人机验证
+                    }
+
+                    sendCodeBtn.disabled = true;
+                    sendCodeBtn.textContent = '发送中...';
+                    fetch(prefix + '/email/send-code', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: emailVal, cf_turnstile_token: token })
+                    })
+                        .then(function (resp) {
+                            return resp.json().then(function (data) {
+                                return { ok: resp.ok, data: data };
+                            });
+                        })
+                        .then(function (result) {
+                            var data = result.data || {};
+                            if (result.ok && data.success) {
+                                showJsSuccess(data.message || '验证码已发送，请查收邮箱');
+                                // 启动 60 秒倒计时
+                                var left = 60;
+                                sendCodeBtn.textContent = left + ' 秒后可重发';
+                                emailCountdownTimer = setInterval(function () {
+                                    left--;
+                                    if (left <= 0) {
+                                        clearInterval(emailCountdownTimer);
+                                        sendCodeBtn.disabled = false;
+                                        sendCodeBtn.textContent = '获取验证码';
+                                    } else {
+                                        sendCodeBtn.textContent = left + ' 秒后可重发';
+                                    }
+                                }, 1000);
+                            } else {
+                                showJsError(data.detail || data.error || '验证码发送失败，请稍后重试');
+                                sendCodeBtn.disabled = false;
+                                sendCodeBtn.textContent = '获取验证码';
+                            }
+                        })
+                        .catch(function () {
+                            showJsError('网络异常，请稍后重试');
+                            sendCodeBtn.disabled = false;
+                            sendCodeBtn.textContent = '获取验证码';
+                        });
+                });
+            }
+
+            // 邮箱验证码登录按钮
+            var emailLoginBtn = document.getElementById('emailLoginBtn');
+            if (emailLoginBtn) {
+                emailLoginBtn.addEventListener('click', function () {
+                    hideJsError();
+                    var emailVal = document.getElementById('email').value.trim();
+                    var codeVal = (document.getElementById('emailCode').value || '').trim();
+                    if (!emailVal) {
+                        showJsError('请输入邮箱');
+                        return;
+                    }
+                    if (!codeVal) {
+                        showJsError('请输入验证码');
+                        return;
+                    }
+                    var token = getEmailToken();
+                    if (token === null) {
+                        return;
+                    }
+
+                    var emailLoginBtnText = document.getElementById('emailLoginBtnText');
+                    var originalText = emailLoginBtnText.textContent;
+                    emailLoginBtn.disabled = true;
+                    emailLoginBtnText.textContent = '处理中...';
+
+                    fetch(prefix + '/email/code-login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: emailVal, code: codeVal, cf_turnstile_token: token })
+                    })
+                        .then(function (resp) {
+                            return resp.json().then(function (data) {
+                                return { ok: resp.ok, data: data };
+                            });
+                        })
+                        .then(function (result) {
+                            var data = result.data || {};
+                            if (data.success && data.redirect) {
+                                window.location.href = data.redirect;
+                            } else if (data.mfa_required) {
+                                // 已开启 TOTP 第二因子：切换至动态码步骤
+                                window._emailMfaToken = data.mfa_token;
+                                document.getElementById('emailLoginBox').style.display = 'none';
+                                document.getElementById('emailMfaStep').style.display = 'block';
+                                hideJsError();
+                            } else {
+                                showJsError(data.error || data.detail || '登录失败，请重试');
+                                if (emailTurnstileAvailable && emailWidgetId) {
+                                    window.turnstile.reset(emailWidgetId);
+                                }
+                            }
+                        })
+                        .catch(function () {
+                            showJsError('网络异常，请稍后重试');
+                            if (emailTurnstileAvailable && emailWidgetId) {
+                                window.turnstile.reset(emailWidgetId);
+                            }
+                        })
+                        .finally(function () {
+                            emailLoginBtn.disabled = false;
+                            emailLoginBtnText.textContent = originalText;
+                        });
+                });
+            }
+
+            tryRender();
+        });
+
+        // 拦截表单默认提交，改为 AJAX 提交
+        document.getElementById('loginForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            hideJsError();
+
+            // 获取 Turnstile token（用户完成验证后由组件生成）
+            var token = '';
+            if (turnstileAvailable && widgetId) {
+                token = window.turnstile.getResponse(widgetId) || '';
+                if (!token) {
+                    showJsError('请先完成人机验证');
+                    return;
+                }
+            }
+            // turnstileAvailable 为 false 时降级提交（token 为空字符串，后端兜底校验）
+
+            var submitBtn = document.getElementById('submitBtn');
+            var submitBtnText = document.getElementById('submitBtnText');
+            // 保存原始按钮文案，请求结束后恢复
+            var originalText = submitBtnText.textContent;
+            // 请求期间禁用按钮并显示"处理中..."，防止重复提交
+            submitBtn.disabled = true;
+            submitBtnText.textContent = '处理中...';
+
+            // 构造表单数据：phone / password / cf-turnstile-response
+            var formData = new FormData();
+            formData.append('phone', document.getElementById('phone').value);
+            formData.append('password', document.getElementById('password').value);
+            formData.append('cf-turnstile-response', token);
+
+            // AJAX 提交登录（POST {prefix}/login）
+            fetch(prefix + '/login', {
+                method: 'POST',
+                body: formData
+            })
+                .then(function (resp) {
+                    // 即使 HTTP 非 200 也尝试解析 JSON，复用后端返回的 error 字段
+                    return resp.json().then(function (data) {
+                        return { ok: resp.ok, data: data };
+                    });
+                })
+                .then(function (result) {
+                    var data = result.data || {};
+                    if (data.success && data.redirect) {
+                        // 登录成功，跳转到后端指定地址
+                        window.location.href = data.redirect;
+                    } else if (data.mfa_required) {
+                        // 已开启 TOTP 第二因子：切换至动态码步骤
+                        window._mfaToken = data.mfa_token;
+                        document.getElementById('loginForm').style.display = 'none';
+                        document.getElementById('mfaStep').style.display = 'block';
+                        hideJsError();
+                    } else {
+                        // 登录失败：显示错误信息并重置 Turnstile，要求用户重新验证
+                        showJsError(data.error || '登录失败，请重试');
+                        if (turnstileAvailable && widgetId) {
+                            window.turnstile.reset(widgetId);
+                        }
+                    }
+                })
+                .catch(function () {
+                    // 网络异常或响应非 JSON 时的兜底
+                    showJsError('网络异常，请稍后重试');
+                    if (turnstileAvailable && widgetId) {
+                        window.turnstile.reset(widgetId);
+                    }
+                })
+                .finally(function () {
+                    // 无论成功失败，恢复按钮可点击状态与文案
+                    submitBtn.disabled = false;
+                    submitBtnText.textContent = originalText;
+                });
+        });
+
+        // ===== base64url <-> ArrayBuffer 互转（WebAuthn 必需） =====
+        function base64urlToBuffer(base64url) {
+            var padding = '='.repeat((4 - (base64url.length % 4)) % 4);
+            var base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+            var raw = atob(base64);
+            var buf = new Uint8Array(raw.length);
+            for (var i = 0; i < raw.length; i++) { buf[i] = raw.charCodeAt(i); }
+            return buf.buffer;
+        }
+        function bufToBase64url(buf) {
+            var bytes = new Uint8Array(buf);
+            var bin = '';
+            for (var i = 0; i < bytes.length; i++) { bin += String.fromCharCode(bytes[i]); }
+            return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        // ===== 通行密钥（Passkey）无用户名登录 =====
+        var passkeyBtn = document.getElementById('passkeyLoginBtn');
+        if (passkeyBtn) {
+            passkeyBtn.addEventListener('click', function () {
+                hideJsError();
+                var btnText = document.getElementById('passkeyLoginBtnText');
+                btnText.textContent = '等待验证...';
+                passkeyBtn.disabled = true;
+                fetch(prefix + '/webauthn/login/options', { method: 'POST' })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (!res.ok) { throw new Error(res.data.error || '获取登录选项失败'); }
+                        var opt = res.data.options;
+                        window._waChallengeToken = res.data.challenge_token;
+                        opt.challenge = base64urlToBuffer(opt.challenge);
+                        if (opt.allowCredentials) {
+                            opt.allowCredentials = opt.allowCredentials.map(function (c) {
+                                return { type: c.type, id: base64urlToBuffer(c.id) };
+                            });
+                        }
+                        return navigator.credentials.get({ publicKey: opt });
+                    })
+                    .then(function (assertion) {
+                        var credential = {
+                            id: assertion.id,
+                            rawId: bufToBase64url(assertion.rawId),
+                            type: assertion.type,
+                            response: {
+                                clientDataJSON: bufToBase64url(assertion.response.clientDataJSON),
+                                authenticatorData: bufToBase64url(assertion.response.authenticatorData),
+                                signature: bufToBase64url(assertion.response.signature),
+                                userHandle: assertion.response.userHandle ? bufToBase64url(assertion.response.userHandle) : null
+                            }
+                        };
+                        return fetch(prefix + '/webauthn/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ credential: credential, challenge_token: window._waChallengeToken })
+                        });
+                    })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (res.ok && res.data.success && res.data.redirect) {
+                            window.location.href = res.data.redirect;
+                        } else {
+                            throw new Error(res.data.error || '通行密钥登录失败');
+                        }
+                    })
+                    .catch(function (err) {
+                        // 用户取消 / 超时：WebAuthn 抛出 NotAllowedError（消息含 w3.org 隐私说明链接），
+                        // 此处替换为友好提示，避免暴露底层英文错误
+                        if (err && err.name === 'NotAllowedError') {
+                            showJsError('你已取消通行密钥验证，可再次点击重试');
+                        } else {
+                            showJsError((err && err.message) ? err.message : '通行密钥登录失败，请重试');
+                        }
+                    })
+                    .finally(function () {
+                        btnText.textContent = '使用通行密钥登录';
+                        passkeyBtn.disabled = false;
+                    });
+            });
+        }
+
+        // ===== TOTP 第二因子验证（手机密码登录） =====
+        var mfaVerifyBtn = document.getElementById('mfaVerifyBtn');
+        if (mfaVerifyBtn) {
+            mfaVerifyBtn.addEventListener('click', function () {
+                hideJsError();
+                var code = (document.getElementById('totpCode').value || '').trim();
+                if (!code) { showJsError('请输入动态验证码'); return; }
+                if (!window._mfaToken) { showJsError('登录状态已失效，请重新登录'); return; }
+                var btnText = document.getElementById('mfaVerifyBtnText');
+                mfaVerifyBtn.disabled = true;
+                btnText.textContent = '验证中...';
+                fetch(prefix + '/totp/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mfa_token: window._mfaToken, code: code })
+                })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (res.ok && res.data.success && res.data.redirect) {
+                            window.location.href = res.data.redirect;
+                        } else {
+                            showJsError(res.data.error || '动态验证码错误');
+                            mfaVerifyBtn.disabled = false;
+                            btnText.textContent = '验证并登录';
+                        }
+                    })
+                    .catch(function () {
+                        showJsError('网络异常，请稍后重试');
+                        mfaVerifyBtn.disabled = false;
+                        btnText.textContent = '验证并登录';
+                    });
+            });
+        }
+
+        // ===== TOTP 第二因子验证（邮箱验证码登录） =====
+        var emailMfaVerifyBtn = document.getElementById('emailMfaVerifyBtn');
+        if (emailMfaVerifyBtn) {
+            emailMfaVerifyBtn.addEventListener('click', function () {
+                hideJsError();
+                var code = (document.getElementById('emailTotpCode').value || '').trim();
+                if (!code) { showJsError('请输入动态验证码'); return; }
+                if (!window._emailMfaToken) { showJsError('登录状态已失效，请重新登录'); return; }
+                var btnText = document.getElementById('emailMfaVerifyBtnText');
+                emailMfaVerifyBtn.disabled = true;
+                btnText.textContent = '验证中...';
+                fetch(prefix + '/totp/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mfa_token: window._emailMfaToken, code: code })
+                })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        if (res.ok && res.data.success && res.data.redirect) {
+                            window.location.href = res.data.redirect;
+                        } else {
+                            showJsError(res.data.error || '动态验证码错误');
+                            emailMfaVerifyBtn.disabled = false;
+                            btnText.textContent = '验证并登录';
+                        }
+                    })
+                    .catch(function () {
+                        showJsError('网络异常，请稍后重试');
+                        emailMfaVerifyBtn.disabled = false;
+                        btnText.textContent = '验证并登录';
+                    });
+            });
+        }
+    </script>
+{% endblock %}

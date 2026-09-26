@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # 测试 job：在发布之前运行，测试失败则通过 needs 依赖阻断发布
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT }}
+          fetch-depth: 0
+
+      # 判断是否为「代码类提交」，供后续步骤统一门控
+      - name: 判断是否代码类提交
+        id: meta
+        env:
+          HEAD_MSG: ${{ github.event.head_commit.message }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            MSG="$HEAD_MSG"
+          else
+            MSG="$PR_TITLE"
+          fi
+          if printf '%s' "$MSG" | grep -Eq '(feat|fix|refactor|build)'; then
+            echo "is_code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_code=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Python 3.13
+        if: steps.meta.outputs.is_code == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        if: steps.meta.outputs.is_code == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r elderly_assistant/requirements.txt
+          pip install -r server/requirements.txt
+          pip install -r family_monitor/requirements.txt
+          pip install "pytest==8.3.3" "pytest-asyncio==0.24.0"
+
+      - name: Test with pytest
+        if: steps.meta.outputs.is_code == 'true'
+        run: pytest
+
+  # 发布 job：依赖测试通过（needs: test）；仅在 push 到 main 时运行，PR 不触发
+  release:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write        # 向 Sigstore 申请签名证书，生成 attestation 必需
+      attestations: write    # 写入 Release Attestation 存储
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT }}
+          fetch-depth: 0
+
+      # 判断是否为「代码类提交」，供后续步骤统一门控
+      - name: 判断是否代码类提交
+        id: meta
+        env:
+          HEAD_MSG: ${{ github.event.head_commit.message }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            MSG="$HEAD_MSG"
+          else
+            MSG="$PR_TITLE"
+          fi
+          if printf '%s' "$MSG" | grep -Eq '(feat|fix|refactor|build)'; then
+            echo "is_code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_code=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 读取版本号
+        id: version
+        if: steps.meta.outputs.is_code == 'true'
+        run: |
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: 打包项目并计算 SHA256
+        id: package
+        if: steps.meta.outputs.is_code == 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP="eating-medication-v${VERSION}.zip"
+          SHA="${ZIP}.sha256"
+          # 打包整个仓库（排除 .git / .env / 缓存 / 测试与 CI 配置，避免泄露与体积膨胀）
+          zip -r "$ZIP" . -x '.git/*' -x '.env' -x '*/__pycache__/*' -x '*.pyc' -x '*.pyo' -x '.venv/*' -x 'venv/*' -x 'tests/*' -x '.github/*'
+          # 计算 SHA256（格式：hash  filename，匹配 updater.py 对 *.sha256 的解析）
+          sha256sum "$ZIP" > "$SHA"
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      # 生成 Release Attestation（SLSA provenance），供部署端 gh attestation verify 校验
+      - name: 生成 Release Attestation
+        if: steps.meta.outputs.is_code == 'true'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'eating-medication-v${{ steps.version.outputs.version }}.zip'
+
+      - name: 创建 tag 并上传发布资产
+        if: steps.meta.outputs.is_code == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+          PAT: ${{ secrets.PAT }}
+          HEAD_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          ZIP="${{ steps.package.outputs.zip }}"
+          SHA="${{ steps.package.outputs.sha }}"
+          MSG="$HEAD_MSG"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "tag $TAG 已存在，跳过创建"
+          else
+            git tag -a "$TAG" -m "$MSG"
+            git push origin "$TAG"
+            echo "已创建并推送带注解的 tag: $TAG"
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG 已存在，上传/更新资产"
+          else
+            gh release create "$TAG" --title "$TAG" -n "$MSG"
+          fi
+          gh release upload "$TAG" "$ZIP" "$SHA" --clobber
+
+      # 部署端更新通知：仅在 push 且为代码类提交时触发，避免 PR 误触发生产更新
+      - name: update
+        if: steps.meta.outputs.is_code == 'true'
+        env:
+          PUBLIC_URL: https://my-website.ccwu.cc/eating-medication
+        run: |
+          if [ -z "$PUBLIC_URL" ]; then
+            echo "PUBLIC_URL 未配置，跳过 update"
+            exit 0
+          fi
+          echo "目标地址: $PUBLIC_URL"
+          UPDATE_URL="${PUBLIC_URL%/}/server/api/v1/updater"
+          echo "update 接口: $UPDATE_URL"
+          curl -fsS -X POST "$UPDATE_URL" \
+            || echo "update 请求失败（忽略非零退出码）"

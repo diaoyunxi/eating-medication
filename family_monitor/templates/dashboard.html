@@ -1,0 +1,705 @@
+{% extends "base.html" %}
+{% block title %}健康仪表板 - {{ app_name }}{% endblock %}
+{% block content %}
+    <!-- 页面头部 -->
+    <div class="page-header">
+        <div class="page-header-content">
+            <h1 class="page-title">健康仪表板</h1>
+            <p class="page-subtitle">数据可视化，一目了然掌握健康趋势</p>
+        </div>
+    </div>
+
+    <!-- 状态栏 -->
+    <div class="status-bar">
+        <div class="status-card {% if device_info and device_info.connected %}online{% else %}offline{% endif %}">
+            <div class="status-info">
+                <div class="status-icon">
+                    {% if device_info and device_info.connected %}
+                        &#9679;
+                    {% else %}
+                        &#9675;
+                    {% endif %}
+                </div>
+                <div class="status-text">
+                    <div class="status-title">
+                        {{ device_info.device_name if device_info else "未知设备" }}
+                    </div>
+                    <div class="status-subtitle">
+                        {% if device_info and device_info.device_id %}
+                            设备ID: {{ device_info.device_id }}
+                        {% else %}
+                            未绑定设备
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="status-badge">
+                {% if device_info and device_info.connected %}
+                    <span class="status-badge-dot"></span> 设备在线
+                {% else %}
+                    <span class="status-badge-dot"></span> 设备离线
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 主要内容 -->
+    <div class="main-content">
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card primary">
+                <div class="stat-header">
+                    <span class="stat-label">今日提醒</span>
+                    <div class="stat-icon">&#9200;</div>
+                </div>
+                <div class="stat-value" data-target="{{ dashboard.summary.active_reminders }}">0</div>
+                <div class="stat-change positive">
+                    &#8593; 活跃提醒 {{ dashboard.summary.active_reminders }}个
+                </div>
+            </div>
+
+            <div class="stat-card success">
+                <div class="stat-header">
+                    <span class="stat-label">今日已用药</span>
+                    <div class="stat-icon">&#10003;</div>
+                </div>
+                <div class="stat-value" data-target="{{ dashboard.summary.taken_today }}">0</div>
+                <div class="stat-change positive">
+                    {{ dashboard.summary.taken_today }}次确认
+                </div>
+            </div>
+
+            <div class="stat-card warning">
+                <div class="stat-header">
+                    <span class="stat-label">用药依从率</span>
+                    <div class="stat-icon">&#9650;</div>
+                </div>
+                <div class="stat-value" data-target="{{ dashboard.summary.adherence_rate }}">0</div>
+                <div class="stat-change positive">
+                    {{ dashboard.summary.adherence_rate }}% 依从性
+                </div>
+            </div>
+
+            <div class="stat-card info">
+                <div class="stat-header">
+                    <span class="stat-label">待用药</span>
+                    <div class="stat-icon">&#9899;</div>
+                </div>
+                <div class="stat-value" data-target="{{ dashboard.summary.pending_today }}">0</div>
+                <div class="stat-change positive">
+                    {{ dashboard.summary.pending_today }}次待服
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表区域（可切换34种图表） -->
+        <div class="chart-switcher-card">
+            <div class="chart-switcher-header">
+                <div class="chart-switcher-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                    <span>数据可视化</span>
+                </div>
+                <div class="chart-switcher-controls">
+                    <select id="chartTypeSelect" class="chart-switcher-select" onchange="switchChart(this.value)">
+                        <optgroup label="基础图表">
+                            <option value="bar">柱状图</option>
+                            <option value="bar-y">条形图</option>
+                            <option value="line">折线图</option>
+                            <option value="area">面积图</option>
+                        </optgroup>
+                        <optgroup label="进度/占比">
+                            <option value="gantt">甘特图</option>
+                            <option value="funnel">漏斗图</option>
+                            <option value="gauge">仪表盘</option>
+                            <option value="pie">饼图</option>
+                            <option value="doughnut">环形图</option>
+                            <option value="stacked-bar">堆叠柱状图</option>
+                            <option value="percent-bar">百分比堆叠条形图</option>
+                            <option value="treemap">矩形树图</option>
+                        </optgroup>
+                        <optgroup label="分布/统计">
+                            <option value="histogram">直方图</option>
+                            <option value="heatmap">热力图</option>
+                            <option value="calendar-heat">日历热力图</option>
+                            <option value="liquidfill">水球图</option>
+                        </optgroup>
+                    </select>
+                    <button class="chart-switcher-btn" onclick="refreshChart()" title="刷新">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="chart-tag-bar" id="chartTagBar"></div>
+            <div class="chart-canvas-wrap">
+                <div id="mainChart"></div>
+            </div>
+        </div>
+
+        <!-- 进度卡片 -->
+        <div class="progress-section">
+            <div class="progress-card">
+                <div class="progress-icon">&#9673;</div>
+                <h3 class="progress-title">本周目标完成</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0%;" data-target="{{ dashboard.summary.adherence_rate }}"></div>
+                </div>
+                <div class="progress-text">
+                    <span class="progress-percentage" data-target="{{ dashboard.summary.adherence_rate }}">0</span>%
+                </div>
+            </div>
+
+            <div class="progress-card">
+                <div class="progress-icon">&#9899;</div>
+                <h3 class="progress-title">用药依从性</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0%; background: linear-gradient(135deg, #5a8a6a 0%, #4a7a5a 100%);" data-target="{{ dashboard.summary.adherence_rate }}"></div>
+                </div>
+                <div class="progress-text" style="color: #5a8a6a;">
+                    <span class="progress-percentage" data-target="{{ dashboard.summary.adherence_rate }}">0</span>%
+                </div>
+            </div>
+        </div>
+
+        <!-- 即将到来 -->
+        <div class="calendar-section">
+            <div class="upcoming-card">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <div class="chart-title-icon">&#9783;</div>
+                        <span>即将到来的提醒</span>
+                    </div>
+                </div>
+                <div class="upcoming-list">
+                    {% if dashboard.upcoming_reminders %}
+                        {% for reminder in dashboard.upcoming_reminders %}
+                        <div class="upcoming-item">
+                            <div class="upcoming-icon">&#9899;</div>
+                            <div class="upcoming-content">
+                                <div class="upcoming-title">{{ reminder.name }}</div>
+                                <div class="upcoming-time">{{ reminder.time }}</div>
+                            </div>
+                            <span class="upcoming-badge today">待服</span>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="chart-placeholder">
+                            <div class="chart-placeholder-icon">&#9783;</div>
+                            <p>暂无即将到来的提醒</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="upcoming-card">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <div class="chart-title-icon">&#9776;</div>
+                        <span>近期活动</span>
+                    </div>
+                </div>
+                <div class="upcoming-list">
+                    {% if dashboard.recent_activities %}
+                        {% for activity in dashboard.recent_activities %}
+                        <div class="upcoming-item">
+                            <div class="upcoming-icon">{{ activity.icon }}</div>
+                            <div class="upcoming-content">
+                                <div class="upcoming-title">{{ activity.action }} {{ activity.name }}</div>
+                                <div class="upcoming-time">{{ activity.time }}</div>
+                            </div>
+                            <span class="upcoming-badge soon">记录</span>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="chart-placeholder">
+                            <div class="chart-placeholder-icon">&#9776;</div>
+                            <p>暂无近期活动记录</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ECharts 核心 + 水球图 -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts-liquidfill@3.1.0/dist/echarts-liquidfill.min.js"></script>
+
+    <script>
+        /* ===== 仪表板数据（后端注入）===== */
+        var DASHBOARD_DATA = {{ dashboard | tojson }};
+
+        /* 图表实例 */
+        var chartInstance = null;
+        var currentChartType = 'bar';
+
+        /* ===== 从后端真实数据构建图表数据集 ===== */
+        function buildData() {
+            var meds = DASHBOARD_DATA.medications || [];
+            var summary = DASHBOARD_DATA.summary || {};
+            var chart = DASHBOARD_DATA.chart_data || {};
+
+            /* 药品名称列表（来自真实用药计划） */
+            var drugNames = chart.drug_names || meds.map(function(m){return m.name;}) || [];
+
+            /* 7天趋势（来自真实服药记录） */
+            var days = chart.days || [];
+            var takenData = chart.taken || [];
+            var scheduledData = chart.scheduled || [];
+            var missedData = chart.missed || [];
+
+            /* 按药品统计 */
+            var drugStats = chart.drug_stats || {};
+
+            return {
+                summary: summary,
+                drugNames: drugNames,
+                meds: meds,
+                days: days,
+                takenData: takenData,
+                scheduledData: scheduledData,
+                missedData: missedData,
+                drugStats: drugStats,
+                chart: chart
+            };
+        }
+
+        /* ===== 图表标签栏（快捷切换）===== */
+        var CHART_TAGS = [
+            {type:'bar', name:'柱状图'},
+            {type:'line', name:'折线图'},
+            {type:'pie', name:'饼图'},
+            {type:'gauge', name:'仪表盘'},
+            {type:'heatmap', name:'热力图'},
+            {type:'funnel', name:'漏斗图'},
+            {type:'treemap', name:'树图'},
+            {type:'calendar-heat', name:'日历热力'}
+        ];
+
+        function renderTagBar() {
+            var bar = document.getElementById('chartTagBar');
+            bar.innerHTML = '';
+            CHART_TAGS.forEach(function(t) {
+                var tag = document.createElement('span');
+                tag.className = 'chart-tag' + (t.type === currentChartType ? ' active' : '');
+                tag.textContent = t.name;
+                tag.onclick = function() {
+                    document.getElementById('chartTypeSelect').value = t.type;
+                    switchChart(t.type);
+                };
+                bar.appendChild(tag);
+            });
+        }
+
+        /* ===== 图表渲染分发 ===== */
+        function switchChart(type) {
+            currentChartType = type;
+            if (chartInstance) {
+                chartInstance.dispose();
+                chartInstance = null;
+            }
+            chartInstance = echarts.init(document.getElementById('mainChart'));
+            var option = buildOption(type);
+            chartInstance.setOption(option, true);
+            renderTagBar();
+        }
+
+        function refreshChart() {
+            if (chartInstance) chartInstance.dispose();
+            chartInstance = echarts.init(document.getElementById('mainChart'));
+            chartInstance.setOption(buildOption(currentChartType), true);
+        }
+
+        /* ===== 配色 ===== */
+        var COLORS = ['#c96442','#5a8a6a','#c49a3c','#5a7fa8','#b85450','#7a6a9a','#3d3929','#8a7a5a'];
+
+        /* ===== 空数据占位 ===== */
+        function emptyOption(msg) {
+            return {
+                title: {
+                    text: msg || '暂无数据',
+                    left: 'center', top: 'center',
+                    textStyle: {color: '#999', fontSize: 16, fontWeight: 'normal'}
+                }
+            };
+        }
+
+        /* ===== 图表配置生成（全部基于真实数据）===== */
+        function buildOption(type) {
+            var d = buildData();
+            var hasTrend = d.days.length > 0;
+            var hasMeds = d.drugNames.length > 0;
+
+            switch(type) {
+                /* ===== 基础图表 ===== */
+                case 'bar':
+                    if (!hasTrend) return emptyOption('暂无服药记录数据');
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{data:['已服','计划','漏服'],top:10},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:d.days},
+                        yAxis:{type:'value'},
+                        series:[
+                            {name:'已服',type:'bar',data:d.takenData,itemStyle:{color:COLORS[1]}},
+                            {name:'计划',type:'bar',data:d.scheduledData,itemStyle:{color:COLORS[2]}},
+                            {name:'漏服',type:'bar',data:d.missedData,itemStyle:{color:COLORS[4]}}
+                        ]
+                    };
+
+                case 'bar-y':
+                    if (!hasTrend) return emptyOption('暂无服药记录数据');
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{data:['已服','计划'],top:10},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'value'},
+                        yAxis:{type:'category',data:d.days},
+                        series:[
+                            {name:'已服',type:'bar',data:d.takenData,itemStyle:{color:COLORS[1]}},
+                            {name:'计划',type:'bar',data:d.scheduledData,itemStyle:{color:COLORS[2]}}
+                        ]
+                    };
+
+                case 'line':
+                    if (!hasTrend) return emptyOption('暂无服药记录数据');
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{data:['已服','计划'],top:10},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:d.days},
+                        yAxis:{type:'value'},
+                        series:[
+                            {name:'已服',type:'line',data:d.takenData,smooth:true,itemStyle:{color:COLORS[1]}},
+                            {name:'计划',type:'line',data:d.scheduledData,smooth:true,itemStyle:{color:COLORS[2]}}
+                        ]
+                    };
+
+                case 'area':
+                    if (!hasTrend) return emptyOption('暂无服药记录数据');
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{data:['已服','漏服'],top:10},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:d.days,boundaryGap:false},
+                        yAxis:{type:'value'},
+                        series:[
+                            {name:'已服',type:'line',data:d.takenData,areaStyle:{opacity:0.3},itemStyle:{color:COLORS[1]}},
+                            {name:'漏服',type:'line',data:d.missedData,areaStyle:{opacity:0.3},itemStyle:{color:COLORS[4]}}
+                        ]
+                    };
+
+                /* ===== 进度/占比 ===== */
+                case 'gantt':
+                    if (!hasMeds) return emptyOption('暂无用药计划数据');
+                    var ganttData = d.chart.gantt || [];
+                    if (!ganttData.length) return emptyOption('暂无服药时段数据');
+                    var ganttNames = ganttData.map(function(g){return g.name;});
+                    var ganttIdx = {};
+                    ganttNames.forEach(function(n,i){ganttIdx[n]=i;});
+                    return {
+                        tooltip:{
+                            formatter:function(p){
+                                return p.name + '<br>时段: ' + p.value[1] + ':00 - ' + p.value[2] + ':00';
+                            }
+                        },
+                        legend:{data:['服药时段'],top:10},
+                        xAxis:{type:'value',name:'小时',min:0,max:24},
+                        yAxis:{type:'category',data:ganttNames},
+                        series:[{
+                            name:'服药时段',type:'custom',
+                            renderItem:function(params,api){
+                                var cat=api.value(0),start=api.coord([api.value(1),cat]),end=api.coord([api.value(2),cat]),height=api.size([0,1])[1]*0.6;
+                                return {type:'rect',shape:{x:start[0],y:start[1]-height/2,width:end[0]-start[0],height:height},style:{fill:COLORS[cat%COLORS.length],opacity:0.7}};
+                            },
+                            data:ganttData.map(function(g,i){return [ganttIdx[g.name],g.start,g.end];})
+                        }]
+                    };
+
+                case 'funnel':
+                    var funnelData = d.chart.funnel || [];
+                    if (!funnelData.length) return emptyOption('暂无服药记录数据');
+                    return {
+                        tooltip:{trigger:'item'},
+                        series:[{
+                            type:'funnel',
+                            data:funnelData,
+                            label:{show:true,position:'inside'}
+                        }]
+                    };
+
+                case 'gauge':
+                    return {
+                        series:[{
+                            type:'gauge',
+                            progress:{show:true,width:18},
+                            detail:{valueAnimation:true,formatter:'{value}%'},
+                            data:[{value:d.summary.adherence_rate||0,name:'用药依从率'}]
+                        }]
+                    };
+
+                case 'pie':
+                    if (!hasMeds) return emptyOption('暂无用药计划数据');
+                    var pieData = d.drugNames.map(function(n){
+                        var s = d.drugStats[n] || {};
+                        return {value: s.taken || 0, name: n};
+                    }).filter(function(p){return p.value > 0;});
+                    if (!pieData.length) return emptyOption('暂无服药记录');
+                    return {
+                        tooltip:{trigger:'item'},
+                        legend:{top:'5%',left:'center'},
+                        series:[{
+                            type:'pie',radius:'60%',
+                            data:pieData,
+                            emphasis:{itemStyle:{shadowBlur:10,shadowOffsetX:0,shadowColor:'rgba(0,0,0,0.5)'}}
+                        }]
+                    };
+
+                case 'doughnut':
+                    var takenTotal = d.takenData.reduce(function(a,b){return a+b;},0);
+                    var missedTotal = d.missedData.reduce(function(a,b){return a+b;},0);
+                    if (takenTotal === 0 && missedTotal === 0) return emptyOption('暂无服药记录数据');
+                    return {
+                        tooltip:{trigger:'item'},
+                        legend:{top:'5%',left:'center'},
+                        series:[{
+                            type:'pie',radius:['40%','70%'],avoidLabelOverlap:false,
+                            label:{show:false,position:'center'},
+                            emphasis:{label:{show:true,fontSize:18,fontWeight:'bold'}},
+                            data:[
+                                {value:takenTotal,name:'已服药'},
+                                {value:missedTotal,name:'未服药'}
+                            ]
+                        }]
+                    };
+
+                case 'stacked-bar':
+                    if (!hasTrend) return emptyOption('暂无服药记录数据');
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{data:['已服','漏服'],top:10},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:d.days},
+                        yAxis:{type:'value'},
+                        series:[
+                            {name:'已服',type:'bar',stack:'total',data:d.takenData,itemStyle:{color:COLORS[1]}},
+                            {name:'漏服',type:'bar',stack:'total',data:d.missedData,itemStyle:{color:COLORS[4]}}
+                        ]
+                    };
+
+                case 'percent-bar':
+                    if (!hasTrend) return emptyOption('暂无服药记录数据');
+                    var pctTaken=d.takenData.map(function(t,i){
+                        return d.scheduledData[i] > 0 ? Math.round(t/d.scheduledData[i]*100) : 0;
+                    });
+                    var pctMissed=pctTaken.map(function(p){return 100-p;});
+                    return {
+                        tooltip:{trigger:'axis'},
+                        legend:{data:['已服%','漏服%'],top:10},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:d.days},
+                        yAxis:{type:'value',max:100,axisLabel:{formatter:'{value}%'}},
+                        series:[
+                            {name:'已服%',type:'bar',stack:'pct',data:pctTaken,itemStyle:{color:COLORS[1]}},
+                            {name:'漏服%',type:'bar',stack:'pct',data:pctMissed,itemStyle:{color:COLORS[4]}}
+                        ]
+                    };
+
+                case 'treemap':
+                    if (!hasMeds) return emptyOption('暂无用药计划数据');
+                    var treeData = d.drugNames.map(function(n,i){
+                        var s = d.drugStats[n] || {};
+                        return {name:n, value:s.total||0, itemStyle:{color:COLORS[i%COLORS.length]}};
+                    }).filter(function(t){return t.value > 0;});
+                    if (!treeData.length) return emptyOption('暂无服药记录');
+                    return {
+                        tooltip:{},
+                        series:[{type:'treemap',data:treeData}]
+                    };
+
+                /* ===== 分布/统计 ===== */
+                case 'histogram':
+                    if (!hasTrend) return emptyOption('暂无服药记录数据');
+                    var bins=[0,0,0,0,0];
+                    d.takenData.concat(d.scheduledData).forEach(function(v){
+                        var idx=Math.min(Math.floor(v/2),4);
+                        bins[idx]++;
+                    });
+                    return {
+                        tooltip:{trigger:'axis'},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:['0-2','2-4','4-6','6-8','8+']},
+                        yAxis:{type:'value',name:'频次'},
+                        series:[{type:'bar',data:bins,itemStyle:{color:COLORS[3]}}]
+                    };
+
+                case 'heatmap':
+                    if (!hasMeds) return emptyOption('暂无用药计划数据');
+                    var heatData = d.chart.heat_matrix || [];
+                    var weekDays = ['周一','周二','周三','周四','周五','周六','周日'];
+                    if (!heatData.length) return emptyOption('暂无服药记录');
+                    var maxVal = Math.max.apply(null, heatData.map(function(h){return h[2];})) || 1;
+                    return {
+                        tooltip:{position:'top'},
+                        grid:{left:'3%',right:'4%',bottom:'3%',containLabel:true},
+                        xAxis:{type:'category',data:d.drugNames},
+                        yAxis:{type:'category',data:weekDays},
+                        visualMap:{min:0,max:maxVal,calculable:true,orient:'horizontal',left:'center',bottom:'5%'},
+                        series:[{type:'heatmap',data:heatData,label:{show:true}}]
+                    };
+
+                case 'calendar-heat':
+                    var calData = d.chart.calendar || [];
+                    if (!calData.length) return emptyOption('暂无服药记录数据');
+                    var year = new Date().getFullYear();
+                    var maxCal = Math.max.apply(null, calData.map(function(c){return c[1];})) || 1;
+                    return {
+                        tooltip:{position:'top'},
+                        visualMap:{min:0,max:maxCal,calculable:true,orient:'horizontal',left:'center',top:'5%'},
+                        calendar:{top:80,left:30,right:30,cellSize:['auto',13],range:year,itemStyle:{borderWidth:0.5}},
+                        series:[{type:'heatmap',coordinateSystem:'calendar',data:calData}]
+                    };
+
+                case 'liquidfill':
+                    var rate = (d.summary.adherence_rate || 0) / 100;
+                    return {
+                        series:[{
+                            type:'liquidFill',
+                            data:[rate, rate*0.95, rate*0.9],
+                            radius:'70%',
+                            color:[COLORS[1],COLORS[3],COLORS[5]],
+                            label:{formatter:'依从率\n' + (d.summary.adherence_rate||0) + '%',fontSize:24,color:'#3d3929'},
+                            outline:{show:true,itemStyle:{borderColor:COLORS[1],borderWidth:2}}
+                        }]
+                    };
+
+                default:
+                    return emptyOption('未知图表类型: ' + type);
+            }
+        }
+
+        /* ===== 数字递增动画 ===== */
+        document.addEventListener('DOMContentLoaded', function() {
+            function animateNumber(element, target, duration, suffix) {
+                duration = duration || 2000;
+                suffix = suffix || '';
+                var startTime = performance.now();
+                function update(currentTime) {
+                    var elapsed = currentTime - startTime;
+                    var progress = Math.min(elapsed / duration, 1);
+                    var easeOut = 1 - Math.pow(1 - progress, 3);
+                    var current = Math.round(target * easeOut);
+                    element.textContent = current + suffix;
+                    if (progress < 1) requestAnimationFrame(update);
+                }
+                requestAnimationFrame(update);
+            }
+
+            setTimeout(function() {
+                document.querySelectorAll('.stat-value[data-target]').forEach(function(el) {
+                    animateNumber(el, parseInt(el.dataset.target) || 0);
+                });
+                document.querySelectorAll('.progress-fill[data-target]').forEach(function(el) {
+                    var target = parseInt(el.dataset.target) || 0;
+                    setTimeout(function(){ el.style.width = target + '%'; }, 300);
+                });
+                document.querySelectorAll('.progress-percentage[data-target]').forEach(function(el) {
+                    animateNumber(el, parseInt(el.dataset.target) || 0, 1500);
+                });
+
+                /* 初始化默认柱状图 */
+                switchChart('bar');
+            }, 600);
+
+            /* 窗口resize时重绘图表 */
+            window.addEventListener('resize', function() {
+                if (chartInstance) chartInstance.resize();
+            });
+        });
+    </script>
+    <!-- 导航栏用户菜单（移动端头像下拉） -->
+    <script>
+        (function () {
+            if (window.__navUserDropdownInit) return;
+            window.__navUserDropdownInit = true;
+
+            window.toggleNavUserDropdown = function (e) {
+                e.stopPropagation();
+                e.preventDefault();
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                var isOpen = dd.classList.toggle('show');
+                var btn = e.currentTarget;
+                if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            };
+
+            window.navLogout = function () {
+                fetch('{{ prefix }}/logout', {
+                    method: 'POST'
+                }).finally(function () {
+                    window.location.href = '{{ prefix }}/login';
+                });
+            };
+
+            document.addEventListener('click', function (e) {
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                if (!dd.parentElement.contains(e.target)) {
+                    dd.classList.remove('show');
+                    var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    var dd = document.getElementById('navUserDropdown');
+                    if (dd) {
+                        dd.classList.remove('show');
+                        var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                        if (btn) btn.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+        })();
+    </script>
+    <!-- 设备状态轮询（每15秒），失败降级显示离线 -->
+    <script>
+    (function(){
+        function refreshDeviceStatus(){
+            fetch('{{ prefix }}/status')
+                .then(function(r){return r.json();})
+                .then(function(data){
+                    var card = document.querySelector('.status-card');
+                    if(!card) return;
+                    var badge = card.querySelector('.status-badge');
+                    var title = card.querySelector('.status-title');
+                    var online = !!(data && data.connected);
+                    var hasDevice = !!(data && data.device_id);
+                    if(online){
+                        card.classList.remove('offline'); card.classList.add('online');
+                        if(title){ title.textContent = (data.device_name || '设备在线'); }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备在线'; }
+                    } else {
+                        card.classList.remove('online'); card.classList.add('offline');
+                        if(!hasDevice){
+                            if(title){ title.textContent = '未绑定设备'; }
+                        } else {
+                            if(title){ title.textContent = (data.device_name || '设备离线'); }
+                        }
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
+                    }
+                })
+                .catch(function(e){
+                    console.error('状态刷新失败:', e);
+                    var card = document.querySelector('.status-card');
+                    if(card){
+                        card.classList.remove('online'); card.classList.add('offline');
+                        var badge = card.querySelector('.status-badge');
+                        if(badge){ badge.innerHTML = '<span class="status-badge-dot"></span> 设备离线'; }
+                    }
+                });
+        }
+        setInterval(refreshDeviceStatus, 15000);
+    })();
+    </script>
+{% endblock %}

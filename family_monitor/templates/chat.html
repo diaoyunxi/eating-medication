@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}{{ app_name }} - 消息聊天{% endblock %}
+{% block content %}
+    <div class="chat-container">
+        <!-- 头部 -->
+        <div class="chat-header">
+            <div class="chat-header-top">
+                <h1>消息聊天</h1>
+                <div class="chat-status">
+                    <div class="chat-status-dot" id="statusDot"></div>
+                    <span class="chat-status-text" id="statusText">连接中...</span>
+                </div>
+                <div class="chat-status" id="chatWsStatus" title="聊天连接状态">
+                    <div class="chat-status-dot" id="wsDot"></div>
+                    <span class="chat-status-text" id="wsText">聊天连接中...</span>
+                </div>
+            </div>
+            <div class="chat-header-divider"></div>
+        </div>
+
+        <!-- 聊天主体 -->
+        <div class="chat-box">
+            <div class="chat-messages" id="messages">
+                <div class="chat-empty" id="empty">
+                    <div class="chat-empty-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9e9a8f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                    <span class="chat-empty-text">暂无消息，开始聊天吧</span>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" class="chat-input" id="msgInput" placeholder="输入消息..." autocomplete="off">
+                <button class="chat-send-btn" id="sendBtn" disabled>发送</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 读取 cookie 工具函数
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return '';
+        }
+        const messagesEl = document.getElementById('messages');
+        const inputEl = document.getElementById('msgInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const wsDot = document.getElementById('wsDot');
+        const wsText = document.getElementById('wsText');
+        const emptyEl = document.getElementById('empty');
+        let ws = null;
+        let reconnectTimer = null;
+        const currentUser = {{ current_user|tojson }};
+        const currentUserId = {{ current_user_id|tojson }};
+        const elderlyId = {{ elderly_id|tojson }};
+        const elderlyUrl = {{ server_url|tojson }};
+        // 从老人端 URL 提取 host+path，并选择对应的 WebSocket 协议
+        const wsProto = elderlyUrl.startsWith('https') ? 'wss:' : 'ws:';
+        const serverUrl = elderlyUrl.replace(/^https?:\/\//, '');
+
+        // 设备在线状态（与设置页等保持一致，来源于 /status 轮询，反映老人端真实在线状态）
+        // 防重叠状态请求：跟踪进行中的 fetch，强制超时，确保新轮询在当前请求
+        // settle 前不能启动，避免并发轮询互相覆盖 UI 状态（CodeRabbit 建议）。
+        let _deviceStatusInFlight = null;
+        let _deviceStatusTimer = null;
+
+        function refreshDeviceStatus() {
+            // 已有进行中的请求：跳过本次轮询，保留上一次结果即可（防重叠）
+            if (_deviceStatusInFlight) {
+                return;
+            }
+            // 强制超时，避免 hung 请求长期累积导致状态卡死
+            const controller = ('AbortController' in window) ? new AbortController() : null;
+            _deviceStatusTimer = setTimeout(() => { if (controller) controller.abort(); }, 10000);
+            _deviceStatusInFlight = fetch('{{ prefix }}/status', controller ? { signal: controller.signal } : undefined)
+                .then(r => {
+                    // 非 2xx 响应：应用离线 UI（不保留上次状态）
+                    if (!r.ok) {
+                        applyDeviceOffline();
+                        return null;
+                    }
+                    return r.json();
+                })
+                .then(data => {
+                    // data.connected 非 boolean（异常响应）也应用离线 UI
+                    if (!data || typeof data.connected !== 'boolean') {
+                        applyDeviceOffline();
+                        return;
+                    }
+                    if (data.connected) {
+                        statusDot.classList.add('connected');
+                        statusText.textContent = data.device_name ? '设备在线 · ' + data.device_name : '设备在线';
+                    } else {
+                        statusDot.classList.remove('connected');
+                        statusText.textContent = data.device_name ? '设备离线 · ' + data.device_name : '设备离线';
+                    }
+                })
+                .catch(() => {
+                    applyDeviceOffline();
+                })
+                .finally(() => {
+                    clearTimeout(_deviceStatusTimer);
+                    _deviceStatusInFlight = null;
+                });
+        }
+
+        function applyDeviceOffline() {
+            statusDot.classList.remove('connected');
+            statusText.textContent = '设备离线';
+        }
+
+        function initWS() {
+            // 安全修复（低危12）：cookie 名从 session_token 改为 access_token
+            const accessToken = getCookie('access_token');
+            const url = `${wsProto}//${serverUrl}/api/v1/chat/ws/${encodeURIComponent(currentUserId || 0)}?token=${encodeURIComponent(accessToken)}`;
+            ws = new WebSocket(url);
+            ws.onopen = () => {
+                wsDot.classList.add('connected');
+                wsText.textContent = '聊天已连接';
+                sendBtn.disabled = false;
+                if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+            };
+            ws.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'chat_message') {
+                        addMsg(data.sender_name, data.content, data.timestamp, false);
+                    }
+                } catch(err) { console.error(err); }
+            };
+            ws.onerror = () => { wsDot.classList.remove('connected'); wsText.textContent = '聊天连接错误'; sendBtn.disabled = true; };
+            ws.onclose = () => {
+                wsDot.classList.remove('connected');
+                wsText.textContent = '聊天已断开';
+                sendBtn.disabled = true;
+                if (!reconnectTimer) reconnectTimer = setTimeout(initWS, 5000);
+            };
+        }
+
+        function sendMsg() {
+            const content = inputEl.value.trim();
+            if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
+            ws.send(JSON.stringify({ type: 'chat', receiver_id: elderlyId, sender_name: currentUser, content }));
+            addMsg(currentUser, content, new Date().toISOString(), true);
+            inputEl.value = '';
+        }
+
+        function addMsg(sender, content, timestamp, isSent) {
+            if (emptyEl) emptyEl.remove();
+            // 使用 DOM 元素创建 + textContent，避免 XSS
+            const div = document.createElement('div');
+            div.className = isSent ? 'chat-msg sent' : 'chat-msg received';
+            const avatar = document.createElement('div');
+            avatar.className = 'chat-avatar';
+            avatar.textContent = sender.charAt(0);
+            const body = document.createElement('div');
+            body.className = 'chat-msg-body';
+            const nameEl = document.createElement('div');
+            nameEl.className = 'chat-msg-name';
+            nameEl.textContent = sender;
+            const bubble = document.createElement('div');
+            bubble.className = 'chat-bubble';
+            bubble.textContent = content;
+            const timeEl = document.createElement('div');
+            timeEl.className = 'chat-msg-time';
+            const time = new Date(timestamp);
+            timeEl.textContent = time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            body.appendChild(nameEl);
+            body.appendChild(bubble);
+            body.appendChild(timeEl);
+            div.appendChild(avatar);
+            div.appendChild(body);
+            messagesEl.appendChild(div);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        async function loadHistory() {
+            // S9 修复：改用子女端 BFF 代理接口 /chat/history
+            try {
+                const resp = await fetch(`{{ prefix }}/chat/history?limit=100`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const msgs = data.messages || [];
+                    if (msgs.length > 0 && emptyEl) emptyEl.remove();
+                    msgs.reverse().forEach(m => {
+                        addMsg(m.sender_name, m.content, m.created_at, m.sender_id === currentUserId);
+                    });
+                }
+            } catch(e) { console.error('加载历史消息失败:', e); }
+        }
+
+        sendBtn.addEventListener('click', sendMsg);
+        inputEl.addEventListener('keypress', e => { if (e.key === 'Enter') sendMsg(); });
+        window.addEventListener('load', () => { loadHistory(); initWS(); refreshDeviceStatus(); });
+        // 与设置页保持一致，每 15 秒轮询一次设备在线状态
+        setInterval(refreshDeviceStatus, 15000);
+    </script>
+
+    <!-- 导航栏用户菜单（移动端头像下拉） -->
+    <script>
+        (function () {
+            if (window.__navUserDropdownInit) return;
+            window.__navUserDropdownInit = true;
+
+            // 切换下拉菜单显隐
+            window.toggleNavUserDropdown = function (e) {
+                e.stopPropagation();
+                e.preventDefault();
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                var isOpen = dd.classList.toggle('show');
+                var btn = e.currentTarget;
+                if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            };
+
+            // 登出
+            window.navLogout = function () {
+                fetch('{{ prefix }}/logout', {
+                    method: 'POST'
+                }).finally(function () {
+                    window.location.href = '{{ prefix }}/login';
+                });
+            };
+
+            // 点击外部关闭
+            document.addEventListener('click', function (e) {
+                var dd = document.getElementById('navUserDropdown');
+                if (!dd) return;
+                if (!dd.parentElement.contains(e.target)) {
+                    dd.classList.remove('show');
+                    var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            // ESC 关闭
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    var dd = document.getElementById('navUserDropdown');
+                    if (dd) {
+                        dd.classList.remove('show');
+                        var btn = dd.parentElement.querySelector('.nav-user-avatar');
+                        if (btn) btn.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+        })();
+    </script>
+{% endblock %}

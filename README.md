@@ -1,0 +1,700 @@
+# 老人用药管理智能助手
+
+> 仓库：[diaoyunxi/eating-medication](https://github.com/diaoyunxi/eating-medication)
+> 版本号文件见 [`VERSION`](./VERSION)。
+
+一套面向独居老人的智能用药管理系统，包含**老人端**、**服务端**、**家属看护端（子女端）**三个模块，覆盖用药提醒、药品识别、AI 语音问答、服药记录上传、家属沟通、紧急呼叫、库存管理等完整场景。适用于行空板 M10 及通用 Windows/Linux 设备。
+
+---
+
+## 目录
+
+- [功能概览](#功能概览)
+- [系统架构与网络请求流图](#系统架构与网络请求流图)
+- [HTTPS 与 Cloudflare 隧道](#https-与-cloudflare-隧道)
+- [项目结构](#项目结构)
+- [技术栈](#技术栈)
+- [快速开始](#快速开始)
+- [配置说明](#配置说明)
+  - [路径前缀（PATH_PREFIX）](#路径前缀path_prefix)
+  - [服务端 .env 关键项](#服务端-env-关键项)
+  - [第三方 OAuth 登录配置](#第三方-oauth-登录配置)
+- [API 文档](#api-文档)
+- [WebSocket 协议](#websocket-协议)
+- [数据模型](#数据模型)
+- [定时任务](#定时任务)
+- [自动更新机制](#自动更新机制)
+- [部署与运维](#部署与运维)
+- [版本历史](#版本历史)
+- [感谢贡献](#感谢贡献)
+- [许可](#许可)
+
+---
+
+## 功能概览
+
+| 模块                                        | 定位                                | 主要功能                                                                                                 |
+| ------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| [`elderly_assistant`](./elderly_assistant) | 老人端（行空板 M10 GUI / TUI 备用） | 按时用药提醒、摄像头识别药名、AI 语音问答、服药画面上传、库存管理、家属聊天、紧急呼叫、热点配网          |
+| [`server`](./server)                       | 服务端（FastAPI）                   | 用户认证、用药计划管理、服药日志、药品库存、AI 服务、WebSocket 实时通信、百度 OCR 药品识别、库存定时检查 |
+| [`family_monitor`](./family_monitor)       | 家属看护端（FastAPI Web）           | 远程查看老人服药记录、实时聊天、用药计划配置、健康仪表板、Cloudflare Turnstile 人机验证                  |
+
+---
+
+## 系统架构与网络请求流图
+
+系统采用 **三端 + Cloudflare 边缘隧道** 架构。老人端与子女端均通过 HTTPS（Cloudflare 隧道）与服务端通信；子女端浏览器与老人端服务端的聊天 WebSocket 为直连；老人端本地另起一个热点配网 Web 服务。
+
+### 三端网络请求总览图
+
+下图三列从左到右分别为 **老人端**、**服务端**、**子女端**，箭头表示项目运行中所有网络请求的方向与用途。
+
+```
+┌──────────────────────┐        ┌──────────────────────┐        ┌──────────────────────┐
+│       老人端          │        │       服务端          │        │       子女端          │
+│  elderly_assistant   │        │       server          │        │  family_monitor      │
+│  (行空板 M10 / TUI)   │        │  (FastAPI :1059)      │        │  (FastAPI Web :4430) │
+│                      │        │                       │        │  浏览器 + BFF 后端    │
+└──────────┬───────────┘        └──────────┬────────────┘        └──────────┬───────────┘
+           │                               │                                │
+           │  ① 启动：自动更新检查           │                                │  ① 启动：自动更新检查
+           │  GET api.github.com/.../      │                                │  GET api.github.com/.../
+           │  releases/latest ─────────►   │                                │  releases/latest ─────────►(GitHub)
+           │                               │                                │
+           │  ② 配网：设备注册              │                                │  ② 绑定设备：先校验后注册
+           │  POST /api/v1/public/device/  │                                │  GET  /api/v1/public/device/
+           │  register ─────────────────►  │                                │  check/{id} ─────────────►
+           │                               │                                │  POST /api/v1/public/device/
+           │                               │                                │  register ──────────────►
+           │  ③ 运行：健康检查（每 10s）    │                                │
+           │  GET /health ───────────────► │                                │  ③ 首页/各页渲染：设备状态
+           │                               │                                │  GET /api/v1/public/device/
+           │  ④ 运行：拉取用药计划（每60s） │                                │  status/{id} ─────────────►
+           │  GET /api/v1/public/device/   │                                │
+           │  schedule/{id} ─────────────► │                                │  ④ 用药设置页：拉取计划
+           │                               │                                │  GET /api/v1/public/device/
+           │  ⑤ 按钮确认：上报服药          │                                │  plans/{id} ───────────────►
+           │  POST /api/v1/public/device/  │                                │
+           │  message (type=medication)    │                                │  ⑤ 添加用药计划
+           │  ──────────────────────────►  │  ⑤' 推送给家庭组 (WS)          │  POST /api/v1/public/device/
+           │                               │  ─────────────────────────────►│  medication_plan ──────────►
+           │  ⑥ 上传服药/药品照片          │                                │
+           │  POST /api/upload ──────────► │                                │  ⑥ 删除用药计划
+           │                               │                                │  DELETE /api/v1/public/device/
+           │  ⑦ AI 问答（经服务端中转）     │  ⑦' 调用智谱 AI GLM-4          │  medication_plan/{id} ─────►
+           │  POST /api/v1/public/ai/ask   │  POST api.zhipuai / ... ──►   │
+           │  ──────────────────────────►  │  (第三方)                      │  ⑦ 提醒/记录/仪表板页
+           │                               │                                │  GET /api/v1/medication/plans
+           │  ⑧ 紧急呼叫                   │                                │  GET /api/v1/medication/history
+           │  POST /api/v1/public/device/  │                                │  ──────────────────────────►
+           │  message (type=emergency)     │                                │
+           │  ──────────────────────────►  │                                │  ⑧ 健康检查（页面轮询）
+           │                               │                                │  GET /health ──────────────►
+           │  ⑨ 聊天 WebSocket（仅 TUI）   │                                │
+           │  WS /ws/device/{id} ◄══════►  │  ⑨' 聊天 WS（浏览器直连）      │
+           │                               │  ◄═════════════════════════════│  WS /api/v1/chat/ws/{user_id}
+           │                               │                                │  （子女端浏览器 → 服务端，直连）
+           │                               │                                │
+           │  本地监听：热点配网服务        │                                │  本地监听：Web 页面服务
+           │  0.0.0.0:8088 (HTTP)          │                                │  0.0.0.0:4430 (HTTP)
+           │  热点 SSID: M10-Config        │                                │  浏览器访问 /login /dashboard ...
+           └───────────────────────────────┴────────────────────────────────┴───────────────────────────────┘
+
+           图例： ─────►  HTTP 请求      ◄════►  WebSocket 双向长连接      (第三方)  服务端向第三方发起的请求
+```
+
+### 网络请求清单（按方向分组）
+
+#### 老人端 → 服务端（HTTP）
+
+| # | 方法 | 路径（相对`base_url`）                       | 用途                                         | 触发时机                         |
+| - | ---- | ---------------------------------------------- | -------------------------------------------- | -------------------------------- |
+| 1 | POST | `/api/v1/public/device/register`             | 设备注册（提交 device_id / device_name）     | 配网页面提交表单时               |
+| 2 | GET  | `/health`                                    | 健康检查 / 连接状态探测                      | 主循环每 10 秒                   |
+| 3 | GET  | `/api/v1/public/device/schedule/{device_id}` | 拉取用药计划                                 | 启动后立即一次，之后每 60 秒轮询 |
+| 4 | POST | `/api/v1/public/device/message`              | 上报服药确认（`message_type=medication`）  | 用户按下按钮 A 确认服药          |
+| 5 | POST | `/api/v1/public/device/message`              | 紧急呼叫（`message_type=emergency`）       | 触发紧急求助                     |
+| 6 | POST | `/api/v1/public/device/message`              | 聊天消息（`message_type=chat`，HTTP 备用） | TUI 聊天（备用链路）             |
+| 7 | POST | `/api/v1/public/ai/ask`                      | AI 问答（经服务端中转智谱 AI）               | TUI 中用户输入问题               |
+| 8 | POST | `/api/upload`                                | 上传服药/药品照片（multipart`file`）       | TUI 确认服药 / 识别药品时        |
+
+> 设备接口通过路径/请求体中的 `device_id` 定位设备，并须携带 `X-Device-Token` 请求头进行令牌鉴权（`/device/register` 首次注册无需令牌，服务端返回 `device_token`）；`/device/check` 需 JWT 登录态（不使用设备令牌）。服务端不读取 `X-Device-ID` 请求头。
+
+#### 老人端 → 服务端（WebSocket，仅 TUI 形态）
+
+| # | 协议   | 路径                       | 用途                                                       |
+| - | ------ | -------------------------- | ---------------------------------------------------------- |
+| 9 | WS/WSS | `/ws/device/{device_id}` | 长连接实时收发家属端下发的聊天 / 提醒消息，断线每 5 秒重连 |
+
+#### 老人端 → 第三方 / 本地
+
+| #  | 类型       | 目标                                                                                   | 用途                                                              |
+| -- | ---------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 10 | HTTP GET   | `api.github.com/repos/diaoyunxi/eating-medication/releases/latest`（回退 `/tags`） | 启动时自动更新检查                                                |
+| 11 | HTTP POST  | `{ai.base_url}/chat/completions`                                                     | 直连大模型（OpenAI 兼容协议，配置`ai.base_url` 为第三方时启用） |
+| 12 | 本地子进程 | Tesseract 可执行文件                                                                   | OCR 识别（无网络请求）                                            |
+| 13 | 本地引擎   | pyttsx3                                                                                | TTS 语音合成（无网络请求）                                        |
+| 14 | TCP socket | `8.8.8.8:53`（可配置）                                                               | 互联网连通性探测                                                  |
+| 15 | 本地监听   | `0.0.0.0:8088` HTTP                                                                  | 热点配网 Web 服务（用户连热点后访问`10.0.0.1:8088`）            |
+
+#### 服务端 → 第三方
+
+| #  | 方法            | 目标                                        | 用途                                             | 触发时机                                                     |
+| -- | --------------- | ------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------ |
+| 20 | HTTP POST       | 智谱 AI`glm-4.7-flash`（`zhipuai` SDK） | AI 健康问答                                      | `/ai/chat`、`/ai/chat/public`、`/public/ai/ask` 被调用 |
+| 21 | HTTP GET + POST | 百度 OCR`aip.baidubce.com`                | 药品图片识别药名（先换 token，再调通用文字识别） | `/vision/recognize` 被调用                                 |
+| 22 | HTTP GET        | `api.github.com/.../releases/latest`      | 启动时自动更新检查（含 Release Attestation 校验）         | 启动时                                                       |
+| 23 | 内部调度        | APScheduler`AsyncIOScheduler`             | 库存不足检查，向家庭组广播`low_stock`          | 每天 02:00 自动执行                                          |
+
+#### 子女端 → 服务端（HTTP，由 BFF 后端 `core/api_client.py` 发起）
+
+| #  | 方法   | 路径（相对`ELDERLY_SERVER_URL`）                  | 用途               | 触发时机                                    |
+| -- | ------ | --------------------------------------------------- | ------------------ | ------------------------------------------- |
+| 30 | GET    | `/health`                                         | 检查服务端连接     | 首页/各页渲染 + 前端每 30 秒轮询`/status` |
+| 31 | GET    | `/api/v1/public/device/check/{device_id}`         | 校验设备是否已注册 | 设置页点击"绑定设备"                        |
+| 32 | POST   | `/api/v1/public/device/register`                  | 绑定设备           | check 通过后                                |
+| 33 | GET    | `/api/v1/public/device/plans/{device_id}`         | 拉取设备用药计划   | 用药设置页渲染                              |
+| 34 | GET    | `/api/v1/public/device/status/{device_id}`        | 获取设备状态信息   | 首页/提醒/记录/仪表板/设置页渲染            |
+| 35 | POST   | `/api/v1/public/device/medication_plan`           | 添加用药计划       | 用药设置页提交表单                          |
+| 36 | DELETE | `/api/v1/public/device/medication_plan/{plan_id}` | 删除用药计划       | 用药设置页点击删除                          |
+| 37 | GET    | `/api/v1/medication/plans`                        | 获取提醒列表       | 提醒页 / 仪表板统计                         |
+| 38 | GET    | `/api/v1/medication/history`                      | 获取用药历史       | 记录页 / 仪表板统计                         |
+
+#### 子女端浏览器 → 服务端（WebSocket 直连，不经 BFF 转发）
+
+| #  | 协议   | 路径                          | 用途                                         |
+| -- | ------ | ----------------------------- | -------------------------------------------- |
+| 39 | WS/WSS | `/api/v1/chat/ws/{user_id}` | 浏览器直接连接服务端聊天 WS，断线每 5 秒重连 |
+
+#### 浏览器 → 子女端（入站路由）
+
+子女端后端作为 BFF，对外提供 10 个页面与若干 POST 接口（详见 [API 文档-家属端路由](#api-文档)），监听 `0.0.0.0:4430`。
+
+---
+
+## HTTPS 与 Cloudflare 隧道
+
+本系统**不再使用本地证书文件**，所有模块均以纯 HTTP 监听，HTTPS 由 **Cloudflare 隧道（cloudflared）边缘自动配置**：
+
+- 本地服务监听 HTTP，cloudflared 建立加密隧道到 Cloudflare 边缘节点。
+- 用户通过 `https://your-domain.example.com` 访问（部署时替换为实际域名），SSL 在 Cloudflare 边缘终止，流量经隧道转发到本地 HTTP 服务。
+- 两个服务通过路径前缀区分转发：
+  - `https://your-domain.example.com/eating-medication/server` → 服务端（本地端口 `1059`）
+  - `https://your-domain.example.com/eating-medication/family` → 家属看护端（本地端口 `4430`）
+- 应用内置路径前缀中间件，自动剥离/补回前缀，本地直连（前缀为空）与隧道访问均兼容。
+
+---
+
+## 项目结构
+
+```
+.
+├── elderly_assistant/             # 老人端
+│   ├── main.py                    # 程序入口（行空板 M10 GUI 主流程）
+│   ├── updater.py                 # 自动更新检查模块
+│   ├── install.py                 # 依赖自动安装
+│   ├── .env.example                # 配置文件示例（扁平 .env）
+│   ├── requirements.txt           # 依赖清单
+│   ├── core/                      # 核心业务逻辑
+│   │   ├── ai_assistant.py        # AI 助手交互
+│   │   ├── camera.py              # 摄像头封装
+│   │   ├── display.py             # 屏幕显示
+│   │   ├── local_fallback.py      # 离线本地降级
+│   │   ├── medication.py          # 用药管理
+│   │   ├── network.py             # 网络连通性管理
+│   │   ├── reminder.py            # 提醒调度
+│   │   └── uploader.py            # 服药照片上传
+│   ├── services/                  # 底层服务
+│   │   ├── ai_client.py           # 大模型客户端（OpenAI 兼容）
+│   │   ├── buzzer.py              # 蜂鸣器
+│   │   ├── device_id.py           # 设备 ID 生成
+│   │   ├── hotspot_manager.py     # 热点创建（nmcli）
+│   │   ├── http_client.py         # HTTP 客户端
+│   │   ├── ocr_engine.py          # Tesseract OCR
+│   │   ├── speech.py              # pyttsx3 TTS
+│   │   ├── wifi_config.py         # 配网 Web 服务（:8088）
+│   │   └── ws_client.py           # WebSocket 客户端
+│   ├── tui/                       # 终端界面（备用形态）
+│   │   └── tui_app.py
+│   ├── utils/                     # 工具模块
+│   │   ├── config_loader.py       # YAML 配置加载
+│   │   └── logger.py
+│   └── data/                      # 运行时数据（用药计划/计划模板）
+├── server/                        # 服务端
+│   ├── main.py                    # 启动脚本（uvicorn:1059）
+│   ├── updater.py                 # 自动更新检查（含 Release Attestation 校验）
+│   ├── install.py                 # 依赖自动安装
+│   ├── requirements.txt           # 运行依赖
+│   ├── requirements-dev.txt       # 测试依赖
+│   ├── app/                       # FastAPI 应用
+│   │   ├── main.py                # 应用实例 + 路径前缀中间件
+│   │   ├── api/v1/endpoints/      # API 路由（auth/users/medication/ai/vision/public/chat）
+│   │   ├── api/v1/websocket.py    # 通用 WebSocket
+│   │   ├── core/                  # config/database/security/dependencies/exceptions
+│   │   ├── middleware/            # cors/logging/exception_handler
+│   │   ├── models/                # SQLAlchemy 数据模型
+│   │   ├── schemas/               # Pydantic 数据校验
+│   │   ├── services/              # 业务服务（ai/auth/medication/user/vision）
+│   │   ├── tasks/                 # 定时任务（stock_checker）
+│   │   ├── utils/                 # http_client/rate_limit/time_utils/validators
+│   │   ├── websocket/             # manager/notifier
+│   │   └── migrations/            # Alembic 迁移（已就位，生产建议启用）
+├── family_monitor/                # 家属看护端
+│   ├── main.py                    # FastAPI 应用 + 中间件链（JWT 转发验证 + Turnstile）
+│   ├── updater.py                 # 自动更新检查
+│   ├── install.py                 # 依赖自动安装
+│   ├── .env                        # 配置文件（单一 .env 源，已忽略）
+│   ├── requirements.txt
+│   ├── core/                      # 配置 / BFF 客户端 / 遗留模块
+│   │   ├── api_client.py          # 调用老人端服务端的 BFF 客户端
+│   │   ├── config.py              # 配置加载（含 Turnstile Site Key）
+│   │   ├── auth.py                # （遗留）本地用户管理，已改用 server JWT 认证
+│   │   └── session.py             # （遗留）会话管理，已改用 JWT HttpOnly Cookie
+│   ├── routes/                    # 路由（home/auth/chat）
+│   ├── static/css/                # 样式表
+│   └── templates/                 # 9 个 Jinja2 页面模板（含 Turnstile 登录/注册）
+├── history.md                     # 项目开发历史记录（版本基准）
+├── VERSION                        # 当前版本号（v2.44.0）
+├── deploy/                        # 部署辅助文件（一键脚本 + systemd 单元 + cloudflared 配置）
+│   ├── setup-linux.sh             # Linux 一键部署脚本（bash）
+│   ├── setup-mac.sh               # macOS 一键部署脚本（zsh）
+│   ├── eating-medication-server.service
+│   ├── eating-medication-family.service
+│   ├── cloudflared.service
+│   ├── cloudflared-config.yml
+│   └── README.md
+├── setup.sh                       # 跨平台一键部署引导器（POSIX sh）
+├── setup.ps1                      # Windows 一键部署脚本（PowerShell）
+└── .gitignore
+```
+
+---
+
+## 技术栈
+
+| 层级        | 老人端                                        | 服务端                                                        | 子女端                                                                               |
+| ----------- | --------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 语言        | Python 3.6+（推荐 3.12）                      | Python 3.8+（推荐 3.12）                                      | Python 3.8+（推荐 3.12）                                                             |
+| Web 框架    | —                                            | FastAPI 0.115.0 + Uvicorn 0.32.0                              | FastAPI 0.104 + Uvicorn 0.24                                                         |
+| GUI / 硬件  | pinpong 1.2.0（行空板 M10）+ unihiker GUI     | —                                                            | Jinja2 3.1 模板                                                                      |
+| HTTP 客户端 | requests 2.31.0                               | httpx 0.27.2                                                  | httpx 0.25.0                                                                         |
+| 数据库      | —                                            | SQLAlchemy 2.0.36 + SQLite                                    | users.json + 文件锁（bcrypt 4.1）                                                    |
+| 认证        | device_id + device_token（X-Device-Token 头） | python-jose 3.4.0（JWT HS256）+ bcrypt + Cloudflare Turnstile | JWT HttpOnly Cookie（由 server 统一签发，转发验证 + 30s 缓存）+ Cloudflare Turnstile |
+| AI          | pyttsx3 / edge-tts                            | 智谱 AI`glm-4.7-flash`（zhipuai SDK）                       | —                                                                                   |
+| OCR         | pytesseract 0.3.10（本地）                    | 百度 OCR（aip.baidubce.com）                                  | —                                                                                   |
+| 调度        | schedule 1.2.1                                | APScheduler 3.11.0                                            | —                                                                                   |
+| 配置        | python-dotenv 1.0.1                           | pydantic-settings 2.6 + .env                                  | .env                                                                                 |
+| 模糊匹配    | rapidfuzz 3.6.2                               | —                                                            | —                                                                                   |
+| 图像        | Pillow 10.0.1                                 | Pillow 10.4.0                                                 | —                                                                                   |
+| HTTPS       | Cloudflare 隧道                               | Cloudflare 隧道                                               | Cloudflare 隧道                                                                      |
+
+---
+
+## 快速开始
+
+### 环境要求
+
+- Python 3.8+（推荐 3.12；行空板 M10 自带 Python 3.6 也可运行老人端）
+- 操作系统：Windows / Linux（含行空板 M10 等 ARM 设备）
+- 可选硬件：USB 摄像头、麦克风、音箱/蜂鸣器
+- OCR 识别需安装 Tesseract（可选，老人端本地用）
+- 三端均以纯 HTTP 本地监听，公网域名与 HTTPS 方案在 `setup.sh` / `setup.ps1` 中选择配置
+
+> 三模块的 `install.py` 内容已统一为同一份脚本，行为：
+>
+> 1. 先检测 `pip` 是否存在，无则按平台自动安装（Linux 优先 `apt-get install python3-pip`、Windows 用 `get-pip.py`、其他走 `ensurepip` 后备）；
+> 2. 正常 `pip install`：**默认不使用任何镜像源（走系统/官方默认源）**，若首选源安装失败则自动回退到官方 PyPI 源 `https://pypi.org/simple` 重试。可通过环境变量 `PIP_INDEX_URL` 指定首选源（仍会回退官方源）；
+> 3. 若输出包含 `--break-system-packages`（PEP 668 错误），自动加该参数重试。
+>    已安装的包自动跳过，无需重复安装。
+
+### 根目录一键启动（推荐用于直接运行文件）
+
+在仓库根目录执行，脚本会自动识别当前设备并启动对应的端：
+
+```bash
+python main.py            # 自动识别并启动
+python main.py --check    # 只打印识别结果，不启动任何进程
+```
+
+识别规则（任一特征命中即判定为行空板）：
+
+| 特征                                        | 说明                         |
+| ------------------------------------------- | ---------------------------- |
+| `/proc/device-tree/model` 含 `unihiker` | 设备树型号，最直接的硬件特征 |
+| 主机名含`unihiker`                        | 出厂主机名特征               |
+| `/etc/unihiker*` 存在                     | 出厂镜像配置文件特征         |
+| ARM 架构 + Debian 10 buster                 | 架构与发行版组合兜底         |
+
+启动行为：
+
+- **识别为行空板** → 用 `os.execv` 替换当前进程为老人端，前台运行
+- **识别为其他设备** → 后台启动服务端（1059）与子女端（4430），脱离终端会话，打印 PID 后本进程退出；关闭终端不影响服务，日志写入 `logs/server.out` 与 `logs/family.out`
+
+其他参数：`--force-elderly` / `--force-server` 可跳过自动识别强制指定（二者互斥），未被识别的参数原样透传给子程序。
+
+> 本入口仅面向「直接使用文件启动」的场景。生产环境的开机自启与进程守护请使用 `setup.sh` / `setup.ps1`。
+
+### 老人端
+
+```bash
+cd elderly_assistant
+python ../install.py requirements.txt --huskylens   # 自动安装依赖（含 huskylens）
+# .env 的 SERVER_BASE_URL 默认服务器地址已配置为公网域名，可在热点配网页面修改
+python main.py             # 启动（--debug 启用调试模式）
+```
+
+启动后默认显示时间 + 后台创建热点 `M10-Config`（WPA2 加密，密码启动时随机生成并打印到终端），用户连接热点后用浏览器访问 `http://10.0.0.1:8088` 进行配网（填写 WiFi 与服务端地址）。
+
+### 服务端
+
+```bash
+cd server
+python ../install.py requirements.txt                # 自动安装依赖
+# 编辑 .env 配置数据库、密钥、智谱 AI、PATH_PREFIX、ALLOWED_ORIGINS
+python main.py             # 启动服务（本地端口 1059，HTTP 监听）
+```
+
+- API 文档：`http://localhost:1059/eating-medication/server/docs`（或本地直连 `http://localhost:1059/docs`）
+- 健康检查：`http://localhost:1059/eating-medication/server/health`
+
+### 家属看护端
+
+```bash
+cd family_monitor
+python ../install.py requirements.txt                # 自动安装依赖
+# 编辑 .env（SECRET_KEY、服务器地址 ELDERLY_SERVER_URL、PATH_PREFIX 等全部配置）
+python main.py             # 启动服务（本地端口 4430，HTTP 监听）
+```
+
+- 访问：`http://localhost:4430/eating-medication/family/`（或本地直连 `http://localhost:4430/`）
+- 登录/注册均集成 Cloudflare Turnstile 人机验证，认证由 server 统一处理
+
+> **注意**：`.env`、数据库（`*.db`）、`users.json`、`bound_device.json`、`device_token.txt` 等敏感文件已通过 `.gitignore` 排除，不会上传至仓库，部署时需自行配置。生产模式（`DEBUG=False`）下：
+>
+> - 服务端与子女端若未配置 `SECRET_KEY`（或为已知弱值）将**拒绝启动**
+> - 服务端若未配置 `TURNSTILE_SECRET_KEY` 将**降级跳过人机验证**（登录/注册仍可正常进行，仅记录 warning）
+> - `/openapi.json`、`/docs`、`/redoc` 在生产环境**返回 404**，仅开发环境可用
+
+> **Turnstile 两把密钥（易错点）**：Cloudflare Turnstile 需要**两把**密钥，分别放在不同服务：
+>
+> - **站点密钥（Site Key）** → 前端渲染验证小组件，配置在 `family_monitor/.env` 的 `TURNSTILE_SITE_KEY`（已配则小组件正常显示）。
+> - **密钥（Secret Key）** → 后端调用 Cloudflare `siteverify` 校验令牌，配置在 `server/.env` 的 `TURNSTILE_SECRET_KEY`（未配置则生产环境降级跳过人机验证，登录/注册仍可用）。
+>
+> 若登录/注册报「人机验证失败，请重试」，且 `server` 日志出现 `生产环境未配置 TURNSTILE_SECRET_KEY` 或 `Turnstile 校验未通过`，请按以下顺序排查：
+>
+> 1. 确认 `server/.env` 的 `TURNSTILE_SECRET_KEY` 已填入真实 Secret Key 并**重启 server**（server 启动日志会打印 Turnstile 配置状态）；
+> 2. 确认该 Secret Key 与 `family_monitor/.env` 的 Site Key 来自**同一个** Cloudflare Turnstile 站点（密钥与站点密钥不匹配会校验失败）；
+> 3. 确认 Turnstile 站点「允许的主机名」包含当前访问域名。
+
+---
+
+## 配置说明
+
+| 模块              | 配置文件 | 关键配置项                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| elderly_assistant | `.env` | `SERVER_BASE_URL`（默认公网域名）、`HEARTBEAT_INTERVAL`、摄像头 `CAMERA_*`、蜂鸣器 `BUZZER_LOOP_INTERVAL`、热点 `HOTSPOT_*`、轮询 `POLL_INTERVAL`                                                                                                                                                                                                                                                                                                                                      |
+| server            | `.env` | `APP_NAME`、`DEBUG`、`PATH_PREFIX`/`API_V1_PREFIX`、`SERVER_HOST`/`SERVER_PORT`、`DATABASE_URL`、`SECRET_KEY`、`ALGORITHM`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`TURNSTILE_SECRET_KEY`、`ZHIPUAI_API_KEY`/`ZHIPUAI_MODEL`、`OCR_PROVIDER`/`OCR_API_KEY`/`OCR_SECRET_KEY`、`ALLOWED_ORIGINS`、`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`/`GITHUB_OAUTH_CALLBACK_URL`、`GITEE_CLIENT_ID`/`GITEE_CLIENT_SECRET`/`GITEE_OAUTH_CALLBACK_URL`/`FAMILY_WEB_URL` |
+| family_monitor    | `.env` | `SECRET_KEY`、`DEBUG`、`COOKIE_SECURE`、`TURNSTILE_SITE_KEY`、`DEVICE_SECRET`、`ALLOWED_ORIGINS`、`PRODUCTION`、`SERVER_HOST`/`SERVER_PORT`、`ELDERLY_SERVER_URL`、`PATH_PREFIX`、`APP_NAME`、`DISPLAY_*`                                                                                                                                                                                                                                                                |
+
+### 路径前缀（PATH_PREFIX）
+
+| 模块           | 默认值                        | 本地直连     |
+| -------------- | ----------------------------- | ------------ |
+| server         | `/eating-medication/server` | 设为空字符串 |
+| family_monitor | `/eating-medication/family` | 设为空字符串 |
+
+中间件实现位于 [server/app/main.py](./server/app/main.py) 与 [family_monitor/main.py](./family_monitor/main.py)：请求阶段剥离前缀供路由匹配，响应阶段为 3xx 重定向的 `Location` 头补回前缀。
+
+### 服务端 .env 关键项
+
+```ini
+APP_NAME=老年人用药管理系统
+DEBUG=False
+API_V1_PREFIX=/api/v1
+PATH_PREFIX=/eating-medication/server
+DATABASE_URL=sqlite:///./data/elderly_care.db
+SECRET_KEY=<必须配置，生产模式弱密钥将拒绝启动>
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+ZHIPUAI_API_KEY=<智谱 AI Key>
+ZHIPUAI_MODEL=glm-4.7-flash
+OCR_PROVIDER=baidu
+OCR_API_KEY=<百度 OCR Key>
+OCR_SECRET_KEY=<百度 OCR Secret>
+ALLOWED_ORIGINS=https://your-domain.example.com
+TURNSTILE_SECRET_KEY=<Cloudflare Turnstile Secret Key，用于后端 siteverify 验证，必填；与 family_monitor 的 Site Key 须为同一站点，缺失将导致登录/注册被拒>
+# ===== GitHub OAuth 登录（详见上方「GitHub OAuth 登录配置」）=====
+GITHUB_CLIENT_ID=<GitHub OAuth App Client ID，留空则隐藏登录按钮>
+GITHUB_CLIENT_SECRET=<GitHub OAuth App Client Secret>
+GITHUB_OAUTH_CALLBACK_URL=https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback
+# Gitee OAuth（可选，留空则隐藏 Gitee 登录按钮；应用需勾选 user_info、emails 权限）
+GITEE_CLIENT_ID=<Gitee OAuth 应用 Client ID，留空则隐藏登录按钮>
+GITEE_CLIENT_SECRET=<Gitee OAuth 应用 Secret>
+GITEE_OAUTH_CALLBACK_URL=https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback
+FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
+```
+
+首次启动 `main.py` 会自动生成 `.env` 模板。
+
+### 第三方 OAuth 登录配置
+
+服务端 `server/.env` 配置对应平台凭据后，家属端登录页自动显示相应登录按钮（未配置则隐藏）。GitHub 与 Gitee 共用同一套 provider 框架，流程一致：发起授权（state 防 CSRF）→ 回调换 token → 拉用户信息 → 已绑定直接登录，未绑定则**自动注册**（无需补全手机号/密码，邮箱权限授权后写入 `users.email`）。用户后续可在设置页面的「登录方式管理」板块绑定/解绑手机号、邮箱、GitHub、Gitee。
+
+#### GitHub OAuth
+
+| 配置项                        | 说明                                                                                                                                                                        |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_CLIENT_ID`          | GitHub OAuth App 的 Client ID（必填，否则按钮隐藏）                                                                                                                         |
+| `GITHUB_CLIENT_SECRET`      | GitHub OAuth App 的 Client Secret（必填）                                                                                                                                   |
+| `GITHUB_OAUTH_CALLBACK_URL` | 回调地址，须与 GitHub 后台`Authorization callback URL` **完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/github/callback` |
+
+> 注意：一个 GitHub OAuth App 仅允许配置**一个**固定回调 URL。本地开发请另行在 GitHub 创建 OAuth App（回调填 `http://localhost:1059/api/v1/auth/oauth/github/callback`）。GitHub 仅申请 `read:user` scope（公开邮箱若用户设置则可取）。
+
+#### Gitee OAuth
+
+在 Gitee 创建应用（[https://gitee.com/oauth/applications](https://gitee.com/oauth/applications)），勾选「访问用户的个人信息、最新动态」(`user_info`) 与「查看用户的个人邮箱信息」(`emails`) 权限。
+
+| 配置项                       | 说明                                                                                                                                                       |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITEE_CLIENT_ID`          | Gitee OAuth 应用的 Client ID（必填，否则按钮隐藏）                                                                                                         |
+| `GITEE_CLIENT_SECRET`      | Gitee OAuth 应用的 Client Secret（必填）                                                                                                                   |
+| `GITEE_OAUTH_CALLBACK_URL` | 回调地址，须与 Gitee 后台「应用回调地址」**完全一致**，默认 `https://my-website.ccwu.cc/eating-medication/server/api/v1/auth/oauth/gitee/callback` |
+
+> 注意：Gitee 回调 URL 同样唯一。授权后服务端会调用 `/api/v5/emails` 取得主邮箱并写入 `users.email`（仅在已授权 `emails` 权限时）。首次 Gitee 登录自动注册（无需手机号/密码），已绑定账号再次登录直接写入登录态。
+
+#### 公共配置
+
+| 配置项             | 说明                                                                                                     |
+| ------------------ | -------------------------------------------------------------------------------------------------------- |
+| `FAMILY_WEB_URL` | 家属端前端地址，OAuth 回调成功后 302 跳转用，默认`https://my-website.ccwu.cc/eating-medication/family` |
+
+---
+
+## API 文档
+
+完整外部路径 = `PATH_PREFIX`（`/eating-medication/server`） + `API_V1_PREFIX`（`/api/v1`） + 路由路径
+
+- **Swagger UI**：`http://localhost:1059/eating-medication/server/docs`（或本地直连 `http://localhost:1059/docs`）
+- **ReDoc**：`http://localhost:1059/eating-medication/server/redoc`
+- **OpenAPI JSON**：`http://localhost:1059/openapi.json`
+
+> 生产环境（`DEBUG=False`）下 `/docs`、`/redoc`、`/openapi.json` 返回 404。
+
+---
+
+## WebSocket 协议
+
+服务端提供两个独立的 WebSocket 入口：
+
+### 1. 通用 WebSocket `/ws/ws`
+
+- **完整路径**：`{PATH_PREFIX}/ws/ws?token=<JWT>`
+- **认证**：Query 参数 `token`（JWT，长度上限 2048）；无效则 close code=1008
+- **消息**：客户端发 `"ping"`，服务端回 `"pong"`；用于接收服务端主动推送通知
+
+### 2. 聊天 WebSocket `/api/v1/chat/ws/{user_id}`
+
+- **完整路径**：`{PATH_PREFIX}/api/v1/chat/ws/{user_id}?token=<JWT>`
+- **认证**：Query 参数 `token`，以 token 中 `sub` 覆盖 URL 中的 user_id
+- **客户端 → 服务端**（JSON）：
+  - `{"type":"chat","content":"...","receiver_id":N,"sender_name":"..."}` —— 发送聊天消息（落库 + 推送接收者）
+  - `{"type":"ping"}` —— 心跳
+- **服务端 → 客户端**（JSON）：
+  - `{"type":"chat_message","id":..,"sender_id":..,"sender_name":"..","content":"..","timestamp":".."}` —— 推送给接收者
+  - `{"type":"message_sent","id":..}` —— 回执给发送者
+  - `{"type":"pong"}` —— 心跳响应
+
+### 服务端主动推送消息类型（经 `ConnectionManager` + `Notifier`）
+
+| `type`              | 触发场景                                |
+| ------------------- | --------------------------------------- |
+| `medication_taken`  | 老人已服药                              |
+| `medication_missed` | 老人漏服药品                            |
+| `low_stock`         | 药品库存不足（定时任务每天 02:00 触发） |
+| `family_message`    | 家庭消息                                |
+| `chat_message`      | 聊天消息（chat 端点直接调用）           |
+
+---
+
+## 数据模型
+
+服务端使用 SQLAlchemy + SQLite（`./data/elderly_care.db`），5 张表：
+
+| 模型                 | 表名                   | 主要字段                                                                                                                                                            |
+| -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `User`             | `users`              | id, username(唯一), hashed_password, full_name, role(elderly/family), phone, group_id, created_at, is_active, last_login_at                                         |
+| `MedicationPlan`   | `medication_plans`   | id, user_id(FK), drug_name, dosage, frequency, schedule_times(JSON), total_quantity, remaining_quantity, unit, low_stock_threshold(默认5.0), created_at, updated_at |
+| `MedicationRecord` | `medication_records` | id, plan_id(FK), user_id(FK), scheduled_time, taken_time, status(pending/taken/missed/skipped), note                                                                |
+| `ChatMessage`      | `chat_messages`      | id, sender_id(FK, 索引), receiver_id(FK, 可空, 索引), sender_name(50), content(Text), created_at                                                                    |
+| `AIQueryLog`       | `ai_query_logs`      | id, user_id(FK), question, answer, model(默认 glm-4.7-flash), created_at                                                                                            |
+
+启动时通过 `Base.metadata.create_all` 自动建表；生产环境建议启用 Alembic 迁移（`app/migrations/` 已就位）。
+
+---
+
+## 定时任务
+
+**文件**：[`server/app/tasks/stock_checker.py`](./server/app/tasks/stock_checker.py)
+
+- **调度器**：APScheduler `AsyncIOScheduler`（全局单例）
+- **任务**：`check_low_stock_job`，CronTrigger **每天 02:00** 执行一次
+- **逻辑**：查询所有 `role=elderly` 用户 → 遍历每位老人的 `MedicationPlan` → 若 `remaining_quantity <= low_stock_threshold`，调用 `notifier.notify_low_stock(...)` 向家庭组广播 `low_stock` 消息
+- **生命周期**：`start_scheduler()` 在 `app/main.py` 的 `lifespan` 启动时调用，`shutdown_scheduler()` 在关闭时调用
+
+---
+
+## 自动更新机制
+
+所有模块均内置**启动时自动更新检查**功能（`updater.py`），符合「上传到云端的代码均需有自动更新功能，启动时检查」的要求。
+
+- 启动时通过 GitHub API 查询最新 Release（优先）/ Tag（回退）版本号。
+- 发现新版本时打印提示（当前版本、最新版本、下载地址），**非阻塞**，不影响主程序运行。
+- `AUTO_PULL=true`（根目录 `.env` 控制，缺省启用）时自动下载完整发布包、Release Attestation 校验后安全安装（保留 `.env` / `data/` / `logs/` 等保护文件）。
+- 网络异常或检查失败时静默/警告处理，不中断启动。
+
+### 服务端 HTTP 触发更新
+
+服务端额外提供 HTTP 端点 `/api/v1/updater`，**访问即触发更新**（无需鉴权）：
+
+- **GET** `/api/v1/updater`：直接触发一次更新检查与安装。
+- **POST** `/api/v1/updater`：行为与 GET 一致，供 CI 脚本语义化调用。
+
+两个方法行为完全相同：若远端存在更新版本且 `AUTO_PULL=true`，则下载完整发布包、做 Release Attestation 校验并安全复制到项目根目录，更新成功后自动重启服务。无需登录鉴权，便于 CI / 部署脚本 / 浏览器直接访问触发自更新。
+
+### 三模块差异
+
+三模块的 `updater.py` 已统一为同一份实现（均含完整 attestation 校验）：
+
+| 模块              | Release Attestation 校验                                                           | 异常处理                  | 版本号来源          |
+| ----------------- | --------------------------------------------------------------------- | ------------------------- | ------------------- |
+| elderly_assistant | **完整 attestation 校验**：调用 gh attestation verify 校验（限定本仓库 python-app.yml 签发） | `logger.warning` 不静默 | 从 VERSION 文件读取 |
+| server            | **完整 attestation 校验**：同上                                          | `logger.warning` 不静默 | 从 VERSION 文件读取 |
+| family_monitor    | **完整 attestation 校验**：同上                                          | `logger.warning` 不静默 | 从 VERSION 文件读取 |
+
+> 三个 `updater.py` 的 `__version__` 通过 `_load_version()` 从 VERSION 文件动态读取，不再写死在代码中。
+> 查找顺序：本模块目录的 VERSION → 项目根目录的 VERSION → 写死默认值（兜底）。
+
+---
+
+## 多因子认证（MFA）
+
+服务端已内置双因子认证，登录与敏感操作需二次验证：
+
+- **TOTP**：基于时间的一次性密码（`pyotp`），绑定二维码以 SVG 渲染（`qrcode`，无需 Pillow）。
+- **WebAuthn / Passkey**：基于 `webauthn` 库的生物识别 / 硬件密钥登记与断言校验。
+- **登录限流与弱密钥防护**：生产环境弱 `SECRET_KEY` 拒绝启动（`config.py` 维护 `_WEAK_SECRET_KEYS` 黑名单）；JWT 解码固定算法白名单，防 `alg=none` 降级。
+- **设备令牌时序安全比较**：`device_service.py` 使用 `secrets.compare_digest` 比较设备令牌，防时序侧信道。
+
+> 家庭成员（family 角色）可在账户设置中绑定 TOTP 与 Passkey；老人端（elderly）由家属代为管理。
+
+---
+
+## 部署与运维
+
+### 一键部署（推荐）
+
+仓库提供跨平台一键部署脚本，支持 Linux（systemd）、macOS（launchd）、Windows（NSSM/计划任务），自动完成「装依赖 → 克隆代码 → 生成 .env → 安装服务并启动」。
+
+**Linux / macOS**：
+
+```bash
+# curl 一键部署（自动检测操作系统）
+curl -fsSL https://raw.githubusercontent.com/diaoyunxi/eating-medication/main/setup.sh | sh
+```
+
+**Windows**（以管理员身份运行 PowerShell）：
+
+```powershell
+irm https://raw.githubusercontent.com/diaoyunxi/eating-medication/main/setup.ps1 | iex
+```
+
+部署脚本支持三种公网访问模式：Cloudflare 隧道（推荐）、DDNS + Caddy 自动 HTTPS、仅内网访问。详见 [`deploy/README.md`](./deploy/README.md)。
+
+### 手动部署
+
+仓库已内置部署辅助文件，位于 [`deploy/`](./deploy) 目录，包含 systemd 服务单元与 cloudflared 隧道配置示例。
+
+### Cloudflare 隧道（cloudflared）配置
+
+1. 在 Cloudflare Zero Trust 控制台创建隧道，获取 tunnel token。
+2. 安装 cloudflared 并使用 [`deploy/cloudflared.service`](./deploy/cloudflared.service)（把 `<TUNNEL_TOKEN>` 替换为实际 token）：
+   ```bash
+   sudo cp deploy/cloudflared.service /etc/systemd/system/
+   sudo vi /etc/systemd/system/cloudflared.service   # 替换 <TUNNEL_TOKEN>
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now cloudflared
+   ```
+3. 配置隧道路由规则（在 Cloudflare 控制台或参考 [`deploy/cloudflared-config.yml`](./deploy/cloudflared-config.yml)）：
+   - `https://your-domain.example.com/eating-medication/server` → `http://localhost:1059`
+   - `https://your-domain.example.com/eating-medication/family` → `http://localhost:4430`
+4. 在 Cloudflare DNS 为域名添加 CNAME 指向隧道 ID（控制台可自动完成）。
+
+### 进程守护（systemd）
+
+为服务端与子女端各使用 [`deploy/eating-medication-server.service`](./deploy/eating-medication-server.service) 与 [`deploy/eating-medication-family.service`](./deploy/eating-medication-family.service)（示例中部署目录为 `/opt/eating-medication/`，运行用户为 `deploy`，按实际环境修改 `WorkingDirectory`/`User`/`ExecStart`）：
+
+```bash
+sudo cp deploy/eating-medication-server.service deploy/eating-medication-family.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now eating-medication-server eating-medication-family
+sudo systemctl status eating-medication-server eating-medication-family
+```
+
+日志查看：
+
+```bash
+journalctl -u eating-medication-server -f       # 服务端日志
+journalctl -u eating-medication-family -f       # 家属端日志
+journalctl -u cloudflared -f                    # 隧道日志
+```
+
+---
+
+## 版本历史
+
+详见 [`history.md`](./history.md)。
+
+---
+
+## 感谢贡献
+
+本项目的开发与运行离不开以下服务与 API 提供方的支持（排名不分先后）：
+
+### 基础设施与网络
+
+- **[Cloudflare](https://www.cloudflare.com/)** — 提供 Cloudflare Tunnel（cloudflared）边缘隧道，承担 HTTPS 终止与子路径转发，使本地服务无需自备证书即可对外提供安全访问，提供 Turnstile 组件等其他功能。
+- **[dnshe](https://www.dnshe.com/)** — 提供免费域名，用于 Cloudflare 隧道对外接入。
+- **[CF-Workers-GitHub-Proxy](https://github.com/Geekertao/CF-Workers-GitHub-Proxy)** — 基于该项目，[fork](https://github.com/diaoyunxi/CF-GitHub-Proxy) 后进行部分更改后部署 [GitHub 镜像站](https://gh.my-website.ccwu.cc/)，对在受限网络环境中进行推送等操作提供支持。
+
+### 代码托管与 CI/CD
+
+- **[GitHub](https://github.com/)** — 代码托管与 Release 分发，自动更新检查通过 GitHub API 获取最新版本，提供 [GitHub Actions](https://github.com/diaoyunxi/eating-medication/actions) 的 CI/CD 服务，提供 GitHub 登录方式等。
+- **[Gitee](https://gitee.com/)** — 提供 Gitee 登录方式等。
+
+### AI 与识别服务
+
+- **[智谱 AI](https://bigmodel.cn/)** — 提供 GLM-4 系列大模型 API，用于健康问答等 AI 功能。
+- **[百度 OCR](https://cloud.baidu.com/product/ocr)** — 提供药品图片识别服务。
+- **[Tesseract OCR](https://github.com/tesseract-ocr/tesseract)** — 开源本地 OCR 引擎，供老人端离线识别药名。
+- **[pyttsx3](https://github.com/nateshmbhat/pyttsx3)** — 离线中文 TTS 引擎，供老人端语音播报用药提醒。
+
+### 硬件平台
+
+- **[DFRobot 行空板 M10](https://www.unihiker.com/)** — 老人端目标硬件，提供屏幕、按钮、GPIO 与 WiFi，通过 `pinpong` 库与 `unihiker` GUI 库实现图形化交互。
+
+### AI 编程助手
+
+- **[CodeBuddy](https://www.codebuddy.cn/home/)**
+- **[Trae](https://www.trae.ai/)**
+- **[Qwen Coder](https://coder.qwen.ai/)**
+- **[OpenHands](https://all-hands.dev/)**
+
+> 如有遗漏或需要补充/调整致谢信息，欢迎提 issue。
+
+---
+
+## 许可
+
+[MIT](LICENSE)
+
+本项目仅供学习和个人使用，最终解释权归 github 账户：diaoyunxi 所有。
