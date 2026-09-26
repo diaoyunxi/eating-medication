@@ -88,20 +88,20 @@ if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
 # 工作流与硬件访问层（依赖 elderly_assistant 已在 sys.path 中）
-from workflow.reminder import (
+from workflow.reminder import (  # noqa: E402
     ReminderState,
     MedicationPoller,
     HeartbeatThread,
     check_medication_trigger,
 )
-from workflow.actions import (
+from workflow.actions import (  # noqa: E402
     handle_confirm,
     handle_scan_medication,
     _ask_ai_and_speak,
     _capture_and_upload,
 )
 # 注：原物理按钮 A/B 已移除，全部改用屏幕触摸按钮（见 display.set_action_handlers）
-from hardware.board import init_pinpong_board, get_led
+from hardware.board import init_pinpong_board, get_led  # noqa: E402
 
 DEBUG_MODE = False
 

@@ -222,7 +222,7 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
             }, status_code=400)
     except Exception as e:
         logger.exception("绑定设备失败")
-        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试") from e
 
 
 @router.get("/elderly")
@@ -360,7 +360,7 @@ async def add_medication_plan(request: Request):
         raise
     except Exception as e:
         logger.exception("添加用药计划失败")
-        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试") from e
 
 
 @router.post("/medication_settings/delete/{plan_id}")
@@ -383,7 +383,7 @@ async def delete_medication_plan(request: Request, plan_id: int):
             }, status_code=400)
     except Exception as e:
         logger.exception("删除用药计划失败")
-        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试") from e
 
 
 @router.post("/medication_settings/update/{plan_id}")
@@ -425,7 +425,7 @@ async def update_medication_plan(request: Request, plan_id: int):
         raise
     except Exception as e:
         logger.exception("更新用药计划失败")
-        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试") from e
 
 
 @router.post("/settings/unbind_device")
@@ -449,4 +449,4 @@ async def unbind_device(request: Request):
         })
     except Exception as e:
         logger.exception("解绑设备失败")
-        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试") from e
