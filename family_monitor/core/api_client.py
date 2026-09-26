@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 老人端API客户端 - 支持 device_id 绑定
 HTTPS 连接由系统默认 SSL 上下文验证（Cloudflare 隧道公网证书）。

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """跨端共享公共包（common）。
 
 集中存放三端（server / elderly_assistant / family_monitor）重复实现的能力，

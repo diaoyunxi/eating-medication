@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 # register schema 中调用 validators 进行格式校验

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import bcrypt
 from jose import jwt
 from jose.exceptions import JWTError

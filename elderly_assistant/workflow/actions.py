@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """用药确认/AI问答/拍照上传等工作流动作（纯逻辑，硬件以参数注入）。"""
 import logging
 from typing import List

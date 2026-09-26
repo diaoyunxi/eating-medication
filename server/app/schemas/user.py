@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import json
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional

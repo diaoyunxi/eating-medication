@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 服务端启动脚本
 仿照老人端 main.py 的风格：自动检查依赖、创建必要目录、启动服务

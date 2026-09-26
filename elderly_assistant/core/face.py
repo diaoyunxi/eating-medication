@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """二哈（HuskyLens V2）人脸识别封装：用于老人端服药前的身份核验与家属录入人脸。
 
 复用 core.camera 的 HuskyLens 单例与硬件操作锁，避免与拍照/扫码并发冲突。

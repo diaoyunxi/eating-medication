@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """阶段D step2 + step7(部分)：device_service 与统一脱敏 mask_device_id 的单元测试。
 
 覆盖：
