@@ -363,19 +363,37 @@ def _verify_release_attestation(file_path, repo="diaoyunxi/eating-medication"):
 
 
 def _compare_versions(v1, v2):
-    """比较版本号，返回 1(v1>v2) / -1(v1<v2) / 0(相等)"""
-    parts1 = v1.lstrip('v').split('.')
-    parts2 = v2.lstrip('v').split('.')
+    """比较版本号，返回 1(v1>v2) / -1(v1<v2) / 0(相等)
+
+    支持含非数字后缀的版本号（如 1.2.3-beta），通过提取前缀数字部分进行比较，
+    非数字后缀视为预发布版本（低于同数字的正式发布版本）。
+    """
+    import re
+    def _parse_parts(v):
+        parts = v.lstrip('v').split('.')
+        result = []
+        for p in parts:
+            m = re.match(r'^(\d+)', p)
+            num = int(m.group(1)) if m else 0
+            # 含非数字后缀的是预发布版本，标记为低于纯数字版本
+            has_suffix = bool(re.search(r'[a-zA-Z]', p))
+            result.append((num, 0 if has_suffix else 1))
+        return result
+
+    parts1 = _parse_parts(v1)
+    parts2 = _parse_parts(v2)
     for i in range(max(len(parts1), len(parts2))):
-        try:
-            a = int(parts1[i]) if i < len(parts1) else 0
-            b = int(parts2[i]) if i < len(parts2) else 0
-            if a > b:
-                return 1
-            if a < b:
-                return -1
-        except ValueError:
-            return 0
+        a_num, a_release = parts1[i] if i < len(parts1) else (0, 1)
+        b_num, b_release = parts2[i] if i < len(parts2) else (0, 1)
+        if a_num > b_num:
+            return 1
+        if a_num < b_num:
+            return -1
+        # 数字相同，比较是否为预发布版本
+        if a_release > b_release:
+            return 1
+        if a_release < b_release:
+            return -1
     return 0
 
 
