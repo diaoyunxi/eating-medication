@@ -58,6 +58,11 @@ def update_env_fields(path: PathLike, updates: Dict[str, str]) -> None:
         else:
             lines.append(new_line)
     p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # 写入后设置 0600 权限，防止 .env 中的敏感凭据被其他用户读取
+    try:
+        p.chmod(0o600)
+    except OSError:
+        pass
 
 
 def write_env_text(path: PathLike, content: str) -> None:
