@@ -10,14 +10,27 @@ CN_NUM = {'半': 0.5, '一': 1, '两': 2, '二': 2, '三': 3, '四': 4,
 
 
 def _parse_dosage(s):
-    """解析剂量字符串，支持阿拉伯数字与中文数字"""
+    """解析剂量字符串，支持阿拉伯数字、小数与中文数字（含 '半' 修饰）"""
     import re
-    nums = re.findall(r'\d+', str(s))
+    s = str(s)
+
+    # 优先匹配含小数的阿拉伯数字（如 "1.5片"）
+    float_nums = re.findall(r'\d+\.\d+', s)
+    if float_nums:
+        return float(float_nums[0])
+
+    # 匹配整数阿拉伯数字
+    nums = re.findall(r'\d+', s)
     if nums:
-        return int(nums[0])
+        base = int(nums[0])
+        # 处理 "1片半"、"2粒半" 等含 '半' 修饰的写法
+        if '半' in s:
+            base += 0.5
+        return base
+
     # 尝试中文数字
     for k, v in CN_NUM.items():
-        if k in str(s):
+        if k in s:
             return v
     return 0
 
