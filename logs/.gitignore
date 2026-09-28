@@ -1,0 +1,4 @@
+# Ignore runtime log files
+*
+!.gitkeep
+!.gitignore

@@ -1,0 +1,4 @@
+# Ignore runtime data files
+*
+!.gitkeep
+!.gitignore

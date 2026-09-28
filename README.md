@@ -219,7 +219,7 @@
 │   ├── utils/                     # 工具模块
 │   │   ├── config_loader.py       # YAML 配置加载
 │   │   └── logger.py
-│   └── data/                      # 运行时数据（用药计划/计划模板）
+│   └── data/                      # 运行时数据（用药计划/计划模板，首次运行自动创建）
 ├── server/                        # 服务端
 │   ├── main.py                    # 启动脚本（uvicorn:1059）
 │   ├── updater.py                 # 自动更新检查（含 Release Attestation 校验）
