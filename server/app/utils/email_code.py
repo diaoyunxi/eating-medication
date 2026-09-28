@@ -31,6 +31,25 @@ def _gen_code():
     return "".join(random.choice("0123456789") for _ in range(_CODE_LEN))
 
 
+def _cleanup_expired_codes():
+    """清理已过期的验证码条目，防止 _store 内存无限增长（CWE-770）。
+
+    每 _CLEANUP_INTERVAL 秒扫描一次，移除所有已过期的邮箱键。
+    """
+    now = time.time()
+    if now - _cleanup_expired_codes._last_run < _CLEANUP_INTERVAL:
+        return
+    _cleanup_expired_codes._last_run = now
+    expired_keys = [
+        email for email, (_, expire) in _store.items() if now > expire
+    ]
+    for email in expired_keys:
+        _store.pop(email, None)
+
+_cleanup_expired_codes._last_run = 0.0
+_CLEANUP_INTERVAL = 300  # 5 分钟
+
+
 def send_code(email):
     """生成并发送邮箱验证码。
 
@@ -43,6 +62,7 @@ def send_code(email):
     code = _gen_code()
     _store[email] = (code, time.time() + _CODE_TTL)
     logger.info(f"[邮箱验证码] 已为 {email} 生成验证码（{_CODE_TTL}s 有效）")
+    _cleanup_expired_codes()
 
     ok, err = _send_email(email, code)
     if not ok:
