@@ -23,7 +23,7 @@ import glob
 import os
 import shutil
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 from utils.logger import setup_logger
 
@@ -228,7 +228,7 @@ def _fetch_huskylens_photo(remote_name, save_path, cam_config, logger_inst):
         for src in glob.glob(pattern, recursive=True):
             dst = os.path.join(
                 save_path,
-                f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{uuid4().hex}.jpg",
+                f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}_{uuid4().hex}.jpg",
             )
             try:
                 shutil.copy2(src, dst)
