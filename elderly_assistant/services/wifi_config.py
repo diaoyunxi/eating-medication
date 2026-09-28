@@ -318,6 +318,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="config-token" content="__CONFIG_TOKEN__">
     <title>M10 设备配网</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -379,8 +380,8 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
     </div>
 
     <script>
-        // 配网 Token，由服务端生成并嵌入；所有 POST 请求需携带以防未授权请求
-        const CONFIG_TOKEN = "__CONFIG_TOKEN__";
+        // 配网 Token，由服务端通过 meta 标签注入；所有 POST 请求需携带以防未授权请求
+        const CONFIG_TOKEN = document.querySelector('meta[name="config-token"]').getAttribute('content');
 
         function scanWiFi() {
             const btn = document.getElementById('scanBtn');
