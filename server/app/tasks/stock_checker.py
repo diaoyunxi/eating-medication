@@ -58,12 +58,13 @@ def _collect_low_stock(db):
             last_naive = last.replace(tzinfo=None)
             if now_naive - last_naive < _NOTIFY_INTERVAL:
                 continue
-        # 更新通知时间并提交（同步写，运行在后台线程，不阻塞事件循环）
+        # 更新通知时间（延迟提交，循环结束后批量 commit）
         plan.last_notified_at = datetime.now(timezone.utc)
-        db.commit()
         to_notify.append(
             (elderly.id, plan.drug_name, plan.remaining_quantity, plan.low_stock_threshold)
         )
+    if to_notify:
+        db.commit()
     logger.info(
         f"低库存检查扫描完成，候选 {len(rows)} 条，待通知 {len(to_notify)} 条"
     )
