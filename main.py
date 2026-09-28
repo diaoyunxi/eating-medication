@@ -304,7 +304,11 @@ def _spawn_background(entry, log_path, extra_args):
         print(f"[错误] 启动 {entry.name} 失败: {e}")
         sys.exit(1)
 
-    return proc, log_file
+    # 子进程已成功启动并继承了文件描述符副本，
+    # 父进程关闭自己的副本以防止文件描述符泄漏 (CWE-775)
+    log_file.close()
+
+    return proc
 
 
 def start_server_and_family(extra_args):
@@ -324,11 +328,8 @@ def start_server_and_family(extra_args):
         ("服务端 (server)", SERVER_ENTRY, SERVER_LOG),
         ("子女端 (family_monitor)", FAMILY_ENTRY, FAMILY_LOG),
     ):
-        proc, log_file = _spawn_background(entry, log_path, extra_args)
+        proc = _spawn_background(entry, log_path, extra_args)
         started.append((name, proc, log_path))
-        # 父进程不再需要日志句柄，子进程已持有各自的副本；
-        # 及时关闭避免父进程退出前占用文件描述符
-        log_file.close()
 
     for name, proc, log_path in started:
         print(f"  {name}")
