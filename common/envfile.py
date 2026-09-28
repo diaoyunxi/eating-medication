@@ -57,13 +57,44 @@ def update_env_fields(path: PathLike, updates: Dict[str, str]) -> None:
             lines[existing[key]] = new_line
         else:
             lines.append(new_line)
-    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # 原子写入：先写临时文件再替换，防止进程中断导致配置损坏
+    import tempfile as _tempfile
+    import os as _os
+    new_content = "\n".join(lines) + "\n"
+    with _tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=p.parent, delete=False) as tmp:
+        tmp.write(new_content)
+        tmp.flush()
+        _os.fsync(tmp.fileno())
+        tmp_path = tmp.name
+    try:
+        _os.replace(tmp_path, p)
+    except Exception:
+        try:
+            _os.unlink(tmp_path)
+        except Exception:
+            pass
+        raise
 
 
 def write_env_text(path: PathLike, content: str) -> None:
     """整文件写入 .env 模板内容（覆盖式），并限制权限为 600。"""
     p = Path(path)
-    p.write_text(content, encoding="utf-8")
+    # 原子写入：先写临时文件再替换，防止进程中断导致配置损坏
+    import tempfile as _tempfile
+    import os as _os
+    with _tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=p.parent, delete=False) as tmp:
+        tmp.write(content)
+        tmp.flush()
+        _os.fsync(tmp.fileno())
+        tmp_path = tmp.name
+    try:
+        _os.replace(tmp_path, p)
+    except Exception:
+        try:
+            _os.unlink(tmp_path)
+        except Exception:
+            pass
+        raise
     try:
         p.chmod(0o600)
     except Exception:
