@@ -10,16 +10,46 @@ CN_NUM = {'半': 0.5, '一': 1, '两': 2, '二': 2, '三': 3, '四': 4,
 
 
 def _parse_dosage(s):
-    """解析剂量字符串，支持阿拉伯数字与中文数字"""
+    """解析剂量字符串，支持阿拉伯数字与中文数字。
+
+    返回值:
+        float: 解析成功时的剂量数值（> 0）
+        None: 无法从输入中识别出有效剂量（区别于"剂量为 0"）
+
+    调用方应根据返回值类型区分"解析失败"与"有效剂量"，
+    避免将解析失败静默当作零剂量处理。
+    """
     import re
-    nums = re.findall(r'\d+', str(s))
+
+    if s is None:
+        return None
+
+    text = str(s).strip()
+    if not text:
+        return None
+
+    # 优先匹配 "数字+量词+半" 格式（如 "1片半" → 1.5）
+    m = re.match(r'(\d+(?:\.\d+)?)\s*\S*?半', text)
+    if m:
+        return float(m.group(1)) + 0.5
+
+    # 匹配阿拉伯数字（含小数）
+    nums = re.findall(r'\d+(?:\.\d+)?', text)
     if nums:
-        return int(nums[0])
+        try:
+            val = float(nums[0])
+            if val > 0:
+                return val
+        except (ValueError, TypeError):
+            pass
+
     # 尝试中文数字
     for k, v in CN_NUM.items():
-        if k in str(s):
+        if k in text:
             return v
-    return 0
+
+    # 无法识别：返回 None 而非 0，让调用方能区分"解析失败"
+    return None
 
 
 class MedicationManager:
@@ -96,7 +126,13 @@ class MedicationManager:
         """消耗药品（从提醒确认调用）"""
         try:
             # 使用 _parse_dosage 支持中文数字（如"两片"、"半片"）
-            dose = float(_parse_dosage(dosage_str))
+            parsed = _parse_dosage(dosage_str)
+            if parsed is None:
+                self.logger.warning(
+                    f"剂量解析失败: '{dosage_str}' 无法识别，跳过库存扣减并告警"
+                )
+                return False
+            dose = float(parsed)
             if dose <= 0:
                 return False
 
