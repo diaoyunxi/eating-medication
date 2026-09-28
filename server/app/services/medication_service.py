@@ -10,6 +10,48 @@ from app.schemas.medication import MedicationPlanCreate, TakeMedicationRequest
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_dose_quantity(dosage: str) -> float:
+    """从 dosage 字符串中提取实际剂量数值。
+
+    支持格式：
+    - 阿拉伯数字: "2片", "1.5粒", "10ml" → 2.0, 1.5, 10.0
+    - 中文数字: "两片", "半片" → 2.0, 0.5
+    - 中文修饰: "1片半" → 1.5
+
+    无法识别时返回 1.0（保持向后兼容的最小安全扣减量）。
+    """
+    import re
+
+    if not dosage:
+        return 1.0
+
+    s = str(dosage).strip()
+
+    # 优先匹配 "数字+量词+半" 格式（如 "1片半" → 1.5）
+    m = re.match(r"(\d+(?:\.\d+)?)\s*\S*?半", s)
+    if m:
+        return float(m.group(1)) + 0.5
+
+    # 匹配阿拉伯数字（含小数）
+    nums = re.findall(r"\d+(?:\.\d+)?", s)
+    if nums:
+        try:
+            return float(nums[0])
+        except (ValueError, TypeError):
+            pass
+
+    # 中文数字映射
+    cn_map = {"半": 0.5, "一": 1, "两": 2, "二": 2, "三": 3, "四": 4,
+              "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+    for ch, val in cn_map.items():
+        if ch in s:
+            return val
+
+    logger.warning("无法从 dosage '%s' 解析剂量数值，回退为 1", dosage)
+    return 1.0
+
+
 class MedicationService:
     """用药管理服务"""
 
@@ -124,13 +166,16 @@ class MedicationService:
         # 注意：服药记录（已发生事实）优先级高于库存一致性——即便库存已为 0（最后一粒），
         # 也保留服药记录并仅告警，不回滚、不抛异常，避免丢失老人已服记录与家属通知。
         if status == "taken":
+            # 从 dosage 字段解析实际剂量数值（如 "2片" → 2, "1.5粒" → 1.5）
+            # 避免硬编码扣减 1 导致多剂量方案下库存数据偏高
+            dose_amount = _parse_dose_quantity(plan.dosage)
             result = db.execute(
                 update(MedicationPlan)
                 .where(
                     MedicationPlan.id == req.plan_id,
-                    MedicationPlan.remaining_quantity >= 1,
+                    MedicationPlan.remaining_quantity >= dose_amount,
                 )
-                .values(remaining_quantity=MedicationPlan.remaining_quantity - 1)
+                .values(remaining_quantity=MedicationPlan.remaining_quantity - dose_amount)
             )
             if result.rowcount == 0:
                 # 库存不足（如已用到最后一片）时仍保留服药记录，仅记录告警
