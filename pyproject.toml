@@ -1,0 +1,39 @@
+[project]
+name = "eating-medication"
+dynamic = ["version"]
+description = "智能服药提醒系统：含服务端、家属监控端和老人端（UniHiker M10），支持人脸识别、远程提醒、库存管理"
+requires-python = ">=3.10"
+readme = "README.md"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F", "I", "B", "C4", "UP", "ARG", "SIM", "TCH", "PTH", "PL", "RUF", "S",
+    "ASYNC",  # flake8-async (async patterns in FastAPI)
+    "TRY",    # tryceratops (exception handling best practices)
+]
+ignore = [
+    "S101",     # assert in tests
+    "S603",     # subprocess intentional
+    "S607",     # partial paths
+    "PLR0913",  # FastAPI routes and hardware init
+    "PLR0915",  # main loops and complex routes
+    "PLR2004",  # hardware/config constants
+    "TRY003",   # long exception messages are ok for user-facing errors
+    "BLE001",   # broad except in legacy code (being migrated)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["common", "server", "family_monitor", "elderly_assistant"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
