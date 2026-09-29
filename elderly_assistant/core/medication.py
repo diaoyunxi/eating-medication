@@ -10,16 +10,25 @@ CN_NUM = {'半': 0.5, '一': 1, '两': 2, '二': 2, '三': 3, '四': 4,
 
 
 def _parse_dosage(s):
-    """解析剂量字符串，支持阿拉伯数字与中文数字"""
+    """解析剂量字符串，支持阿拉伯数字（含小数）与中文数字。
+
+    返回值:
+        float | None — 解析成功返回正数剂量，无法解析时返回 None
+    """
     import re
-    nums = re.findall(r'\d+', str(s))
-    if nums:
-        return int(nums[0])
+    s_str = str(s).strip()
+    if not s_str:
+        return None
+    # 优先匹配浮点数（如 "0.5片"、"2.5"）
+    match = re.search(r'\d+(?:\.\d+)?', s_str)
+    if match:
+        val = float(match.group())
+        return val if val > 0 else None
     # 尝试中文数字
     for k, v in CN_NUM.items():
-        if k in str(s):
-            return v
-    return 0
+        if k in s_str:
+            return float(v)
+    return None
 
 
 class MedicationManager:
@@ -77,6 +86,7 @@ class MedicationManager:
             if med.get('name') == name:
                 self.logger.warning(f"药品 {name} 已存在，将更新")
                 med['total'] = total_quantity
+                med['remaining'] = total_quantity  # 补充时重置剩余量
                 med['dosage_per_use'] = dosage_per_use
                 med['reminder_days'] = reminder_days
                 self.save()
@@ -96,7 +106,11 @@ class MedicationManager:
         """消耗药品（从提醒确认调用）"""
         try:
             # 使用 _parse_dosage 支持中文数字（如"两片"、"半片"）
-            dose = float(_parse_dosage(dosage_str))
+            parsed = _parse_dosage(dosage_str)
+            if parsed is None:
+                self.logger.warning(f"无法解析剂量: '{dosage_str}'，跳过药品 {med_name} 的库存扣减")
+                return False
+            dose = float(parsed)
             if dose <= 0:
                 return False
 
