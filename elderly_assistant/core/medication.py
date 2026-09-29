@@ -77,8 +77,10 @@ class MedicationManager:
             if med.get('name') == name:
                 self.logger.warning(f"药品 {name} 已存在，将更新")
                 med['total'] = total_quantity
+                med['remaining'] = total_quantity
                 med['dosage_per_use'] = dosage_per_use
                 med['reminder_days'] = reminder_days
+                med['last_updated'] = datetime.now().isoformat()
                 self.save()
                 return
 
