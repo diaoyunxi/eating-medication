@@ -219,7 +219,7 @@
 │   ├── utils/                     # 工具模块
 │   │   ├── config_loader.py       # YAML 配置加载
 │   │   └── logger.py
-│   └── data/                      # 运行时数据（用药计划/计划模板）
+│   └── data/ (运行时自动创建)                       # 运行时数据（用药计划/计划模板）
 ├── server/                        # 服务端
 │   ├── main.py                    # 启动脚本（uvicorn:1059）
 │   ├── updater.py                 # 自动更新检查（含 Release Attestation 校验）
@@ -328,7 +328,7 @@ python main.py --check    # 只打印识别结果，不启动任何进程
 启动行为：
 
 - **识别为行空板** → 用 `os.execv` 替换当前进程为老人端，前台运行
-- **识别为其他设备** → 后台启动服务端（1059）与子女端（4430），脱离终端会话，打印 PID 后本进程退出；关闭终端不影响服务，日志写入 `logs/server.out` 与 `logs/family.out`
+- **识别为其他设备** → 后台启动服务端（1059）与子女端（4430），脱离终端会话，打印 PID 后本进程退出；关闭终端不影响服务，日志写入 `logs/ (运行时自动创建) server.out` 与 `logs/ (运行时自动创建) family.out`
 
 其他参数：`--force-elderly` / `--force-server` 可跳过自动识别强制指定（二者互斥），未被识别的参数原样透传给子程序。
 
@@ -412,7 +412,7 @@ APP_NAME=老年人用药管理系统
 DEBUG=False
 API_V1_PREFIX=/api/v1
 PATH_PREFIX=/eating-medication/server
-DATABASE_URL=sqlite:///./data/elderly_care.db
+DATABASE_URL=sqlite:///./data/ (运行时自动创建) elderly_care.db
 SECRET_KEY=<必须配置，生产模式弱密钥将拒绝启动>
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=60
@@ -518,7 +518,7 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 
 ## 数据模型
 
-服务端使用 SQLAlchemy + SQLite（`./data/elderly_care.db`），5 张表：
+服务端使用 SQLAlchemy + SQLite（`./data/ (运行时自动创建) elderly_care.db`），5 张表：
 
 | 模型                 | 表名                   | 主要字段                                                                                                                                                            |
 | -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -549,7 +549,7 @@ FAMILY_WEB_URL=https://my-website.ccwu.cc/eating-medication/family
 
 - 启动时通过 GitHub API 查询最新 Release（优先）/ Tag（回退）版本号。
 - 发现新版本时打印提示（当前版本、最新版本、下载地址），**非阻塞**，不影响主程序运行。
-- `AUTO_PULL=true`（根目录 `.env` 控制，缺省启用）时自动下载完整发布包、Release Attestation 校验后安全安装（保留 `.env` / `data/` / `logs/` 等保护文件）。
+- `AUTO_PULL=true`（根目录 `.env` 控制，缺省启用）时自动下载完整发布包、Release Attestation 校验后安全安装（保留 `.env` / `data/ (运行时自动创建) ` / `logs/ (运行时自动创建) ` 等保护文件）。
 - 网络异常或检查失败时静默/警告处理，不中断启动。
 
 ### 服务端 HTTP 触发更新
