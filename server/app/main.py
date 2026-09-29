@@ -317,10 +317,13 @@ if __name__ == "__main__":
     logger.info("="*60)
     logger.info(" 正在启动服务端...")
     logger.info("="*60)
+    # 监听地址从环境变量读取，默认仅本地访问，防止未授权外部连接 (CWE-605)
+    host = os.environ.get("EATING_MED_HOST", "127.0.0.1")
+    port = int(os.environ.get("EATING_MED_PORT", "8000"))
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
-        port=8000,
+        host=host,
+        port=port,
         reload=settings.DEBUG,
         log_level="info",
         access_log=False
