@@ -55,9 +55,14 @@ class HotspotManager:
 
             if result.returncode == 0:
                 self.is_running = True
-                # 密码脱敏，日志不记录明文密码，仅终端 print 便于用户连接
+                # 密码脱敏：日志不记录明文密码
                 logger.info(f"热点已创建: {self.ssid} (WPA2加密)")
-                print(f"[热点] SSID: {self.ssid}  密码: {self.password}")
+                # 仅在交互式终端输出密码，避免被 systemd journal 等日志收集器捕获 (CWE-532)
+                import sys
+                if sys.stdout.isatty():
+                    print(f"[热点] SSID: {self.ssid}  密码: {self.password}")
+                else:
+                    logger.info(f"热点密码已生成（非交互式终端，密码未输出到 stdout）")
                 logger.info(
                     f"用户连接后可访问 http://{self.ip}:{self.web_port} 进行配网"
                 )
