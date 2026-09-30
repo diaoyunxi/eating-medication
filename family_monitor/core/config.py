@@ -39,7 +39,7 @@ class Config:
         load_dotenv(self.env_path)
 
         # ===== 服务监听 =====
-        self.SERVER_HOST = os.getenv('SERVER_HOST', '0.0.0.0')
+        self.SERVER_HOST = os.getenv('SERVER_HOST', '127.0.0.1')
         self.SERVER_PORT = int(os.getenv('SERVER_PORT', '4430'))
 
         # 老人端（服务端）地址，默认走 Cloudflare 隧道公网域名
