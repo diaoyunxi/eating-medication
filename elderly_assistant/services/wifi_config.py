@@ -380,7 +380,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
 
     <script>
         // 配网 Token，由服务端生成并嵌入；所有 POST 请求需携带以防未授权请求
-        const CONFIG_TOKEN = "__CONFIG_TOKEN__";
+        const CONFIG_TOKEN = process.env.CONFIG_TOKEN || "";  // 通过环境变量注入，禁止硬编码
 
         function scanWiFi() {
             const btn = document.getElementById('scanBtn');
