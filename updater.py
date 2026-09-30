@@ -118,9 +118,9 @@ def _ensure_env_template():
     try:
         from common.envfile import ensure_env_template
         if ensure_env_template(_CONFIG_PATH, _ENV_DEFAULT_CONTENT):
-            logger.info(f"[更新检查] 已生成配置模板: {_CONFIG_PATH}（默认 AUTO_PULL=true，可手动编辑）")
+            logger.info("[更新检查] 已生成配置模板: %s（默认 AUTO_PULL=true，可手动编辑）", _CONFIG_PATH)
     except Exception as e:
-        logger.warning(f"[更新检查] 生成 .env 模板失败: {e}")
+        logger.warning("[更新检查] 生成 .env 模板失败: %s", e)
 
 
 # ============================================================
@@ -205,7 +205,7 @@ def _configure_opener():
     parsed = urlparse(proxy)
     if not parsed.scheme or not parsed.netloc:
         # 非法代理配置，回退直连
-        logger.warning(f"[更新检查] github_proxy 配置非法（{proxy}），回退直连")
+        logger.warning("[更新检查] github_proxy 配置非法（%s），回退直连", proxy)
         return urllib.request.build_opener(), False, None, None
     # 是否为正向代理：含显式端口或本机地址
     hostname = (parsed.hostname or "").lower()
@@ -291,7 +291,7 @@ def _fetch_latest_version():
         data = _fetch_latest_release()
         return data.get("tag_name"), data.get("html_url"), data
     except Exception as e:
-        logger.warning(f"获取 Release 失败: {e}")
+        logger.warning("获取 Release 失败: %s", e)
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/tags"
         data = _fetch_json(url, 10)
@@ -299,7 +299,7 @@ def _fetch_latest_version():
             tag = data[0].get("name")
             return tag, f"https://github.com/{GITHUB_REPO}/releases/tag/{tag}", None
     except Exception as e:
-        logger.warning(f"获取 Tags 失败: {e}")
+        logger.warning("获取 Tags 失败: %s", e)
     return None, None, None
 
 
@@ -334,7 +334,7 @@ def _download_file(url, target_path):
                     f.write(chunk)
         return True
     except Exception as e:
-        logger.warning(f"[更新检查] 下载文件失败: {e}")
+        logger.warning("[更新检查] 下载文件失败: %s", e)
         if os.path.exists(target_path):
             os.remove(target_path)
         return False
@@ -355,10 +355,10 @@ def _verify_release_attestation(file_path, repo="diaoyunxi/eating-medication"):
             logger.info("[更新检查] Release Attestation 验证通过")
             return True
         else:
-            logger.warning(f"[更新检查] Release Attestation 验证失败: {proc.stderr}")
+            logger.warning("[更新检查] Release Attestation 验证失败: %s", proc.stderr)
             return False
     except Exception as e:
-        logger.warning(f"[更新检查] Attestation 验证异常: {e}")
+        logger.warning("[更新检查] Attestation 验证异常: %s", e)
         return False
 
 
@@ -400,7 +400,7 @@ def _copy_file_safe(src: Path, dst: Path):
         shutil.copy2(src, dst)
         return True
     except Exception as e:
-        logger.warning(f"[更新检查] 复制文件失败 {src} -> {dst}: {e}")
+        logger.warning("[更新检查] 复制文件失败 %s -> %s: %s", src, dst, e)
         return False
 
 
@@ -428,9 +428,9 @@ def _purge_pycache(project_dir: Path):
             shutil.rmtree(cache_dir, ignore_errors=True)
             purged += 1
         except Exception as e:
-            logger.debug(f"[更新检查] 清除 __pycache__ 失败 {cache_dir}: {e}")
+            logger.debug("[更新检查] 清除 __pycache__ 失败 %s: %s", cache_dir, e)
     if purged:
-        logger.info(f"[更新检查] 已清除 {purged} 个 __pycache__ 目录")
+        logger.info("[更新检查] 已清除 %d 个 __pycache__ 目录", purged)
 
 
 def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
@@ -446,7 +446,7 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
     zip_path = Path(zip_path).resolve()
 
     if not zip_path.exists():
-        logger.error(f"[更新检查] zip 文件不存在: {zip_path}")
+        logger.error("[更新检查] zip 文件不存在: %s", zip_path)
         return False, 0, 0
 
     # 创建临时解压目录
@@ -455,7 +455,7 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
     backup_dir = f"{project_dir}.bak.{int(time.time())}"
     shutil.copytree(project_dir, backup_dir)
     try:
-        logger.info(f"[更新检查] 解压到临时目录: {tmp_dir}")
+        logger.info("[更新检查] 解压到临时目录: %s", tmp_dir)
         _safe_extract_zip(str(zip_path), str(tmp_dir))
 
         # 完整发布包顶层即为各模块目录（server/、family_monitor/、elderly_assistant/）
@@ -466,7 +466,7 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
         else:
             source_root = tmp_dir
 
-        logger.info(f"[更新检查] 源根目录: {source_root}")
+        logger.info("[更新检查] 源根目录: %s", source_root)
 
         updated_count = 0
         skipped_count = 0
@@ -486,7 +486,7 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
 
             # 检查是否保护（源路径视角）
             if protected_check(rel_str):
-                logger.debug(f"[更新检查] 跳过保护文件: {rel_str}")
+                logger.debug("[更新检查] 跳过保护文件: %s", rel_str)
                 skipped_count += 1
                 continue
 
@@ -500,7 +500,7 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
                 continue
 
             if protected_check(str(dst_rel).replace("\\", "/")):
-                logger.debug(f"[更新检查] 目标路径被保护，跳过: {dst_rel}")
+                logger.debug("[更新检查] 目标路径被保护，跳过: %s", dst_rel)
                 skipped_count += 1
                 continue
 
@@ -517,14 +517,14 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
         # 清除所有 __pycache__ 目录，防止 Python 加载旧 .pyc 缓存导致代码更新未生效
         _purge_pycache(project_dir)
 
-        logger.info(f"[更新检查] 更新完成: 复制 {updated_count} 个文件，跳过 {skipped_count} 个保护文件")
+        logger.info("[更新检查] 更新完成: 复制 %s 个文件，跳过 %s 个保护文件", updated_count, skipped_count)
         # 更新成功，清理备份
         shutil.rmtree(backup_dir, ignore_errors=True)
         logger.info("[更新] 完成，已清理备份")
         return True, updated_count, skipped_count
 
     except Exception as e:
-        logger.error(f"[更新] 失败，回滚: {e}")
+        logger.error("[更新] 失败，回滚: %s", e)
         # 原子回滚：先重命名当前目录，再移入备份；避免「已删除但未恢复」的中间态
         # 若备份移入失败则尝试还原旧目录，保证项目目录始终存在可用版本。
         _old_dir = f"{project_dir}.old.{int(time.time())}"
@@ -579,7 +579,7 @@ def _restart_services():
         if proc.returncode == 0:
             logger.info(f"[更新] 已向 systemd 提交重启请求: {', '.join(service_names)}")
             return True
-        logger.warning(f"[更新] 重启服务失败(rc={proc.returncode}): {proc.stderr.strip()}")
+        logger.warning("[更新] 重启服务失败(rc=%s): {proc.stderr.strip()}", proc.returncode)
         if os.geteuid() != 0:
             logger.warning("[更新] 普通用户重启失败，请确认部署时已配置免密 sudoers（见 deploy/setup.sh）")
         return False
@@ -587,7 +587,7 @@ def _restart_services():
         logger.warning("[更新] 重启服务命令超时")
         return False
     except Exception as e:
-        logger.warning(f"[更新] 重启服务异常: {e}")
+        logger.warning("[更新] 重启服务异常: %s", e)
         return False
 
 
@@ -616,7 +616,7 @@ def _run_post_update_cmd():
     try:
         _args = shlex.split(_cmd)
     except ValueError as e:
-        logger.warning(f"[更新] POST_UPDATE_CMD 解析失败，跳过执行: {e}")
+        logger.warning("[更新] POST_UPDATE_CMD 解析失败，跳过执行: %s", e)
         return
     logger.info("[更新] 准备执行更新后命令 (POST_UPDATE_CMD)")
     try:
@@ -630,13 +630,13 @@ def _run_post_update_cmd():
         if proc.returncode != 0:
             # 仅输出返回码与错误摘要，不回显命令内容、不打印 stdout（可能含敏感信息）
             err_tail = (proc.stderr or "").strip().splitlines()[-1:] or [""]
-            logger.warning(f"[更新] POST_UPDATE_CMD 返回非0({proc.returncode})，末行错误: {err_tail[0]}")
+            logger.warning("[更新] POST_UPDATE_CMD 返回非0(%s)，末行错误: {err_tail[0]}", proc.returncode)
         else:
             logger.info("[更新] POST_UPDATE_CMD 执行完成")
     except subprocess.TimeoutExpired:
         logger.warning("[更新] POST_UPDATE_CMD 执行超时（300s），已中止")
     except Exception as e:
-        logger.warning(f"[更新] POST_UPDATE_CMD 执行异常: {e}")
+        logger.warning("[更新] POST_UPDATE_CMD 执行异常: %s", e)
 
 
 def get_update_info():
@@ -669,7 +669,7 @@ def get_update_info():
         if latest and _compare_versions(latest, current_ver) > 0:
             info["update_available"] = True
     except Exception as e:
-        logger.warning(f"[更新检查] 查询更新信息失败: {e}")
+        logger.warning("[更新检查] 查询更新信息失败: %s", e)
     return info
 
 
@@ -999,7 +999,7 @@ def force_update():
             str(tmp_zip_path), str(project_dir), protected_check=_force_protected
         )
         if success:
-            logger.info(f"[强制更新] 成功！更新了 {updated} 个文件，保护了 {skipped} 个文件")
+            logger.info("[强制更新] 成功！更新了 %s 个文件，保护了 %s 个文件", updated, skipped)
             _run_post_update_cmd()
             restarted = _restart_services()
             if restarted:
@@ -1010,7 +1010,7 @@ def force_update():
             logger.error("[强制更新] 失败，请手动更新")
         return info
     except Exception as e:
-        logger.warning(f"[强制更新] 失败: {e}")
+        logger.warning("[强制更新] 失败: %s", e)
         info["error"] = str(e)
         return info
 
@@ -1045,18 +1045,18 @@ def check_for_update(auto_pull=None):
             return info
 
         if _compare_versions(latest, current_ver) <= 0:
-            logger.info(f"[更新检查] 当前版本 v{current_ver}，已是最新版本。")
+            logger.info("[更新检查] 当前版本 v%s，已是最新版本。", current_ver)
             return info
 
         logger.info("=" * 50)
         logger.info("  发现新版本！")
-        logger.info(f"  当前版本: v{current_ver}")
-        logger.info(f"  最新版本: {latest}")
-        logger.info(f"  下载地址: {release_url}")
+        logger.info("  当前版本: v%s", current_ver)
+        logger.info("  最新版本: %s", latest)
+        logger.info("  下载地址: %s", release_url)
         logger.info("=" * 50)
 
         if not auto_pull:
-            logger.info(f"[更新检查] 自动更新未启用，请手动访问 {release_url} 下载最新版本")
+            logger.info("[更新检查] 自动更新未启用，请手动访问 %s 下载最新版本", release_url)
             logger.info("[更新检查] 提示：如需启用安全自动更新，可在根目录 .env 设置 AUTO_PULL=true（保留配置文件与数据库）")
             return info
 
@@ -1065,17 +1065,17 @@ def check_for_update(auto_pull=None):
         logger.warning("⚠️ 自动更新：将下载并安装新版本")
         logger.info("[更新检查] 保护文件将保留：.env、data/、logs/、*.db 等")
         if _GITHUB_PROXY:
-            logger.info(f"[更新检查] 通过代理下载: {_GITHUB_PROXY}")
+            logger.info("[更新检查] 通过代理下载: %s", _GITHUB_PROXY)
 
         zip_asset = _find_release_zip(release_data)
         if not zip_asset:
             logger.error("[更新检查] 未在 Release 资产中找到完整发布包 zip，无法自动更新")
-            logger.info(f"[更新检查] 请手动访问 {release_url} 下载")
+            logger.info("[更新检查] 请手动访问 %s 下载", release_url)
             return info
 
         zip_url = zip_asset.get("browser_download_url")
         zip_name = zip_asset.get("name", "update.zip")
-        logger.info(f"[更新检查] 准备下载: {zip_name}")
+        logger.info("[更新检查] 准备下载: %s", zip_name)
 
         # 创建临时目录存放 zip
         tmp_zip_dir = Path(tempfile.mkdtemp(prefix="upd_zip_"))
@@ -1097,7 +1097,7 @@ def check_for_update(auto_pull=None):
             success, updated, skipped = _perform_update(str(tmp_zip_path), str(project_dir))
 
             if success:
-                logger.info(f"[更新检查] 自动更新成功！更新了 {updated} 个文件，保护了 {skipped} 个文件")
+                logger.info("[更新检查] 自动更新成功！更新了 %s 个文件，保护了 %s 个文件", updated, skipped)
                 _run_post_update_cmd()
                 restarted = _restart_services()
 
@@ -1110,7 +1110,7 @@ def check_for_update(auto_pull=None):
                     logger.warning("[更新] 文件已更新，但自动重启失败，请手动重启服务以应用新版本")
             else:
                 logger.error("[更新检查] 自动更新失败，请手动更新")
-                logger.info(f"[更新检查] 手动下载地址: {release_url}")
+                logger.info("[更新检查] 手动下载地址: %s", release_url)
 
         finally:
             # 清理临时 zip
@@ -1120,7 +1120,7 @@ def check_for_update(auto_pull=None):
                 pass
 
     except Exception as e:
-        logger.warning(f"[更新检查] 检查更新失败: {e}")
+        logger.warning("[更新检查] 检查更新失败: %s", e)
         info["error"] = str(e)
     return info
 
