@@ -108,7 +108,8 @@ async def lifespan(app: FastAPI):
             from alembic import command
             command.stamp(alembic_cfg, "head")
         except Exception:
-            pass
+            logger.debug("操作失败，跳过")
+
 
     # 确保新增的 user_ai_configs 表存在（兼容 Alembic 已接管、未含该表迁移的场景）
     try:
