@@ -178,6 +178,7 @@ def check_and_install_dependencies():
                     [_venv_python(), root_install, req_path,
                      "--huskylens", "--target", BASE_DIR],
                     capture_output=False, text=True, cwd=project_root,
+                    timeout=300,
                 )
                 if result.returncode != 0:
                     print("依赖安装可能未完全成功，尝试继续运行...")
