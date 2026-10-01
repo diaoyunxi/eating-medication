@@ -10,16 +10,32 @@ CN_NUM = {'半': 0.5, '一': 1, '两': 2, '二': 2, '三': 3, '四': 4,
 
 
 def _parse_dosage(s):
-    """解析剂量字符串，支持阿拉伯数字与中文数字"""
+    """解析剂量字符串，支持阿拉伯数字与中文数字
+    
+    Args:
+        s: 剂量字符串，如 "2片"、"半片"、"两片"
+    
+    Returns:
+        float: 解析后的剂量值
+        
+    Raises:
+        ValueError: 无法识别的剂量格式
+    """
     import re
-    nums = re.findall(r'\d+', str(s))
+    s_str = str(s).strip()
+    
+    # 优先匹配阿拉伯数字（支持小数，如 "0.5片"）
+    nums = re.findall(r'\d+(?:\.\d+)?', s_str)
     if nums:
-        return int(nums[0])
+        return float(nums[0])
+    
     # 尝试中文数字
     for k, v in CN_NUM.items():
-        if k in str(s):
+        if k in s_str:
             return v
-    return 0
+    
+    # 无法识别的剂量格式，抛出异常而非静默返回 0
+    raise ValueError(f"无法识别的剂量格式: '{s_str}'，请使用阿拉伯数字（如 '2片'）或中文数字（如 '两片'、'半片'）")
 
 
 class MedicationManager:
