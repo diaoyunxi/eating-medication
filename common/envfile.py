@@ -4,6 +4,10 @@
 避免三端各自手写一遍 key=value 解析逻辑（common/install.py / updater.py /
 family_monitor/core/config.py / elderly_assistant/utils/config_loader.py 均有重复）。
 """
+import logging
+
+logger = logging.getLogger(__name__)
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -33,7 +37,8 @@ def read_env_dict(path: PathLike) -> Dict[str, str]:
                 continue
             data[k] = v.strip()
     except Exception:
-        pass
+        logger.debug("操作失败，跳过")
+
     return data
 
 
@@ -67,7 +72,8 @@ def write_env_text(path: PathLike, content: str) -> None:
     try:
         p.chmod(0o600)
     except Exception:
-        pass
+        logger.debug("操作失败，跳过")
+
 
 
 def ensure_env_fields(path: PathLike, defaults: Dict[str, str]) -> bool:

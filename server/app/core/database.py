@@ -260,7 +260,8 @@ def _safe_add_column(conn, table_name, column, dialect):
         try:
             conn.rollback()
         except Exception:
-            pass
+            logger.debug("操作失败，跳过")
+
         return False
 
 

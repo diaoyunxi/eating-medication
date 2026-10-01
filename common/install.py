@@ -32,6 +32,10 @@
 GitHub 下载代理统一读取仓库根目录 .env 的 GITHUB_PROXY 字段（与 updater.py / common.envfile 共用）。
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import sys
 import os
 import subprocess
@@ -273,7 +277,8 @@ def _pip_version_string():
         if result.returncode == 0:
             return (result.stdout or "").strip()
     except Exception:
-        pass
+        logger.debug("操作失败，跳过")
+
     return ""
 
 
@@ -349,7 +354,8 @@ def _install_pip_windows():
             try:
                 os.unlink(tmp_path)
             except Exception:
-                pass
+                logger.debug("操作失败，跳过")
+
     return _check_pip_available()
 
 
@@ -642,11 +648,13 @@ def _get_site_packages_dir():
         if user_site:
             candidates.append(user_site)
     except Exception:
-        pass
+        logger.debug("操作失败，跳过")
+
     try:
         candidates.extend(site.getsitepackages() or [])
     except Exception:
-        pass
+        logger.debug("操作失败，跳过")
+
     for d in candidates:
         if not d:
             continue
