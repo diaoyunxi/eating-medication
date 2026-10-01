@@ -1,0 +1,34 @@
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "S", "PLE"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI 的 Depends/Query/Body 等是框架惯用法，作为默认参数是安全的
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.params.Depends",
+    "fastapi.Query",
+    "fastapi.params.Query",
+    "fastapi.Body",
+    "fastapi.params.Body",
+    "fastapi.Path",
+    "fastapi.params.Path",
+    "fastapi.Header",
+    "fastapi.params.Header",
+    "fastapi.Cookie",
+    "fastapi.params.Cookie",
+    "fastapi.Form",
+    "fastapi.params.Form",
+    "fastapi.File",
+    "fastapi.params.File",
+    "fastapi.Security",
+    "fastapi.security.Security",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 测试文件中允许 assert
+"tests/**" = ["S101"]
+"test_*.py" = ["S101"]
