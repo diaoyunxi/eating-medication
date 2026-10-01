@@ -69,7 +69,7 @@ def _init_huskylens(config):
         logger.info("二哈 knock() 验证通过，I2C/UART 连接就绪")
         return hl
     except ImportError:
-        raise ImportError("未安装 dfrobot_huskylensv2 库（条码/人脸功能不可用）")
+        raise ImportError("未安装 dfrobot_huskylensv2 库（条码/人脸功能不可用）") from None
     except Exception as e:
         raise
 

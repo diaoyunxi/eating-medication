@@ -471,7 +471,7 @@ class DeviceService:
         try:
             raw = base64.b64decode(image_base64, validate=True)
         except Exception:
-            raise HTTPException(status_code=400, detail="图片编码无效")
+            raise HTTPException(status_code=400, detail="图片编码无效") from None
         if len(raw) > 10 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="图片过大（上限10MB）")
         if not (raw.startswith(b"\xff\xd8\xff") or raw.startswith(b"\x89PNG")):
