@@ -187,7 +187,7 @@ class HTTPClient:
                 resp = requests.request(method, url, **kwargs)
                 break
             except Exception as e:  # noqa: BLE001 - 需捕获 requests 全部传输层异常
-                last_exc = e
+                _ = e  # noqa: F841 - 保存最后一次异常但不在此处使用
                 if attempt < retries and self._is_transient_error(e):
                     backoff = _RETRY_BACKOFF * (2 ** attempt)
                     logger.log(log_level,

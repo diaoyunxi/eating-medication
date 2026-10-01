@@ -220,7 +220,7 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
                 "success": False,
                 "message": f"绑定失败: {result.get('msg', '未知错误')}"
             }, status_code=400)
-    except Exception as e:
+    except Exception:
         logger.exception("绑定设备失败")
         raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
 
@@ -358,7 +358,7 @@ async def add_medication_plan(request: Request):
             }, status_code=400)
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("添加用药计划失败")
         raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
 
@@ -381,7 +381,7 @@ async def delete_medication_plan(request: Request, plan_id: int):
                 "success": False,
                 "message": f"删除失败: {result.get('error', '未知错误')}"
             }, status_code=400)
-    except Exception as e:
+    except Exception:
         logger.exception("删除用药计划失败")
         raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
 
@@ -423,7 +423,7 @@ async def update_medication_plan(request: Request, plan_id: int):
             }, status_code=400)
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("更新用药计划失败")
         raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
 
@@ -447,6 +447,6 @@ async def unbind_device(request: Request):
             "success": True,
             "message": "设备已解绑"
         })
-    except Exception as e:
+    except Exception:
         logger.exception("解绑设备失败")
         raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
