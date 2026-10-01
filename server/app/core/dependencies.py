@@ -39,7 +39,7 @@ async def get_current_user(
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的 token")
         user_id = int(sub)
     except (JWTError, ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的 token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的 token") from None
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
