@@ -31,7 +31,8 @@ def init_board():
             return True
         except ImportError:
             return False
-        except Exception:
+        except Exception as e:
+            logger.debug(f"init_board: {e}")
             return False
 
 
@@ -57,7 +58,8 @@ def get_led():
         return led
     except ImportError:
         return None
-    except Exception:
+    except Exception as e:
+        logger.debug(f"get_led: {e}")
         return None
 
 
@@ -172,5 +174,6 @@ def get_light_sensor():
         return light
     except ImportError:
         return None
-    except Exception:
+    except Exception as e:
+        logger.debug(f"get_light_sensor: {e}")
         return None

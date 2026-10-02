@@ -531,8 +531,8 @@ class WiFiConfigServer:
         if self.server:
             try:
                 self.server.socket.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"stop: {e}")
         logger.info("WiFi 配网服务已停止")
 
 

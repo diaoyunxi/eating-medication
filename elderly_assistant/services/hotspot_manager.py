@@ -95,7 +95,8 @@ class HotspotManager:
                 capture_output=True, text=True, timeout=5
             )
             return self.ssid in result.stdout
-        except Exception:
+        except Exception as e:
+            logger.debug(f"is_active: {e}")
             return False
 
     @staticmethod

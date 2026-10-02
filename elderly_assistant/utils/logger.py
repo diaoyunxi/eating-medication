@@ -14,7 +14,8 @@ _configured_log_dir = None
 try:
     import colorama
     colorama.init()
-except Exception:
+except Exception as e:
+    logger.debug(f"unknown: {e}")
     colorama = None
 
 # ANSI 转义码：按日志级别着色，配色对齐 uvicorn 风格（INFO 绿 / WARNING 黄 / ERROR 红），
@@ -98,8 +99,8 @@ def setup_logger(log_dir="logs"):
         for h in list(logger.handlers):
             try:
                 h.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"setup_logger: {e}")
             logger.removeHandler(h)
 
     log_file = os.path.join(log_dir, f"assistant_{datetime.now().strftime('%Y%m%d')}.log")
