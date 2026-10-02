@@ -7,7 +7,7 @@
 - 邮件发送使用标准 smtplib；未配置 MAIL_* 时回退为日志输出，便于本地开发调试。
 """
 import os
-import random
+import secrets
 import time
 import smtplib
 import ssl
@@ -27,8 +27,8 @@ _store = {}
 
 
 def _gen_code():
-    """生成指定长度的数字验证码。"""
-    return "".join(random.choice("0123456789") for _ in range(_CODE_LEN))
+    """生成指定长度的数字验证码，使用 secrets 模块确保密码学安全。"""
+    return "".join(secrets.choice("0123456789") for _ in range(_CODE_LEN))
 
 
 def send_code(email):
@@ -67,7 +67,9 @@ def verify_code(email, code):
     if time.time() > expire:
         _store.pop(email, None)
         return False
-    if str(code).strip() != stored_code:
+    # 使用 hmac.compare_digest 进行常量时间比较，防止时序攻击
+    import hmac
+    if not hmac.compare_digest(str(code).strip(), stored_code):
         return False
     _store.pop(email, None)  # 一次性使用
     return True
