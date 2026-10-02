@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
+import secrets
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, get_db
@@ -11,6 +13,14 @@ from app.services.device_service import DeviceService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/users", tags=["用户"])
+
+# 绑定请求内存速率限制：{(family_user_id, elderly_user_id): [timestamp, ...]}
+_bind_attempts: dict = {}
+_BIND_RATE_LIMIT_WINDOW = 300  # 5 分钟窗口
+_BIND_RATE_LIMIT_MAX = 3       # 窗口内最多 3 次绑定尝试
+
+# 设备心跳有效期：绑定时设备必须在最近 N 秒内有心跳
+_HEARTBEAT_VALIDITY_SECONDS = 300  # 5 分钟
 
 @router.get("/me", response_model=UserOut)
 def read_current_user(current_user: User = Depends(get_current_user)):
@@ -79,6 +89,53 @@ def bind_family(
 
     # TODO: 实现双向确认机制（当前仅弱保护：家属知道设备ID即可绑定）
     logger.warning("TODO: 实现双向确认机制（当前仅弱保护：家属知道设备ID即可绑定）")
+
+    # --- 安全加固：设备心跳时效性校验（CWE-863 缓解措施） ---
+    # 绑定时要求老人设备在最近 5 分钟内有心跳，证明设备在线且物理在场。
+    # 这防止攻击者通过猜测 device_id 远程绑定离线设备。
+    if elderly.last_heartbeat_at:
+        heartbeat_age = (datetime.now(timezone.utc) - elderly.last_heartbeat_at.replace(
+            tzinfo=elderly.last_heartbeat_at.tzinfo or timezone.utc
+        )).total_seconds()
+        if heartbeat_age > _HEARTBEAT_VALIDITY_SECONDS:
+            logger.warning(
+                "绑定拒绝：设备心跳超时 age=%.0fs threshold=%ds elderly_id=%d device_id=%s",
+                heartbeat_age, _HEARTBEAT_VALIDITY_SECONDS, elderly.id, req.device_id
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="设备离线超过5分钟，请确保老人设备在线后再发起绑定"
+            )
+    else:
+        # 设备从未上报心跳（未开机或固件过旧），拒绝绑定
+        logger.warning(
+            "绑定拒绝：设备无心跳记录 elderly_id=%d device_id=%s",
+            elderly.id, req.device_id
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="设备尚未上报心跳，请确保老人设备已开机并联网"
+        )
+
+    # --- 安全加固：绑定速率限制（CWE-307） ---
+    # 防止通过暴力猜测 device_id 枚举有效设备
+    now = datetime.now(timezone.utc).timestamp()
+    rate_key = (current_user.id, req.elderly_user_id)
+    attempts = _bind_attempts.setdefault(rate_key, [])
+    attempts[:] = [t for t in attempts if now - t < _BIND_RATE_LIMIT_WINDOW]
+    if len(attempts) >= _BIND_RATE_LIMIT_MAX:
+        logger.warning(
+            "绑定速率限制触发：family_id=%d elderly_id=%d attempts=%d",
+            current_user.id, req.elderly_user_id, len(attempts)
+        )
+        raise HTTPException(status_code=429, detail="绑定请求过于频繁，请5分钟后重试")
+    attempts.append(now)
+
+    # 审计日志：记录绑定操作的关键上下文（CWE-778）
+    logger.info(
+        "家属绑定老人: family_id=%d elderly_id=%d device_id=%s ip=redacted",
+        current_user.id, req.elderly_user_id, req.device_id
+    )
 
     # 调用服务层：迁移虚拟用户数据 + 关联 device_id 到真实老人 + 家庭组绑定
     group_id = UserService.bind_family(db, req.elderly_user_id, current_user.id, device_id=req.device_id)
