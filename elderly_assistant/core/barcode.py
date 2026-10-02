@@ -47,11 +47,13 @@ def _clean_code(text):
     if isinstance(text, (bytes, bytearray)):
         try:
             text = bytes(text).decode("utf-8", "ignore")
-        except Exception:
+        except Exception as e:
+            logger.debug(f"_clean_code: {e}")
             return None
     try:
         code = "".join(ch for ch in str(text) if ch.isprintable()).strip()
-    except Exception:
+    except Exception as e:
+        logger.debug(f"_clean_code: {e}")
         return None
     return code or None
 
@@ -120,7 +122,8 @@ class HuskyLensScanner:
             for idx in range(1, total + 1):
                 try:
                     item = getter(algo, idx)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"_read_contents: {e}")
                     item = None
                 if item is not None:
                     blocks.append(item)
@@ -193,8 +196,8 @@ class UsbCameraScanner:
             # 打开失败必须释放句柄，避免设备被占用无法重试
             try:
                 cap.release()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"_ensure: {e}")
             raise RuntimeError(f"USB 摄像头(index={self.index}) 打开失败")
         self._cap = cap
         self._decode = zbar_decode
@@ -216,8 +219,8 @@ class UsbCameraScanner:
         if self._cap is not None:
             try:
                 self._cap.release()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"close: {e}")
         self._cap = None
         self._decode = None
 
@@ -305,6 +308,6 @@ class BarcodeScanner:
         for backend in self._backends or []:
             try:
                 backend.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"close: {e}")
         self._backends = None

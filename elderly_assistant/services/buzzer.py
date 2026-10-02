@@ -134,5 +134,5 @@ class Buzzer:
         """清理资源"""
         try:
             self.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"__del__: {e}")

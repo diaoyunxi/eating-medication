@@ -10,6 +10,8 @@ TTS 引擎优先级：
 两个引擎均在初始化期尝试加载，运行时按优先级选择；任一失败自动切换到另一引擎，
 全部不可用时禁用语音（不影响主流程）。
 """
+import logging
+logger = logging.getLogger("ElderlyAssistant")
 import asyncio
 import os
 import queue
@@ -89,7 +91,8 @@ class Speech:
         _DEFAULT_VOICE = None
         try:
             _DEFAULT_VOICE = eng.getProperty('voice')
-        except Exception:
+        except Exception as e:
+            logger.debug(f"_init_engines: {e}")
             _DEFAULT_VOICE = None
         try:
             preferred_voice = self._select_mbrola_voice(eng)
@@ -117,7 +120,8 @@ class Speech:
                 cur_voice = None
                 try:
                     cur_voice = eng.getProperty('voice')
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"unknown: {e}")
                     cur_voice = None
                 if preferred_voice and cur_voice != preferred_voice:
                     self.logger.warning(
@@ -127,8 +131,8 @@ class Speech:
                     try:
                         if _DEFAULT_VOICE:
                             eng.setProperty('voice', _DEFAULT_VOICE)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"unknown: {e}")
                 # 用一次静默空播报触达发音后端，捕获潜在的延迟初始化失败
                 eng.say("")
                 eng.runAndWait()
@@ -139,8 +143,8 @@ class Speech:
         if not _valid:
             try:
                 eng.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"unknown: {e}")
             self._pyttsx_engine = None
             return
 
@@ -222,8 +226,8 @@ class Speech:
                         self.logger.error(f"pyttsx3 播报失败: {e}")
                         try:
                             self._init_engines()
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug(f"_speak: {e}")
                 else:
                     # 两个引擎均不可用/失败：明确记录，便于排查为何无声音
                     self.last_error = "无可用语音引擎"
@@ -257,8 +261,8 @@ class Speech:
             if tmp_path and os.path.exists(tmp_path):
                 try:
                     os.unlink(tmp_path)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"_speak_edge: {e}")
 
     def _play_mp3(self, path):
         """用系统中可用的播放器播放 MP3；无可用播放器则抛错触发 pyttsx3 兜底。"""
@@ -304,8 +308,8 @@ class Speech:
         if self._pyttsx_engine:
             try:
                 self._pyttsx_engine.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"stop: {e}")
             self._pyttsx_engine = None
         self._edge_tts = None
         self._edge_available = False

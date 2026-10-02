@@ -21,7 +21,8 @@ def _face_algorithm() -> int:
     try:
         import dfrobot_huskylensv2 as hl_mod
         return getattr(hl_mod, "ALGORITHM_FACE_RECOGNITION", _ALGORITHM_FACE_RECOGNITION)
-    except Exception:
+    except Exception as e:
+        logger.debug(f"_face_algorithm: {e}")
         return _ALGORITHM_FACE_RECOGNITION
 
 

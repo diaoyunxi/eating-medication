@@ -199,7 +199,8 @@ class HTTPClient:
                 raise
         try:
             resp_text = resp.text or ""
-        except Exception:
+        except Exception as e:
+            logger.debug(f"_request: {e}")
             resp_text = ""
         if resp_text and len(resp_text) > 500:
             resp_text = resp_text[:500] + f"...(截断, 共 {len(resp_text)} 字节)"
@@ -327,8 +328,8 @@ class HTTPClient:
                     if reissued:
                         _save_device_token(reissued)
                         logger.info("已持久化服务端重新签发的设备令牌")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"unregister_device: {e}")
                 return True
             logger.warning(f"设备下线通知失败，状态码: {resp.status_code}")
             return False

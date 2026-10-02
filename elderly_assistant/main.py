@@ -447,7 +447,8 @@ def main():
                         server_connected = http_client.check_connection()
                     else:
                         server_connected = False
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"_on_ai: {e}")
                     server_connected = False
                 display.show_status(server_url, server_connected)
                 display.show_device_uuid(device_uuid)
@@ -466,8 +467,8 @@ def main():
                 if (datetime.now() - reminder_state.triggered_at).total_seconds() >= 60:
                     try:
                         buzzer.play_reminder()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"unknown: {e}")
                     reminder_state.triggered_at = datetime.now()
 
             # 注：原物理按钮 A/B 检测已移除，确认/问AI 均由屏幕触摸按钮触发
@@ -477,8 +478,8 @@ def main():
             if led:
                 try:
                     led.write_digital(1 if server_connected else 0)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"unknown: {e}")
 
             # ---- 每帧刷新扫码结果临时展示（10 秒后自动清除）----
             if display is not None:
@@ -537,8 +538,8 @@ def main():
         try:
             if led:
                 led.write_digital(0)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"unknown: {e}")
         logger.info("老人端已退出")
 
 

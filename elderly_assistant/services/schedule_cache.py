@@ -91,5 +91,5 @@ def save_schedules(schedules, path=None):
             if tmp_path and os.path.exists(tmp_path):
                 try:
                     os.remove(tmp_path)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"save_schedules: {e}")
