@@ -46,6 +46,39 @@ def _capture_and_upload(config, http_client, logger, reminder_state=None):
         logger.warning(f"拍照上传失败: {e}")
 
 
+def _capture_and_upload_with_items(config, http_client, logger, items):
+    """拍照上传的快照版本：直接接收 items 列表而非 reminder_state。
+
+    解决 handle_confirm 中先调用 reminder_state.confirm() 清空状态、
+    再启动异步拍照线程导致照片无法关联到服药计划的竞态问题 (CWE-362)。
+    """
+    plan_id = None
+    scheduled_time = None
+    elderly_ids: List[int] = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        pid = item.get("plan_id")
+        if pid is not None:
+            plan_id = pid
+            scheduled_time = item.get("scheduled_time")
+        eid = item.get("elderly_id")
+        if eid is not None and eid not in elderly_ids:
+            elderly_ids.append(eid)
+    try:
+        from core.camera import capture_image
+        path = capture_image(config)
+        if not path:
+            return
+        targets = elderly_ids or [None]
+        for eid in targets:
+            http_client.upload_image(
+                path, plan_id=plan_id, scheduled_time=scheduled_time, elderly_id=eid
+            )
+    except Exception as e:
+        logger.warning(f"拍照上传失败: {e}")
+
+
 def _ask_ai_and_speak(reminder_state, http_client, speech, logger, config):
     """向 AI 询问当前药品的服用注意事项并语音播报（缺失环境静默降级，异步线程调用）。"""
     try:
@@ -119,10 +152,14 @@ def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=
         dosage = reminder_state.dosage
         logger.info(f"用户确认服药: {drug} {dosage}")
         buzzer.stop()
+        # 在 confirm() 清空状态之前，快照拍照上传所需的数据（plan_id / elderly_id 等），
+        # 避免 confirm() 将 items 和 elderly_id 重置为空后，上传线程拿不到关联信息
+        # 导致服药照片无法关联到对应的用药计划和老人记录 (CWE-362)
+        upload_items = list(getattr(reminder_state, "items", []))
         # 上报服药确认（可选，失败不影响），回传精确计划项供服务端落库
         if http_client:
             try:
-                items = getattr(reminder_state, "items", [])
+                items = upload_items
                 http_client.confirm_medication(drug, dosage, items=items)
             except Exception as e:
                 logger.error(f"上报服药确认失败: {e}")
@@ -140,11 +177,14 @@ def handle_confirm(reminder_state, buzzer, display, http_client, logger, speech=
             except Exception:
                 pass
         # 拍照上传服药照片（HuskyLens，无摄像头时静默降级，异步不阻塞主循环）
+        # 使用快照数据而非 reminder_state（已被 confirm() 清空）
         if config is not None and http_client is not None:
             try:
                 import threading as _th
                 _th.Thread(
-                    target=_capture_and_upload, args=(config, http_client, logger, reminder_state), daemon=True
+                    target=_capture_and_upload_with_items,
+                    args=(config, http_client, logger, upload_items),
+                    daemon=True,
                 ).start()
             except Exception:
                 pass
