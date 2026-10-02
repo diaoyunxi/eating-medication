@@ -267,35 +267,41 @@ def _spawn_background(entry, log_path, extra_args):
 
     # 以追加方式打开，保留历史日志便于回溯问题
     log_file = open(log_path, "a", encoding="utf-8", errors="replace")
-    log_file.write(
-        f"\n{'=' * 60}\n"
-        f"工作目录: {entry.parent}\n"
-        f"启动命令: {' '.join(argv)}\n"
-        f"{'=' * 60}\n"
-    )
-    log_file.flush()
-
-    # 显式把子程序目录放到 PYTHONPATH 首位：uvicorn 以 "main:app" 字符串加载应用时
-    # 会重新 import main 模块，仅靠 cwd 在部分启动方式下不足以保证解析到同目录的 main。
-    child_env = os.environ.copy()
-    existing_path = child_env.get("PYTHONPATH", "")
-    child_env["PYTHONPATH"] = (
-        str(entry.parent) + (os.pathsep + existing_path if existing_path else "")
-    )
-
-    popen_kwargs = {
-        "cwd": str(entry.parent),
-        "env": child_env,
-        "stdin": subprocess.DEVNULL,
-        "stdout": log_file,
-        "stderr": subprocess.STDOUT,
-    }
-    if os.name == "nt":
-        popen_kwargs["creationflags"] = (
-            subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    try:
+        log_file.write(
+            f"\n{'=' * 60}\n"
+            f"工作目录: {entry.parent}\n"
+            f"启动命令: {' '.join(argv)}\n"
+            f"{'=' * 60}\n"
         )
-    else:
-        popen_kwargs["start_new_session"] = True
+        log_file.flush()
+
+        # 显式把子程序目录放到 PYTHONPATH 首位：uvicorn 以 "main:app" 字符串加载应用时
+        # 会重新 import main 模块，仅靠 cwd 在部分启动方式下不足以保证解析到同目录的 main。
+        child_env = os.environ.copy()
+        existing_path = child_env.get("PYTHONPATH", "")
+        child_env["PYTHONPATH"] = (
+            str(entry.parent) + (os.pathsep + existing_path if existing_path else "")
+        )
+
+        popen_kwargs = {
+            "cwd": str(entry.parent),
+            "env": child_env,
+            "stdin": subprocess.DEVNULL,
+            "stdout": log_file,
+            "stderr": subprocess.STDOUT,
+        }
+        if os.name == "nt":
+            popen_kwargs["creationflags"] = (
+                subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            )
+        else:
+            popen_kwargs["start_new_session"] = True
+
+    except Exception as e:
+        log_file.close()
+        print(f"[错误] 准备启动 {entry.name} 时失败: {e}")
+        sys.exit(1)
 
     try:
         proc = subprocess.Popen(argv, **popen_kwargs)
