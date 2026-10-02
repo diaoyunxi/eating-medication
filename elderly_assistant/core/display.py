@@ -6,7 +6,7 @@
 """
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger("ElderlyAssistant")
 
@@ -157,7 +157,7 @@ class Display:
             self._in_reminder = False
             self._barcode_text = None
 
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             time_str = now.strftime("%H:%M")
             date_str = now.strftime("%Y-%m-%d")
 
@@ -226,12 +226,12 @@ class Display:
     def show_time(self, dt=None):
         """
         显示/更新当前时间（每秒调用）
-        :param dt: datetime 对象，默认 datetime.now()
+        :param dt: datetime 对象，默认 datetime.now(timezone.utc)
         """
         if not self.gui:
             return
         if dt is None:
-            dt = datetime.now()
+            dt = datetime.now(timezone.utc)
         try:
             time_str = dt.strftime("%H:%M")
             date_str = dt.strftime("%Y-%m-%d")
@@ -270,7 +270,7 @@ class Display:
                 # 切到提醒界面时清除临时条码展示
                 self._barcode_text = None
                 # 保留时间在顶部小字
-                now = datetime.now()
+                now = datetime.now(timezone.utc)
                 self._time_text = self.gui.draw_text(
                     x=self.CENTER_X, y=30,
                     text=now.strftime("%H:%M"), font_size=18, color='#666666',
