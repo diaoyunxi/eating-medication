@@ -7,7 +7,7 @@
 - 邮件发送使用标准 smtplib；未配置 MAIL_* 时回退为日志输出，便于本地开发调试。
 """
 import os
-import random
+import secrets
 import time
 import smtplib
 import ssl
@@ -28,10 +28,14 @@ _store = {}
 
 def _gen_code():
     """生成指定长度的数字验证码。"""
-    return "".join(random.choice("0123456789") for _ in range(_CODE_LEN))
+    return "".join(secrets.choice("0123456789") for _ in range(_CODE_LEN))
 
 
 def send_code(email):
+    # 频率限制
+    allowed, reason = check_send_rate(email)
+    if not allowed:
+        return False, reason
     """生成并发送邮箱验证码。
 
     :param email: 目标邮箱
@@ -51,6 +55,10 @@ def send_code(email):
 
 
 def verify_code(email, code):
+    # 频率限制
+    allowed, reason = check_verify_rate(email)
+    if not allowed:
+        return False
     """校验验证码，校验成功后立即失效（一次性使用）。
 
     :param email: 邮箱
@@ -120,3 +128,49 @@ def _send_email(email, code):
     except Exception as e:
         logger.warning(f"[邮箱验证码] 发送失败: {e}")
         return False, f"验证码邮件发送失败：{e}"
+
+
+# ============ 频率限制（防止暴力枚举验证码） ============
+_send_tracker = {}   # email -> (last_send_ts, hourly_count, window_start)
+_SEND_COOLDOWN = 60
+_SEND_MAX_PER_HOUR = 5
+_verify_tracker = {}  # email -> (window_start, attempts)
+_VERIFY_MAX_ATTEMPTS = 10
+
+
+def check_send_rate(email: str) -> tuple:
+    """检查发送频率是否超限，返回 (allowed: bool, reason: str)"""
+    email = email.strip().lower()
+    now = time.time()
+    entry = _send_tracker.get(email)
+    if entry:
+        last_ts, hourly_count, window_start = entry
+        if now - last_ts < _SEND_COOLDOWN:
+            return False, f"发送过于频繁，请 {_SEND_COOLDOWN - int(now - last_ts)} 秒后重试"
+        if now - window_start < 3600:
+            if hourly_count >= _SEND_MAX_PER_HOUR:
+                return False, f"每小时最多发送 {_SEND_MAX_PER_HOUR} 次，请稍后再试"
+            _send_tracker[email] = (now, hourly_count + 1, window_start)
+        else:
+            _send_tracker[email] = (now, 1, now)
+    else:
+        _send_tracker[email] = (now, 1, now)
+    return True, ""
+
+
+def check_verify_rate(email: str) -> tuple:
+    """检查校验频率是否超限，返回 (allowed: bool, reason: str)"""
+    email = email.strip().lower()
+    now = time.time()
+    entry = _verify_tracker.get(email)
+    if entry:
+        window_start, attempts = entry
+        if now - window_start < 3600:
+            if attempts >= _VERIFY_MAX_ATTEMPTS:
+                return False, "校验次数过多，请 1 小时后再试"
+            _verify_tracker[email] = (window_start, attempts + 1)
+        else:
+            _verify_tracker[email] = (now, 1)
+    else:
+        _verify_tracker[email] = (now, 1)
+    return True, ""
