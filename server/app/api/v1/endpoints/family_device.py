@@ -319,7 +319,7 @@ async def family_update_medication_plan(
     try:
         plan = MedicationService.update_plan(db, plan_id, owner.id, plan_data)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     logger.info(
         f"家属更新设备 {mask_device_id(req.device_id or '')} 用药计划 {plan_id}: {req.drug_name}"
     )
