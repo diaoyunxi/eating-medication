@@ -176,8 +176,23 @@ def _load_post_update_cmd():
     """读取根目录 .env 的 POST_UPDATE_CMD 字段（更新成功后执行的一条命令）。
 
     - 为空 / 未配置 / 解析失败返回 None。
-    - 该命令以 shell 执行，仅应在可信的本地 .env 中配置（等同执行本地脚本）。
+    - 该命令以参数列表方式执行（shell=False），元字符会被拒绝执行。
+    - 安全检查：若 .env 文件对其他用户可写（world-writable），则拒绝加载
+      POST_UPDATE_CMD，防止权限失守时被利用为命令执行向量 (CWE-732)。
     """
+    # 权限校验：拒绝加载其他用户可写的 .env 文件中的命令
+    if _CONFIG_PATH.exists():
+        try:
+            _stat = _CONFIG_PATH.stat()
+            if _stat.st_mode & 0o002:  # world-writable
+                logger.warning(
+                    "[更新] .env 文件权限过宽 (other-writable)，"
+                    "拒绝加载 POST_UPDATE_CMD 以防命令注入 (CWE-732)；"
+                    "请执行 chmod o-w .env 修复"
+                )
+                return None
+        except OSError:
+            pass  # stat 失败时不阻塞正常流程
     data = _load_root_env()
     val = data.get("POST_UPDATE_CMD", "")
     if isinstance(val, str) and val.strip():
