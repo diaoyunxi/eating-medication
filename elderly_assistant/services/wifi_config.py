@@ -37,13 +37,33 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def sanitize_ssid(ssid: str) -> str:
-    """清理 SSID，移除非法字符（防止命令注入）"""
-    return re.sub(r'[\"\\\'`$\n\r]', '', ssid)[:32]
+    """校验 SSID 合法性（shell=False 场景下无需过滤特殊字符）。
+
+    WiFi 协议限制 SSID 长度为 1-32 字节；超长或为空时抛出 ValueError。
+    换行符 / 空字节可能干扰 nmcli 参数解析，同样拒绝。
+    """
+    if not ssid or not ssid.strip():
+        raise ValueError("SSID 不能为空")
+    if "\n" in ssid or "\r" in ssid or "\x00" in ssid:
+        raise ValueError("SSID 包含非法字符（换行符或空字节）")
+    if len(ssid.encode("utf-8")) > 32:
+        raise ValueError("SSID 超过 32 字节限制")
+    return ssid
 
 
 def sanitize_password(password: str) -> str:
-    """清理密码，移除非法字符（防止命令注入）"""
-    return re.sub(r'[\"\\\'`$\n\r]', '', password)
+    """校验 WiFi 密码合法性（shell=False 场景下无需过滤特殊字符）。
+
+    WiFi WPA2 密码长度要求 8-63 字符；含换行符或空字节时抛出 ValueError。
+    不会静默修改密码内容，避免因字符被移除导致连接失败且用户不知情。
+    """
+    if not password:
+        raise ValueError("密码不能为空")
+    if "\n" in password or "\r" in password or "\x00" in password:
+        raise ValueError("密码包含非法字符（换行符或空字节）")
+    if len(password) < 8 or len(password) > 63:
+        raise ValueError("WPA2 密码长度须为 8-63 字符")
+    return password
 
 
 class WiFiConfigManager:
