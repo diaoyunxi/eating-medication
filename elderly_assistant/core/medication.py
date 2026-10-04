@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+import threading
 from datetime import datetime
 from utils.logger import setup_logger
 
@@ -26,42 +27,78 @@ class MedicationManager:
     def __init__(self, data_path="data/medications.json"):
         self.data_path = data_path
         self.logger = setup_logger()
+        self._lock = threading.Lock()
         self.medications = self.load()
 
     def load(self):
         """加载药品数据，若文件不存在或损坏则返回空列表并修复文件"""
-        try:
-            if os.path.exists(self.data_path):
-                with open(self.data_path, 'r', encoding='utf-8') as f:
-                    content = f.read().strip()
-                    if content:
-                        data = json.loads(content)
-                        if isinstance(data, list):
-                            return data
-                        else:
-                            # 数据格式异常时先备份原文件，避免直接覆盖丢失数据
-                            self.logger.error(f"药品数据格式错误，期望列表但得到 {type(data)}，备份原文件")
-                            import shutil
-                            shutil.copy2(self.data_path, self.data_path + '.bak')
-        except json.JSONDecodeError as e:
-            self.logger.error(f"药品数据 JSON 解析失败: {e}")
-            # JSON 解析失败也备份原文件
-            if os.path.exists(self.data_path):
-                import shutil
-                shutil.copy2(self.data_path, self.data_path + '.bak')
-        except Exception as e:
-            self.logger.error(f"加载药品数据失败: {e}")
+        with self._lock:
+            try:
+                if os.path.exists(self.data_path):
+                    with open(self.data_path, 'r', encoding='utf-8') as f:
+                        content = f.read().strip()
+                        if content:
+                            data = json.loads(content)
+                            if isinstance(data, list):
+                                return data
+                            else:
+                                # 数据格式异常时先备份原文件，避免直接覆盖丢失数据
+                                self.logger.error(f"药品数据格式错误，期望列表但得到 {type(data)}，备份原文件")
+                                import shutil
+                                shutil.copy2(self.data_path, self.data_path + '.bak')
+            except json.JSONDecodeError as e:
+                self.logger.error(f"药品数据 JSON 解析失败: {e}")
+                # JSON 解析失败也备份原文件
+                if os.path.exists(self.data_path):
+                    import shutil
+                    shutil.copy2(self.data_path, self.data_path + '.bak')
+            except Exception as e:
+                self.logger.error(f"加载药品数据失败: {e}")
 
-        os.makedirs(os.path.dirname(self.data_path) or ".", exist_ok=True)
-        try:
-            with open(self.data_path, 'w', encoding='utf-8') as f:
-                json.dump([], f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            self.logger.error(f"创建默认药品文件失败: {e}")
-        return []
+            os.makedirs(os.path.dirname(self.data_path) or ".", exist_ok=True)
+            try:
+                with open(self.data_path, 'w', encoding='utf-8') as f:
+                    json.dump([], f, indent=2, ensure_ascii=False)
+            except Exception as e:
+                self.logger.error(f"创建默认药品文件失败: {e}")
+            return []
 
     def save(self):
-        """保存药品数据到文件（P11：临时文件 + os.replace 原子写入）"""
+        """保存药品数据到文件（P11：临时文件 + os.replace 原子写入，加锁保护）"""
+        with self._lock:
+            try:
+                os.makedirs(os.path.dirname(self.data_path) or ".", exist_ok=True)
+                tmp = self.data_path + '.tmp'
+                with open(tmp, 'w', encoding='utf-8') as f:
+                    json.dump(self.medications, f, indent=2, ensure_ascii=False)
+                os.replace(tmp, self.data_path)
+            except Exception as e:
+                self.logger.error(f"保存药品数据失败: {e}")
+
+    def add_medication(self, name, total_quantity, dosage_per_use, reminder_days=5):
+        """添加药品（线程安全）"""
+        with self._lock:
+            for med in self.medications:
+                if med.get('name') == name:
+                    self.logger.warning(f"药品 {name} 已存在，将更新")
+                    med['total'] = total_quantity
+                    med['dosage_per_use'] = dosage_per_use
+                    med['reminder_days'] = reminder_days
+                    self._save_unlocked()
+                    return
+
+            self.medications.append({
+                "name": name,
+                "total": total_quantity,
+                "dosage_per_use": dosage_per_use,
+                "remaining": total_quantity,
+                "reminder_days": reminder_days,
+                "last_updated": datetime.now().isoformat()
+            })
+            self._save_unlocked()
+
+    def _save_unlocked(self):
+        """内部保存方法（调用时已持有锁，避免死锁）"""
         try:
             os.makedirs(os.path.dirname(self.data_path) or ".", exist_ok=True)
             tmp = self.data_path + '.tmp'
@@ -71,48 +108,28 @@ class MedicationManager:
         except Exception as e:
             self.logger.error(f"保存药品数据失败: {e}")
 
-    def add_medication(self, name, total_quantity, dosage_per_use, reminder_days=5):
-        """添加药品"""
-        for med in self.medications:
-            if med.get('name') == name:
-                self.logger.warning(f"药品 {name} 已存在，将更新")
-                med['total'] = total_quantity
-                med['dosage_per_use'] = dosage_per_use
-                med['reminder_days'] = reminder_days
-                self.save()
-                return
-
-        self.medications.append({
-            "name": name,
-            "total": total_quantity,
-            "dosage_per_use": dosage_per_use,
-            "remaining": total_quantity,
-            "reminder_days": reminder_days,
-            "last_updated": datetime.now().isoformat()
-        })
-        self.save()
-
     def consume(self, med_name, dosage_str):
-        """消耗药品（从提醒确认调用）"""
-        try:
-            # 使用 _parse_dosage 支持中文数字（如"两片"、"半片"）
-            dose = float(_parse_dosage(dosage_str))
-            if dose <= 0:
-                return False
+        """消耗药品（从提醒确认调用，线程安全）"""
+        with self._lock:
+            try:
+                # 使用 _parse_dosage 支持中文数字（如"两片"、"半片"）
+                dose = float(_parse_dosage(dosage_str))
+                if dose <= 0:
+                    return False
 
-            for med in self.medications:
-                if med.get('name') == med_name:
-                    med['remaining'] = max(0, med.get('remaining', 0) - dose)
-                    med['last_updated'] = datetime.now().isoformat()
-                    self.logger.info(f"药品消耗: {med_name} -{dose}, 剩余 {med['remaining']}")
-                    self.check_low(med)
-                    self.save()
-                    return True
-            self.logger.warning(f"未找到药品: {med_name}")
-            return False
-        except Exception as e:
-            self.logger.error(f"消耗药品失败: {e}")
-            return False
+                for med in self.medications:
+                    if med.get('name') == med_name:
+                        med['remaining'] = max(0, med.get('remaining', 0) - dose)
+                        med['last_updated'] = datetime.now().isoformat()
+                        self.logger.info(f"药品消耗: {med_name} -{dose}, 剩余 {med['remaining']}")
+                        self.check_low(med)
+                        self._save_unlocked()
+                        return True
+                self.logger.warning(f"未找到药品: {med_name}")
+                return False
+            except Exception as e:
+                self.logger.error(f"消耗药品失败: {e}")
+                return False
 
     def check_low(self, med):
         """检查药品是否低于提醒阈值，返回 (药品名, 剩余天数) 或 (None, None)"""
@@ -130,4 +147,5 @@ class MedicationManager:
         return None, None
 
     def get_all(self):
-        return self.medications if self.medications else []
+        with self._lock:
+            return self.medications if self.medications else []
