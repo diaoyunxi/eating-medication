@@ -79,6 +79,8 @@ class MedicationManager:
                 med['total'] = total_quantity
                 med['dosage_per_use'] = dosage_per_use
                 med['reminder_days'] = reminder_days
+                med['remaining'] = total_quantity  # 重新入库时重置剩余量
+                med['last_updated'] = datetime.now().isoformat()
                 self.save()
                 return
 
