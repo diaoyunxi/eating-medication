@@ -104,7 +104,7 @@ def verify_backup_code(hashed_json: str, code: str) -> bool:
         try:
             if bcrypt.checkpw(code.encode("utf-8"), h.encode("utf-8")):
                 return True
-        except Exception:
+        except Exception:  # noqa: S112
             continue
     return False
 

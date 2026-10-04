@@ -69,7 +69,7 @@ class TestAccessToken(unittest.TestCase):
         from datetime import timedelta
 
         token = create_access_token({"sub": "alice"}, expires_delta=timedelta(seconds=-1))
-        with self.assertRaises(Exception):
+        with self.assertRaises(Exception):  # noqa: B017
             decode_token(token)
 
 

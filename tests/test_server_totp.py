@@ -78,7 +78,7 @@ class TestTOTPHandlers(unittest.TestCase):
 
     def test_totp_enable_requires_setup(self):
         self.user.totp_secret = None
-        with self.assertRaises(Exception):
+        with self.assertRaises(Exception):  # noqa: B017
             totp.totp_enable(totp.TOTPCodeIn(code="123456"), self.user, self.db)
 
     def test_totp_enable_success(self):
