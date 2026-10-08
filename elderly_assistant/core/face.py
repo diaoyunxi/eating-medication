@@ -106,7 +106,7 @@ class FaceRecognizer:
                         return False
                 # 库返回 False / 0 表示未检测到人脸或学习超时，绝不能当作成功，
                 # 否则服务端会写入一个设备上并不存在的 face_id，导致后续核验永远“非本人”。
-                if ret is False or ret == 0:
+                if not ret:  # False / 0 均视为失败
                     logger.warning("二哈人脸学习未成功（未检测到人脸或超时），face_id=%s", face_id)
                     return False
                 logger.info("二哈已学习人脸，face_id=%s", face_id)

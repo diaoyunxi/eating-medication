@@ -130,7 +130,7 @@ class VisionService:
             }
 
         # 子服务未配置/未实现：直接返回降级提示
-        if ocr_result and ocr_result.get("configured") is False:
+        if ocr_result and ocr_result.get("configured") == False:
             return ocr_result
 
         if ocr_result and ocr_result.get('text'):
