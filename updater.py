@@ -60,7 +60,7 @@ def _load_version():
             if ver:
                 return ver
     except Exception:
-        pass
+        logger.debug("无法从版本文件读取版本号，回退 0.0.0", exc_info=True)
     return "0.0.0"
 
 
@@ -541,7 +541,7 @@ def _perform_update(zip_path, project_dir, protected_check=_is_protected_path):
         try:
             shutil.rmtree(tmp_dir, ignore_errors=True)
         except Exception:
-            pass
+            logger.debug("清理临时目录 %s 失败", tmp_dir, exc_info=True)
 
 
 
@@ -731,7 +731,7 @@ def _delete_path(path: Path, deleted: list, skipped: list):
                     path.rmdir()
                     deleted.append(str(path))
             except Exception:
-                pass
+                logger.debug("git reset 后清理空目录失败", exc_info=True)
             return
     except Exception as e:  # 权限等问题不阻断其它项
         skipped.append(f"{path} ({e})")
