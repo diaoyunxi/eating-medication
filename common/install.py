@@ -653,7 +653,7 @@ def _get_site_packages_dir():
         try:
             os.makedirs(d, exist_ok=True)
             return d
-        except Exception:
+        except Exception:  # noqa: S112
             continue
     return None
 
