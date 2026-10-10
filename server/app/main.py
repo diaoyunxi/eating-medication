@@ -319,8 +319,8 @@ if __name__ == "__main__":
     logger.info("="*60)
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
-        port=8000,
+        host=settings.SERVER_HOST,
+        port=settings.SERVER_PORT,
         reload=settings.DEBUG,
         log_level="info",
         access_log=False
