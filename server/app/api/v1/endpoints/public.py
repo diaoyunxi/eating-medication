@@ -119,7 +119,7 @@ async def device_offline(
     client_ip = get_client_ip(request)
     if not check_rate_limit(f"device_offline:{client_ip}", 30):
         raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
-    user, issued_token = await run_in_threadpool(
+    user, _issued_token = await run_in_threadpool(
         DeviceService.get_device_user_for_offline, db, req.device_id, device_token
     )
     if user is None:

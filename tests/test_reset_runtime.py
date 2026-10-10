@@ -78,7 +78,7 @@ class TestResetRuntimeData(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_reset_preserves_and_deletes(self):
-        deleted, skipped = reset_runtime_data(str(self.tmp))
+        reset_runtime_data(str(self.tmp))
 
         # 保留项
         self.assertTrue((self.tmp / ".env").exists(), ".env 应保留")

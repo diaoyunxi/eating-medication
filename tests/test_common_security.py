@@ -48,7 +48,7 @@ class TestAccessToken(unittest.TestCase):
         return token, decode_token(token, secret, algorithm)
 
     def test_roundtrip(self):
-        token, decoded = self._roundtrip({"sub": "42", "extra": "x"})
+        _, decoded = self._roundtrip({"sub": "42", "extra": "x"})
         self.assertEqual(decoded["sub"], "42")
         self.assertEqual(decoded["extra"], "x")
         self.assertEqual(decoded["type"], "access")

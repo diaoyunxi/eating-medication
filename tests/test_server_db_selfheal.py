@@ -99,7 +99,7 @@ class TestSyncSchemaSelfHeal(unittest.TestCase):
         return Base, User, Item
 
     def test_adds_missing_column(self):
-        Base, User, Item = self._build_env()
+        Base, _, _ = self._build_env()
         engine = create_engine("sqlite:///:memory:")
         # 仅创建「缺 notification_settings 列」的 users（手动建表）+ 完整 items
         from sqlalchemy import text
@@ -114,14 +114,14 @@ class TestSyncSchemaSelfHeal(unittest.TestCase):
         self.assertIn("notification_settings", cols)
 
     def test_idempotent_when_column_exists(self):
-        Base, User, Item = self._build_env()
+        Base, _, _ = self._build_env()
         engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(bind=engine)  # 列已存在
         added = sync_schema_with_models(engine, Base)
         self.assertEqual(added, 0)  # 无需补列
 
     def test_skips_missing_table(self):
-        Base, User, Item = self._build_env()
+        Base, _, _ = self._build_env()
         engine = create_engine("sqlite:///:memory:")
         # 只建 items，不建 users -> users 表缺失应跳过（交由 create_all）
         from sqlalchemy import text
