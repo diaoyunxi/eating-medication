@@ -101,6 +101,14 @@ def ensure_database_exists(database_url: str = None):
         logger.warning("DATABASE_URL 未指定数据库名，跳过自动建库")
         return
 
+    # 标识符合法性校验：仅允许字母、数字、下划线，防止 DDL 注入 (CWE-89)
+    import re as _re
+    if not _re.match(r'^[a-zA-Z0-9_]+$', db_name):
+        logger.warning(
+            f"数据库名 '{db_name}' 包含非法字符（仅允许 [a-zA-Z0-9_]），跳过自动建库"
+        )
+        return
+
     # 构造「管理连接」URL（不含目标库名）
     admin_path = "/postgres" if scheme == "postgresql" else "/"
     admin_url = urlunparse((parsed.scheme, parsed.netloc, admin_path, "", "", ""))
