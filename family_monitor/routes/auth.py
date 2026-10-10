@@ -182,24 +182,46 @@ async def oauth_gitee_enabled():
 
 # ==================== OAuth 绑定入口（设置页"登录方式管理"使用） ====================
 
-@router.get("/oauth/github/bind")
-async def oauth_github_bind(request: Request):
-    """GitHub 绑定入口：携带当前用户 JWT 跳转到 server 的 bind 端点"""
+async def _oauth_bind_flow(request: Request, provider: str):
+    """OAuth 绑定公共流程：JWT 经 Authorization header 换 HttpOnly cookie。
+
+    修复 P3-4：原实现把完整 JWT 放进 302 URL 查询参数（/auth/oauth/{p}/bind?token=JWT），
+    令牌会进入访问日志、反向代理日志与浏览器历史。现改为：
+    1. 先 POST server /auth/oauth/bind-start（Authorization: Bearer <JWT>），
+       由 server 校验并设置 oauth_bind_jwt HttpOnly cookie（同域共享）；
+    2. 再 302 到 server /auth/oauth/{provider}/bind（无 token 参数），
+       由 server 从 cookie 读取后跳转第三方授权页。
+    """
     token = request.cookies.get("access_token", "")
     if not token:
         return RedirectResponse(url=_PATH_PREFIX + "/login", status_code=status.HTTP_302_FOUND)
-    server_bind = _server_url(f"/auth/oauth/github/bind?token={token}")
+    settings_url = f"{_PATH_PREFIX}/settings"
+    try:
+        resp = await _server_client._execute(
+            "POST", "/auth/oauth/bind-start",
+            json_body={},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    except httpx.RequestError:
+        return RedirectResponse(url=f"{settings_url}?error=oauth_server_error", status_code=status.HTTP_302_FOUND)
+    if resp.status_code != 200:
+        return RedirectResponse(url=f"{settings_url}?error=invalid_token", status_code=status.HTTP_302_FOUND)
+    server_bind = _server_url(f"/auth/oauth/{provider}/bind")
     return RedirectResponse(url=server_bind, status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/oauth/github/bind")
+async def oauth_github_bind(request: Request):
+    """GitHub 绑定入口：先以 Authorization header 交换 HttpOnly cookie，
+    再跳转 server 的 bind 端点（JWT 不再出现在 URL，修复 P3-4）"""
+    return await _oauth_bind_flow(request, "github")
 
 
 @router.get("/oauth/gitee/bind")
 async def oauth_gitee_bind(request: Request):
-    """Gitee 绑定入口：携带当前用户 JWT 跳转到 server 的 bind 端点"""
-    token = request.cookies.get("access_token", "")
-    if not token:
-        return RedirectResponse(url=_PATH_PREFIX + "/login", status_code=status.HTTP_302_FOUND)
-    server_bind = _server_url(f"/auth/oauth/gitee/bind?token={token}")
-    return RedirectResponse(url=server_bind, status_code=status.HTTP_302_FOUND)
+    """Gitee 绑定入口：先以 Authorization header 交换 HttpOnly cookie，
+    再跳转 server 的 bind 端点（JWT 不再出现在 URL，修复 P3-4）"""
+    return await _oauth_bind_flow(request, "gitee")
 
 
 @router.post("/email/send-code")

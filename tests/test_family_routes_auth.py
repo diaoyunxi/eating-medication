@@ -91,8 +91,10 @@ class _FakeExecutor:
         self.queue = deque()
         self.default = _make_resp(200, {"ok": True})
         self.raise_error = False
+        self.calls = []
 
     async def execute(self, method, path, **kwargs):
+        self.calls.append((method, path, kwargs))
         if self.raise_error:
             raise httpx.RequestError("connection failed")
         if self.queue:
@@ -215,9 +217,24 @@ class TestAuthPages(unittest.TestCase):
         self.assertTrue(resp.headers["location"].endswith("/login"))
 
     def test_oauth_github_bind_with_token_redirect_server(self):
+        # JWT 经 bind-start（Authorization header）换 cookie 后 302 跳转，不再进 URL
+        exe = auth._server_client._execute.__self__
+        exe.push(_make_resp(200, {"success": True}))
         resp = self.client.get("/oauth/github/bind", cookies={"access_token": "tok"})
         self.assertEqual(resp.status_code, 302)
-        self.assertIn("token=tok", resp.headers["location"])
+        self.assertTrue(resp.headers["location"].endswith("/auth/oauth/github/bind"))
+        self.assertNotIn("token=tok", resp.headers["location"])
+        # bind-start 收到 Bearer 令牌
+        method, path, kwargs = exe.calls[-1]
+        self.assertEqual(path, "/auth/oauth/bind-start")
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer tok")
+
+    def test_oauth_github_bind_bind_start_failure_redirects_settings(self):
+        exe = auth._server_client._execute.__self__
+        exe.push(_make_resp(401, {"detail": "invalid"}))
+        resp = self.client.get("/oauth/github/bind", cookies={"access_token": "tok"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("error=invalid_token", resp.headers["location"])
 
     def test_oauth_gitee_bind_no_token_redirect_login(self):
         resp = self.client.get("/oauth/gitee/bind")
