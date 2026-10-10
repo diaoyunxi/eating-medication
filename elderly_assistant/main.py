@@ -429,6 +429,7 @@ def main():
     # 10. 主循环
     logger.info("进入主循环")
     try:
+        _max_iter = 1000000  # Safety limit
         while True:
             now = datetime.now()
 
