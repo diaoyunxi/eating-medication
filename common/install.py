@@ -41,6 +41,17 @@ import importlib
 import urllib.request
 from pathlib import Path
 
+
+def _validate_https_url(url: str) -> str:
+    """验证 URL 必须是 HTTPS 协议，防止 SSRF (CWE-918)"""
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if parsed.scheme not in ("https",):
+        raise ValueError(f"仅允许 HTTPS 协议，收到: {parsed.scheme}://")
+    return url
+
+
+
 # pip 镜像源策略：默认不使用任何镜像源（走系统/官方默认源），
 # 若安装失败则自动回退到官方 PyPI 源 PIP_FALLBACK_URL 重试一次。
 # 可用环境变量 PIP_INDEX_URL 强制指定首选源（非空时优先使用，失败仍回退官方源）。
@@ -318,7 +329,7 @@ def _install_pip_windows():
     print("  [Windows] 下载 get-pip.py 引导安装 ...")
     print("    URL:", GET_PIP_URL)
     try:
-        with urllib.request.urlopen(GET_PIP_URL, timeout=120) as resp:
+        with urllib.request.urlopen(_validate_https_url(GET_PIP_URL), timeout=120) as resp:
             data = resp.read()
     except Exception as e:
         print(f"  get-pip.py 下载失败: {e}")
@@ -614,7 +625,7 @@ def _download_huskylens(target_path):
     url = _huskylens_download_url()
     print("    下载地址:", url)
     try:
-        with urllib.request.urlopen(url, timeout=120) as resp:
+        with urllib.request.urlopen(_validate_https_url(url), timeout=120) as resp:
             data = resp.read()
     except Exception as e:
         print(f"    下载失败: {e}")
