@@ -16,7 +16,7 @@ python-jose[cryptography]>=3.5.0
 # (PYSEC-2026-2263/3455/3456/3457，修复版本 >= 0.6.4)
 pyasn1>=0.6.4
 bcrypt>=4.0
-httpx==0.27.2
+httpx==0.28.1
 fastapi-oauth20==0.0.3
 aiofiles==24.1.0
 python-multipart==0.0.32
