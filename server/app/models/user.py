@@ -47,7 +47,7 @@ class User(Base):
     # Gitee 用户唯一 ID（首次 OAuth 登录绑定，唯一索引），非 Gitee 用户为 NULL
     gitee_id = Column(Integer, nullable=True, unique=True, index=True)
     # 第三方 OAuth 返回的邮箱（如 Gitee 已授权 emails 权限），本地用户为 NULL
-    email = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True, index=True)  # 添加索引：邮箱用于登录查询和 OAuth 绑定
 
     # ===== TOTP 第二因子（密码后的第二因子，issue：新增登录方式） =====
     # TOTP 共享密钥（base32），使用 crypto.encrypt_text 加密存储，未开启时为 NULL
