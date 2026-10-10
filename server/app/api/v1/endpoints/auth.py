@@ -94,7 +94,7 @@ def register(
         token = AuthService.register(db, req, oauth_pending=oauth_pending)
         return TokenResp(access_token=token, token_type="bearer")
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 @router.post("/login")
 def login(req: LoginReq, request: Request, db: Session = Depends(get_db)):
@@ -166,7 +166,7 @@ def email_code_login(req: EmailCodeLoginReq, request: Request, db: Session = Dep
             return {"mfa_required": True, "mfa_token": token_data["mfa_token"]}
         return TokenResp(access_token=token_data["access_token"], token_type="bearer")
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 # ==================== 登录方式管理（绑定/解绑/查询） ====================
@@ -196,7 +196,7 @@ def bind_phone(
         AuthService.bind_phone(db, current_user, req.phone, req.password)
         return {"success": True, "message": "手机号绑定成功"}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/bind-email/send-code")
@@ -244,7 +244,7 @@ def bind_email(
         AuthService.bind_email(db, current_user, req.email)
         return {"success": True, "message": "邮箱绑定成功"}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete("/unbind-phone")
@@ -257,7 +257,7 @@ def unbind_phone(
         AuthService.unbind_phone(db, current_user)
         return {"success": True, "message": "手机号已解绑"}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete("/unbind-email")
@@ -270,7 +270,7 @@ def unbind_email(
         AuthService.unbind_email(db, current_user)
         return {"success": True, "message": "邮箱已解绑"}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete("/unbind-oauth/{provider}")
@@ -289,4 +289,4 @@ def unbind_oauth(
         AuthService.unbind_oauth(db, current_user, provider)
         return {"success": True, "message": f"{provider} 已解绑"}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e

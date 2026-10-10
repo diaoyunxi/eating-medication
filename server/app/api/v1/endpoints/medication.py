@@ -54,7 +54,7 @@ async def take_medication(
         record = await MedicationService.take_medication(db, current_user.id, req)
         return {"status": "success", "record_id": record.id}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 @router.get("/history", response_model=List[MedicationRecordOut])
 def get_history(
