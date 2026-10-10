@@ -8,7 +8,7 @@ starlette>=0.36.0
 
 # 数据库
 sqlalchemy>=2.0.0
-alembic>=1.13.0
+alembic>=1.20.0
 
 # HTTP 客户端
 httpx>=0.27.0
