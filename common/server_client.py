@@ -38,7 +38,7 @@ class _ResponseAdapter:
     - ``json()``：解析 JSON；解析失败时抛出原始异常（与原 httpx.Response.json() 行为一致）。
     """
 
-    __slots__ = ("status_code", "text", "_parsed", "_parse_exc")
+    __slots__ = ("_parse_exc", "_parsed", "status_code", "text")
 
     def __init__(self, status_code: int, text: str, parsed: Any, parse_exc: Optional[Exception]):
         self.status_code = status_code
