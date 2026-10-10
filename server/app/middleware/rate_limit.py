@@ -31,12 +31,23 @@ RATE_LIMIT_RULES = {
 _store = defaultdict(lambda: defaultdict(deque))
 
 
+# 可信代理 IP 列表：仅当直连来源在此列表中时才信任 X-Forwarded-For
+_TRUSTED_PROXIES = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
 def _client_ip(request) -> str:
-    """优先取 X-Forwarded-For（Cloudflare 隧道/反代场景），否则取直连 IP。"""
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    """获取客户端真实 IP。
+
+    仅当直连来源是可信代理（localhost / Cloudflare tunnel 本地端）时
+    才信任 X-Forwarded-For 头部；否则直接使用直连 IP，防止客户端
+    伪造 X-Forwarded-For 绕过速率限制 (CWE-346)。
+    """
+    direct_ip = request.client.host if request.client else "unknown"
+    if direct_ip in _TRUSTED_PROXIES:
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            return xff.split(",")[0].strip()
+    return direct_ip
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
