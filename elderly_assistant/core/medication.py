@@ -11,11 +11,12 @@ CN_NUM = {'零': 0, '半': 0.5, '一': 1, '两': 2, '二': 2, '三': 3, '四': 4
 
 
 def _parse_dosage(s):
-    """解析剂量字符串，支持阿拉伯数字与中文数字"""
+    """解析剂量字符串，支持阿拉伯数字、小数与中文数字"""
     import re
-    nums = re.findall(r'\d+', str(s))
-    if nums:
-        return int(nums[0])
+    # 先尝试匹配小数（如 "1.5", "0.5"）
+    match = re.search(r'\d+\.?\d*', str(s))
+    if match:
+        return float(match.group())
     # 尝试中文数字
     for k, v in CN_NUM.items():
         if k in str(s):
