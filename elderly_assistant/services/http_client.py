@@ -55,7 +55,7 @@ def _load_device_token():
     """从本地文件加载设备令牌"""
     try:
         if os.path.exists(_TOKEN_FILE):
-            with open(_TOKEN_FILE, 'r') as f:
+            with open(_TOKEN_FILE, 'r', encoding='utf-8') as f:
                 token = f.read().strip()
                 if token:
                     return token
@@ -68,7 +68,7 @@ def _save_device_token(token):
     """持久化设备令牌到本地文件"""
     try:
         os.makedirs(os.path.dirname(_TOKEN_FILE), exist_ok=True)
-        with open(_TOKEN_FILE, 'w') as f:
+        with open(_TOKEN_FILE, 'w', encoding='utf-8') as f:
             f.write(token)
         os.chmod(_TOKEN_FILE, 0o600)
         logger.info("device_token 已保存到本地")
