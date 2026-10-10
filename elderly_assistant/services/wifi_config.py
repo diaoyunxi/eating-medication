@@ -250,7 +250,14 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
         parsed_path = urlparse(self.path)
 
         if parsed_path.path == '/api/connect':
-            content_length = int(self.headers.get('Content-Length', 0))
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+            except (ValueError, TypeError):
+                self._send_json({'error': 'Invalid Content-Length header'}, 400)
+                return
+            if content_length < 0:
+                self._send_json({'error': 'Negative Content-Length'}, 400)
+                return
             body = self.rfile.read(content_length).decode('utf-8')
             try:
                 # 兼容 JSON 与表单提交
