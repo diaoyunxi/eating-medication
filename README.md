@@ -196,7 +196,6 @@
 │   ├── .env.example                # 配置文件示例（扁平 .env）
 │   ├── requirements.txt           # 依赖清单
 │   ├── core/                      # 核心业务逻辑
-│   │   ├── ai_assistant.py        # AI 助手交互
 │   │   ├── camera.py              # 摄像头封装
 │   │   ├── display.py             # 屏幕显示
 │   │   ├── local_fallback.py      # 离线本地降级
@@ -205,7 +204,6 @@
 │   │   ├── reminder.py            # 提醒调度
 │   │   └── uploader.py            # 服药照片上传
 │   ├── services/                  # 底层服务
-│   │   ├── ai_client.py           # 大模型客户端（OpenAI 兼容）
 │   │   ├── buzzer.py              # 蜂鸣器
 │   │   ├── device_id.py           # 设备 ID 生成
 │   │   ├── hotspot_manager.py     # 热点创建（nmcli）
