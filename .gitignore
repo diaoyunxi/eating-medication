@@ -78,3 +78,5 @@ htmlcov/
 *.lz
 *.lzo
 _*
+# Ruff linter cache
+.ruff_cache/
