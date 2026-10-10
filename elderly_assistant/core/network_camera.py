@@ -415,19 +415,16 @@ def _get_webrtc_frame(cfg: dict) -> Optional[bytes]:
         async def _pull_one_frame() -> Optional[bytes]:
             pc = RTCPeerConnection()
             received_frame = None
+            frame_future = None
 
             @pc.on("track")
             def on_track(track):
-                nonlocal received_frame
+                nonlocal frame_future
                 if track.kind == "video":
-                    # 读取第一帧
-                    try:
-                        frame = asyncio.get_event_loop().run_until_complete(
-                            asyncio.wait_for(track.recv(), timeout=5.0)
-                        )
-                        received_frame = frame
-                    except Exception as e:
-                        logger.warning("WebRTC 收帧异常: %s", e)
+                    # 调度异步读取帧（不在已运行的事件循环中调用 run_until_complete）
+                    frame_future = asyncio.ensure_future(
+                        asyncio.wait_for(track.recv(), timeout=5.0)
+                    )
 
             # 生成 offer
             offer = await pc.createOffer()
@@ -454,6 +451,12 @@ def _get_webrtc_frame(cfg: dict) -> Optional[bytes]:
 
             # 等待第一帧（最多 5 秒）
             await asyncio.sleep(3)
+
+            if frame_future is not None:
+                try:
+                    received_frame = await frame_future
+                except Exception as e:
+                    logger.warning("WebRTC 收帧异常: %s", e)
 
             if received_frame is None:
                 logger.warning("WebRTC 未在 3 秒内收到视频帧")
