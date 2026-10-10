@@ -236,7 +236,7 @@ def start_elderly(extra_args):
 
     # 老人端内部会 chdir 到自身目录，此处无需预先切换工作目录
     try:
-        os.execv(python_exe, argv)
+        os.execv(python_exe, argv)  # noqa: S606
     except OSError as e:
         # execv 成功时不会返回；走到这里说明替换失败（如解释器路径失效）
         print(f"[错误] 启动老人端失败: {e}")

@@ -66,7 +66,7 @@ def _check_and_install_dependencies():
                 )
                 if result.returncode == 0:
                     print("依赖安装完成，正在重新启动服务...")
-                    os.execv(venv_python, [venv_python] + sys.argv)
+                    os.execv(venv_python, [venv_python] + sys.argv)  # noqa: S606
                 else:
                     print("依赖安装可能未完全成功，尝试继续运行...")
             except Exception as e:
@@ -81,7 +81,7 @@ def _check_and_install_dependencies():
 _venv_py = _venv_python_path()
 if _venv_py.exists() and not _in_venv():
     try:
-        os.execv(str(_venv_py), [str(_venv_py)] + sys.argv)
+        os.execv(str(_venv_py), [str(_venv_py)] + sys.argv)  # noqa: S606
     except Exception:
         pass
 

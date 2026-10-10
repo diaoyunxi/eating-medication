@@ -143,10 +143,10 @@ def check_and_install_dependencies():
     # 安装发生在 .venv 内；优先用 .venv 解释器重启，否则维持当前解释器
     if venv_python.exists():
         print(f"正在使用虚拟环境重启服务端: {venv_python}")
-        os.execv(str(venv_python), [str(venv_python)] + sys.argv)
+        os.execv(str(venv_python), [str(venv_python)] + sys.argv)  # noqa: S606
     else:
         print("正在重新启动服务端...")
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+        os.execv(sys.executable, [sys.executable] + sys.argv)  # noqa: S606
 
 
 def create_app_dirs():
@@ -222,7 +222,7 @@ def main():
     venv_py = _venv_python_path()
     if venv_py.exists() and not _in_venv():
         try:
-            os.execv(str(venv_py), [str(venv_py)] + sys.argv)
+            os.execv(str(venv_py), [str(venv_py)] + sys.argv)  # noqa: S606
         except Exception as e:
             print(f"切换到虚拟环境失败，继续以当前解释器运行: {e}")
 

@@ -69,7 +69,7 @@ def _ensure_running_in_venv():
     py = _venv_python()
     if py != sys.executable and not _in_venv():
         try:
-            os.execv(py, [py] + sys.argv)
+            os.execv(py, [py] + sys.argv)  # noqa: S606
         except Exception as e:
             print(f"切换到虚拟环境失败，继续以当前解释器运行: {e}")
 
@@ -184,7 +184,7 @@ def check_and_install_dependencies():
                 else:
                     print("依赖安装完成，正在重新启动老人端...")
                     py = _venv_python()
-                    os.execv(py, [py] + sys.argv)
+                    os.execv(py, [py] + sys.argv)  # noqa: S606
             except Exception as e:
                 print(f"自动安装失败: {e}")
                 print(f"请手动运行: python {root_install} {req_path} --huskylens")
