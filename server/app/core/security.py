@@ -1,45 +1,38 @@
 # -*- coding: utf-8 -*-
-import bcrypt
 from jose import jwt
 from jose.exceptions import JWTError
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 import secrets
 from app.core.config import settings
-from common.security import mask_device_id  # 与 common/security.py 共享同一实现，消除重复定义
 
-# 移除 passlib（与 bcrypt 4.x 不兼容），改用 bcrypt 原生 API
-# 密码哈希 rounds 固定为 12，与原 passlib 配置一致
+# 密码哈希/验证统一委托 common.security，消除重复实现。
+# common 版本额外捕获 pyo3 PanicException（bcrypt Rust 绑定对畸形哈希的原生 panic），
+# 比 server 本地实现更健壮。
+from common.security import (
+    hash_password,
+    verify_password,
+    mask_device_id,
+)
 
 # 当前使用 HS256 对称加密，适用于单服务部署。
 # 微服务场景应改用 RS256 非对称加密（公钥验签、私钥签发），避免多服务共享密钥。
 
-
-def hash_password(password: str) -> str:
-    """哈希密码
-
-    :param password: 明文密码
-    :return: bcrypt 哈希字符串（含 salt 与 rounds）
-    """
-    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12))
-    return hashed.decode("utf-8")
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """验证密码
-
-    :param plain_password: 明文密码
-    :param hashed_password: bcrypt 哈希字符串
-    :return: 匹配返回 True，否则 False
-    """
-    try:
-        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
-    except (ValueError, TypeError):
-        # 哈希格式非法或为空时返回 False，避免抛出异常
-        return False
-
-
-# mask_device_id 由 common.security 导入（见上方 import），全仓统一实现，避免重复定义
+__all__ = [
+    "hash_password",
+    "verify_password",
+    "mask_device_id",
+    "create_access_token",
+    "decode_token",
+    "create_oauth_state_token",
+    "verify_oauth_state_token",
+    "create_oauth_pending_token",
+    "verify_oauth_pending_token",
+    "create_webauthn_challenge_token",
+    "verify_webauthn_challenge_token",
+    "create_mfa_token",
+    "verify_mfa_token",
+]
 
 
 def create_access_token(data: Dict[str, Any], expires_delta: timedelta = None) -> str:
