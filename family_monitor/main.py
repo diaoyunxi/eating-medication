@@ -371,6 +371,8 @@ async def _verify_jwt_via_server(access_token: str) -> Optional[tuple]:
             username = data.get("username")
             user_id = data.get("id")
             # 缓存 30 秒
+            # 清理过期条目，防止缓存无限增长 (CWE-770)
+            _jwt_cache = {k: v for k, v in _jwt_cache.items() if v[2] > now}
             _jwt_cache[access_token] = (username, user_id, now + 30)
             return (username, user_id)
         else:
