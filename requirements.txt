@@ -23,7 +23,7 @@ bcrypt>=4.1.0
 python-jose[cryptography]>=3.3.0
 pyotp>=2.9.0
 python-dotenv>=1.0.0
-webauthn>=2.0.0
+webauthn>=3.0.1
 
 # 二维码
 qrcode[pil]>=7.4.0
