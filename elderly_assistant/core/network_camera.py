@@ -137,19 +137,20 @@ def _get_http_snapshot(cfg: dict) -> Optional[bytes]:
     for path in paths_to_try:
         url = f"{base}{path}"
         try:
-            resp = requests.get(url, timeout=cfg["request_timeout"], stream=True)
-            if resp.status_code == 200 and resp.content:
-                content_type = resp.headers.get("Content-Type", "")
-                # 如果是 MJPEG 流，只取第一帧
-                if "multipart" in content_type:
-                    # 解析 multipart 响应，取第一个 boundary 前的 JPEG 数据
-                    frame = _extract_first_mjpeg_frame(resp.raw, resp.headers)
-                    if frame:
-                        logger.debug("HTTP 快照成功（MJPEG 第一帧）: %s", url)
-                        return frame
-                elif "image" in content_type or resp.content[:3] == b"\xff\xd8\xff":
-                    logger.debug("HTTP 快照成功: %s", url)
-                    return resp.content
+            # 使用 context manager 确保 stream=True 响应被正确关闭，防止连接池泄漏
+            with requests.get(url, timeout=cfg["request_timeout"], stream=True) as resp:
+                if resp.status_code == 200 and resp.content:
+                    content_type = resp.headers.get("Content-Type", "")
+                    # 如果是 MJPEG 流，只取第一帧
+                    if "multipart" in content_type:
+                        # 解析 multipart 响应，取第一个 boundary 前的 JPEG 数据
+                        frame = _extract_first_mjpeg_frame(resp.raw, resp.headers)
+                        if frame:
+                            logger.debug("HTTP 快照成功（MJPEG 第一帧）: %s", url)
+                            return frame
+                    elif "image" in content_type or resp.content[:3] == b"\xff\xd8\xff":
+                        logger.debug("HTTP 快照成功: %s", url)
+                        return resp.content
         except Exception as e:
             logger.debug("尝试 %s 失败: %s", url, e)
             continue
