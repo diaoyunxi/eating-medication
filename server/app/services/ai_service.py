@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 from app.core.config import settings
+from collections import OrderedDict
 import logging
 import threading
 import asyncio
 
 logger = logging.getLogger(__name__)
+
+# 客户端缓存上限：最多缓存 _MAX_CLIENTS 个 (provider, api_key) 组合的 OpenAI 客户端。
+# 超出后按 LRU 策略淘汰最久未使用的条目，防止多用户各自配置不同 API Key 时缓存无限增长。
+_MAX_CLIENTS = 32
 
 # 各厂商 OpenAI 兼容 base_url 预设（统一走 OpenAI 协议，仅需一个 openai 库即可覆盖全部厂商）
 # 自定义厂商(custom)的 base_url 由调用方传入，不在此预设
@@ -42,8 +47,8 @@ class AIService:
       缺省时回退到全局 settings.ZHIPUAI_*（兼容旧 .env 单厂商配置）。
     """
 
-    # 按 (provider, api_key) 缓存 OpenAI 客户端，避免重复初始化
-    _clients: dict = {}
+    # 按 (provider, api_key) 缓存 OpenAI 客户端，LRU 策略淘汰最久未使用的条目
+    _clients: OrderedDict = OrderedDict()
     _lock = threading.Lock()
 
     @classmethod
@@ -62,22 +67,29 @@ class AIService:
 
     @classmethod
     def _get_client(cls, provider: str, api_key: str, base_url: str):
-        """获取 OpenAI 兼容客户端（按 provider+key 缓存，线程安全）"""
+        """获取 OpenAI 兼容客户端（按 provider+key 缓存，LRU 淘汰，线程安全）"""
         if not api_key:
             return None
         if not base_url and provider != "custom":
-            logger.error(f"❌ AI 厂商 {provider} 缺少 base_url 且不在预设列表中")
+            logger.error(f"AI 厂商 {provider} 缺少 base_url 且不在预设列表中")
             return None
         cache_key = (provider, api_key)
         with cls._lock:
             cached = cls._clients.get(cache_key)
             if cached is not None:
+                # LRU：命中时移至末尾（最近使用）
+                cls._clients.move_to_end(cache_key)
                 return cached
         try:
             from openai import OpenAI
             client = OpenAI(base_url=base_url, api_key=api_key)
             with cls._lock:
                 cls._clients[cache_key] = client
+                cls._clients.move_to_end(cache_key)
+                # LRU：超限时淘汰最久未使用的条目（头部）
+                while len(cls._clients) > _MAX_CLIENTS:
+                    evicted_key, _ = cls._clients.popitem(last=False)
+                    logger.debug(f"AI 客户端缓存淘汰: provider={evicted_key[0]}")
             logger.info(f"✅ OpenAI 客户端初始化成功 (provider={provider})")
             return client
         except Exception as e:
