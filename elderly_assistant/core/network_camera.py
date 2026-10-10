@@ -431,9 +431,11 @@ def _get_webrtc_frame(cfg: dict) -> Optional[bytes]:
             await pc.setLocalDescription(offer)
 
             # 发送 offer 到信令接口（HTTP POST）
+            # 使用 asyncio.to_thread 包装同步 requests.post，避免阻塞事件循环
             import requests
             try:
-                resp = requests.post(
+                resp = await asyncio.to_thread(
+                    requests.post,
                     f"http://{ip}:{http_port}{offer_path}",
                     json={"sdp": offer.sdp},
                     timeout=cfg["request_timeout"],
