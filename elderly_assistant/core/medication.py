@@ -133,13 +133,22 @@ class MedicationManager:
                 return False
 
     def check_low(self, med):
-        """检查药品是否低于提醒阈值，返回 (药品名, 剩余天数) 或 (None, None)"""
+        """检查药品是否低于提醒阈值，返回 (药品名, 剩余天数) 或 (None, None)
+
+        剩余天数 = 剩余量 / (每次用量 × 每日次数)
+        若 medication 数据中无 daily_frequency 字段，默认按每日 1 次计算。
+        """
         try:
             dosage = med.get('dosage_per_use', 0)
             if dosage <= 0:
                 return None, None
             remaining = med.get('remaining', 0)
-            days_left = remaining / dosage
+            # 每日总消耗 = 每次用量 × 每日服用次数（默认 1 次/天）
+            daily_frequency = med.get('daily_frequency', 1)
+            if daily_frequency <= 0:
+                daily_frequency = 1
+            daily_consumption = dosage * daily_frequency
+            days_left = remaining / daily_consumption
             threshold = med.get('reminder_days', 5)
             if days_left < threshold:
                 return med.get('name'), days_left
