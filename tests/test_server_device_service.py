@@ -13,6 +13,8 @@ import secrets
 import tempfile
 import uuid
 from datetime import datetime, timezone, timedelta
+
+import pytest
 from unittest.mock import patch, MagicMock
 
 from sqlalchemy import create_engine
@@ -82,7 +84,7 @@ def test_get_device_user_resolves_and_404():
     from fastapi import HTTPException
     try:
         DeviceService.get_device_user(db, "UNKNOWN_DEVICE")
-        assert False, "应抛 404"
+        pytest.fail("应抛 404")
     except HTTPException as e:
         assert e.status_code == 404
 
@@ -118,14 +120,14 @@ def test_get_device_user_authed():
     from fastapi import HTTPException
     try:
         DeviceService.get_device_user_authed(db, "DEVICE1234ABCD", "wrong")
-        assert False, "应抛 403"
+        pytest.fail("应抛 403")
     except HTTPException as e:
         assert e.status_code == 403
 
     # 未注册 -> 404
     try:
         DeviceService.get_device_user_authed(db, "UNKNOWN", "x")
-        assert False, "应抛 404"
+        pytest.fail("应抛 404")
     except HTTPException as e:
         assert e.status_code == 404
 
@@ -274,7 +276,7 @@ def test_save_upload_returns_unique_paths():
         # save_upload 实际存储路径为 _UPLOAD_ROOT/<user.id>/<fname>，
         # 返回的 "uploads/" 只是 URL 前缀，本地无此层目录。
         abs_paths = [os.path.join(tmp, *p.split("/")[1:]) for p in paths]
-        assert len(set(os.path.abspath(a) for a in abs_paths)) == 20
+        assert len({os.path.abspath(a) for a in abs_paths}) == 20
         for a in abs_paths:
             assert os.path.isfile(a)
 
@@ -315,7 +317,7 @@ def test_save_upload_rejects_invalid_encoding():
         with patch.object(device_service, "_UPLOAD_ROOT", tmp):
             try:
                 DeviceService.save_upload(db, user, "!!!not-base64!!!")
-                assert False, "应抛 400"
+                pytest.fail("应抛 400")
             except HTTPException as e:
                 assert e.status_code == 400
 
@@ -330,7 +332,7 @@ def test_save_upload_rejects_non_image():
             try:
                 # 合法 base64，但解码后不是图片头
                 DeviceService.save_upload(db, user, "aGVsbG8gd29ybGQ=")
-                assert False, "应抛 400"
+                pytest.fail("应抛 400")
             except HTTPException as e:
                 assert e.status_code == 400
 
