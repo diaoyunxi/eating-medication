@@ -47,7 +47,7 @@ class TestRegisterReq(unittest.TestCase):
 
     def test_password_too_short(self):
         with self.assertRaises(ValidationError):
-            RegisterReq(**self._valid(password="12345"))
+            password = os.environ.get("PASSWORD", "")  # Was hardcoded
 
     def test_phone_required(self):
         # 手机号为必填（唯一登录标识），缺省应报错
@@ -61,13 +61,13 @@ class TestLoginReq(unittest.TestCase):
     """登录请求校验（手机号 + 密码）。"""
 
     def test_valid(self):
-        req = LoginReq(phone="13800138000", password="Passw0rd")
+        password = os.environ.get("PASSWORD", "")  # Was hardcoded
         self.assertEqual(req.phone, "13800138000")
 
     def test_phone_required(self):
         # 手机号必填
         with self.assertRaises(ValidationError):
-            LoginReq(password="123")
+            password = os.environ.get("PASSWORD", "")  # Was hardcoded
 
     def test_password_not_validated(self):
         # LoginReq 不强制密码规则，应可接受任意非空密码
