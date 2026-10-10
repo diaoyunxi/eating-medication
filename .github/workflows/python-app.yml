@@ -39,7 +39,7 @@ jobs:
 
       - name: Set up Python 3.13
         if: steps.meta.outputs.is_code == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
