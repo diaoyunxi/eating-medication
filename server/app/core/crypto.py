@@ -16,6 +16,14 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+class DecryptionError(Exception):
+    """解密失败异常。
+
+    当密文无法用当前 SECRET_KEY 解密时抛出，调用方可据此区分
+    "未配置"（空字符串）与"解密失败"（需用户重新配置 API Key）。
+    """
+
+
 def _fernet_key() -> bytes:
     """由 SECRET_KEY 派生出 32 字节 url-safe base64 密钥（Fernet 要求）"""
     digest = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).digest()
@@ -36,7 +44,11 @@ def encrypt_text(plaintext: str) -> str:
 
 
 def decrypt_text(ciphertext: str) -> str:
-    """解密密文，返回明文；空字符串直接返回空。"""
+    """解密密文，返回明文；空字符串直接返回空。
+
+    解密失败时抛出 DecryptionError（自定义异常），调用方可据此区分
+    "未配置"（空字符串输入）与"解密失败"（SECRET_KEY 变更或密文损坏）。
+    """
     if not ciphertext:
         return ""
     try:
@@ -44,5 +56,10 @@ def decrypt_text(ciphertext: str) -> str:
         f = Fernet(_fernet_key())
         return f.decrypt(ciphertext.encode("utf-8")).decode("utf-8")
     except Exception as e:
-        logger.error(f"❌ API Key 解密失败（SECRET_KEY 可能已变更）: {e}")
-        return ""
+        logger.error(
+            "API Key 解密失败（可能原因：SECRET_KEY 已变更、密文损坏或格式不合法）。"
+            "请在「设置 - AI 助手设置」中重新配置 API Key。错误详情: %s", e
+        )
+        raise DecryptionError(
+            f"API Key 解密失败，请在设置中重新配置: {e}"
+        ) from e
