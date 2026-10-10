@@ -211,12 +211,11 @@ def validate_mandatory_config():
     """
     errors = []
     is_production = os.getenv('PRODUCTION', 'false').lower() == 'true'
-    if is_production or not config.DEBUG:
-        if getattr(config, '_secret_key_is_random', False):
-            errors.append(
-                "SECRET_KEY 未配置：生产/非调试环境拒绝以未配置密钥启动。"
-                "请在 family_monitor/.env 设置 SECRET_KEY 后重启。"
-            )
+    if (is_production or not config.DEBUG) and getattr(config, '_secret_key_is_random', False):
+        errors.append(
+            "SECRET_KEY 未配置：生产/非调试环境拒绝以未配置密钥启动。"
+            "请在 family_monitor/.env 设置 SECRET_KEY 后重启。"
+        )
     if not config.APP_NAME or not config.APP_NAME.strip():
         errors.append(
             "APP_NAME 未配置：请在 family_monitor/.env 设置应用名称"
