@@ -899,11 +899,11 @@ def _print_diagnostics(repo_root: Path, deleted: list, skipped: list):
     print(f"  已删除: {len(deleted)} 项")
     print(f"  跳过: {len(skipped)} 项")
     if skipped:
-        print(f"  跳过详情（前 5 项）:")
+        print("  跳过详情（前 5 项）:")
         for s in skipped[:5]:
             print(f"    - {s}")
 
-    print(f"\n[6] 结论:")
+    print("\n[6] 结论:")
     issues = []
     if not all_ok:
         issues.append("关键路由文件导入不完整（可能导致 500 错误）")
@@ -1056,7 +1056,7 @@ def check_for_update(auto_pull=None):
     current_ver = info["current_version"]
     try:
         if not latest:
-            logger.warning(f"[更新检查] 无法获取最新版本（网络或 GitHub 异常），跳过检查")
+            logger.warning("[更新检查] 无法获取最新版本（网络或 GitHub 异常），跳过检查")
             return info
 
         if _compare_versions(latest, current_ver) <= 0:
