@@ -204,9 +204,9 @@ class Display:
     def _format_status(self, server_url, connected):
         """格式化服务器连接状态文本"""
         if connected:
-            return f'服务器: 已连接'
+            return '服务器: 已连接'
         else:
-            return f'服务器: 未连接'
+            return '服务器: 未连接'
 
     def _format_uuid(self, device_uuid):
         """格式化底部设备 ID 文本。
