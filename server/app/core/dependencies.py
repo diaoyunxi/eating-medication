@@ -33,6 +33,9 @@ async def get_current_user(
     token = credentials.credentials
     try:
         payload = decode_token(token)
+        # 校验 token 类型：仅接受 access token，拒绝 mfa / oauth_state / webauthn_challenge 等短期令牌
+        if payload.get("type") != "access":
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的 token 类型")
         # sub 统一为字符串，解码后转为 int
         sub = payload.get("sub")
         if sub is None:
@@ -63,6 +66,9 @@ async def get_current_user_optional(
         return None
     try:
         payload = decode_token(credentials.credentials)
+        # 校验 token 类型：仅接受 access token
+        if payload.get("type") != "access":
+            return None
         sub = payload.get("sub")
         if sub is None:
             return None
