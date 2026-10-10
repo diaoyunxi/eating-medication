@@ -474,7 +474,7 @@ class DeviceService:
             raise HTTPException(status_code=400, detail="图片编码无效")
         if len(raw) > 10 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="图片过大（上限10MB）")
-        if not (raw.startswith(b"\xff\xd8\xff") or raw.startswith(b"\x89PNG")):
+        if not raw.startswith((b"\xff\xd8\xff", b"\x89PNG")):
             raise HTTPException(status_code=400, detail="仅支持 JPEG/PNG 图片")
         # 多老人：照片归属到具体老人（elderly_id 指定），默认回退设备主体用户
         owner = DeviceService._resolve_elderly(db, user, elderly_id)
