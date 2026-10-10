@@ -43,7 +43,8 @@ class ConnectionManager:
                 try:
                     await connection.send_json(message)
                 except Exception as e:
-                    logger.error(f"向用户 {user_id} 发送消息失败: {e}")
+                    logger.error(f"向用户 {user_id} 发送消息失败，移除该连接: {e}")
+                    self.disconnect(connection, user_id)
 
     async def broadcast_to_group(self, group_id: int, message: dict, db):
         """
