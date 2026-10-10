@@ -47,6 +47,9 @@ class DeviceRegister(BaseModel):
     """设备注册"""
     device_id: str
     device_name: Optional[str] = None
+    # 设备绑定码：老人端屏幕展示的 6 位短码，供家属绑定时证明实际占有。
+    # 旧设备（未升级）首次上报为 None，服务端不强制。
+    bind_code: Optional[str] = None
 
 
 class DeviceOffline(BaseModel):
@@ -91,7 +94,9 @@ async def register_device(
 
     :return: {"status": "ok", "user_id": int}；首次注册额外返回 "device_token"
     """
-    user, device_token = await run_in_threadpool(DeviceService.register_or_heartbeat, db, req.device_id, req.device_name)
+    user, device_token = await run_in_threadpool(
+        DeviceService.register_or_heartbeat, db, req.device_id, req.device_name, req.bind_code
+    )
     if device_token:
         return {"status": "ok", "user_id": user.id, "device_token": device_token}
     return {"status": "ok", "user_id": user.id}

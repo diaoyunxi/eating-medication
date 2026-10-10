@@ -35,6 +35,10 @@ class User(Base):
     device_id = Column(String(64), nullable=True, unique=True, index=True)
     # 设备访问令牌：register_device 时生成，设备端点需通过 X-Device-Token 校验
     device_token = Column(String(64), nullable=True, index=True)
+    # 设备绑定码：老人端屏幕展示的 6 位短码，家属绑定设备时须提供以证明
+    # 对设备的实际占有（防止仅凭 MAC 派生的 device_id 即可越权绑定）。
+    # 由设备端生成并在注册/心跳上报时同步，未上报（旧设备）时为 NULL。
+    device_bind_code = Column(String(16), nullable=True)
     # 二哈摄像头人脸识别 ID：家属在网页录入人脸后回填，用于老人端服药前身份核验。
     # 多老人场景下，每位老人对应一个二哈已学习的 face_id，拍照前需确认当前人脸匹配。
     husky_face_id = Column(Integer, nullable=True, index=True)

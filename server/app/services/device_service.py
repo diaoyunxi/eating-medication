@@ -129,7 +129,10 @@ class DeviceService:
 
     @staticmethod
     def register_or_heartbeat(
-        db: Session, device_id: str, device_name: Optional[str] = None
+        db: Session,
+        device_id: str,
+        device_name: Optional[str] = None,
+        bind_code: Optional[str] = None,
     ):
         """设备注册 / 心跳上报
 
@@ -138,6 +141,9 @@ class DeviceService:
         - 已注册设备更新心跳，不返回 token（防止通过 register 枚举已注册设备令牌）。
 
         查找逻辑：优先 device_id 字段，回退 username（旧虚拟用户）。
+
+        :param bind_code: 设备端生成的 6 位绑定码；提供时同步到用户记录，
+            供家属绑定时校验（证明设备实际占有）。
         """
         _masked = mask_device_id(device_id or "")
         logger.info(f"设备注册/心跳: {_masked}")
@@ -154,6 +160,7 @@ class DeviceService:
                 role="elderly",
                 last_heartbeat_at=datetime.now(timezone.utc),
                 device_token=device_token,
+                device_bind_code=bind_code,
             )
             db.add(user)
             db.commit()
@@ -168,6 +175,9 @@ class DeviceService:
         if not user.device_token:
             user.device_token = secrets.token_urlsafe(32)
             logger.warning(f"旧设备无 token，已自动生成（需家属重新绑定）: {_masked}")
+        # 设备端上报绑定码（如旧设备升级后首次上报）时同步
+        if bind_code:
+            user.device_bind_code = bind_code
         db.commit()
         logger.info(f"设备心跳更新: {_masked}")
         return user, None

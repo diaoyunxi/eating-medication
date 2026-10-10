@@ -197,6 +197,14 @@
                         <input type="text" class="form-input" id="deviceName" name="device-name"
                                autocomplete="off" placeholder="如：父亲的M10">
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">绑定码</label>
+                        <input type="text" class="form-input" id="deviceBindCode" name="device-bind-code"
+                               inputmode="numeric" autocomplete="off" autocorrect="off"
+                               autocapitalize="off" spellcheck="false" maxlength="6"
+                               placeholder="输入老人端屏幕显示的6位绑定码">
+                        <p class="form-hint">绑定码显示在老人端屏幕（形如 绑定码: 482913），用于确认你确实持有该设备</p>
+                    </div>
                     <button class="btn btn-primary btn-lg w-full mt-3" onclick="bindDevice()">
                         <span>绑定设备</span>
                     </button>
@@ -550,10 +558,15 @@
         async function bindDevice() {
             const deviceId = document.getElementById('deviceId').value.trim();
             const deviceName = document.getElementById('deviceName').value.trim();
+            const bindCode = document.getElementById('deviceBindCode').value.trim();
             const bindBtn = document.querySelector('button[onclick="bindDevice()"]');
 
             if (!deviceId) {
                 showToast('请输入设备ID', 'warning');
+                return;
+            }
+            if (!bindCode) {
+                showToast('请输入老人端屏幕显示的绑定码', 'warning');
                 return;
             }
             
@@ -571,7 +584,7 @@
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded'
                     },
-                    body: `device_id=${encodeURIComponent(deviceId)}&device_name=${encodeURIComponent(deviceName)}`
+                    body: `device_id=${encodeURIComponent(deviceId)}&device_name=${encodeURIComponent(deviceName)}&bind_code=${encodeURIComponent(bindCode)}`
                 });
 
                 let data = {};
