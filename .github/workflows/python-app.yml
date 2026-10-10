@@ -115,7 +115,7 @@ jobs:
       # 生成 Release Attestation（SLSA provenance），供部署端 gh attestation verify 校验
       - name: 生成 Release Attestation
         if: steps.meta.outputs.is_code == 'true'
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: 'eating-medication-v${{ steps.version.outputs.version }}.zip'
 
