@@ -114,7 +114,7 @@ class WiFiConfigManager:
         except Exception as e:
             logger.error(f"扫描 WiFi 失败: {e}")
             self.status = "failed"
-            self.status_message = "扫描失败: %s" % str(e)
+            self.status_message = "WiFi 扫描失败"
 
         return self.scanned_networks
 
@@ -142,7 +142,7 @@ class WiFiConfigManager:
         except Exception as e:
             logger.error(f"连接 WiFi 失败: {e}")
             self.status = "failed"
-            self.status_message = "连接失败: %s" % str(e)
+            self.status_message = "WiFi 连接失败"
             return False
 
     def register_device_to_server(self, server_url):
@@ -274,7 +274,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
                 })
             except Exception as e:
                 logger.error(f"配网处理异常: {e}")
-                self._send_json({"status": "error", "message": str(e)}, 500)
+                self._send_json({"status": "error", "message": "服务器内部错误"}, 500)
         else:
             self.send_error(404, "Not Found")
 

@@ -401,7 +401,7 @@ class HTTPClient:
             return self._fallback_schedules(f"HTTP {resp.status_code}")
         except Exception as e:
             logger.warning(f"拉取用药计划异常: {e}")
-            return self._fallback_schedules(str(e))
+            return self._fallback_schedules("request_failed")
 
     def confirm_medication(self, drug_name, dosage, taken_at=None, items=None):
         """
@@ -524,7 +524,7 @@ class HTTPClient:
             else:
                 return f'抱歉，AI 服务出错了 (状态码: {resp.status_code})'
         except Exception as e:
-            return f'抱歉，AI 服务暂时不可用: {str(e)}'
+            return '抱歉，AI 服务暂时不可用，请稍后重试'
 
     def get_device_id(self):
         """返回当前设备标识符"""
