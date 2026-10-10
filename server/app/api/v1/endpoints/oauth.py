@@ -17,6 +17,7 @@ import logging
 from typing import Any, Optional
 from urllib.parse import quote
 
+import asyncio
 import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse, JSONResponse
@@ -240,7 +241,7 @@ async def _fetch_email(emails_api: str, access_token: str, auth_header: str) -> 
     try:
         # Gitee 稳定，保持直连；仅 GitHub 目标应用根目录 GITHUB_PROXY
         _kwargs = {} if "gitee.com" in emails_api else _oauth_proxy_kwargs()
-        resp = httpx.get(_oauth_rewrite_url(emails_api), headers=headers, timeout=OAUTH_HTTP_TIMEOUT, **_kwargs)
+        resp = await asyncio.to_thread(httpx.get, _oauth_rewrite_url(emails_api), headers=headers, timeout=OAUTH_HTTP_TIMEOUT, **_kwargs)
         emails = resp.json()
         if isinstance(emails, list) and emails:
             # 优先取「主邮箱且已验证」，否则取列表首个
