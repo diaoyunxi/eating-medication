@@ -70,7 +70,7 @@ def _init_huskylens(config):
         return hl
     except ImportError:
         raise ImportError("未安装 dfrobot_huskylensv2 库（条码/人脸功能不可用）")
-    except Exception as e:
+    except Exception:
         raise
 
 
