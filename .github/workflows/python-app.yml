@@ -10,6 +10,7 @@ jobs:
   # 测试 job：在发布之前运行，测试失败则通过 needs 依赖阻断发布
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -60,6 +61,7 @@ jobs:
     needs: test
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
       id-token: write        # 向 Sigstore 申请签名证书，生成 attestation 必需
