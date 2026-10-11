@@ -1,12 +1,12 @@
-﻿# -*- coding: utf-8 -*-
-import asyncio
+﻿import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Tuple
-from app.models.user import User
+
 from app.models.medication_plan import MedicationPlan
 from app.models.medication_record import MedicationRecord
+from app.models.user import User
 from app.schemas.medication import MedicationPlanCreate, TakeMedicationRequest
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ class MedicationService:
         return plan
 
     @staticmethod
-    def get_plans_by_user(db: Session, user_id: int) -> List[MedicationPlan]:
+    def get_plans_by_user(db: Session, user_id: int) -> list[MedicationPlan]:
         """获取老人的所有用药计划"""
         return db.query(MedicationPlan).filter(MedicationPlan.user_id == user_id).all()
 
@@ -105,7 +105,7 @@ class MedicationService:
         return plan
 
     @staticmethod
-    def get_plans_for_family(db: Session, group_id: int) -> List[MedicationPlan]:
+    def get_plans_for_family(db: Session, group_id: int) -> list[MedicationPlan]:
         """获取家庭组所有老人的用药计划"""
         elderly_users = db.query(User).filter(User.group_id == group_id, User.role == "elderly").all()
         elderly_ids = [u.id for u in elderly_users]
@@ -116,7 +116,7 @@ class MedicationService:
     @staticmethod
     def _do_take_medication_sync(
         db: Session, user_id: int, req: TakeMedicationRequest
-    ) -> Tuple[MedicationRecord, MedicationPlan, str]:
+    ) -> tuple[MedicationRecord, MedicationPlan, str]:
         """同步执行服药记录与库存扣减（纯 DB 操作，可安全在 asyncio.to_thread 中运行）。
 
         返回 (record, plan, status) 供调用方发送通知。
@@ -219,9 +219,9 @@ class MedicationService:
     def get_history(
         db: Session,
         current_user: User,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-    ) -> List[MedicationRecord]:
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> list[MedicationRecord]:
         """获取服药历史"""
         query = db.query(MedicationRecord)
 

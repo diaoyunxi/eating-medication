@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 服务端启动脚本
 仿照老人端 main.py 的风格：自动检查依赖、创建必要目录、启动服务
 """
 
-import sys
+import logging
 import os
 import re
 import subprocess
-import importlib
-import json
+import sys
 import traceback
-import logging
 from pathlib import Path
-
 
 # 确保仓库根目录在 sys.path（以便 import common 共享包）
 # 注意：必须 append 而非 insert(0)。仓库根目录下存在统一启动入口 main.py，
@@ -91,7 +87,7 @@ def check_and_install_dependencies():
 
     # 解析出全部需检测的 PyPI 包名
     pkg_names = []
-    with open(req_path, "r", encoding="utf-8-sig") as f:
+    with open(req_path, encoding="utf-8-sig") as f:
         for line in f:
             name = _clean_pkg_name(line)
             if name:
@@ -143,10 +139,10 @@ def check_and_install_dependencies():
     # 安装发生在 .venv 内；优先用 .venv 解释器重启，否则维持当前解释器
     if venv_python.exists():
         print(f"正在使用虚拟环境重启服务端: {venv_python}")
-        os.execv(str(venv_python), [str(venv_python)] + sys.argv)  # noqa: S606
+        os.execv(str(venv_python), [str(venv_python), *sys.argv])  # noqa: S606
     else:
         print("正在重新启动服务端...")
-        os.execv(sys.executable, [sys.executable] + sys.argv)  # noqa: S606
+        os.execv(sys.executable, [sys.executable, *sys.argv])  # noqa: S606
 
 
 def create_app_dirs():
@@ -222,7 +218,7 @@ def main():
     venv_py = _venv_python_path()
     if venv_py.exists() and not _in_venv():
         try:
-            os.execv(str(venv_py), [str(venv_py)] + sys.argv)  # noqa: S606
+            os.execv(str(venv_py), [str(venv_py), *sys.argv])  # noqa: S606
         except Exception as e:
             print(f"切换到虚拟环境失败，继续以当前解释器运行: {e}")
 
@@ -234,7 +230,7 @@ def main():
     # 仅保留 .env / config.json / logs，使工作树接近全新 clone 状态
     if "--reset" in sys.argv:
         _root = str(Path(__file__).resolve().parent.parent)
-        from updater import reset_runtime_data, confirm_reset
+        from updater import confirm_reset, reset_runtime_data
         print("=" * 60)
         print(" 重置运行时数据模式 (--reset)")
         if not confirm_reset():

@@ -1,7 +1,8 @@
-﻿# -*- coding: utf-8 -*-
-from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, Index
+﻿from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
+
 from app.core.database import Base, UTCDateTime
+
 
 class MedicationRecord(Base):
     __tablename__ = "medication_records"

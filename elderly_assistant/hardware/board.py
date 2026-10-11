@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """板级硬件访问（行空板 M10 / pinpong）。
 
 集中封装 pinpong Board 初始化与按钮/LED/光线传感器句柄获取，供 main /
@@ -53,8 +52,7 @@ def get_led():
     """获取 LED 句柄（P25），非 M10 环境返回 None。"""
     try:
         from pinpong.board import Pin
-        led = Pin(Pin.P25, Pin.OUT)
-        return led
+        return Pin(Pin.P25, Pin.OUT)
     except ImportError:
         return None
     except Exception:

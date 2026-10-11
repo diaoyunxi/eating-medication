@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """设备绑定码模块
 
 老人端本地生成并持久化一个 6 位数字绑定码（data/device_bind_code.txt），
@@ -37,7 +36,7 @@ def load_or_create_bind_code() -> str:
     try:
         os.makedirs(os.path.dirname(_BIND_CODE_FILE), exist_ok=True)
         if os.path.exists(_BIND_CODE_FILE):
-            with open(_BIND_CODE_FILE, "r", encoding="utf-8") as f:
+            with open(_BIND_CODE_FILE, encoding="utf-8") as f:
                 code = (f.read() or "").strip()
             if code and len(code) == _BIND_CODE_LEN and code.isdigit():
                 return code

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 老人用药管理智能助手 - 统一启动入口（仅用于直接以文件方式启动的场景）
 
@@ -71,7 +70,7 @@ def _read_os_release():
     try:
         if not path.is_file():
             return info
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(path, encoding="utf-8", errors="ignore") as f:
             for line in f:
                 line = line.strip()
                 # 跳过空行与注释行，避免把 `# comment` 误解析成键值对
@@ -227,7 +226,7 @@ def start_elderly(extra_args):
     _require_entry(ELDERLY_ENTRY)
 
     python_exe = _python_executable()
-    argv = [python_exe, str(ELDERLY_ENTRY)] + extra_args
+    argv = [python_exe, str(ELDERLY_ENTRY), *extra_args]
 
     print("检测结果: 行空板 (UNIHIKER M10) -> 启动老人端")
     print(f"执行: {' '.join(argv)}")
@@ -263,7 +262,7 @@ def _spawn_background(entry, log_path, extra_args):
     # Python 把「脚本所在目录」加入 sys.path[0]，二者结合才能解析到正确的 main；
     # 若此处传绝对路径，虽然 sys.path[0] 仍是该目录，但配合下方 PYTHONPATH
     # 可确保 server / family_monitor 各自的同名 main 模块不串味。
-    argv = [python_exe, entry.name] + extra_args
+    argv = [python_exe, entry.name, *extra_args]
 
     # 以追加方式打开，保留历史日志便于回溯问题
     log_file = open(log_path, "a", encoding="utf-8", errors="replace")

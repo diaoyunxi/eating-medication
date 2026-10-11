@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """公共依赖安装脚本（位于 common/install.py，原仓库根目录 install.py 已迁移至此；各模块 main.py 检测到依赖缺失时调用）。
 
 执行流程:
@@ -32,12 +31,12 @@
 GitHub 下载代理统一读取仓库根目录 .env 的 GITHUB_PROXY 字段（与 updater.py / common.envfile 共用）。
 """
 
-import sys
-import os
-import subprocess
-import tempfile
-import shutil
 import importlib
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
 import urllib.request
 from pathlib import Path
 
@@ -194,7 +193,7 @@ def _reexec_in_venv(venv_python):
 
     子进程运行于 venv 中 (in_venv() 为 True), 不会再次触发引导, 无递归风险。
     """
-    cmd = [str(venv_python), os.path.abspath(__file__)] + sys.argv[1:]
+    cmd = [str(venv_python), os.path.abspath(__file__), *sys.argv[1:]]
     print("  切换到虚拟环境执行:", " ".join(cmd))
     print()
     try:
@@ -490,7 +489,7 @@ def install_package(pkg):
         combined = out + "\n" + err
         if "--break-system-packages" in combined:
             print(f"  {pkg_name} 需要 --break-system-packages, 重新安装 ...")
-            rc, ro, re = _run_pip(cmd_base + ["--break-system-packages"])
+            rc, ro, re = _run_pip([*cmd_base, "--break-system-packages"])
             if rc == 0:
                 return True
             print(f"  安装失败 {pkg_name} 返回码: {rc}")
@@ -504,7 +503,7 @@ def install_package(pkg):
             print("  --- 错误尾部 ---\n" + tail)
         return False
 
-    base_cmd = [sys.executable, "-m", "pip", "install", pkg] + primary_extra
+    base_cmd = [sys.executable, "-m", "pip", "install", pkg, *primary_extra]
     if _try(base_cmd):
         print("  ", pkg_name, "安装完成")
         return True
@@ -544,7 +543,7 @@ def install_requirements(requirements_path):
     print("=" * 50)
     packages = []
     # utf-8-sig: 兼容 Windows 记事本等写入的带 BOM 文件, 避免首包名混入 \ufeff
-    with open(req_path, "r", encoding="utf-8-sig") as f:
+    with open(req_path, encoding="utf-8-sig") as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith("#"):
@@ -607,7 +606,7 @@ def _is_valid_huskylens_file(path):
     try:
         if not os.path.isfile(path):
             return False
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(path, encoding="utf-8", errors="ignore") as f:
             text = f.read()
     except Exception:
         return False

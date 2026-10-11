@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """common.runtime_protection 单一事实来源的回归测试。
 
 验证两组判定：
@@ -8,7 +7,6 @@
 此前 PROTECTED_* 与 PRESERVE_* 散落于 updater.py / reset_runtime.py，
 本测试作为合并后的统一回归网。
 """
-import os
 import sys
 import unittest
 from pathlib import Path

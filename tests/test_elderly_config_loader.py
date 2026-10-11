@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """elderly_assistant 配置加载纯逻辑测试（扁平 .env 体系）。"""
 import os
 import tempfile

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 项目级自动更新检查与安全更新模块（统一位于仓库根目录）
 
@@ -29,21 +28,22 @@
 - *.db / *.sqlite / *.sqlite3
 - 任何与 .gitignore 中匹配的文件
 """
-import os
-import sys
-import json
-import time
-import shutil
-import shlex
-import zipfile
-import tempfile
-import logging
 import fnmatch
+import json
+import logging
+import os
+import shlex
+import shutil
 import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+import zipfile
 from pathlib import Path
 from urllib.parse import urlparse
-import urllib.request
-import urllib.error
+
 
 # ============================================================
 # 版本与仓库常量
@@ -106,7 +106,7 @@ def _load_root_env():
 
     .env 为扁平 key=value 格式；处于引导阶段不引入额外依赖（common.envfile 仅标准库）。
     """
-    from common.envfile import read_env_dict, write_env_text, ensure_env_template
+    from common.envfile import read_env_dict
     return read_env_dict(_CONFIG_PATH)
 
 
@@ -271,7 +271,8 @@ def _open_url(url, timeout, headers=None):
 # （更新 / 部署场景：不覆盖 .env、data/、logs/、*.db 等运行时数据）
 # 保留原函数名 _is_protected_path 以兼容内部调用与既有测试。
 # ============================================================
-from common.runtime_protection import is_protected_path as _is_protected_path, is_reset_preserved_path
+from common.runtime_protection import is_protected_path as _is_protected_path
+from common.runtime_protection import is_reset_preserved_path
 
 
 # ============================================================
@@ -369,9 +370,8 @@ def _verify_release_attestation(file_path, repo="diaoyunxi/eating-medication"):
         if proc.returncode == 0:
             logger.info("[更新检查] Release Attestation 验证通过")
             return True
-        else:
-            logger.warning("[更新检查] Release Attestation 验证失败: %s", proc.stderr)
-            return False
+        logger.warning("[更新检查] Release Attestation 验证失败: %s", proc.stderr)
+        return False
     except Exception as e:
         logger.warning("[更新检查] Attestation 验证异常: %s", e)
         return False
@@ -585,9 +585,9 @@ def _restart_services():
     if not shutil.which("systemctl") or not os.path.exists("/run/systemd/system"):
         logger.warning("[更新] 当前环境非 systemd，无法自动重启服务，请手动重启以应用新版本")
         return False
-    cmd = ["systemctl", "restart"] + service_names
+    cmd = ["systemctl", "restart", *service_names]
     if os.geteuid() != 0:
-        cmd = ["sudo", "-n"] + cmd
+        cmd = ["sudo", "-n", *cmd]
     logger.info(f"[更新] 即将重启服务以应用新版本: {', '.join(service_names)}")
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
@@ -644,7 +644,7 @@ def _run_post_update_cmd():
         )
         if proc.returncode != 0:
             # 仅输出返回码与错误摘要，不回显命令内容、不打印 stdout（可能含敏感信息）
-            err_tail = (proc.stderr or "").strip().splitlines()[-1:] or [""]
+            (proc.stderr or "").strip().splitlines()[-1:] or [""]
             logger.warning("[更新] POST_UPDATE_CMD 返回非0(%s)，末行错误: {err_tail[0]}", proc.returncode)
         else:
             logger.info("[更新] POST_UPDATE_CMD 执行完成")

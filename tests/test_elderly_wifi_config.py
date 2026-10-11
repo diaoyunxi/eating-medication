@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """elderly_assistant WiFi 配置清洗纯逻辑测试。"""
 import importlib.util
 import unittest

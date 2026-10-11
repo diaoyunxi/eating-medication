@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """用药计划本地缓存（离线回退）。
 
 老人端优先从服务器拉取用药计划；网络不可用时回退读取本地缓存，保证断网
@@ -44,7 +43,7 @@ def load_schedules(path=None):
         try:
             if not os.path.exists(path):
                 return []
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
         except Exception as e:
             logger.warning(f"读取本地用药计划缓存失败: {e}")

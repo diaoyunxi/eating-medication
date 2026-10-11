@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """跨端共享：扁平 .env 文件的读取与就地更新（保留注释与其它字段）。
 
 避免三端各自手写一遍 key=value 解析逻辑（common/install.py / updater.py /
@@ -8,20 +7,20 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Dict, Union
+from typing import Union
 
 _logger = logging.getLogger(__name__)
 
 PathLike = Union[str, Path]
 
 
-def read_env_dict(path: PathLike) -> Dict[str, str]:
+def read_env_dict(path: PathLike) -> dict[str, str]:
     """解析扁平 key=value .env，返回 {key: value}（已 strip）。
 
     跳过空行、注释行(# 开头)、不含 '=' 的行；文件不存在或解析失败返回空 dict。
     """
     p = Path(path)
-    data: Dict[str, str] = {}
+    data: dict[str, str] = {}
     if not p.is_file():
         return data
     try:
@@ -40,14 +39,14 @@ def read_env_dict(path: PathLike) -> Dict[str, str]:
     return data
 
 
-def update_env_fields(path: PathLike, updates: Dict[str, str]) -> None:
+def update_env_fields(path: PathLike, updates: dict[str, str]) -> None:
     """就地更新 .env 中的若干字段，保留注释与其它字段；不存在的键追加到末尾。
 
     :param updates: {字段名: 新值}
     """
     p = Path(path)
     lines = p.read_text(encoding="utf-8").splitlines() if p.is_file() else []
-    existing: Dict[str, int] = {}
+    existing: dict[str, int] = {}
     for i, line in enumerate(lines):
         s = line.strip()
         if not s or s.startswith("#") or "=" not in s:
@@ -61,8 +60,8 @@ def update_env_fields(path: PathLike, updates: Dict[str, str]) -> None:
         else:
             lines.append(new_line)
     # 原子写入：先写临时文件再替换，防止进程中断导致配置损坏
-    import tempfile as _tempfile
     import os as _os
+    import tempfile as _tempfile
     new_content = "\n".join(lines) + "\n"
     with _tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=p.parent, delete=False) as tmp:
         tmp.write(new_content)
@@ -83,8 +82,8 @@ def write_env_text(path: PathLike, content: str) -> None:
     """整文件写入 .env 模板内容（覆盖式），并限制权限为 600。"""
     p = Path(path)
     # 原子写入：先写临时文件再替换，防止进程中断导致配置损坏
-    import tempfile as _tempfile
     import os as _os
+    import tempfile as _tempfile
     with _tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=p.parent, delete=False) as tmp:
         tmp.write(content)
         tmp.flush()
@@ -104,7 +103,7 @@ def write_env_text(path: PathLike, content: str) -> None:
         _logger.debug("chmod 0o600 failed for %s (expected on Windows): %s", path, e)
 
 
-def ensure_env_fields(path: PathLike, defaults: Dict[str, str]) -> bool:
+def ensure_env_fields(path: PathLike, defaults: dict[str, str]) -> bool:
     """补齐全 .env 中缺失的字段（仅追加，不动已存在的字段，保留注释与用户修改）。
 
     用于配置向后兼容：模板升级新增字段、或用户手删某键后，启动时自动补齐

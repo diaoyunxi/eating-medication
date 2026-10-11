@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 屏幕显示模块
 行空板M10专用：使用 unihiker 库的 GUI 类控制屏幕显示
@@ -205,8 +204,7 @@ class Display:
         """格式化服务器连接状态文本"""
         if connected:
             return '服务器: 已连接'
-        else:
-            return '服务器: 未连接'
+        return '服务器: 未连接'
 
     def _format_uuid(self, device_uuid, bind_code=""):
         """格式化底部设备 ID 文本。

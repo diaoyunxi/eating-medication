@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 老人端主程序（行空板 M10）
 - 使用 pinpong 库控制硬件（蜂鸣器、光线传感器、LED 指示灯）
@@ -15,17 +14,17 @@
 这样便于在无 M10 硬件环境下进行单元测试。
 """
 
-import os
-import sys
-import signal
 import argparse
-import threading
-import time
+import importlib
 import json
 import logging
-import importlib
-import subprocess
+import os
 import shutil
+import signal
+import subprocess
+import sys
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -69,7 +68,7 @@ def _ensure_running_in_venv():
     py = _venv_python()
     if py != sys.executable and not _in_venv():
         try:
-            os.execv(py, [py] + sys.argv)  # noqa: S606
+            os.execv(py, [py, *sys.argv])  # noqa: S606
         except Exception as e:
             print(f"切换到虚拟环境失败，继续以当前解释器运行: {e}")
 
@@ -88,20 +87,19 @@ if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
 # 工作流与硬件访问层（依赖 elderly_assistant 已在 sys.path 中）
-from workflow.reminder import (
-    ReminderState,
-    MedicationPoller,
-    HeartbeatThread,
-    check_medication_trigger,
-)
+# 注：原物理按钮 A/B 已移除，全部改用屏幕触摸按钮（见 display.set_action_handlers）
+from hardware.board import get_led, init_pinpong_board
 from workflow.actions import (
+    _ask_ai_and_speak,
     handle_confirm,
     handle_scan_medication,
-    _ask_ai_and_speak,
-    _capture_and_upload,
 )
-# 注：原物理按钮 A/B 已移除，全部改用屏幕触摸按钮（见 display.set_action_handlers）
-from hardware.board import init_pinpong_board, get_led
+from workflow.reminder import (
+    HeartbeatThread,
+    MedicationPoller,
+    ReminderState,
+    check_medication_trigger,
+)
 
 DEBUG_MODE = False
 
@@ -133,7 +131,7 @@ def _install_linux_system_deps():
     try:
         print(f"正在尝试安装系统依赖（需 root/网络）: {', '.join(deps)}")
         subprocess.run(["apt-get", "update"], capture_output=True, text=True, timeout=300)
-        subprocess.run(["apt-get", "install", "-y"] + deps,
+        subprocess.run(["apt-get", "install", "-y", *deps],
                        capture_output=True, text=True, timeout=600)
         logger.info("已尝试安装系统依赖: " + ", ".join(deps))
     except Exception as e:
@@ -184,7 +182,7 @@ def check_and_install_dependencies():
                 else:
                     print("依赖安装完成，正在重新启动老人端...")
                     py = _venv_python()
-                    os.execv(py, [py] + sys.argv)  # noqa: S606
+                    os.execv(py, [py, *sys.argv])  # noqa: S606
             except Exception as e:
                 print(f"自动安装失败: {e}")
                 print(f"请手动运行: python {root_install} {req_path} --huskylens")
@@ -232,14 +230,14 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     create_data_files()
 
+    from core.display import Display
+    from services.buzzer import Buzzer
+    from services.device_id import get_device_id
+    from services.hotspot_manager import HotspotManager
+    from services.http_client import HTTPClient
+    from services.wifi_config import WiFiConfigServer
     from utils.config_loader import load_config
     from utils.logger import setup_logger
-    from services.buzzer import Buzzer
-    from services.http_client import HTTPClient
-    from services.hotspot_manager import HotspotManager
-    from services.wifi_config import WiFiConfigServer
-    from services.device_id import get_device_id
-    from core.display import Display
 
     config = load_config()
     # log_dir 固定使用 logs/（原 paths.log_dir 为幽灵字段，已删除）

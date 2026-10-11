@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """family_monitor API 客户端 device_id 编码纯逻辑测试。"""
 import importlib.util
 import unittest

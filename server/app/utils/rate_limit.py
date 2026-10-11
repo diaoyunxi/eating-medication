@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 简单的内存限流工具（基于调用方标识，每分钟固定次数）。
 用于 AI 公开端点与注册端点等场景。
@@ -7,10 +6,9 @@
 import threading
 import time
 from collections import defaultdict
-from typing import Dict, List
 
 # 内存存储：key -> [时间戳列表]
-_bucket: Dict[str, List[float]] = defaultdict(list)
+_bucket: dict[str, list[float]] = defaultdict(list)
 _lock = threading.Lock()
 
 

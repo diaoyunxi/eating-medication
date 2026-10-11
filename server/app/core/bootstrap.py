@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """应用启动引导。
 
 将 config 模块的导入期副作用（首次运行生成/补齐 .env、必填项校验可能 sys.exit）
@@ -11,7 +10,6 @@
 import logging
 
 from app.core.config import (
-    BASE_DIR,
     Settings,
     _ensure_default_env,
     validate_mandatory_config,

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """药品条码识别（一维条码）。
 
 提供两条互补的扫码通路，运行时按配置自动选择：
@@ -23,7 +22,7 @@ import logging
 import threading
 import time
 
-from core.camera import get_huskylens, _HUSKYLENS_OP_LOCK
+from core.camera import _HUSKYLENS_OP_LOCK, get_huskylens
 
 logger = logging.getLogger("ElderlyAssistant")
 
