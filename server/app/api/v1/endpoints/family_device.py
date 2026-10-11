@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """家属授权设备接口 - 供子女端（已登录家属）查询/管理其绑定的设备。
 
 本模块与 public.py（设备公开接口，靠 X-Device-Token 鉴权）是两套独立鉴权：
@@ -16,21 +15,21 @@
 路由层仅负责 I/O（请求模型、Header、响应）；设备状态/计划/记录等纯逻辑
 复用 app.services.device_service.DeviceService，避免重复实现。
 """
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Optional
+import logging
 import secrets
 
-from app.core.dependencies import get_db, get_current_user
-from app.models.user import User
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.core.dependencies import get_current_user, get_db
 from app.core.security import mask_device_id
 from app.models.medication_plan import MedicationPlan
-from app.services.medication_service import MedicationService
-from app.services.device_service import DeviceService
-from app.services.user_service import UserService
+from app.models.user import User
 from app.schemas.medication import MedicationPlanCreate
-import logging
+from app.services.device_service import DeviceService
+from app.services.medication_service import MedicationService
+from app.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +41,9 @@ _ONLINE_THRESHOLD_SECONDS = 60
 class FamilyBindReq(BaseModel):
     """家属绑定设备请求"""
     device_id: str
-    device_name: Optional[str] = None
+    device_name: str | None = None
     # 设备绑定码：老人端屏幕当前展示的 6 位短码，用于证明家属实际占有设备。
-    bind_code: Optional[str] = None
+    bind_code: str | None = None
 
 
 class FamilyMedicationPlan(BaseModel):
@@ -53,7 +52,7 @@ class FamilyMedicationPlan(BaseModel):
     drug_name: str
     dosage: str = "1片"
     # 药品编号/条形码（可选，非必填）：供老人端扫码识别
-    product_code: Optional[str] = None
+    product_code: str | None = None
     frequency: str = "每日"
     schedule_times: list  # ["08:00", "12:00", "18:00"]
     total_quantity: float = 30.0
@@ -61,7 +60,7 @@ class FamilyMedicationPlan(BaseModel):
     unit: str = "片"
     low_stock_threshold: int = 5
     # 多老人：该计划归属的老人 ID（网页用药设置下拉选择「哪个老人吃」），缺省回退设备主体
-    elderly_id: Optional[int] = None
+    elderly_id: int | None = None
 
 
 def _require_bound_device(current_user: User, db: Session, device_id: str) -> User:
@@ -76,8 +75,7 @@ def _require_bound_device(current_user: User, db: Session, device_id: str) -> Us
             detail="当前账号未绑定该设备，请先在设置页绑定设备",
         )
     # 反查设备对应的真实老人用户（device_id 字段或 username 回退）
-    user = DeviceService.get_device_user(db, device_id)
-    return user
+    return DeviceService.get_device_user(db, device_id)
 
 
 @router.post("/bind")

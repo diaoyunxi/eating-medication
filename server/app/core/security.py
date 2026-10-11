@@ -1,9 +1,10 @@
-# -*- coding: utf-8 -*-
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
 from jose import jwt
 from jose.exceptions import JWTError
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, Optional
-import secrets
+
 from app.core.config import settings
 
 # 密码哈希/验证统一委托 common.security，消除重复实现。
@@ -11,31 +12,31 @@ from app.core.config import settings
 # 比 server 本地实现更健壮。
 from common.security import (
     hash_password,
-    verify_password,
     mask_device_id,
+    verify_password,
 )
 
 # 当前使用 HS256 对称加密，适用于单服务部署。
 # 微服务场景应改用 RS256 非对称加密（公钥验签、私钥签发），避免多服务共享密钥。
 
 __all__ = [
-    "hash_password",
-    "verify_password",
-    "mask_device_id",
     "create_access_token",
-    "decode_token",
-    "create_oauth_state_token",
-    "verify_oauth_state_token",
-    "create_oauth_pending_token",
-    "verify_oauth_pending_token",
-    "create_webauthn_challenge_token",
-    "verify_webauthn_challenge_token",
     "create_mfa_token",
+    "create_oauth_pending_token",
+    "create_oauth_state_token",
+    "create_webauthn_challenge_token",
+    "decode_token",
+    "hash_password",
+    "mask_device_id",
     "verify_mfa_token",
+    "verify_oauth_pending_token",
+    "verify_oauth_state_token",
+    "verify_password",
+    "verify_webauthn_challenge_token",
 ]
 
 
-def create_access_token(data: Dict[str, Any], expires_delta: timedelta = None) -> str:
+def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """创建 JWT access token"""
     to_encode = data.copy()
     # 统一 sub 为字符串类型
@@ -50,7 +51,7 @@ def create_access_token(data: Dict[str, Any], expires_delta: timedelta = None) -
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def decode_token(token: str) -> Dict[str, Any]:
+def decode_token(token: str) -> dict[str, Any]:
     """解码 JWT token"""
     return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
 
@@ -69,7 +70,7 @@ def create_oauth_state_token(state: str) -> str:
     )
 
 
-def verify_oauth_state_token(token: str) -> Optional[str]:
+def verify_oauth_state_token(token: str) -> str | None:
     """校验 OAuth state 令牌并返回内部 state 值；无效或类型不符返回 None"""
     try:
         payload = decode_token(token)
@@ -85,9 +86,9 @@ def create_oauth_pending_token(
     provider: str,
     provider_id: int,
     provider_login: str,
-    provider_name: Optional[str] = None,
-    provider_avatar: Optional[str] = None,
-    email: Optional[str] = None,
+    provider_name: str | None = None,
+    provider_avatar: str | None = None,
+    email: str | None = None,
 ) -> str:
     """签发短期 OAuth 待补全身份令牌（provider 无关）
 
@@ -110,7 +111,7 @@ def create_oauth_pending_token(
     )
 
 
-def verify_oauth_pending_token(token: str) -> Optional[Dict[str, Any]]:
+def verify_oauth_pending_token(token: str) -> dict[str, Any] | None:
     """校验 OAuth 待补全身份令牌；无效或类型不符返回 None"""
     try:
         payload = decode_token(token)
@@ -133,7 +134,7 @@ def create_webauthn_challenge_token(challenge_b64: str) -> str:
     )
 
 
-def verify_webauthn_challenge_token(token: str) -> Optional[str]:
+def verify_webauthn_challenge_token(token: str) -> str | None:
     """校验 WebAuthn 挑战令牌，成功返回 base64url 编码的 challenge，失败返回 None"""
     try:
         payload = decode_token(token)
@@ -155,7 +156,7 @@ def create_mfa_token(user_id: int) -> str:
     )
 
 
-def verify_mfa_token(token: str) -> Optional[int]:
+def verify_mfa_token(token: str) -> int | None:
     """校验 MFA 令牌，成功返回用户 ID，失败返回 None"""
     try:
         payload = decode_token(token)

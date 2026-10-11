@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 import json
 import os
 import threading
 from datetime import datetime
+
 from utils.logger import setup_logger
 
 # 中文数字映射，用于解析中文剂量（如"两片"、"半片"）
@@ -36,17 +36,16 @@ class MedicationManager:
         with self._lock:
             try:
                 if os.path.exists(self.data_path):
-                    with open(self.data_path, 'r', encoding='utf-8') as f:
+                    with open(self.data_path, encoding='utf-8') as f:
                         content = f.read().strip()
                         if content:
                             data = json.loads(content)
                             if isinstance(data, list):
                                 return data
-                            else:
-                                # 数据格式异常时先备份原文件，避免直接覆盖丢失数据
-                                self.logger.error(f"药品数据格式错误，期望列表但得到 {type(data)}，备份原文件")
-                                import shutil
-                                shutil.copy2(self.data_path, self.data_path + '.bak')
+                            # 数据格式异常时先备份原文件，避免直接覆盖丢失数据
+                            self.logger.error(f"药品数据格式错误，期望列表但得到 {type(data)}，备份原文件")
+                            import shutil
+                            shutil.copy2(self.data_path, self.data_path + '.bak')
             except json.JSONDecodeError as e:
                 self.logger.error(f"药品数据 JSON 解析失败: {e}")
                 # JSON 解析失败也备份原文件

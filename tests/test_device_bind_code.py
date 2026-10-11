@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """设备绑定码（所有权证明）回归测试。
 
 守护 bind_device 的绑定码校验：
@@ -20,9 +19,9 @@ os.environ.setdefault("SECRET_KEY", "unit-test-secret-key-not-for-production-012
 os.environ.setdefault("DEBUG", "true")
 
 try:
-    from fastapi import HTTPException
     from app.api.v1.endpoints.family_device import FamilyBindReq, bind_device
     from app.services.device_service import DeviceService
+    from fastapi import HTTPException
     _HAVE = True
 except Exception:  # pragma: no cover
     _HAVE = False

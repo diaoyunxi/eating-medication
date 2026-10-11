@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 HTTP 客户端模块
 负责与服务器通信：设备注册、用药计划轮询、服药确认等
@@ -13,6 +12,8 @@ from datetime import datetime
 import requests
 from requests.exceptions import (
     ConnectionError as RequestsConnectionError,
+)
+from requests.exceptions import (
     Timeout,
 )
 
@@ -53,7 +54,7 @@ def _load_device_token():
     """从本地文件加载设备令牌"""
     try:
         if os.path.exists(_TOKEN_FILE):
-            with open(_TOKEN_FILE, 'r', encoding='utf-8') as f:
+            with open(_TOKEN_FILE, encoding='utf-8') as f:
                 token = f.read().strip()
                 if token:
                     return token
@@ -155,12 +156,22 @@ class HTTPClient:
         代理错误等），业务层 HTTP 状态码（4xx/5xx）不在此列，由调用方按业务处理。
         """
         from requests.exceptions import (
-            ConnectionError as _ConnErr,
-            ConnectTimeout as _ConnTO,
-            ReadTimeout as _ReadTO,
-            Timeout as _TO,
             ChunkedEncodingError as _Chunked,
+        )
+        from requests.exceptions import (
+            ConnectionError as _ConnErr,
+        )
+        from requests.exceptions import (
+            ConnectTimeout as _ConnTO,
+        )
+        from requests.exceptions import (
             ProxyError as _Proxy,
+        )
+        from requests.exceptions import (
+            ReadTimeout as _ReadTO,
+        )
+        from requests.exceptions import (
+            Timeout as _TO,
         )
         return isinstance(exc, (_ConnErr, _ConnTO, _ReadTO, _TO, _Chunked, _Proxy))
 
@@ -181,13 +192,12 @@ class HTTPClient:
         safe_body = self._redact_body(kwargs.get("json"))
         logger.log(log_level, "[HTTP请求] %s %s | 请求头=%s | 请求体=%s",
                    method, url, safe_headers, safe_body)
-        last_exc = None
         for attempt in range(retries + 1):
             try:
                 resp = requests.request(method, url, **kwargs)
                 break
-            except Exception as e:  # noqa: BLE001 - 需捕获 requests 全部传输层异常
-                _ = e  # noqa: F841 - 保存最后一次异常但不在此处使用
+            except Exception as e:
+                _ = e
                 if attempt < retries and self._is_transient_error(e):
                     backoff = _RETRY_BACKOFF * (2 ** attempt)
                     logger.log(log_level,
@@ -305,9 +315,8 @@ class HTTPClient:
                     else:
                         logger.info("设备心跳上报成功")
                 return True
-            else:
-                logger.warning(f"设备注册失败，状态码: {resp.status_code}")
-                return False
+            logger.warning(f"设备注册失败，状态码: {resp.status_code}")
+            return False
         except Exception as e:
             logger.warning(f"设备注册请求异常: {e}")
             return False
@@ -537,9 +546,8 @@ class HTTPClient:
             if resp.status_code == 200:
                 result = resp.json()
                 return result.get('answer', '抱歉，AI 没有返回答案')
-            else:
-                return f'抱歉，AI 服务出错了 (状态码: {resp.status_code})'
-        except Exception as e:
+            return f'抱歉，AI 服务出错了 (状态码: {resp.status_code})'
+        except Exception:
             return '抱歉，AI 服务暂时不可用，请稍后重试'
 
     def get_device_id(self):

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """认证路由
 
 子女端前端认证流程（方案C：全量改用 JWT，由 server 统一认证）：
@@ -10,11 +9,11 @@
 """
 
 import httpx
+from core.config import config
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from core.config import config
 from common.server_client import BaseServerClient
 
 router = APIRouter()

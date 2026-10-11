@@ -1,14 +1,11 @@
-﻿# -*- coding: utf-8 -*-
+﻿from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
-from datetime import datetime
+
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.schemas.medication import (
-    MedicationPlanCreate, MedicationPlanOut,
-    TakeMedicationRequest, MedicationRecordOut
-)
+from app.schemas.medication import MedicationPlanCreate, MedicationPlanOut, MedicationRecordOut, TakeMedicationRequest
 from app.services.medication_service import MedicationService
 
 router = APIRouter(prefix="/medication", tags=["用药管理"])
@@ -24,7 +21,7 @@ def create_plan(
         raise HTTPException(status_code=403, detail="只有老人可以创建用药计划")
     return MedicationService.create_plan(db, current_user.id, plan_data)
 
-@router.get("/plans", response_model=List[MedicationPlanOut])
+@router.get("/plans", response_model=list[MedicationPlanOut])
 def list_plans(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -32,7 +29,7 @@ def list_plans(
     """获取当前用户的用药计划（老人自己的；家属看到同组老人的）"""
     if current_user.role == "elderly":
         return MedicationService.get_plans_by_user(db, current_user.id)
-    elif current_user.role == "family":
+    if current_user.role == "family":
         if not current_user.group_id:
             return []
         return MedicationService.get_plans_for_family(db, current_user.group_id)
@@ -56,10 +53,10 @@ async def take_medication(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
-@router.get("/history", response_model=List[MedicationRecordOut])
+@router.get("/history", response_model=list[MedicationRecordOut])
 def get_history(
-    start: Optional[datetime] = Query(None),
-    end: Optional[datetime] = Query(None),
+    start: datetime | None = Query(None),
+    end: datetime | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

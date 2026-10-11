@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 import json
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from typing import Optional
 from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 
 class NotificationSettings(BaseModel):
     """用户通知偏好设置
@@ -17,7 +17,7 @@ class NotificationSettings(BaseModel):
     sound_alert: bool = True            # 声音提醒
 
     @classmethod
-    def from_json(cls, raw: Optional[str]) -> "NotificationSettings":
+    def from_json(cls, raw: str | None) -> "NotificationSettings":
         """从数据库存储的 JSON 字符串解析；为空或非法时返回默认全开配置"""
         if not raw:
             return cls()
@@ -33,17 +33,17 @@ class NotificationSettings(BaseModel):
 class UserOut(BaseModel):
     """用户信息响应"""
     id: int
-    username: Optional[str] = None  # 昵称
+    username: str | None = None  # 昵称
     role: str
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    group_id: Optional[int] = None
+    phone: str | None = None
+    email: str | None = None
+    group_id: int | None = None
     # 设备ID（老人绑定设备后填充，家属为 None）
-    device_id: Optional[str] = None
+    device_id: str | None = None
     # 是否已开启 TOTP 第二因子（前端据此引导动态码输入）
     mfa_enabled: bool = False
     # 通知偏好设置（数据库存 JSON 字符串，响应时解析为 dict；缺失则返回默认）
-    notification_settings: Optional[dict] = None
+    notification_settings: dict | None = None
     created_at: datetime
 
     @field_validator("notification_settings", mode="before")
@@ -61,10 +61,10 @@ class UserOut(BaseModel):
 
 class UserUpdate(BaseModel):
     """更新用户信息请求（昵称与手机号均可修改，二选一或全部）"""
-    username: Optional[str] = Field(None, max_length=50, description="昵称")
-    phone: Optional[str] = Field(None, description="手机号")
+    username: str | None = Field(None, max_length=50, description="昵称")
+    phone: str | None = Field(None, description="手机号")
     # 通知偏好设置（可选；传入则整体覆盖保存）
-    notification_settings: Optional[dict] = Field(None, description="通知偏好设置")
+    notification_settings: dict | None = Field(None, description="通知偏好设置")
 
 class BindFamilyReq(BaseModel):
     """家属绑定老人请求"""
@@ -81,9 +81,9 @@ class CreateElderlyReq(BaseModel):
 class ElderlyOut(BaseModel):
     """家庭组老人简要信息（用于网页老人管理列表与用药设置下拉）"""
     id: int
-    name: Optional[str] = None
+    name: str | None = None
     # 二哈已录入人脸 ID（未录入为 None）；前端据此提示是否需录入
-    husky_face_id: Optional[int] = None
+    husky_face_id: int | None = None
     # 该账号是否绑定了设备（设备主体用户）；设备主体不可被删除，需先解绑
     has_device: bool = False
 

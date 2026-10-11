@@ -1,7 +1,8 @@
-﻿# -*- coding: utf-8 -*-
-import base64
+﻿import base64
+from typing import Any
+
 import httpx
-from typing import Dict, Any
+
 from app.core.config import settings
 
 
@@ -14,7 +15,7 @@ class VisionService:
     """药品图片识别服务"""
 
     @staticmethod
-    async def _recognize_baidu(image_data: bytes) -> Dict[str, Any]:
+    async def _recognize_baidu(image_data: bytes) -> dict[str, Any]:
         """调用百度OCR识别
 
         :return: {"configured": True, "text": "..."} 或配置缺失时 {"configured": False, "reason": "..."}
@@ -32,7 +33,7 @@ class VisionService:
                 'client_id': settings.OCR_API_KEY,
                 'client_secret': settings.OCR_SECRET_KEY
             }
-            
+
             async with httpx.AsyncClient(timeout=10.0) as client:
                 token_resp = await client.get(token_url, params=token_params)
                 if token_resp.status_code != 200:
@@ -43,10 +44,10 @@ class VisionService:
 
                 ocr_url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic?access_token={access_token}"
                 image_base64 = base64.b64encode(image_data).decode('utf-8')
-                
+
                 headers = {'Content-Type': 'application/x-www-form-urlencoded'}
                 data = {'image': image_base64}
-                
+
                 ocr_resp = await client.post(ocr_url, headers=headers, data=data)
                 if ocr_resp.status_code == 200:
                     result = ocr_resp.json()
@@ -67,19 +68,19 @@ class VisionService:
             raise OCRError(f"百度OCR调用失败: {e!s}") from e
 
     @staticmethod
-    async def _recognize_tencent(image_data: bytes) -> Dict[str, Any]:
+    async def _recognize_tencent(image_data: bytes) -> dict[str, Any]:
         """调用腾讯OCR识别"""
         return {"configured": False, "reason": "腾讯云 OCR 功能尚未实现"}
 
     @staticmethod
-    async def _recognize_aliyun(image_data: bytes) -> Dict[str, Any]:
+    async def _recognize_aliyun(image_data: bytes) -> dict[str, Any]:
         """调用阿里云OCR识别"""
         return {"configured": False, "reason": "阿里云 OCR 功能尚未实现"}
 
     @staticmethod
     async def _extract_drug_name(text: str) -> str:
         """从识别的文本中提取药品名称"""
-        
+
         drug_keywords = [
             '片', '胶囊', '颗粒', '丸', '散', '膏', '贴', '气雾剂',
             'mg', 'g', 'ml', '毫克', '克', '毫升',
@@ -87,7 +88,7 @@ class VisionService:
             '阿司匹林', '布洛芬', '对乙酰氨基酚', '阿莫西林', '头孢',
             '维生素', '钙片', '降压', '降糖', '感冒', '消炎'
         ]
-        
+
         lines = text.split('\n')
         for line in lines:
             line = line.strip()
@@ -96,11 +97,11 @@ class VisionService:
             for keyword in drug_keywords:
                 if keyword in line:
                     return line
-        
+
         return lines[0] if lines else '识别失败'
 
     @staticmethod
-    async def recognize(image_data: bytes) -> Dict[str, Any]:
+    async def recognize(image_data: bytes) -> dict[str, Any]:
         """识别药品图片，返回药名和置信度
 
         OCR 未配置或不可用时返回 {"configured": False, "reason": "..."}（降级，不抛异常），
@@ -132,7 +133,7 @@ class VisionService:
             }
 
         # 子服务未配置/未实现：直接返回降级提示
-        if ocr_result and ocr_result.get("configured") == False:
+        if ocr_result and not ocr_result.get("configured"):
             return ocr_result
 
         if ocr_result and ocr_result.get('text'):

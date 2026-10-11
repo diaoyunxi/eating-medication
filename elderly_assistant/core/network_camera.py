@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 二哈网络图传模块（HTTP / RTSP 拉流）
 
@@ -31,7 +30,6 @@ import logging
 import socket
 import threading
 import time
-from typing import Optional
 
 logger = logging.getLogger("ElderlyAssistant")
 
@@ -68,11 +66,11 @@ def _is_host_reachable(ip: str, port: int, timeout: float = 2.0) -> bool:
         sock = socket.create_connection((ip, port), timeout=timeout)
         sock.close()
         return True
-    except (socket.timeout, socket.error, OSError):
+    except (TimeoutError, OSError):
         return False
 
 
-def discover_huskylens_on_network(subnet: str = "192.168.1", timeout: float = 3.0) -> Optional[str]:
+def discover_huskylens_on_network(subnet: str = "192.168.1", timeout: float = 3.0) -> str | None:
     """
     在指定子网内扫描可能运行二哈 HTTP 服务的设备。
 
@@ -111,7 +109,7 @@ def discover_huskylens_on_network(subnet: str = "192.168.1", timeout: float = 3.
 # HTTP 快照获取
 # ------------------------------------------------------------------
 
-def _get_http_snapshot(cfg: dict) -> Optional[bytes]:
+def _get_http_snapshot(cfg: dict) -> bytes | None:
     """
     通过 HTTP GET 请求获取二哈快照（JPEG 字节）。
 
@@ -157,7 +155,7 @@ def _get_http_snapshot(cfg: dict) -> Optional[bytes]:
     return None
 
 
-def _extract_first_mjpeg_frame(raw, headers: dict) -> Optional[bytes]:
+def _extract_first_mjpeg_frame(raw, headers: dict) -> bytes | None:
     """从 MJPEG 流中解析出第一帧 JPEG 数据。"""
     boundary = None
     ct = headers.get("Content-Type", "")
@@ -204,7 +202,7 @@ def _extract_first_mjpeg_frame(raw, headers: dict) -> Optional[bytes]:
 # RTSP 拉流
 # ------------------------------------------------------------------
 
-def _get_rtsp_frame(cfg: dict) -> Optional[bytes]:
+def _get_rtsp_frame(cfg: dict) -> bytes | None:
     """
     通过 RTSP 拉取一帧图像（JPEG 字节）。
 
@@ -245,7 +243,7 @@ def _get_rtsp_frame(cfg: dict) -> Optional[bytes]:
 # 统一接口：capture_frame
 # ------------------------------------------------------------------
 
-def capture_frame(config: dict) -> Optional[bytes]:
+def capture_frame(config: dict) -> bytes | None:
     """
     从二哈网络图传获取一帧 JPEG 图像。
 
@@ -305,7 +303,7 @@ def capture_frame(config: dict) -> Optional[bytes]:
 # 向后兼容：capture_image
 # ------------------------------------------------------------------
 
-def capture_image(config: dict) -> Optional[str]:
+def capture_image(config: dict) -> str | None:
     """
     向后兼容接口：获取图片并保存到本地文件，返回本地路径。
 
@@ -378,7 +376,7 @@ def reset_network_connection():
 # WebRTC 拉流支持（aiortc）
 # ------------------------------------------------------------------
 
-def _get_webrtc_frame(cfg: dict) -> Optional[bytes]:
+def _get_webrtc_frame(cfg: dict) -> bytes | None:
     """
     通过 WebRTC 从二哈获取一帧 JPEG 图像。
 
@@ -413,7 +411,7 @@ def _get_webrtc_frame(cfg: dict) -> Optional[bytes]:
     try:
         import asyncio
 
-        async def _pull_one_frame() -> Optional[bytes]:
+        async def _pull_one_frame() -> bytes | None:
             pc = RTCPeerConnection()
             received_frame = None
             frame_future = None

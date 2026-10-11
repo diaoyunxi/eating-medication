@@ -1,16 +1,14 @@
-# -*- coding: utf-8 -*-
 """子女端 AI 助手配置代理路由
 
 将子女端的 AI 配置请求转发到服务端（server），并以当前登录用户的 JWT 进行鉴权。
 配置实际存储在服务端的 user_ai_configs 表中（每用户各自配置），不在 .env 中。
 """
 import logging
-from typing import Optional
 
+from core import elderly_client
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from core import elderly_client
 from routes.web_helpers import require_login, unauthorized_json, user_api_request
 
 logger = logging.getLogger(__name__)
@@ -18,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _bound_device_id() -> Optional[str]:
+def _bound_device_id() -> str | None:
     """获取当前账号已绑定的老人端设备ID（用于按设备指定被照护老人的 AI 配置）"""
     bound = elderly_client.get_bound_device()
     if bound:

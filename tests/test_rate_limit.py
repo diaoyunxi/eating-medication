@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """server/app/utils/rate_limit.py 单元测试。
 
 mock 时间以验证滑动窗口限流：放行、超限拦截、窗口过期重置。
@@ -11,7 +10,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from app.utils import rate_limit  # noqa: E402
+from app.utils import rate_limit
 
 
 class TestCheckRateLimit(unittest.TestCase):

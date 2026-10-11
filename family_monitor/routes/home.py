@@ -1,14 +1,15 @@
-# -*- coding: utf-8 -*-
 """
 首页路由 - 完善版
 """
 
 import logging
-from fastapi import APIRouter, Request, Form, HTTPException
-from fastapi.responses import JSONResponse
+
 from core import config, elderly_client
+from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import JSONResponse
 from services.medication_service import validate_and_build
-from routes.web_helpers import templates, require_login, login_redirect, unauthorized_json, family_client
+
+from routes.web_helpers import family_client, login_redirect, require_login, templates, unauthorized_json
 
 logger = logging.getLogger(__name__)
 
@@ -216,13 +217,12 @@ async def bind_device(request: Request, device_id: str = Form(...), device_name:
                 "success": True,
                 "message": f"设备 {device_name or device_id} 绑定成功"
             })
-        else:
-            # 优先展示 server 返回的具体错误（如绑定码错误），便于家属核对屏幕
-            detail = result.get("detail") or result.get("msg") or "未知错误"
-            return JSONResponse(content={
-                "success": False,
-                "message": f"绑定失败: {detail}"
-            }, status_code=400)
+        # 优先展示 server 返回的具体错误（如绑定码错误），便于家属核对屏幕
+        detail = result.get("detail") or result.get("msg") or "未知错误"
+        return JSONResponse(content={
+            "success": False,
+            "message": f"绑定失败: {detail}"
+        }, status_code=400)
     except Exception:
         logger.exception("绑定设备失败")
         raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试") from e
@@ -354,11 +354,10 @@ async def add_medication_plan(request: Request):
                 "success": True,
                 "message": f"用药计划 {drug_name} 添加成功"
             })
-        else:
-            return JSONResponse(content={
-                "success": False,
-                "message": f"添加失败: {result.get('error', '未知错误')}"
-            }, status_code=400)
+        return JSONResponse(content={
+            "success": False,
+            "message": f"添加失败: {result.get('error', '未知错误')}"
+        }, status_code=400)
     except HTTPException:
         raise
     except Exception:
@@ -379,11 +378,10 @@ async def delete_medication_plan(request: Request, plan_id: int):
                 "success": True,
                 "message": "用药计划已删除"
             })
-        else:
-            return JSONResponse(content={
-                "success": False,
-                "message": f"删除失败: {result.get('error', '未知错误')}"
-            }, status_code=400)
+        return JSONResponse(content={
+            "success": False,
+            "message": f"删除失败: {result.get('error', '未知错误')}"
+        }, status_code=400)
     except Exception:
         logger.exception("删除用药计划失败")
         raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试") from e
@@ -419,11 +417,10 @@ async def update_medication_plan(request: Request, plan_id: int):
                 "success": True,
                 "message": f"用药计划 {drug_name} 更新成功"
             })
-        else:
-            return JSONResponse(content={
-                "success": False,
-                "message": f"更新失败: {result.get('error', '未知错误')}"
-            }, status_code=400)
+        return JSONResponse(content={
+            "success": False,
+            "message": f"更新失败: {result.get('error', '未知错误')}"
+        }, status_code=400)
     except HTTPException:
         raise
     except Exception:

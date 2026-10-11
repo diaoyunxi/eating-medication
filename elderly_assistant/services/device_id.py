@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """设备唯一标识符模块
 
 行空板 M10 专用：直接使用 `uuid.getnode()` 返回的网卡 MAC 地址整数值作为设备 ID。
@@ -31,5 +30,4 @@ def get_device_id():
     if not mac:
         logger.warning("未能读取网卡 MAC 地址，设备 ID 不可用")
         return None
-    device_id = str(mac)
-    return device_id
+    return str(mac)

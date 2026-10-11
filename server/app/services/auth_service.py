@@ -1,14 +1,15 @@
-# -*- coding: utf-8 -*-
 import logging
 import secrets
-from sqlalchemy.orm import Session
-from typing import Optional, Dict, Any
 from datetime import datetime, timezone
+from typing import Any, Optional
+
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.security import create_access_token, create_mfa_token, hash_password, verify_password
 from app.models.user import User
 from app.schemas.auth import RegisterReq
-from app.core.security import hash_password, verify_password, create_access_token, create_mfa_token
-from app.core.config import settings
-from app.utils.validators import is_valid_phone, is_valid_email
+from app.utils.validators import is_valid_email, is_valid_phone
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 _DUMMY_HASH = hash_password("__dummy_timing_attack_protection__")
 
 
-def _mask_email(email: Optional[str]) -> str:
+def _mask_email(email: str | None) -> str:
     """对邮箱做日志脱敏，仅保留首字符，避免 PII 明文落日志。"""
     if not email:
         return "***"
@@ -29,7 +30,7 @@ class AuthService:
     """认证服务"""
 
     @staticmethod
-    def register(db: Session, req: RegisterReq, oauth_pending: dict = None) -> str:
+    def register(db: Session, req: RegisterReq, oauth_pending: dict | None = None) -> str:
         """用户注册，返回 access_token
 
         :param oauth_pending: OAuth 待补全身份令牌载荷（dict），非空表示第三方 OAuth 注册，
@@ -129,7 +130,7 @@ class AuthService:
         return AuthService.get_by_provider(db, "github", github_id)
 
     @staticmethod
-    def login(db: Session, phone: str, password: str) -> Optional[dict]:
+    def login(db: Session, phone: str, password: str) -> dict | None:
         """用户登录（手机号 + 密码）。
 
         返回 dict：
@@ -155,7 +156,7 @@ class AuthService:
         return {"access_token": create_access_token(data={"sub": user.id})}
 
     @staticmethod
-    def login_or_register_by_email(db: Session, email: str) -> Optional[dict]:
+    def login_or_register_by_email(db: Session, email: str) -> dict | None:
         """邮箱验证码登录 / 自动注册，返回认证响应 dict。
 
         流程：调用方须先通过 `email_code.verify_code` 校验验证码（本方法不再二次校验），
@@ -221,8 +222,8 @@ class AuthService:
         db: Session,
         provider: str,
         provider_id,
-        provider_name: Optional[str] = None,
-        email: Optional[str] = None,
+        provider_name: str | None = None,
+        email: str | None = None,
     ) -> User:
         """OAuth 首次登录自动注册（不要求手机号/密码）
 
@@ -282,7 +283,7 @@ class AuthService:
     # ==================== 登录方式管理（绑定/解绑/查询） ====================
 
     @staticmethod
-    def get_login_methods(db: Session, user: Optional[User] = None) -> Dict[str, Any]:
+    def get_login_methods(db: Session, user: User | None = None) -> dict[str, Any]:
         """查询登录方式的绑定/启用状态
 
         兼容登录前（未认证）与登录后（已认证）两种场景（BUG-C07 修复）：

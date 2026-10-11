@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 热点管理模块
 行空板M10专用：创建带 WPA2 加密的配置热点
@@ -8,8 +7,8 @@
 - 密码: 启动时随机生成（WPA2）
 """
 import logging
-import subprocess
 import secrets
+import subprocess
 
 logger = logging.getLogger("ElderlyAssistant")
 
@@ -61,14 +60,13 @@ class HotspotManager:
                 if sys.stdout.isatty():
                     print(f"[热点] SSID: {self.ssid}  密码: {self.password}")
                 else:
-                    logger.info(f"热点密码已生成（非交互式终端，密码未输出到 stdout）")
+                    logger.info("热点密码已生成（非交互式终端，密码未输出到 stdout）")
                 logger.info(
                     f"用户连接后可访问 http://{self.ip}:{self.web_port} 进行配网"
                 )
                 return True
-            else:
-                logger.error(f"热点创建失败: {result.stderr}")
-                return False
+            logger.error(f"热点创建失败: {result.stderr}")
+            return False
 
         except subprocess.TimeoutExpired:
             logger.error("热点创建超时")

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 WiFi 配网 Web 服务模块
 用于 M10 设备：在热点上运行 HTTP 服务器（端口 8088），提供配网页面。
@@ -10,17 +9,17 @@ WiFi 配网 Web 服务模块
   4. 返回成功/失败状态
 """
 
-import os
+import html
 import json
+import logging
+import os
+import secrets
 import subprocess
 import threading
 import time
-import secrets
-import html
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs, urlparse
 
-import logging
 from utils.config_loader import load_config, save_server_url
 
 logger = logging.getLogger("ElderlyAssistant")
@@ -143,7 +142,7 @@ class WiFiConfigManager:
         safe_password = sanitize_password(password)
 
         self.status = "connecting"
-        self.status_message = "正在连接 %s..." % safe_ssid
+        self.status_message = f"正在连接 {safe_ssid}..."
         self.current_ssid = safe_ssid
 
         try:
@@ -154,10 +153,9 @@ class WiFiConfigManager:
             )
             if result.returncode == 0:
                 self.status = "success"
-                self.status_message = "成功连接到 %s" % safe_ssid
+                self.status_message = f"成功连接到 {safe_ssid}"
                 return True
-            else:
-                raise Exception(result.stderr or "连接失败")
+            raise Exception(result.stderr or "连接失败")
         except Exception as e:
             logger.error(f"连接 WiFi 失败: {e}")
             self.status = "failed"
@@ -185,8 +183,7 @@ class WiFiConfigManager:
             ok = http_client.register_device(device_name="M10-老人端")
             if ok:
                 return True, "设备注册成功", device_id
-            else:
-                return False, "设备注册失败（服务器无响应或地址错误）", device_id
+            return False, "设备注册失败（服务器无响应或地址错误）", device_id
         except Exception as e:
             logger.error(f"设备注册异常: {e}")
             return False, f"设备注册异常: {e}", ""
@@ -339,7 +336,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
         # 安全性依赖网络隔离：配网服务已绑定热点接口 10.0.0.1，仅连接热点的设备可访问。
         # 彻底修复应改为前端不持有 token、使用 session cookie，此处为最小改动保留实现。
         safe_config_token = html.escape(self.config_token or '', quote=True)
-        html_content = """<!DOCTYPE html>
+        return """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -500,11 +497,10 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
 </html>
 """.replace("__SERVER_URL__", safe_server_url) \
          .replace("__CONFIG_TOKEN__", safe_config_token)
-        return html_content
 
     def log_message(self, format, *args):
         """自定义日志格式"""
-        logger.info("HTTP %s - %s" % (self.address_string(), format % args))
+        logger.info(f"HTTP {self.address_string()} - {format % args}")
 
 
 class WiFiConfigServer:

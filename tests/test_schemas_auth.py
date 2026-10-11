@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """server/app/schemas/auth.py 单元测试。
 
 覆盖 RegisterReq / LoginReq 的字段校验（角色、手机号、昵称、密码规则）。
@@ -9,9 +8,8 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from pydantic import ValidationError  # noqa: E402
-
-from app.schemas.auth import RegisterReq, LoginReq, EmailSendCodeReq, EmailCodeLoginReq  # noqa: E402
+from app.schemas.auth import EmailCodeLoginReq, EmailSendCodeReq, LoginReq, RegisterReq
+from pydantic import ValidationError
 
 
 class TestRegisterReq(unittest.TestCase):
@@ -47,7 +45,7 @@ class TestRegisterReq(unittest.TestCase):
 
     def test_password_too_short(self):
         with self.assertRaises(ValidationError):
-            password = os.environ.get("PASSWORD", "")  # Was hardcoded
+            os.environ.get("PASSWORD", "")  # Was hardcoded
 
     def test_phone_required(self):
         # 手机号为必填（唯一登录标识），缺省应报错
@@ -61,13 +59,13 @@ class TestLoginReq(unittest.TestCase):
     """登录请求校验（手机号 + 密码）。"""
 
     def test_valid(self):
-        password = os.environ.get("PASSWORD", "")  # Was hardcoded
+        os.environ.get("PASSWORD", "")  # Was hardcoded
         self.assertEqual(req.phone, "13800138000")
 
     def test_phone_required(self):
         # 手机号必填
         with self.assertRaises(ValidationError):
-            password = os.environ.get("PASSWORD", "")  # Was hardcoded
+            os.environ.get("PASSWORD", "")  # Was hardcoded
 
     def test_password_not_validated(self):
         # LoginReq 不强制密码规则，应可接受任意非空密码

@@ -1,19 +1,19 @@
-﻿# -*- coding: utf-8 -*-
-"""
+﻿"""
 用户服务层
 
 提供用户管理、家庭组绑定、设备-老人关联等核心业务逻辑。
 """
 import json
 import logging
+
 from sqlalchemy.orm import Session
-from typing import Optional, List
-from app.models.user import User
-from app.models.medication_plan import MedicationPlan
-from app.models.medication_record import MedicationRecord
+
 from app.models.ai_query_log import AIQueryLog
 from app.models.chat_message import ChatMessage
-from app.schemas.user import UserUpdate, NotificationSettings
+from app.models.medication_plan import MedicationPlan
+from app.models.medication_record import MedicationRecord
+from app.models.user import User
+from app.schemas.user import NotificationSettings, UserUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +22,12 @@ class UserService:
     """用户服务"""
 
     @staticmethod
-    def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
+    def get_user_by_id(db: Session, user_id: int) -> User | None:
         """根据ID获取用户"""
         return db.query(User).filter(User.id == user_id).first()
 
     @staticmethod
-    def update_user(db: Session, user_id: int, update_data: UserUpdate) -> Optional[User]:
+    def update_user(db: Session, user_id: int, update_data: UserUpdate) -> User | None:
         """更新用户信息"""
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
@@ -101,8 +101,8 @@ class UserService:
         db: Session,
         elderly_user_id: int,
         family_user_id: int,
-        device_id: Optional[str] = None,
-    ) -> Optional[int]:
+        device_id: str | None = None,
+    ) -> int | None:
         """将家属绑定到老人的家庭组，并关联设备到真实老人
 
         修复"设备即用户"设计缺陷的核心逻辑：
@@ -179,7 +179,7 @@ class UserService:
         return elderly.group_id
 
     @staticmethod
-    def get_family_members(db: Session, group_id: int) -> List[User]:
+    def get_family_members(db: Session, group_id: int) -> list[User]:
         """获取家庭组所有成员"""
         return db.query(User).filter(User.group_id == group_id).all()
 
@@ -229,7 +229,7 @@ class UserService:
         return elderly
 
     @staticmethod
-    def list_elderly(db: Session, group_id: int) -> List[User]:
+    def list_elderly(db: Session, group_id: int) -> list[User]:
         """列出家庭组内所有老人（按 id 升序，保证列表顺序稳定）"""
         return (
             db.query(User)
@@ -239,7 +239,7 @@ class UserService:
         )
 
     @staticmethod
-    def set_husky_face_id(db: Session, user_id: int, husky_face_id: int) -> Optional[User]:
+    def set_husky_face_id(db: Session, user_id: int, husky_face_id: int) -> User | None:
         """网页端为老人填写二哈人脸 ID（用户已自行在二哈录入人脸）
 
         直接写入老人对应的二哈人脸 ID，设备端无需轮询学习。

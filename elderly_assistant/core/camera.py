@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 二哈摄像头模块（网络图传版）
 
@@ -25,6 +24,7 @@ import shutil
 import threading
 from datetime import datetime
 from uuid import uuid4
+
 from utils.logger import setup_logger
 
 logger = setup_logger()

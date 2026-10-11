@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 仓库根目录 pytest 配置（conftest）。
 
