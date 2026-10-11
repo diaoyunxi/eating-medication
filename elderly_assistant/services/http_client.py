@@ -186,7 +186,7 @@ class HTTPClient:
         last_exc = None
         for attempt in range(retries + 1):
             try:
-                resp = requests.request(method, url, **kwargs)
+                resp = requests.request(method, url, timeout=30, **kwargs)
                 break
             except Exception as e:  # noqa: BLE001 - 需捕获 requests 全部传输层异常
                 _ = e  # noqa: F841 - 保存最后一次异常但不在此处使用
