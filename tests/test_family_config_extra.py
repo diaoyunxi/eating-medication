@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """family_monitor.core.config 额外测试：save_config / _generate_default_env / _update_env_file。"""
 import importlib.util
 import tempfile

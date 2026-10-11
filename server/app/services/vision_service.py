@@ -1,9 +1,10 @@
-﻿# -*- coding: utf-8 -*-
-import base64
-import httpx
+﻿import base64
 import hashlib
 import time
-from typing import Dict, Any
+from typing import Any, Dict
+
+import httpx
+
 from app.core.config import settings
 
 

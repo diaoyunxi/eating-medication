@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """设备绑定码模块
 
 老人端本地生成并持久化一个 6 位数字绑定码（data/device_bind_code.txt），

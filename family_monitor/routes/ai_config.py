@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """子女端 AI 助手配置代理路由
 
 将子女端的 AI 配置请求转发到服务端（server），并以当前登录用户的 JWT 进行鉴权。
@@ -7,10 +6,10 @@
 import logging
 from typing import Optional
 
+from core import elderly_client
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from core import elderly_client
 from routes.web_helpers import require_login, unauthorized_json, user_api_request
 
 logger = logging.getLogger(__name__)

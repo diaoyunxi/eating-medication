@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """二哈（HuskyLens V2）人脸识别封装：用于老人端服药前的身份核验与家属录入人脸。
 
 复用 core.camera 的 HuskyLens 单例与硬件操作锁，避免与拍照/扫码并发冲突。
@@ -8,7 +7,7 @@ from typing import List
 
 from utils.logger import setup_logger
 
-from core.camera import get_huskylens, _HUSKYLENS_OP_LOCK
+from core.camera import _HUSKYLENS_OP_LOCK, get_huskylens
 
 logger = setup_logger()
 

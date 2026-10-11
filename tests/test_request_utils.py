@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """server/app/utils/request_utils.py 单元测试。
 
 验证客户端 IP 提取优先级：CF-Connecting-IP > X-Forwarded-For > client.host。

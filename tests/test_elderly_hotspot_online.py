@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """elderly_assistant 热点联网检测纯逻辑测试。"""
 import socket
 import unittest
