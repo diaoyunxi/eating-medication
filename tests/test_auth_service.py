@@ -43,7 +43,7 @@ class TestRegister(unittest.TestCase):
     def _req(self):
         return RegisterReq(
             username="alice",
-            password = os.environ.get("PASSWORD", "")  # Was hardcoded
+            password=os.environ.get("PASSWORD", ""),  # Was hardcoded
             role="family",
             phone="13800138000",
         )
