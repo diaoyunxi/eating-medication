@@ -7,9 +7,13 @@ from typing import Optional
 
 
 def is_valid_phone(phone: Optional[str]) -> bool:
-    """验证手机号格式（中国大陆）"""
+    """验证手机号格式（中国大陆）。
+
+    注意：空值（None 或空字符串）返回 False，调用方若允许手机号为空，
+    应在调用前自行判断 ``if not phone: skip_validation``。
+    """
     if not phone:
-        return True
+        return False
     pattern = r'^1[3-9]\d{9}$'
     return bool(re.match(pattern, phone))
 
