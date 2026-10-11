@@ -11,17 +11,26 @@ CN_NUM = {'零': 0, '半': 0.5, '一': 1, '两': 2, '二': 2, '三': 3, '四': 4
 
 
 def _parse_dosage(s):
-    """解析剂量字符串，支持阿拉伯数字、小数与中文数字"""
+    """解析剂量字符串，支持阿拉伯数字、小数与中文数字
+
+    Returns:
+        float 或 None: 解析成功返回剂量数值，无法识别时返回 None
+                       (调用方应对 None 做告警处理，避免老人漏服药而系统静默忽略)
+    """
     import re
+    text = str(s).strip()
+    if not text:
+        return None
     # 先尝试匹配小数（如 "1.5", "0.5"）
-    match = re.search(r'\d+\.?\d*', str(s))
+    match = re.search(r'\d+\.?\d*', text)
     if match:
         return float(match.group())
     # 尝试中文数字
     for k, v in CN_NUM.items():
-        if k in str(s):
+        if k in text:
             return v
-    return 0
+    # 无法识别：返回 None 而非 0，防止静默忽略服药记录 (CWE-755)
+    return None
 
 
 class MedicationManager:
@@ -114,8 +123,21 @@ class MedicationManager:
         with self._lock:
             try:
                 # 使用 _parse_dosage 支持中文数字（如"两片"、"半片"）
-                dose = float(_parse_dosage(dosage_str))
+                parsed = _parse_dosage(dosage_str)
+                if parsed is None:
+                    # 安全修复 (CWE-755): 无法解析剂量时记录告警而非静默忽略
+                    # 避免老人实际服药但系统因解析失败而未记录
+                    self.logger.warning(
+                        f"药品消耗失败: 无法解析剂量 '{dosage_str}' (药品: {med_name})，"
+                        "请检查剂量格式是否正确"
+                    )
+                    return False
+                dose = float(parsed)
                 if dose <= 0:
+                    self.logger.warning(
+                        f"药品消耗失败: 解析后剂量为 {dose} (药品: {med_name})，"
+                        "剂量必须为正数"
+                    )
                     return False
 
                 for med in self.medications:
