@@ -13,8 +13,6 @@ from datetime import datetime
 import requests
 from requests.exceptions import (
     ConnectionError as RequestsConnectionError,
-    ConnectTimeout,
-    ReadTimeout,
     Timeout,
 )
 

@@ -12,8 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from app.core.dependencies import get_db, get_current_user
-from app.models.user import User
+from app.core.dependencies import get_db
 from app.core.security import mask_device_id
 from app.models.medication_plan import MedicationPlan
 from app.models.ai_query_log import AIQueryLog

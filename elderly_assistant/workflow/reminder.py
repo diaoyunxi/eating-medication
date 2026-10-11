@@ -2,7 +2,7 @@
 """用药提醒工作流：提醒状态机、计划轮询线程、心跳线程、触发检测（纯逻辑，无硬件依赖）。"""
 import logging
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime
 
 logger = logging.getLogger("ElderlyAssistant")
 

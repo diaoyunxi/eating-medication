@@ -9,7 +9,6 @@
 5. 后续请求由 auth_middleware 转发 JWT 到 server /api/v1/users/me 验证
 """
 
-import os
 import httpx
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
