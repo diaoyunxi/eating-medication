@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """reset_runtime 单元测试。
 
 验证 ``--reset`` 的运行时数据清理逻辑：
@@ -19,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from updater import reset_runtime_data, _is_preserved  # noqa: E402
+from updater import _is_preserved, reset_runtime_data  # noqa: E402
 
 
 class TestIsPreserved(unittest.TestCase):

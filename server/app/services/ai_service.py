@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
-from typing import Optional
-from app.core.config import settings
-from collections import OrderedDict
+import asyncio
 import logging
 import threading
-import asyncio
+from collections import OrderedDict
+from typing import Optional
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 

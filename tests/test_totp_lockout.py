@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """TOTP 校验失败锁定回归测试。
 
 守护 /auth/totp/verify 的按令牌失败锁定（修复 P3-2）：
@@ -19,8 +18,8 @@ os.environ.setdefault("SECRET_KEY", "unit-test-secret-key-not-for-production-012
 os.environ.setdefault("DEBUG", "true")
 
 try:
-    from fastapi import HTTPException
     from app.api.v1.endpoints import totp as totp_mod
+    from fastapi import HTTPException
     _HAVE = True
 except Exception:  # pragma: no cover
     _HAVE = False

@@ -1,7 +1,7 @@
-﻿# -*- coding: utf-8 -*-
-from typing import Optional
+﻿from typing import Optional
 
 from pydantic import BaseModel, Field
+
 
 class AIQuestion(BaseModel):
     """AI 健康助手提问请求"""

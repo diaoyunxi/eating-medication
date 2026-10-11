@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """老人端 HTTPClient 心跳超时解析测试（无网络/硬件依赖）。
 
 PR #45：heartbeat_timeout 仅接受有限正数，拒绝 inf/-inf/nan/非数值/非正值，

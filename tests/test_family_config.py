@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """family_monitor 配置校验纯逻辑测试。"""
 import importlib.util
 import os

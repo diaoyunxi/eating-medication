@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """app.utils.validators 单元测试（unittest 风格，与现有测试套件一致）。
 
 覆盖：手机号 / 用户名 / 密码 / 时间格式四类校验器的正常、边界与非法输入。
@@ -10,11 +9,11 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from app.utils.validators import (
-    is_valid_phone,
-    is_valid_username,
-    is_valid_password,
-    is_valid_time_format,
     is_valid_email,
+    is_valid_password,
+    is_valid_phone,
+    is_valid_time_format,
+    is_valid_username,
 )
 
 

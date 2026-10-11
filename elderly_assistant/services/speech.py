@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """语音播报服务（老人端 M10）。
 
 TTS 引擎优先级：
@@ -18,8 +17,8 @@ import subprocess
 import tempfile
 import threading
 import time
-from utils.logger import setup_logger
 
+from utils.logger import setup_logger
 
 # edge-tts 使用的中文神经语音
 EDGE_TTS_VOICE = "zh-CN-XiaoxiaoNeural"

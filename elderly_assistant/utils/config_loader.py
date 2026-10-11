@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """配置加载模块 - 单一 .env 配置源（统一为扁平 .env）
 
 所有老人端配置统一从 elderly_assistant/.env 读取（与 server / family_monitor 一致），

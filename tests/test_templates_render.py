@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """阶段C step4 模板抽取后的渲染冒烟测试。
 
 用应用自身的 Jinja2Templates 环境渲染每个模板（含 base.html 继承链），

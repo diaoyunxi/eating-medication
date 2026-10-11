@@ -1,9 +1,10 @@
-# -*- coding: utf-8 -*-
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
+
 from jose import jwt
 from jose.exceptions import JWTError
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, Optional
-import secrets
+
 from app.core.config import settings
 
 # 密码哈希/验证统一委托 common.security，消除重复实现。
@@ -11,8 +12,8 @@ from app.core.config import settings
 # 比 server 本地实现更健壮。
 from common.security import (
     hash_password,
-    verify_password,
     mask_device_id,
+    verify_password,
 )
 
 # 当前使用 HS256 对称加密，适用于单服务部署。

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """server/app/utils/rate_limit.py 单元测试。
 
 mock 时间以验证滑动窗口限流：放行、超限拦截、窗口过期重置。

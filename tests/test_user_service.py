@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """UserService 单元测试（通知偏好设置存取）。
 
 依赖通过内存 SQLite 真实建表验证通知设置的保存与解析。
@@ -15,13 +14,12 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("APP_SKIP_ENV_FILE", "1")
 
 try:
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-
     from app.core.database import Base
     from app.models.user import User
     from app.schemas.user import UserOut, UserUpdate
     from app.services.user_service import UserService
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
 
     _HAVE = True
 except Exception:  # pragma: no cover

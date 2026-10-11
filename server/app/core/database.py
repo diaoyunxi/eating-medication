@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """数据库连接与引擎管理
 
 支持多种数据库后端（通过 settings.DATABASE_URL 切换）：
@@ -20,10 +19,11 @@ from datetime import timezone
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
-from sqlalchemy import create_engine, text, pool
+from sqlalchemy import create_engine, pool, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.types import TypeDecorator, DateTime
+from sqlalchemy.types import DateTime, TypeDecorator
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)

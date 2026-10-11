@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 定时任务：每天扫描低库存药品并推送通知
 使用 AsyncIOScheduler，任务函数为 async，可直接 await 异步通知。
@@ -12,17 +11,18 @@ HTTP 请求（设备注册、TOTP、登录等）被卡住排队，表现为全�
 现把「查 + 写」的同步部分抽成独立函数，通过 run_in_threadpool 在后台线程执行，
 仅在事件循环线程发出异步通知，从而彻底释放事件循环。
 """
+import logging
+from datetime import datetime, timedelta, timezone
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-import logging
-from datetime import datetime, timezone, timedelta
-
 from fastapi.concurrency import run_in_threadpool
+
 from app.core.database import SessionLocal
-from app.utils.datetime_utils import hhmm_to_today
 from app.models.medication_plan import MedicationPlan
 from app.models.medication_record import MedicationRecord
 from app.models.user import User
+from app.utils.datetime_utils import hhmm_to_today
 from app.websocket.notifier import notifier
 
 logger = logging.getLogger(__name__)

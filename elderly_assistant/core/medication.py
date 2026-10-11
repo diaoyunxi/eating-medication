@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 import json
 import os
 import threading
 from datetime import datetime
+
 from utils.logger import setup_logger
 
 # 中文数字映射，用于解析中文剂量（如"两片"、"半片"）

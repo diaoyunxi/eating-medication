@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """common.envfile 共享 .env 读写工具单元测试。
 
 覆盖三端统一后复用的方法：write_env_text（写+600 权限）、ensure_env_template
@@ -11,10 +10,10 @@ import unittest
 from pathlib import Path
 
 from common.envfile import (
-    write_env_text,
     ensure_env_template,
     read_env_dict,
     update_env_fields,
+    write_env_text,
 )
 
 

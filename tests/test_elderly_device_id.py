@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """elderly_assistant 设备 ID 纯逻辑测试。
 
 设备 ID 直接取 `uuid.getnode()`（网卡 MAC 地址整数值），

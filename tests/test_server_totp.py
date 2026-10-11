@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """server 端 TOTP 端点回归测试。
 
 守护 totp.py 中 encrypt/decrypt 调用名：曾误写为不存在的

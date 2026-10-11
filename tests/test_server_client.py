@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """common.server_client.BaseServerClient 单元测试（纯逻辑 + httpx 替身，无外部依赖）。"""
 import asyncio
 import sys
@@ -12,8 +11,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from common.server_client import (
     BaseServerClient,
-    encode_device_id,
     _is_httpx_transient_error,
+    encode_device_id,
 )
 
 

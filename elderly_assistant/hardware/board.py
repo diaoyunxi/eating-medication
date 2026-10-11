@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """板级硬件访问（行空板 M10 / pinpong）。
 
 集中封装 pinpong Board 初始化与按钮/LED/光线传感器句柄获取，供 main /

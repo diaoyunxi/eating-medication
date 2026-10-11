@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 通用安全工具：密码哈希、JWT 令牌、设备 ID 脱敏。
 与 server/app/core/security.py 对外接口兼容，但配置通过参数（而非模块级 import）注入。
@@ -8,8 +7,9 @@
 - JWT 配置（secret_key/algorithm/expire_minutes）通过调用方传入，
   而非在 common 内部 import settings，避免反向依赖
 """
-import bcrypt
 import secrets
+
+import bcrypt
 
 try:
     # bcrypt 的 Rust 绑定（pyo3）对畸形/损坏的哈希会触发原生 panic，
