@@ -406,14 +406,14 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
     </div>
 
     <script>
-        // 配网 Token，由服务端生成并嵌入；所有 POST 请求需携带以防未授权请求
-        TOKEN = os.environ.get("TOKEN", "")  # Was hardcoded
+        // 配网 Token，由服务端在渲染 HTML 时通过 __CONFIG_TOKEN__ 占位符注入
+        var TOKEN = "__CONFIG_TOKEN__";
 
         function scanWiFi() {
             const btn = document.getElementById('scanBtn');
             btn.disabled = true;
             btn.textContent = '扫描中...';
-            fetch('/api/scan')
+            fetch('/api/scan', { headers: { 'X-Config-Token': TOKEN } })
                 .then(res => res.json())
                 .then(data => {
                     if (data.status === 'ok') displayWiFiList(data.networks);
@@ -464,7 +464,7 @@ class WiFiConfigHandler(BaseHTTPRequestHandler):
 
             fetch('/api/connect', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Config-Token': CONFIG_TOKEN },
+                headers: { 'Content-Type': 'application/json', 'X-Config-Token': TOKEN },
                 body: JSON.stringify({ ssid: ssid, password: password, server_url: serverUrl })
             })
             .then(res => res.json())
