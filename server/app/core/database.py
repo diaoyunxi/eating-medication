@@ -135,7 +135,11 @@ def ensure_database_exists(database_url: str = None):
             logger.info(f"数据库 '{db_name}' 已存在")
         else:
             logger.info(f"未检测到数据库 '{db_name}'，正在自动创建...")
-            # CREATE DATABASE 不支持参数化，数据库名来自配置、仅做标识符引用
+            # CREATE DATABASE 不支持参数化，先统一校验数据库名，防止 SQL 注入
+            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', db_name):
+                raise ValueError(
+                    f"数据库名 '{db_name}' 包含非法字符，仅允许字母、数字和下划线"
+                )
             with admin_engine.connect().execution_options(
                 isolation_level="AUTOCOMMIT"
             ) as conn:
@@ -147,11 +151,6 @@ def ensure_database_exists(database_url: str = None):
                         )
                     )
                 else:  # postgresql
-                    # 校验数据库名仅含合法标识符，防止 SQL 注入
-                    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', db_name):
-                        raise ValueError(
-                            f"数据库名 '{db_name}' 包含非法字符，仅允许字母、数字和下划线"
-                        )
                     conn.execute(text(f'CREATE DATABASE "{db_name}"'))
             logger.info(f"已自动创建数据库 '{db_name}'")
         admin_engine.dispose()
