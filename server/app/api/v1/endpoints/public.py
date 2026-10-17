@@ -390,7 +390,7 @@ async def update_device_medication_plan(
     try:
         plan = await run_in_threadpool(MedicationService.update_plan, db, plan_id, owner.id, plan_data)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise HTTPException(status_code=404, detail="计划不存在或无权访问") from e
 
     logger.info(
         f"家属为设备 {mask_device_id(req.device_id or '')} 更新用药计划 {plan_id}: {req.drug_name}"
