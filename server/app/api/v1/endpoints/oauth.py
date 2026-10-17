@@ -15,7 +15,6 @@ authorization_code 换取 access_token，并借助 FastAPIOAuth20 回调依赖�
 import secrets
 import logging
 from typing import Any, Optional
-from urllib.parse import quote
 
 import asyncio
 import httpx
@@ -36,7 +35,6 @@ from app.core.config import settings
 from app.core.security import (
     create_oauth_state_token,
     verify_oauth_state_token,
-    create_oauth_pending_token,
     create_access_token,
     decode_token,
 )
@@ -361,7 +359,6 @@ async def oauth_bind_start(request: Request) -> JSONResponse:
     再 302 到 /auth/oauth/{provider}/bind（无 token 参数），由 _bind_authorize
     从 cookie 读取并完成第三方跳转。
     """
-    family_settings = f"{settings.FAMILY_WEB_URL}/settings"
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         return JSONResponse(status_code=401, content={"success": False, "message": "缺少登录凭证"})
