@@ -13,8 +13,6 @@ from datetime import datetime
 import requests
 from requests.exceptions import (
     ConnectionError as RequestsConnectionError,
-    ConnectTimeout,
-    ReadTimeout,
     Timeout,
 )
 
@@ -183,7 +181,7 @@ class HTTPClient:
         safe_body = self._redact_body(kwargs.get("json"))
         logger.log(log_level, "[HTTP请求] %s %s | 请求头=%s | 请求体=%s",
                    method, url, safe_headers, safe_body)
-        last_exc = None
+
         for attempt in range(retries + 1):
             try:
                 resp = requests.request(method, url, **kwargs)
@@ -541,7 +539,7 @@ class HTTPClient:
                 return result.get('answer', '抱歉，AI 没有返回答案')
             else:
                 return f'抱歉，AI 服务出错了 (状态码: {resp.status_code})'
-        except Exception as e:
+        except Exception:
             return '抱歉，AI 服务暂时不可用，请稍后重试'
 
     def get_device_id(self):

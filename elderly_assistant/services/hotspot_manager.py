@@ -9,7 +9,6 @@
 """
 import logging
 import subprocess
-import time
 import secrets
 
 logger = logging.getLogger("ElderlyAssistant")
@@ -62,7 +61,7 @@ class HotspotManager:
                 if sys.stdout.isatty():
                     print(f"[热点] SSID: {self.ssid}  密码: {self.password}")
                 else:
-                    logger.info(f"热点密码已生成（非交互式终端，密码未输出到 stdout）")
+                    logger.info("热点密码已生成（非交互式终端，密码未输出到 stdout）")
                 logger.info(
                     f"用户连接后可访问 http://{self.ip}:{self.web_port} 进行配网"
                 )
