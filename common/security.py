@@ -89,6 +89,5 @@ def create_access_token(
 def decode_token(token: str, secret_key: str, algorithm: str = "HS256") -> Dict[str, Any]:
     """解码 JWT token"""
     from jose import jwt
-    from jose.exceptions import JWTError as _JWTError
 
     return jwt.decode(token, secret_key, algorithms=[algorithm])
