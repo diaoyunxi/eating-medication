@@ -364,7 +364,7 @@ def _verify_release_attestation(file_path, repo="diaoyunxi/eating-medication"):
         proc = subprocess.run(
             ["gh", "attestation", "verify", str(file_path), "--repo", repo,
              "--signer-workflow", "github.com/diaoyunxi/eating-medication/.github/workflows/python-app.yml"],
-            capture_output=True, text=True, timeout=60
+            check=False, capture_output=True, text=True, timeout=60
         )
         if proc.returncode == 0:
             logger.info("[更新检查] Release Attestation 验证通过")
@@ -590,7 +590,7 @@ def _restart_services():
         cmd = ["sudo", "-n"] + cmd
     logger.info(f"[更新] 即将重启服务以应用新版本: {', '.join(service_names)}")
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        proc = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=120)
         if proc.returncode == 0:
             logger.info(f"[更新] 已向 systemd 提交重启请求: {', '.join(service_names)}")
             return True
@@ -637,7 +637,7 @@ def _run_post_update_cmd():
     try:
         proc = subprocess.run(
             _args,
-            capture_output=True,
+            check=False, capture_output=True,
             text=True,
             timeout=300,
             cwd=str(Path(__file__).resolve().parent),
@@ -758,7 +758,7 @@ def _reset_via_git(repo_root: Path, deleted: list, skipped: list) -> bool:
         out = subprocess.run(
             ["git", "status", "--porcelain", "--ignored"],
             cwd=str(repo_root),
-            capture_output=True,
+            check=False, capture_output=True,
             text=True,
             timeout=60,
         )

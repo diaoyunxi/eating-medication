@@ -122,7 +122,7 @@ def check_and_install_dependencies():
     try:
         result = subprocess.run(
             [str(venv_python), root_install, req_path],
-            capture_output=False,
+            check=False, capture_output=False,
             text=True,
             cwd=project_root,
         )
