@@ -52,7 +52,7 @@ def _write_full_env(env_path: Path, secret_key: str):
         f"# 路径前缀（基础必填，允许为空=本地直连；隧道部署须与隧道路由一致并以 / 开头）\n"
         f"PATH_PREFIX=/eating-medication/server\n"
         f"# 服务监听地址与端口\n"
-        f"SERVER_HOST=0.0.0.0\n"
+        f"SERVER_HOST=127.0.0.1\n"
         f"SERVER_PORT=1059\n"
         f"# 数据库地址（基础必填）\n"
         f"# 默认 SQLite 本地单文件：sqlite:///./data/elderly_care.db\n"
@@ -123,7 +123,7 @@ def _write_full_env(env_path: Path, secret_key: str):
 # 已存在 .env 但需要补齐的「必填 / 重要」字段：键 -> (注释行列表, 默认值)
 # 这些字段在旧版「精简 .env」中缺失（如 Cloudflare Turnstile、GitHub OAuth 等）。
 _BACKFILL_FIELDS = [
-    ("SERVER_HOST", ["# ===== 服务监听 ====="], "0.0.0.0"),
+    ("SERVER_HOST", ["# ===== 服务监听 ====="], "127.0.0.1"),
     ("SERVER_PORT", [], "1059"),
     ("TURNSTILE_SECRET_KEY", [
         "# ===== Cloudflare Turnstile 人机验证 =====",
@@ -248,7 +248,7 @@ class Settings(BaseSettings):
     PATH_PREFIX: str = "/eating-medication/server"
 
     # 服务监听地址与端口（纳入 Settings 统一管理，避免 main.py 绕过配置体系）
-    SERVER_HOST: str = "0.0.0.0"
+    SERVER_HOST: str = "127.0.0.1"
     SERVER_PORT: int = 1059
 
     DATABASE_URL: str = "sqlite:///./data/elderly_care.db"
