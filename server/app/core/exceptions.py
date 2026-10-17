@@ -1,5 +1,5 @@
 ﻿# -*- coding: utf-8 -*-
-from fastapi import HTTPException, status
+from fastapi import status
 
 class BusinessError(Exception):
     """业务逻辑异常基类"""
