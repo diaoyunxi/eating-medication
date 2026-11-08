@@ -30,6 +30,6 @@ psycopg2-binary>=2.9.0
 # 第二因子 TOTP（基于时间的一次性密码）
 pyotp==2.9.0
 # TOTP 绑定二维码（SVG 渲染，无需 Pillow）
-qrcode==7.4.2
+qrcode==8.2
 # WebAuthn / Passkey 登记与断言校验
 webauthn==2.2.0
