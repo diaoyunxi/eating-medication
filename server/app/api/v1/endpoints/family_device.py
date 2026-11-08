@@ -16,7 +16,7 @@
 路由层仅负责 I/O（请求模型、Header、响应）；设备状态/计划/记录等纯逻辑
 复用 app.services.device_service.DeviceService，避免重复实现。
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional

@@ -9,8 +9,6 @@ import sys
 import os
 import re
 import subprocess
-import importlib
-import json
 import traceback
 import logging
 from pathlib import Path
