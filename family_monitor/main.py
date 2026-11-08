@@ -349,6 +349,7 @@ async def _verify_jwt_via_server(access_token: str) -> Optional[tuple]:
     :param access_token: server 签发的 JWT
     :return: 验证成功返回 (username, user_id) 元组，失败返回 None
     """
+    global _jwt_cache
     # JWT 缓存：token -> (username, user_id, expire_time)，30 秒过期
     now = time.time()
     cached = _jwt_cache.get(access_token)
