@@ -12,6 +12,7 @@ CI 工作流 `.github/workflows/python-app.yml` 在仓库根执行 `pytest`，
 `tests/_helpers.load_module()` 按文件路径加载为唯一模块名。
 """
 import os
+import secrets
 import sys
 from pathlib import Path
 
@@ -28,7 +29,7 @@ if str(REPO_ROOT) not in sys.path:
 
 # 测试环境变量（覆盖真实配置，避免外部依赖）
 os.environ.setdefault("ENVIRONMENT", "test")
-os.environ.setdefault("SECRET_KEY", "test-secret-key-for-ci-not-for-prod")
+os.environ.setdefault("SECRET_KEY", "test-" + secrets.token_hex(16))
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
