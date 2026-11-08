@@ -594,7 +594,7 @@ def _restart_services():
         if proc.returncode == 0:
             logger.info(f"[更新] 已向 systemd 提交重启请求: {', '.join(service_names)}")
             return True
-        logger.warning("[更新] 重启服务失败(rc=%s): {proc.stderr.strip()}", proc.returncode)
+        logger.warning("[更新] 重启服务失败(rc=%s): %s", proc.returncode, proc.stderr.strip() if proc.stderr else "")
         if os.geteuid() != 0:
             logger.warning("[更新] 普通用户重启失败，请确认部署时已配置免密 sudoers（见 deploy/setup.sh）")
         return False
@@ -645,7 +645,7 @@ def _run_post_update_cmd():
         if proc.returncode != 0:
             # 仅输出返回码与错误摘要，不回显命令内容、不打印 stdout（可能含敏感信息）
             err_tail = (proc.stderr or "").strip().splitlines()[-1:] or [""]
-            logger.warning("[更新] POST_UPDATE_CMD 返回非0(%s)，末行错误: {err_tail[0]}", proc.returncode)
+            logger.warning("[更新] POST_UPDATE_CMD 返回非0(%s)，末行错误: %s", proc.returncode, err_tail[0])
         else:
             logger.info("[更新] POST_UPDATE_CMD 执行完成")
     except subprocess.TimeoutExpired:
