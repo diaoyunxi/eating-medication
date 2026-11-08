@@ -1,3 +1,5 @@
+> [← 返回文档目录](../README.md) ｜ 原文件：`history.md`。
+
 # 项目开发历史记录
 
 > 本文件依据 git 实际提交历史整理：每个版本取「本版本号最后一次提交」与「上一版本号最后一次提交」的 git diff 作为该版本相对上一版本的全部改动。
@@ -2147,6 +2149,3 @@ python main.py
     requirements.txt，确保缺失时能被 `common/install.py` 真正安装（此前仅为注释）。
   - 系统级原生包 `apt-get install` 列表新增 `mbrola mbrola-cn1`（pyttsx3 中文语音）
     与 `mpg123`（edge-tts 的 MP3 播放器），与既有安装逻辑一致、失败不影响主流程。
-
-
-
