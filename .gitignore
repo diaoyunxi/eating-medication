@@ -80,3 +80,16 @@ htmlcov/
 _*
 # Ruff linter cache
 .ruff_cache/
+
+# 嵌套仓库目录（本地审查/开发残留，不应提交到本仓库）
+eating-medication-f/
+html-injector/
+https-smb-server/
+mail-command-server/
+media-on-terminal/
+new-system-config/
+price-comparator-tracker/
+web-action/
+web-reminder/
+web-search-server/
+github-codespaces-proxy/
