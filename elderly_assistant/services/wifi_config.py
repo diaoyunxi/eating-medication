@@ -15,7 +15,6 @@ import json
 import subprocess
 import threading
 import time
-import re
 import secrets
 import html
 from http.server import HTTPServer, BaseHTTPRequestHandler
