@@ -43,7 +43,7 @@ class TestRegister(unittest.TestCase):
     def _req(self):
         return RegisterReq(
             username="alice",
-            password = os.environ.get("PASSWORD", "")  # Was hardcoded
+            password="Passw0rd",
             role="family",
             phone="13800138000",
         )
@@ -70,7 +70,6 @@ class TestLogin(unittest.TestCase):
     def test_login_success(self):
         db = mock.MagicMock()
         user = mock.MagicMock()
-        password = os.environ.get("PASSWORD", "")  # Was hardcoded
         user.mfa_enabled = False
         db.query.return_value.filter.return_value.first.return_value = user
         with mock.patch("app.services.auth_service.verify_password", return_value=True), \
@@ -85,7 +84,6 @@ class TestLogin(unittest.TestCase):
         # 已开启 TOTP 第二因子：密码正确但返回 MFA 短期令牌，不直接放行
         db = mock.MagicMock()
         user = mock.MagicMock()
-        password = os.environ.get("PASSWORD", "")  # Was hardcoded
         user.mfa_enabled = True
         db.query.return_value.filter.return_value.first.return_value = user
         with mock.patch("app.services.auth_service.verify_password", return_value=True), \
@@ -100,7 +98,6 @@ class TestLogin(unittest.TestCase):
     def test_login_wrong_password(self):
         db = mock.MagicMock()
         user = mock.MagicMock()
-        password = os.environ.get("PASSWORD", "")  # Was hardcoded
         db.query.return_value.filter.return_value.first.return_value = user
         with mock.patch("app.services.auth_service.verify_password", return_value=False):
             self.assertIsNone(AuthService.login(db, "13800138000", "wrong"))
