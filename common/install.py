@@ -32,6 +32,7 @@
 GitHub 下载代理统一读取仓库根目录 .env 的 GITHUB_PROXY 字段（与 updater.py / common.envfile 共用）。
 """
 
+import contextlib
 import sys
 import os
 import subprocess
