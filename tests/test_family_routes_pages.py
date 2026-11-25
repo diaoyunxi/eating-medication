@@ -156,7 +156,8 @@ class FakeTemplates:
     仅记录被渲染的模板名并返回 200，从而覆盖路由中“取数→渲染”的完整分支。
     """
 
-    def TemplateResponse(self, name, context):
+    def TemplateResponse(self, request, name, context=None, **kwargs):
+        # 与 starlette>=0.29 的 Jinja2Templates.TemplateResponse(request, name, context) 保持一致
         return Response(content=f"<html data-tpl=\"{name}\"></html>",
                         media_type="text/html")
 
