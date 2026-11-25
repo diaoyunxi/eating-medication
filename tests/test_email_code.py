@@ -31,8 +31,12 @@ except Exception:  # pragma: no cover
 @unittest.skipUnless(_HAVE, "需要 sqlalchemy / pydantic-settings（当前环境未安装）")
 class TestEmailCode(unittest.TestCase):
     def setUp(self):
-        # 每个用例前清空进程内存储，避免相互污染
+        # 每个用例前清空进程内存储与限流计数，避免用例间相互污染：
+        # _store / _send_tracker / _verify_tracker 都是模块级全局状态，
+        # 冷却窗口(_SEND_COOLDOWN=60s)不清零会让后续用例直接拿到「发送过于频繁」。
         email_code._store.clear()
+        email_code._send_tracker.clear()
+        email_code._verify_tracker.clear()
 
     def test_send_code_success_stores(self):
         # 模拟发信成功
@@ -93,6 +97,24 @@ class TestEmailCode(unittest.TestCase):
             code = email_code._store["a@b.com"][0]
         # 真实时间远大于过期时间，校验应失败
         self.assertFalse(email_code.verify_code("a@b.com", code))
+
+    def test_send_cooldown_blocks_second_send(self):
+        """限流契约：冷却窗口内重复发送被拒绝，且不覆盖首次生成的验证码。"""
+        with mock.patch.object(email_code, "_send_email", return_value=(True, "")):
+            ok1, _msg = email_code.send_code("a@b.com")
+            first = email_code._store["a@b.com"][0]
+            ok2, msg2 = email_code.send_code("a@b.com")
+        self.assertTrue(ok1)
+        self.assertFalse(ok2)
+        self.assertIn("频繁", msg2)
+        self.assertEqual(email_code._store["a@b.com"][0], first)
+
+    def test_empty_email_does_not_consume_send_quota(self):
+        """入参校验早于限流：空邮箱不应在 _send_tracker 里留下记录。"""
+        ok, msg = email_code.send_code("")
+        self.assertFalse(ok)
+        self.assertIn("不能为空", msg)
+        self.assertEqual(len(email_code._send_tracker), 0)
 
     def test_verify_empty_args(self):
         # 空邮箱或空验证码直接返回失败，不抛异常

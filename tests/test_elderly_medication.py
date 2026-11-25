@@ -22,7 +22,8 @@ class TestParseDosage(unittest.TestCase):
         self.assertEqual(medication._parse_dosage("每天1次"), 1)
         self.assertEqual(medication._parse_dosage("2片"), 2)
         self.assertEqual(medication._parse_dosage("第10次"), 10)
-        self.assertEqual(medication._parse_dosage("每日1.5片"), 1)
+        # 实现显式「先匹配小数」，1.5 片不应被截断成 1 片
+        self.assertEqual(medication._parse_dosage("每日1.5片"), 1.5)
 
     def test_chinese(self):
         self.assertEqual(medication._parse_dosage("三次"), 3)
@@ -31,8 +32,9 @@ class TestParseDosage(unittest.TestCase):
         self.assertEqual(medication._parse_dosage("半片"), 0.5)
 
     def test_invalid(self):
-        self.assertEqual(medication._parse_dosage(""), 0)
-        self.assertEqual(medication._parse_dosage("abc"), 0)
+        # 契约：无法识别返回 None（而非 0），避免老人漏服药被系统静默记成 0 剂量
+        self.assertIsNone(medication._parse_dosage(""))
+        self.assertIsNone(medication._parse_dosage("abc"))
 
 
 @unittest.skipIf(medication is None, "pyyaml not installed")
