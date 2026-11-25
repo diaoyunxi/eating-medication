@@ -181,7 +181,13 @@ class TestVerifyReleaseAttestation(unittest.TestCase):
         updater.shutil.which = lambda x: "/usr/bin/gh" if x == "gh" else None
         try:
             updater._verify_release_attestation("/tmp/test.zip", repo="test/repo")
-            self.assertEqual(captured["args"], ["gh", "attestation", "verify", "/tmp/test.zip", "--repo", "test/repo"])
+            # 实现额外用 --signer-workflow 锁定签发方，防止其它仓库的合法 attestation 被冒用
+            self.assertEqual(
+                captured["args"],
+                ["gh", "attestation", "verify", "/tmp/test.zip", "--repo", "test/repo",
+                 "--signer-workflow",
+                 "github.com/diaoyunxi/eating-medication/.github/workflows/python-app.yml"],
+            )
             self.assertTrue(captured["capture_output"])
             self.assertTrue(captured["text"])
             self.assertEqual(captured["timeout"], 60)
@@ -340,7 +346,7 @@ class TestLoadPostUpdateCmd(unittest.TestCase):
 
 
 class TestRunPostUpdateCmd(unittest.TestCase):
-    """测试 _run_post_update_cmd：更新成功后以 shell 执行 POST_UPDATE_CMD。"""
+    """测试 _run_post_update_cmd：更新成功后以参数列表（非 shell）执行 POST_UPDATE_CMD。"""
 
     def _call_with(self, cmd, mock_run):
         orig_cmd = updater._POST_UPDATE_CMD
@@ -373,8 +379,9 @@ class TestRunPostUpdateCmd(unittest.TestCase):
                               "timeout": k.get("timeout")})
             return _Result()
         self._call_with("python -m alembic upgrade head", fake_run)
-        self.assertEqual(captured["cmd"], "python -m alembic upgrade head")
-        self.assertTrue(captured["shell"])
+        # 契约：shlex 拆成参数列表 + 不开 shell，消除命令注入面 (CWE-78)
+        self.assertEqual(captured["cmd"], ["python", "-m", "alembic", "upgrade", "head"])
+        self.assertFalse(captured["shell"])
         self.assertIsNotNone(captured["cwd"])
         self.assertEqual(captured["timeout"], 300)
 

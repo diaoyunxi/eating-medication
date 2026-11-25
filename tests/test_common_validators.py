@@ -12,9 +12,11 @@ from common.validators import (
 
 
 class TestIsValidPhone(unittest.TestCase):
-    def test_none_or_empty_returns_true(self):
-        self.assertTrue(is_valid_phone(None))
-        self.assertTrue(is_valid_phone(""))
+    def test_none_or_empty_returns_false(self):
+        # common.validators 的契约：空值一律 False，允许为空的调用方需自行先判空
+        # （注意：server/app/utils/validators.py 里的同名旧实现是「空值 True」，两者刻意不同）
+        self.assertFalse(is_valid_phone(None))
+        self.assertFalse(is_valid_phone(""))
 
     def test_valid(self):
         self.assertTrue(is_valid_phone("13800138000"))

@@ -33,10 +33,6 @@ def _gen_code():
 
 
 def send_code(email):
-    # 频率限制
-    allowed, reason = check_send_rate(email)
-    if not allowed:
-        return False, reason
     """生成并发送邮箱验证码。
 
     :param email: 目标邮箱
@@ -45,6 +41,10 @@ def send_code(email):
     if not email:
         return False, "邮箱不能为空"
     email = email.strip().lower()
+    # 频率限制放在入参校验之后：空邮箱不消耗发送配额，也不会写入 _send_tracker 留下脏记录
+    allowed, reason = check_send_rate(email)
+    if not allowed:
+        return False, reason
     code = _gen_code()
     _store[email] = (code, time.time() + _CODE_TTL, 0)
     logger.info(f"[邮箱验证码] 已为 {email} 生成验证码（{_CODE_TTL}s 有效）")
@@ -56,10 +56,6 @@ def send_code(email):
 
 
 def verify_code(email, code):
-    # 频率限制
-    allowed, reason = check_verify_rate(email)
-    if not allowed:
-        return False
     """校验验证码，校验成功后立即失效（一次性使用）。
 
     防暴力破解：每个验证码最多允许 {_MAX_ATTEMPTS} 次尝试，超过后自动失效。
@@ -71,6 +67,10 @@ def verify_code(email, code):
     if not email or not code:
         return False
     email = email.strip().lower()
+    # 同上：先判空再计配额
+    allowed, reason = check_verify_rate(email)
+    if not allowed:
+        return False
     item = _store.get(email)
     if not item:
         return False

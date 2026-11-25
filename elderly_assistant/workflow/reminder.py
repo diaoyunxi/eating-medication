@@ -244,6 +244,11 @@ def check_medication_trigger(now, poller, reminder_state, buzzer, display, logge
                     # CodeRabbit 修复：用真实当前时间 now（含秒）计算补触发窗口，
                     # 而非仅比较 HH:MM 字符串，避免跨分钟边界误差导致漏/误触发。
                     sched_dt = datetime.strptime(f"{today} {t}", "%Y-%m-%d %H:%M")
+                    # now 可能是 tz-aware（上游用 datetime.now(timezone.utc)），而 strptime 返回
+                    # naive，两者直接相减会抛 TypeError 并被本函数的外层 except 吞掉，
+                    # 表现为补触发静默失效（#41 复发）。按 now 的 tzinfo 对齐后再相减。
+                    if getattr(now, "tzinfo", None) is not None:
+                        sched_dt = sched_dt.replace(tzinfo=now.tzinfo)
                     delta = (now - sched_dt).total_seconds()
                     if 0 < delta <= CATCHUP_GRACE_SECONDS:
                         logger.info(f"补触发已过用药提醒(轮询延迟): {t}（距今 {int(delta)} 秒）")

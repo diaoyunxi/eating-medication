@@ -369,7 +369,10 @@ async def _verify_jwt_via_server(access_token: str) -> Optional[tuple]:
             user_id = data.get("id")
             # 缓存 30 秒
             # 清理过期条目，防止缓存无限增长 (CWE-770)
-            _jwt_cache = {k: v for k, v in _jwt_cache.items() if v[2] > now}
+            # 原地增删，不要重新绑定 _jwt_cache：否则该名称会变成函数局部变量，
+            # 导致函数开头 _jwt_cache.get(access_token) 抛 UnboundLocalError
+            for stale in [k for k, v in _jwt_cache.items() if v[2] <= now]:
+                _jwt_cache.pop(stale, None)
             _jwt_cache[access_token] = (username, user_id, now + 30)
             return (username, user_id)
         else:

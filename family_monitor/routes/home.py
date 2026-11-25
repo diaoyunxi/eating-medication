@@ -27,6 +27,7 @@ async def index(request: Request):
     dashboard_data = await fc.get_dashboard_data()
 
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
             "request": request,
@@ -71,6 +72,7 @@ async def get_reminders(request: Request):
     device_info = await fc.get_device_info()
 
     return templates.TemplateResponse(
+        request,
         "reminders.html",
         {
             "request": request,
@@ -93,6 +95,7 @@ async def get_records(request: Request):
     device_info = await fc.get_device_info()
 
     return templates.TemplateResponse(
+        request,
         "records.html",
         {
             "request": request,
@@ -131,6 +134,7 @@ async def get_dashboard(request: Request):
     dashboard_data = await fc.get_dashboard_data()
 
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
             "request": request,
@@ -167,7 +171,7 @@ async def get_settings(request: Request):
     else:
         bound_device = None
 
-    return templates.TemplateResponse("settings.html", {
+    return templates.TemplateResponse(request, "settings.html", {
             "request": request,
             "app_name": config.APP_NAME,
             "status": status,
@@ -236,7 +240,7 @@ async def elderly_manage(request: Request):
     fc = family_client(request) or elderly_client
     status = await elderly_client.get_server_status()
     elderly_list = await fc.list_elderly()
-    return templates.TemplateResponse("elderly_manage.html", {
+    return templates.TemplateResponse(request, "elderly_manage.html", {
         "request": request,
         "app_name": config.APP_NAME,
         "status": status,
@@ -312,7 +316,7 @@ async def medication_settings(request: Request):
         _grouped.setdefault(_key, []).append(_p)
     plan_groups = [{"grouper": _k, "list": _v} for _k, _v in _grouped.items()]
 
-    return templates.TemplateResponse("medication_settings.html", {
+    return templates.TemplateResponse(request, "medication_settings.html", {
         "request": request,
         "app_name": config.APP_NAME,
         "status": status,

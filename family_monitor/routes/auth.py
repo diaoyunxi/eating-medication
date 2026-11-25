@@ -99,6 +99,7 @@ async def login_page(request: Request):
     error_code = request.query_params.get("error", "")
     error_msg = _OAUTH_ERROR_MESSAGES.get(error_code, "")
     return templates.TemplateResponse(
+        request,
         "login.html",
         {"request": request, "app_name": config.APP_NAME, "error": error_msg or None},
     )
@@ -122,6 +123,7 @@ async def register_page(request: Request):
     oauth_mode = oauth == "1"
 
     return templates.TemplateResponse(
+        request,
         "register.html",
         {
             "request": request,
@@ -894,4 +896,4 @@ async def security_setup_page(request: Request):
                 context["credentials"] = creds.json()
         except Exception:
             pass
-    return templates.TemplateResponse("security_setup.html", context)
+    return templates.TemplateResponse(request, "security_setup.html", context)
